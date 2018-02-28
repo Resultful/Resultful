@@ -3,7 +3,7 @@
 namespace OneOf.ROP.Tests
 {
     [TestFixture]
-    public class OneOfAssertionTests
+    public class ROPAssertionTests
     {
 
         [Test]

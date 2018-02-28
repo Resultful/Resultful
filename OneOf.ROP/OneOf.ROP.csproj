@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard1.3</TargetFramework>
+    <TargetFrameworks>netstandard1.3; net451</TargetFrameworks>
     <AssemblyName>OneOf.ROP</AssemblyName>
+    <Authors>Ryan Kelly</Authors>
+    <RepositoryUrl>https://github.com/rtkelly13/OneOf.ROP</RepositoryUrl>
+    <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
+    <Description>Railway Oriented Programming library that is built ontop of OneOf for C#, it is based upon chessie an F# library and is intented to be idiomatic for C#.</Description>
   </PropertyGroup>
+
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>

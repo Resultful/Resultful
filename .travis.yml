@@ -1,0 +1,11 @@
+language: csharp
+mono: latest
+dotnet: 2.1.3
+sudo: enabled
+before_install:
+  - chmod +x build.sh
+script:
+  - ./build.sh
+env:
+  global:
+    secure: ME38MqdS8iRKdiXzjkIt7Eu/fnofY2y2aa6U7NFHvDylG9dvyZsw4FONx8xTlwscXUbvsWbZJmlRKxgxOy6wFuISsD9UhwQbhZghfWY2fFWcu1iHTrwjAm2n/lt7icmEbj0XQni48kuPW6sgc7Z0RkdH8AHxvYdzQxp+fMkP5rAN/03g2qYuXFly0/E6ibb+kzoESrEQNL1eiJrOtDTOGIFiaIin42cqDcIzrc46YsPCMzhGY7XVDgmlVYzliClsz5g/abGL0QfcvENtAu8Pa7fafEViSBdGMa+XmvWBO7OROhelqpc5OzvDLrN6QE/ufdby6dAdLs4p1EEpeIgBw4f5dfsoDT3HGHZbIrZObe1ii4HrIf66qcSL5gO6cZBjDeJvJbtRqlv7tbZmRM6j4+7kVULaIvkwjg0hEYl2xV9Ee3O7KjTAsG+XzEVd96uY8BBuO4fOWzFKiBliNa+1JpJC0gQE4nFatFLdTMPgklVnRm4lQ8FRSSgvfVFqlr1bM1OBkarHv7+Ap53u8F9pHYjeGAhslJm4H+8WrKfx7DDEgkDMxn5A+GtMcRMQQx/78bW+szAdA23xVh1ACsWwrEIcNgqNoWrNFASv38MzGhq6P7jdeGk3Vhxpc6jgDpUkLyrX2Q1Z25k+ILUwv/kVOG6G+mUMabr0WnLasDUOBUY=
