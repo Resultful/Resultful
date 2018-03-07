@@ -1,6 +1,0 @@
-type project
-id OneOf.ROP
-authors Ryan Kelly
-description
-    Railway oriented programming extension for OneOf
-licenseUrl http://opensource.org/licenses/MIT

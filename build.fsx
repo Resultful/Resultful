@@ -50,8 +50,8 @@ let nugetKeyVariable =
 // *** Define Targets ***
 Target.Create "Clean" (fun _ ->
     let projects = [
-        "./FluentAssertions.OneOf"
-        "./FluentAssertions.OneOf.Tests"
+        "./OneOf.ROP"
+        "./OneOf.ROP.Tests"
     ]
 
     let allFoledersToClean =
