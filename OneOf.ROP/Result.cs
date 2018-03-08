@@ -19,6 +19,12 @@ namespace OneOf.ROP
         public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<TError, TResult> errorFunc) =>
             _value.Match(successfulFunc, errorFunc);
 
+        public static implicit operator Result<T, TError>(TError value)
+            => value.Fail<T, TError>();
+
+        public static implicit operator Result<T, TError>(T value)
+            => value.Ok<T, TError>();
+
         public OneOf<T, TError> ToOneOf() => _value;
     }
 
@@ -47,6 +53,18 @@ namespace OneOf.ROP
             => value.Match(
                 result => result.Ok(),
                 errors => errors.Fail<T>());
+
+        public static implicit operator Result<T>(string[] value)
+            => value.Fail<T>();
+
+        public static implicit operator Result<T>(List<string> value)
+            => value.Fail<T>();
+
+        public static implicit operator Result<T>(string value)
+            => Result.Fail<T>(value);
+
+        public static implicit operator Result<T>(T value)
+            => value.Ok();
 
         public OneOf<T, IEnumerable<string>> ToOneOf() => _value;
 

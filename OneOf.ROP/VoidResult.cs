@@ -29,6 +29,12 @@ namespace OneOf.ROP
                 result => Result.Ok<TError>(),
                 error => error.Fail());
 
+        public static implicit operator VoidResult<TError>(TError value)
+            => value.Fail();
+
+        public static implicit operator VoidResult<TError>(Unit value)
+            => Result.Ok<TError>();
+
         public OneOf<Unit, TError> ToOneOf() => _value;
 
     }
@@ -78,6 +84,18 @@ namespace OneOf.ROP
             => value.Match(
                 result => Result.Ok(),
                 errors => errors.Fail());
+
+        public static implicit operator VoidResult(string[] value)
+            => Result.Fail(value);
+
+        public static implicit operator VoidResult(List<string> value)
+            => Result.Fail(value.ToArray());
+
+        public static implicit operator VoidResult(string value)
+            => Result.Fail(value);
+
+        public static implicit operator VoidResult(Unit value)
+            => value.Ok();
 
         public OneOf<Unit, IEnumerable<string>> ToOneOf() => _value;
     }

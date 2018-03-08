@@ -19,8 +19,6 @@ namespace OneOf.ROP
                 async item => (await item.ConfigureAwait(false)).Ok(),
                 errors => Task.FromResult(errors.Fail<T>()));
 
-        
-
 
         //Bind on Result<T, TErrror>
         public static Task<Result<TResult, TError>> BindAsync<TResult, T, TError>(this Result<T, TError> value, Func<T, Task<Result<TResult, TError>>> bindFunc)

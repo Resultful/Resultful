@@ -18,7 +18,6 @@ namespace OneOf.ROP
             return result;
         }
 
-
         //Bind on Result<T, TErrror>
         public static Task<Result<TResult, TError>> BindAsync<TResult, T, TError>(this Task<Result<T, TError>> value,
             Func<T, Result<TResult, TError>> bindFunc)
