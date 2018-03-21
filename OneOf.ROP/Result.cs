@@ -63,9 +63,6 @@ namespace OneOf.ROP
         public static implicit operator Result<T>(string value)
             => Result.Fail<T>(value);
 
-        public static implicit operator Result<T>(T value)
-            => value.Ok();
-
         public OneOf<T, IEnumerable<string>> ToOneOf() => _value;
 
     }

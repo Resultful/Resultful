@@ -65,7 +65,12 @@ private string BuildPlusExtensionMethod(int numberOfArgs){
         public static Result<({Join(genericArgs)}), TError>
             Plus<{Join(genericArgs)}, TError>
                 (this {Join(inputs)}, Func<TError, TError, TError> mergeFunc)
-                    => result0.Plus({Join(firstPlusArgs)}, mergeFunc).Plus({BuildResultVariable(numberOfArgs -1)}, mergeFunc).Map(Unfold);";
+                    => result0.Plus({Join(firstPlusArgs)}, mergeFunc).Plus({BuildResultVariable(numberOfArgs -1)}, mergeFunc).Map(Unfold);
+
+        public static Result<({Join(genericArgs)}), TError>
+            Plus<{Join(genericArgs)}, TError>
+                (this {Join(inputs)}) where TError : IPlus<TError>
+                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(Unfold);";
 }
 
 public string GetAssertionExtensionsContent(){
@@ -76,11 +81,15 @@ using System.Linq;
 
 namespace OneOf.ROP
 {
-    public static partial class AssertionExtensions
+    public static partial class Result
     {");
         for (var i = 3; i < 9; i++)
         {
             sb.AppendLine(BuildTupleDeconstructMethods(i));
+        }
+
+        for (var i = 3; i < 9; i++)
+        {
             sb.AppendLine(BuildPlusExtensionMethod(i));
             sb.AppendLine(BuildPlusErrorExtensionMethod(i));
         }

@@ -19,7 +19,7 @@ let getVersion inputStr =
 
 let versionToPublish  = getVersion versionFile.Version
 
-let globalTimeout = TimeSpan.FromSeconds 30.;
+let globalTimeout = TimeSpan.FromMinutes 2.;
 
 let runCommand execuatable command timeout  =
     let exitCode =
