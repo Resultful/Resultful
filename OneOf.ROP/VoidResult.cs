@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
 {
@@ -14,10 +15,10 @@ namespace OneOf.ROP
             => _value = value;
 
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<TError, TResult> errorFunc)
-            => _value.Match(successfulFunc, errorFunc);
+            => _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public void Switch(Action<Unit> successfulFunc, Action<TError> errorFunc)
-            => _value.Switch(successfulFunc, errorFunc);
+            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public static implicit operator Result<Unit, TError>(VoidResult<TError> value)
             => value.Match(
@@ -50,10 +51,10 @@ namespace OneOf.ROP
             => _value = OneOf<Unit, IEnumerable<string>>.FromT1(value);
 
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<IEnumerable<string>, TResult> errorFunc)
-            => _value.Match(successfulFunc, errorFunc);
+            => _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public void Switch(Action<Unit> successfulFunc, Action<IEnumerable<string>> errorFunc)
-            => _value.Switch(successfulFunc, errorFunc);
+            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public static implicit operator Result<Unit, IEnumerable<string>>(VoidResult value)
             => value.Match(

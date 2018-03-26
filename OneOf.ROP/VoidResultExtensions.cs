@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
 {
@@ -12,17 +13,17 @@ namespace OneOf.ROP
             => new VoidResult<TError>(value);
 
         public static VoidResult<IEnumerable<TError>> Fail<TError>(params TError[] errors)
-            => new VoidResult<IEnumerable<TError>>(errors);
+            => new VoidResult<IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
 
         public static VoidResult<TError> Ok<TError>()
             => new VoidResult<TError>(Unit.Value);
 
         //Builder for VoidResult
         public static VoidResult Fail(this IEnumerable<string> value)
-            => new VoidResult(value);
+            => new VoidResult(value ?? EmptyArray<string>.Get);
 
         public static VoidResult Fail(params string[] errors)
-            => new VoidResult(errors);
+            => new VoidResult(errors ?? EmptyArray<string>.Get);
 
         public static VoidResult Ok()
             => new VoidResult(Unit.Value);
@@ -30,11 +31,16 @@ namespace OneOf.ROP
         //Plus on VoidResult<TError>
         public static VoidResult<TError> Plus<TError>(this VoidResult<TError> left, VoidResult<TError> right, Func<TError, TError, TError> mergeFunc)
             => left.Match(
-                leftValue => right.Match(rightValue => Ok<TError>(), Fail),
-                error => right.Match(rightValue => Fail(error), otherError => Fail(mergeFunc(error, otherError)))
+                leftValue => right.Match(
+                    rightValue => Ok<TError>(), Fail
+                ),
+                error => right.Match(
+                    rightValue => Fail(error),
+                    otherError => Fail(mergeFunc.ThrowIfDefault(nameof(mergeFunc))(error, otherError))
+                )
             );
 
-        public static VoidResult<TError> Plus<TError>(this VoidResult<TError> left, VoidResult<TError> right) where TError : IPlus<TError>
+        public static VoidResult<TError> Plus<TError>(this VoidResult<TError> left, VoidResult<TError> right) where TError : IPlus<TError, TError>
             => left.Plus(right, (leftError, rightError) => leftError.Plus(rightError));
 
         //Plus on VoidResult
@@ -49,7 +55,10 @@ namespace OneOf.ROP
         public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values, Func<TError, TError, TError> mergeFunc)
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item, mergeFunc));
 
-        public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values) where TError : IPlus<TError>
+        public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values) where TError : IPlus<TError, TError>
+            => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item));
+
+        public static VoidResult<TError> Fold<TError>(params VoidResult<TError>[] values) where TError : IPlus<TError, TError>
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item));
 
         //Fold on VoidResult
@@ -58,43 +67,43 @@ namespace OneOf.ROP
 
 
         //Bind on VoidResult<TError>
-        public static VoidResult<TError> Bind<TError>(this VoidResult<TError> value, Func<VoidResult<TError>> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail());
+        public static VoidResult<TError> Bind<TError>(this VoidResult<TError> value, Func<Unit, VoidResult<TError>> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
 
-        public static VoidResult Bind(this VoidResult<IEnumerable<string>> value, Func<VoidResult> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail());
+        public static VoidResult Bind(this VoidResult<IEnumerable<string>> value, Func<Unit, VoidResult> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
 
-        public static Result<T, TError> Bind<T, TError>(this VoidResult<TError> value, Func<Result<T, TError>> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail<T, TError>());
+        public static Result<T, TError> Bind<T, TError>(this VoidResult<TError> value, Func<Unit, Result<T, TError>> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T, TError>());
 
-        public static Result<T> Bind<T>(this VoidResult<IEnumerable<string>> value, Func<Result<T>> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail<T>());
+        public static Result<T> Bind<T>(this VoidResult<IEnumerable<string>> value, Func<Unit, Result<T>> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T>());
 
         //Bind on VoidResult
-        public static VoidResult Bind(this VoidResult value, Func<VoidResult> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail());
+        public static VoidResult Bind(this VoidResult value, Func<Unit, VoidResult> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
 
-        public static Result<T> Bind<T>(this VoidResult value, Func<Result<T>> bindFunc)
-            => value.Match(x => bindFunc(), error => error.Fail<T>());
+        public static Result<T> Bind<T>(this VoidResult value, Func<Unit, Result<T>> bindFunc)
+            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T>());
 
 
         //Map on VoidResult<TError>
-        public static Result<TResult, TError> Map<TResult, TError>(this VoidResult<TError> value, Func<TResult> mapFunc)
+        public static Result<TResult, TError> Map<TResult, TError>(this VoidResult<TError> value, Func<Unit, TResult> mapFunc)
             => value.Map2(mapFunc, Id);
 
-        public static Result<TResult, TErrorResult> Map2<TResult, TError, TErrorResult>(this VoidResult<TError> value, Func<TResult> mapFunc, Func<TError, TErrorResult> errorMapFunc)
+        public static Result<TResult, TErrorResult> Map2<TResult, TError, TErrorResult>(this VoidResult<TError> value, Func<Unit, TResult> mapFunc, Func<TError, TErrorResult> errorMapFunc)
             => value.Match(
-                success => mapFunc().Ok<TResult, TErrorResult>(),
-                errors => errorMapFunc(errors).Fail<TResult, TErrorResult>());
+                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TErrorResult>(),
+                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TErrorResult>());
 
         //Map on VoidResult
-        public static Result<TResult> Map<TResult>(this VoidResult value, Func<TResult> mapFunc)
+        public static Result<TResult> Map<TResult>(this VoidResult value, Func<Unit, TResult> mapFunc)
             => value.Map2(mapFunc, Id);
 
-        public static Result<TResult, TError> Map2<TResult, TError>(this VoidResult value, Func<TResult> mapFunc, Func<IEnumerable<string>, TError> errorMapFunc)
+        public static Result<TResult, TError> Map2<TResult, TError>(this VoidResult value, Func<Unit, TResult> mapFunc, Func<IEnumerable<string>, TError> errorMapFunc)
             => value.Match(
-                success => mapFunc().Ok<TResult, TError>(),
-                errors => errorMapFunc(errors).Fail<TResult, TError>());
+                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TError>(),
+                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TError>());
 
         //Flatten on VoidResult<TError>
         public static VoidResult<TError> Flatten<TError>(this VoidResult<VoidResult<TError>> value)
@@ -102,144 +111,19 @@ namespace OneOf.ROP
 
         //Tee on VoidResult<TError>
         public static VoidResult<TError> Tee<TError>(this VoidResult<TError> value, Action action)
-            => value.Map(() =>
+            => value.Map(unit=>
             {
-                action();
-                return Unit.Value;
+                action.ThrowIfDefault(nameof(action))();
+                return unit;
             });
 
         //Tee on VoidResult
         public static VoidResult Tee(this VoidResult value, Action action)
-            => value.Map(() =>
+            => value.Map(unit =>
             {
-                action();
-                return Unit.Value;
+                action.ThrowIfDefault(nameof(action))();
+                return unit;
             });
 
-        //MapAsync on VoidResult<TError>
-        public static Task<Result<TResult, TError>> MapAsync<TResult, TError>(this VoidResult<TError> value, Func<Task<TResult>> mapFunc)
-            => value.Map2Async(mapFunc, Task.FromResult);
-
-        public static Task<Result<TResult, TErrorResult>> Map2Async<TResult, TError, TErrorResult>(this VoidResult<TError> value, Func<Task<TResult>> mapFunc, Func<TError, Task<TErrorResult>> errorMapFunc)
-            => value.Match(
-                async success => (await mapFunc().ConfigureAwait(false)).Ok<TResult, TErrorResult>(),
-                async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail<TResult, TErrorResult>());
-
-        public static Task<Result<TResult, TError>> MapAsync<TResult, TError>(this Task<VoidResult<TError>> value, Func<TResult> mapFunc)
-            => value.WrapAsync(item => item.Map(mapFunc));
-
-        public static Task<Result<TResult, TErrorResult>> Map2Async<TResult, TError, TErrorResult>(this Task<VoidResult<TError>> value, Func<TResult> mapFunc, Func<TError, TErrorResult> errorMapFunc)
-            => value.WrapAsync(item => item.Map2(mapFunc, errorMapFunc));
-
-        public static Task<Result<TResult, TError>> MapAsync<TResult, TError>(this Task<VoidResult<TError>> value, Func<Task<TResult>> mapFunc)
-            => value.WrapAsync(item => item.MapAsync(mapFunc));
-
-        public static Task<Result<TResult, TErrorResult>> Map2Async<TResult, TError, TErrorResult>(this Task<VoidResult<TError>> value, Func<Task<TResult>> mapFunc, Func<TError, Task<TErrorResult>> errorMapFunc)
-            => value.WrapAsync(item => item.Map2Async(mapFunc, errorMapFunc));
-
-        //MapAsync on VoidResult
-        public static async Task<Result<TResult>> MapAsync<TResult>(this VoidResult value, Func<Task<TResult>> mapFunc)
-            => await value.Map2Async(mapFunc, Task.FromResult).ConfigureAwait(false);
-
-        public static Task<Result<TResult>> MapAsync<TResult>(this Task<VoidResult> value, Func<TResult> mapFunc)
-            => value.WrapAsync(item => item.Map(mapFunc));
-
-        public static Task<Result<TResult, TError>> Map2Async<TResult, TError>(this Task<VoidResult> value, Func<TResult> mapFunc, Func<IEnumerable<string>, TError> errorMapFunc)
-            => value.WrapAsync(item => item.Map2(mapFunc, errorMapFunc));
-
-        public static Task<Result<TResult>> MapAsync<TResult>(this Task<VoidResult> value, Func<Task<TResult>> mapFunc)
-            => value.WrapAsync(item => item.MapAsync(mapFunc));
-
-        public static Task<Result<TResult, TError>> Map2Async<TResult, TError>(this Task<VoidResult> value, Func<Task<TResult>> mapFunc, Func<IEnumerable<string>, Task<TError>> errorMapFunc)
-            => value.WrapAsync(item => item.Map2Async(mapFunc, errorMapFunc));
-
-        //BindAsync on VoidResult<TError>
-        public static Task<VoidResult<TError>> BindAsync<TError>(this VoidResult<TError> value, Func<Task<VoidResult<TError>>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail()));
-
-        public static Task<VoidResult> BindAsync(this VoidResult<IEnumerable<string>> value, Func<Task<VoidResult>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail()));
-
-        public static Task<Result<T, TError>> BindAsync<T, TError>(this VoidResult<TError> value, Func<Task<Result<T, TError>>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail<T, TError>()));
-
-        public static Task<Result<T>> BindAsync<T>(this VoidResult<IEnumerable<string>> value, Func<Task<Result<T>>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail<T>()));
-
-        public static Task<VoidResult<TError>> BindAsync<TError>(this Task<VoidResult<TError>> value, Func<VoidResult<TError>> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<VoidResult> BindAsync(this Task<VoidResult<IEnumerable<string>>> value, Func<VoidResult> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<Result<T, TError>> BindAsync<T, TError>(this Task<VoidResult<TError>> value, Func<Result<T, TError>> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<Result<T>> BindAsync<T>(this Task<VoidResult<IEnumerable<string>>> value, Func<Result<T>> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<VoidResult<TError>> BindAsync<TError>(this Task<VoidResult<TError>> value, Func<Task<VoidResult<TError>>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-        public static Task<VoidResult> BindAsync(this Task<VoidResult<IEnumerable<string>>> value, Func<Task<VoidResult>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-        public static Task<Result<T, TError>> BindAsync<T, TError>(this Task<VoidResult<TError>> value, Func<Task<Result<T, TError>>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-        public static Task<Result<T>> BindAsync<T>(this Task<VoidResult<IEnumerable<string>>> value, Func<Task<Result<T>>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-        //BindAsync on VoidResult
-        public static Task<VoidResult> BindAsync(this VoidResult value, Func<Task<VoidResult>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail()));
-
-        public static Task<Result<T>> BindAsync<T>(this VoidResult value, Func<Task<Result<T>>> bindFunc)
-            => value.Match(x => bindFunc(), error => Task.FromResult(error.Fail<T>()));
-
-        public static Task<VoidResult> BindAsync(this Task<VoidResult> value, Func<VoidResult> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<Result<T>> BindAsync<T>(this Task<VoidResult> value, Func<Result<T>> bindFunc)
-            => value.WrapAsync(item => item.Bind(bindFunc));
-
-        public static Task<VoidResult> BindAsync(this Task<VoidResult> value, Func<Task<VoidResult>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-        public static Task<Result<T>> BindAsync<T>(this Task<VoidResult> value, Func<Task<Result<T>>> bindFunc)
-            => value.WrapAsync(item => item.BindAsync(bindFunc));
-
-
-        //TeeAsync on VoidResult<TError>
-        public static async Task<VoidResult<TError>> TeeAsync<TError>(this VoidResult<TError> value, Func<Task> asyncFunc)
-            => await value.MapAsync(async () =>
-            {
-                await asyncFunc().ConfigureAwait(false);
-                return Unit.Value;
-            }).ConfigureAwait(false);
-
-        public static Task<VoidResult<TError>> TeeAsync<TError>(this Task<VoidResult<TError>> value, Action action)
-            => value.WrapAsync(item => item.Tee(action));
-
-        public static Task<VoidResult<TError>> TeeAsync<TError>(this Task<VoidResult<TError>> value, Func<Task> asyncFunc)
-            => value.WrapAsync(item => item.TeeAsync(asyncFunc).AsTask());
-
-        //TeeAsync on VoidResult
-        public static async Task<VoidResult> TeeAsync(this VoidResult value, Func<Task> asyncFunc)
-            => await value.MapAsync(async () =>
-            {
-                await asyncFunc().ConfigureAwait(false);
-                return Unit.Value;
-            }).ConfigureAwait(false);
-
-        public static Task<VoidResult> TeeAsync(this Task<VoidResult> value, Action action)
-            => value.WrapAsync(item => item.Tee(action));
-
-        public static Task<VoidResult> TeeAsync(this Task<VoidResult> value, Func<Task> asyncFunc)
-            => value.WrapAsync(item => item.TeeAsync(asyncFunc).AsTask());
-
-        //FlattenAsync on VoidResult<T>
-        public static Task<VoidResult<TError>> FlattenAsync<TError>(this Task<VoidResult<VoidResult<TError>>> value)
-            => value.WrapAsync(item => item.Flatten());
     }
 }

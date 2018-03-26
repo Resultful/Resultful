@@ -1,0 +1,18 @@
+﻿using FluentAssertions;
+using FluentAssertions.OneOf;
+using NUnit.Framework;
+
+namespace OneOf.ROP.Tests
+{
+    [TestFixture]
+    public class ResultTests
+    {
+        [Test]
+        public void AssertChange()
+        {
+            var projectedValue = "Test ".Ok().Plus("Final Value".Ok(), (s, j) => $"{s}: {j}");
+
+            projectedValue.ToOneOf().Should().Be<string>().And.Should().Be("Test: Final Value");
+        }
+    }
+}

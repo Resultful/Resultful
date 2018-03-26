@@ -1,5 +1,6 @@
 OneOf
 System.ValueTuple
+FluentAssertions.OneOf
 NUnit
 NUnit3TestAdapter
 Microsoft.NET.Test.Sdk

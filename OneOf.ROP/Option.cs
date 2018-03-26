@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using OneOf.Types;
+using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
 {
@@ -16,10 +15,10 @@ namespace OneOf.ROP
             => _value = value;
 
         public void Switch(Action<T> successfulFunc, Action<None> errorFunc)
-            => _value.Switch(successfulFunc, errorFunc);
+            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<None, TResult> errorFunc) =>
-            _value.Match(successfulFunc, errorFunc);
+            _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public static implicit operator Option<T>(T value)
             => new Option<T>(value);

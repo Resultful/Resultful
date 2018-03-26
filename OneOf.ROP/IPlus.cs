@@ -4,8 +4,8 @@ using System.Text;
 
 namespace OneOf.ROP
 {
-    public interface IPlus<T>
+    public interface IPlus<T, TResult>
     {
-        T Plus(T item);
+        TResult Plus(T item);
     }
 }

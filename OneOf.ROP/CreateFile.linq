@@ -2,7 +2,8 @@
 
 void Main()
 {
-    DumpContents("ResultExtensions.Tuple.cs", GetAssertionExtensionsContent());
+    DumpContents("ResultExtensions.Tuple.cs", GetTupleExtensionsContent());
+    DumpContents("Utils/TupleHelper.cs", GetTupleHelperContent());
 }
 
 public void DumpContents(string path, string content){
@@ -37,7 +38,7 @@ private string BuildPlusErrorExtensionMethod(int numberOfArgs){
         public static Result<({Join(genericArgs)})>
             Plus<{Join(genericArgs)}>
                 (this {Join(inputs)})
-                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(Unfold);";
+                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(TupleHelper.Unfold);";
 }
 
 private string BuildTupleDeconstructMethods(int numberOfArgs){
@@ -45,7 +46,7 @@ private string BuildTupleDeconstructMethods(int numberOfArgs){
     var finalArgIndex = numberOfArgs -1;
     var inputArgs = GetGenericArgs(0, finalArgIndex);
     return $@"
-        private static({Join(genericArgs)})
+        public static({Join(genericArgs)})
             Unfold<{Join(genericArgs)}>
                 (this
                     (({Join(inputArgs)}), T{finalArgIndex})
@@ -65,19 +66,18 @@ private string BuildPlusExtensionMethod(int numberOfArgs){
         public static Result<({Join(genericArgs)}), TError>
             Plus<{Join(genericArgs)}, TError>
                 (this {Join(inputs)}, Func<TError, TError, TError> mergeFunc)
-                    => result0.Plus({Join(firstPlusArgs)}, mergeFunc).Plus({BuildResultVariable(numberOfArgs -1)}, mergeFunc).Map(Unfold);
+                    => result0.Plus({Join(firstPlusArgs)}, mergeFunc.ThrowIfDefault(nameof(mergeFunc))).Plus({BuildResultVariable(numberOfArgs -1)}, mergeFunc).Map(TupleHelper.Unfold);
 
         public static Result<({Join(genericArgs)}), TError>
             Plus<{Join(genericArgs)}, TError>
-                (this {Join(inputs)}) where TError : IPlus<TError>
-                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(Unfold);";
+                (this {Join(inputs)}) where TError : IPlus<TError, TError>
+                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(TupleHelper.Unfold);";
 }
 
-public string GetAssertionExtensionsContent(){
+public string GetTupleExtensionsContent(){
     var sb = new StringBuilder();
     sb.Append(@"using System;
-using System.Collections.Generic;
-using System.Linq;
+using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
 {
@@ -85,13 +85,26 @@ namespace OneOf.ROP
     {");
         for (var i = 3; i < 9; i++)
         {
-            sb.AppendLine(BuildTupleDeconstructMethods(i));
-        }
-
-        for (var i = 3; i < 9; i++)
-        {
             sb.AppendLine(BuildPlusExtensionMethod(i));
             sb.AppendLine(BuildPlusErrorExtensionMethod(i));
+        }
+    sb.AppendLine(@"
+    }
+}");
+    return sb.ToString();
+}
+
+public string GetTupleHelperContent(){
+    var sb = new StringBuilder();
+    sb.Append(@"using System;
+
+namespace OneOf.ROP.Utils
+{
+    internal static class TupleHelper
+    {");
+        for (var i = 3; i < 9; i++)
+        {
+            sb.AppendLine(BuildTupleDeconstructMethods(i));
         }
     sb.AppendLine(@"
     }
