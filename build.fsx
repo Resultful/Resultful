@@ -11,13 +11,13 @@ open FSharp.Configuration
 type VersionConfig = YamlConfig<"version.yml">
 let versionFile = VersionConfig()
 
-let getVersion inputStr =
+let assertVersion inputStr =
     if SemVer.isValidSemVer inputStr then
-        SemVer.parse inputStr
+        ()
     else
         failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
 
-let versionToPublish  = getVersion versionFile.Version
+assertVersion versionFile.MainVersion
 
 let globalTimeout = TimeSpan.FromMinutes 2.;
 
@@ -39,11 +39,22 @@ let runPaketCommand timeout paketCommand =
 
 let buildDir = "./build"
 
-let publishPackage version =
-    let finalVersion = version.ToString();
-    sprintf "push build/OneOf.ROP.%s.nupkg" finalVersion
-        |> runPaketCommand globalTimeout
+let publishPackage shouldPublish version project =
+    if shouldPublish then
+        sprintf "push build/%s.%s.nupkg" project version
+            |> runPaketCommand globalTimeout
+    else
+        Trace.log (sprintf "Package upload skipped because %s was not set to be published" project )
 
+let packProject version projectPath =
+    Fake.DotNetCli.Pack(fun p ->
+        { p with
+            Project = projectPath;
+            TimeOut = globalTimeout;
+            Configuration = "Release";
+            OutputPath = "../build";
+            AdditionalArgs = [ "--no-build"; sprintf "/p:VersionPrefix=\"%s\"" version ;  ]//"--include-source" ;  "--include-symbols"  ]
+        })
 let nugetKeyVariable =
     "NUGET_KEY"
 
@@ -54,11 +65,11 @@ Target.Create "Clean" (fun _ ->
         "./OneOf.ROP.Tests"
     ]
 
-    let allFoledersToClean =
+    let allFoldersToClean =
         projects
         |> List.collect (fun project -> [ sprintf "%s/bin" project ; sprintf "%s/obj" project ])
 
-    Shell.CleanDirs (buildDir :: allFoledersToClean)
+    Shell.CleanDirs (buildDir :: allFoldersToClean)
 )
 
 Target.Create "Build" (fun _ ->
@@ -81,19 +92,12 @@ Target.Create "Test" (fun _ ->
 
 Target.Create "Package" (fun _ ->
     Directory.ensure buildDir
-    let finalVersion = versionToPublish.ToString();
-    Fake.DotNetCli.Pack(fun p ->
-        { p with
-            TimeOut = globalTimeout;
-            Configuration = "Release";
-            OutputPath = "../build";
-            AdditionalArgs = [ "--no-build"; sprintf "/p:VersionPrefix=\"%s\"" finalVersion ; ]//"--include-source" ;  "--include-symbols"  ]
-        })
+    packProject versionFile.MainVersion "OneOf.ROP/OneOf.ROP.csproj"
 )
 
 Target.Create "Publish" (fun _ ->
     match environVarOrNone nugetKeyVariable with
-    | Some _ -> publishPackage versionToPublish
+    | Some _ -> publishPackage versionFile.MainPublish versionFile.MainVersion "OneOf.ROP"
     | None -> Trace.log (sprintf "Package upload skipped because %s was not found" nugetKeyVariable)
 )
 

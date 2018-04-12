@@ -1,18 +1,19 @@
 framework: auto-detect
 strategy: min
+lowest_matching: true
 
 source https://api.nuget.org/v3/index.json
 source https://www.nuget.org/api/v2
 
 //Main
-nuget OneOf >= 2.1.108
+nuget OneOf >= 2.1.110
 nuget System.ValueTuple >= 4.4
 
 // Testing
 nuget Microsoft.NET.Test.Sdk >= 15.5.0
 nuget NUnit >= 3.9.0
 nuget NUnit3TestAdapter >= 3.9.0
-nuget FluentAssertions.OneOf
+nuget FluentAssertions.OneOf >= 0.0.4
 
 //Examples
 
@@ -37,3 +38,4 @@ group build-deps
     source https://api.nuget.org/v3/index.json
     nuget FAKE prerelease
     nuget FSharp.Configuration 1.3.1
+    nuget FSharp.Data 2.4.6

@@ -1,0 +1,2 @@
+group example-deps
+  Microsoft.AspNetCore.All
