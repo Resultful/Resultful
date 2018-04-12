@@ -12,7 +12,7 @@ namespace OneOf.ROP.Tests
         public void AssertThing()
         {
             var trimmedValue =
-                from s in "Test ".Ok()
+                from s in "  Test ".Ok()
                 select s.Trim();
             var projectedValue =
                 from s in trimmedValue

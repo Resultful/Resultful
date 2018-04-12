@@ -14,5 +14,6 @@ namespace OneOf.ROP.Tests
 
             projectedValue.ToOneOf().Should().Be<string>().And.Should().Be("Test: Final Value");
         }
+
     }
 }

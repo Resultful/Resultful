@@ -9,7 +9,6 @@ namespace OneOf.ROP.Async
     public static class OptionExtensions
     {
 
-
         //Builder for Option<T> from Task<T> value
         public static Task<Option<T>> Some<T>(this Task<T> value)
             => value.WrapAsync(item => item.Some());
@@ -35,7 +34,6 @@ namespace OneOf.ROP.Async
         public static Task<Option<TResult>> BindAsync<T, TResult>(this Task<Option<T>> value, Func<T, Task<Option<TResult>>> bindFunc)
             => value.WrapAsync(item => item.BindAsync(bindFunc));
 
-
         //MapAsync on Option<T>
         public static Task<Option<TResult>> MapAsync<T, TResult>(this Option<T> value, Func<T, Task<TResult>> bindFunc)
             => value.Match(
@@ -46,7 +44,7 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item2 => item2.Map(bindFunc));
 
         public static Task<Option<TResult>> MapAsync<T, TResult>(this Task<Option<T>> value, Func<T, Task<TResult>> bindFunc)
-            => value.WrapAsync(item2 => item2.MapAsync(bindFunc));
+            => value.WrapAsync(item => item.MapAsync(bindFunc));
 
         //TeeAsync on Option<T>
         public static Task<Option<T>> TeeAsync<T>(this Option<T> value, Func<T, Task> asyncFunc)

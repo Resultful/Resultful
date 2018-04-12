@@ -46,10 +46,9 @@ namespace OneOf.ROP
         //Plus on VoidResult
         public static VoidResult Plus(this VoidResult left, VoidResult right)
             => left.Match(
-                leftValue => right.Match(unit => Ok(), Fail),
+                leftValue => right.Match(_ => Ok(), Fail),
                 error => right.Match(rightValue => Fail(error), otherError => Fail(error.Concat(otherError)))
             );
-
 
         //Fold on VoidResult<TError>
         public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values, Func<TError, TError, TError> mergeFunc)
@@ -65,65 +64,8 @@ namespace OneOf.ROP
         public static VoidResult Fold(this IEnumerable<VoidResult> values)
             => values.Aggregate(Ok(), (acc, item) => acc.Plus(item));
 
-
-        //Bind on VoidResult<TError>
-        public static VoidResult<TError> Bind<TError>(this VoidResult<TError> value, Func<Unit, VoidResult<TError>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
-
-        public static VoidResult Bind(this VoidResult<IEnumerable<string>> value, Func<Unit, VoidResult> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
-
-        public static Result<T, TError> Bind<T, TError>(this VoidResult<TError> value, Func<Unit, Result<T, TError>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T, TError>());
-
-        public static Result<T> Bind<T>(this VoidResult<IEnumerable<string>> value, Func<Unit, Result<T>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T>());
-
-        //Bind on VoidResult
-        public static VoidResult Bind(this VoidResult value, Func<Unit, VoidResult> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail());
-
-        public static Result<T> Bind<T>(this VoidResult value, Func<Unit, Result<T>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => error.Fail<T>());
-
-
-        //Map on VoidResult<TError>
-        public static Result<TResult, TError> Map<TResult, TError>(this VoidResult<TError> value, Func<Unit, TResult> mapFunc)
-            => value.Map2(mapFunc, Id);
-
-        public static Result<TResult, TErrorResult> Map2<TResult, TError, TErrorResult>(this VoidResult<TError> value, Func<Unit, TResult> mapFunc, Func<TError, TErrorResult> errorMapFunc)
-            => value.Match(
-                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TErrorResult>(),
-                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TErrorResult>());
-
-        //Map on VoidResult
-        public static Result<TResult> Map<TResult>(this VoidResult value, Func<Unit, TResult> mapFunc)
-            => value.Map2(mapFunc, Id);
-
-        public static Result<TResult, TError> Map2<TResult, TError>(this VoidResult value, Func<Unit, TResult> mapFunc, Func<IEnumerable<string>, TError> errorMapFunc)
-            => value.Match(
-                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TError>(),
-                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TError>());
-
         //Flatten on VoidResult<TError>
         public static VoidResult<TError> Flatten<TError>(this VoidResult<VoidResult<TError>> value)
-            => value.Match(x => Ok<TError>(), Id);
-
-        //Tee on VoidResult<TError>
-        public static VoidResult<TError> Tee<TError>(this VoidResult<TError> value, Action action)
-            => value.Map(unit=>
-            {
-                action.ThrowIfDefault(nameof(action))();
-                return unit;
-            });
-
-        //Tee on VoidResult
-        public static VoidResult Tee(this VoidResult value, Action action)
-            => value.Map(unit =>
-            {
-                action.ThrowIfDefault(nameof(action))();
-                return unit;
-            });
-
+            => value.Match(_ => Ok<TError>(), Id);
     }
 }

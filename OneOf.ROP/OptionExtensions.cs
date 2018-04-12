@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
@@ -10,19 +8,6 @@ namespace OneOf.ROP
     public static class OptionExtensions
     {
         public static Option<T> Some<T>(this T value) => value;
-
-        public static Option<TResult> Bind<T, TResult>(this Option<T> item, Func<T, Option<TResult>> bindFunc)
-            => item.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), none => none);
-
-        public static Option<TResult> Map<T, TResult>(this Option<T> item, Func<T, TResult> bindFunc)
-            => item.Match(value => bindFunc.ThrowIfDefault(nameof(bindFunc))(value).Some(), none => none);
-
-        public static Option<T> Tee<T>(this Option<T> item, Action<T> teeAction)
-            => item.Map(value =>
-            {
-                teeAction.ThrowIfDefault(nameof(teeAction))(value);
-                return value;
-            });
 
         //Plus on Option<T>
         public static Option<(TLeft, TRight)> Plus<TLeft, TRight>(this Option<TLeft> left, Option<TRight> right)

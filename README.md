@@ -4,6 +4,9 @@ Utility classes for Railway Oriented Programming using OneOf a Discriminated Uni
 Inspired by this article on [F# for fun and profit](https://fsharpforfunandprofit.com/posts/recipe-part2/)
 Designed to be consumed for C#.
 
+## Installation
+Instructions to install using your appropriate package manager can be [found here](https://www.nuget.org/packages/OneOf.ROP/)
+
 ## Types
 
 There are 5 fundamental types in this library
@@ -14,17 +17,78 @@ There are 5 fundamental types in this library
 4. `VoidResult` - Union of `Unit` and `IEnumerable<string>`
 5. `Option<T>` - Union of `T` and `None`
 
-## Building
+## Usage
 
-There are implicit converters to each of the result types from their Union element, everything other than Result<T> which does not have a successful value implicit converter because it would interfere with any Results that could also be interpreted as an error such as `string`, `IEnumerable<string>`.
-
-## Operations
-
+There are 3 parts to building a pipeline using this library.
 I am going to write the majority of the examples against `Result<T, TError>` as it is the most generic type, but the idea is applicable to all types where.
 1. `Result<T>` = `Result<T, IEnumerable<string>>`
 2. `VoidResult<TError>` = `Result<Unit, TError>`
 3. `VoidResult` = `Result<Unit, IEnumerable<string>>`
 4. `Option<T>` = `Result<T, None>`
+
+### Building
+There are implicit converters to each of the result types from their Union element.
+
+```cs
+private Result<int, Error> ParseInt(string input)
+{
+    if (input?.All(char.IsDigit) ?? false)
+    {
+        return int.Parse(input);
+    }
+    return new Error($"{input} contains a character which is not a digit");
+}
+```
+
+There is one case where the Implicit converters aren't implemented. This is when returning a `Result<int>` use the extension method `Ok()` for example `10.Ok()` is an expression returning `Result<int>`
+The because it would interfere with any Results that could also be interpreted as an error such as `string`, `IEnumerable<string>`.
+
+### Pipelining
+
+There are three main pipelining operators which can be performed on a result type, going to write these examples against the
+1. Map
+2. Bind
+3. Tee
+
+```cs
+private Result<int, Error> NumberIsGreaterThanZero(string input)
+{
+    if (input == null)
+    {
+        return new Error("Cannot return int value given is null");
+    }
+    return ParseInt(input).Bind<int>(x =>
+    {
+        if (x <= 0)
+        {
+            return new Error($"{x} must be a value greater than or equal to 0");
+        }
+        return x;
+    });
+}
+```
+
+### Consuming
+
+When the value needs to be consumed by something which cannot be pipelined typically being the boundaries of the application such as the controller on a WebAPI.
+There is a method called Match which is the core API in this library and is built upon the API that OneOf surfaces.
+
+This method typically has the signature
+`TResult Match<TResult>(Func<T, TResult> successFunc, Func<TError, TResult> errorFunc)` where `T` and `TError` are the cases of the `Result`.
+
+It could be used as follows
+
+```cs
+private IActionResult Get(string input)
+    => NumberIsGreaterThanZero(input)
+        .Match<IActionResult>(
+            success => Ok(success),
+            error => BadRequest(error));
+```
+
+This way we can abstract the HTTP result from from domain logic.
+
+## Operators
 
 ### Map
 
@@ -62,4 +126,4 @@ Or anywhere that accepts `Func<T, T, T>` is typically written to remove that arg
 
 There are Async operations available which can either accept the input as a Task and/or the `Func` given returns a `Task`. These should be available for all standard operations of the library such as `Map`, `Bind`, `Tee`.
 This has not been implemented for Plus or Fold as the Task could actually be in a variety of locations on the arguments. Everything desired could be achieved using other methods in the library or using methods in the TPL.
-Also some special ones unique for Async.
+Also some special ones unique for Async  such as ones that convert `Result<Task<T>>` into `Task<Result<T>>`.

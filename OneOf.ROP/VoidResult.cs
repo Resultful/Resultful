@@ -6,26 +6,18 @@ namespace OneOf.ROP
 {
     public struct VoidResult<TError>
     {
+        //Private Members
         private OneOf<Unit, TError> _value;
 
+        //Constructors
         internal VoidResult(Unit value)
             => _value = value;
 
         internal VoidResult(TError value)
             => _value = value;
 
-        public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<TError, TResult> errorFunc)
-            => _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
-
-        public void Switch(Action<Unit> successfulFunc, Action<TError> errorFunc)
-            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
-
-        public static implicit operator Result<Unit, TError>(VoidResult<TError> value)
-            => value.Match(
-                result => result.Ok<Unit, TError>(),
-                error => error.Fail<Unit, TError>());
-
-        public static implicit operator VoidResult<TError>(Result<Unit, TError>  value)
+        //Implicit Converters
+        public static implicit operator VoidResult<TError>(Result<Unit, TError> value)
             => value.Match(
                 result => Result.Ok<TError>(),
                 error => error.Fail());
@@ -36,68 +28,43 @@ namespace OneOf.ROP
         public static implicit operator VoidResult<TError>(Unit value)
             => Result.Ok<TError>();
 
-        public OneOf<Unit, TError> ToOneOf() => _value;
-
-    }
-
-    public struct VoidResult
-    {
-        private OneOf<Unit, IEnumerable<string>> _value;
-
-        internal VoidResult(Unit value)
-            => _value = value;
-
-        internal VoidResult(IEnumerable<string> value)
-            => _value = OneOf<Unit, IEnumerable<string>>.FromT1(value);
-
-        public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<IEnumerable<string>, TResult> errorFunc)
+        //Local Methods
+        public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<TError, TResult> errorFunc)
             => _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
-        public void Switch(Action<Unit> successfulFunc, Action<IEnumerable<string>> errorFunc)
+        public void Switch(Action<Unit> successfulFunc, Action<TError> errorFunc)
             => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
-        public static implicit operator Result<Unit, IEnumerable<string>>(VoidResult value)
-            => value.Match(
-                result => result.Ok<Unit, IEnumerable<string>>(),
-                error => error.Fail<Unit, IEnumerable<string>>());
+        public OneOf<Unit, TError> ToOneOf() => _value;
 
-        public static implicit operator VoidResult(Result<Unit, IEnumerable<string>> value)
-            => value.Match(
-                result => Result.Ok(),
-                error => error.Fail());
+        public Result<TResult, TError> Map<TResult>(Func<Unit, TResult> mapFunc)
+            => Map2(Result.Id, mapFunc);
 
-        public static implicit operator Result<Unit>(VoidResult value)
-            => value.Match(
-                result => result.Ok(),
-                error => error.Fail<Unit>());
+        public Result<TResult, TErrorResult> Map2<TResult, TErrorResult>(Func<TError, TErrorResult> errorMapFunc, Func<Unit, TResult> mapFunc)
+            => Match(
+                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TErrorResult>(),
+                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TErrorResult>());
 
-        public static implicit operator VoidResult(Result<Unit> value)
-            => value.Match(
-                result => Result.Ok(),
-                error => error.Fail());
+        public VoidResult<TErrorResult> MapError<TErrorResult>(Func<TError, TErrorResult> errorMapFunc)
+            => Map2(errorMapFunc, Result.Id);
 
-        public static implicit operator VoidResult<IEnumerable<string>>(VoidResult value)
-            => value.Match<VoidResult<IEnumerable<string>>>(
-                result => Result.Ok<IEnumerable<string>>(),
-                error => error.Fail());
+        public VoidResult MapError(Func<TError, IEnumerable<string>> errorMapFunc)
+            => Map2(errorMapFunc, Result.Id);
 
-        public static implicit operator VoidResult(VoidResult<IEnumerable<string>> value)
-            => value.Match(
-                result => Result.Ok(),
-                errors => errors.Fail());
+        public VoidResult<TError> Bind(Func<Unit, VoidResult<TError>> bindFunc)
+            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
 
-        public static implicit operator VoidResult(string[] value)
-            => Result.Fail(value);
+        public Result<T, TError> BindValue<T>(Func<Unit, Result<T, TError>> bindFunc)
+            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail<T, TError>);
 
-        public static implicit operator VoidResult(List<string> value)
-            => Result.Fail(value.ToArray());
+        public VoidResult<TError> Tee(Action action)
+            => Map(unit =>
+            {
+                action.ThrowIfDefault(nameof(action))();
+                return unit;
+            });
 
-        public static implicit operator VoidResult(string value)
-            => Result.Fail(value);
 
-        public static implicit operator VoidResult(Unit value)
-            => value.Ok();
-
-        public OneOf<Unit, IEnumerable<string>> ToOneOf() => _value;
     }
+
 }
