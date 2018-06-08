@@ -6,14 +6,14 @@ source https://api.nuget.org/v3/index.json
 source https://www.nuget.org/api/v2
 
 //Main
-nuget OneOf >= 2.1.110
+nuget OneOf >= 2.1.125
 nuget System.ValueTuple >= 4.4
 
 // Testing
 nuget Microsoft.NET.Test.Sdk >= 15.5.0
 nuget NUnit >= 3.9.0
 nuget NUnit3TestAdapter >= 3.9.0
-nuget FluentAssertions.OneOf >= 0.0.4
+nuget FluentAssertions.OneOf >= 0.0.5
 
 //Examples
 

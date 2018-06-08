@@ -5,7 +5,7 @@ using OneOf.ROP.Utils;
 
 namespace OneOf.ROP
 {
-    public static class OptionExtensions
+    public static partial class Option
     {
         public static Option<T> Some<T>(this T value) => value;
 

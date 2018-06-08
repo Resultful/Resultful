@@ -12,66 +12,83 @@ public void DumpContents(string path, string content){
     File.WriteAllText(outpath.Dump(), finalContent.Dump());
 }
 
-public string Join(IEnumerable<string> items){
-    return string.Join(", ", items);
-}
 public static readonly string _newLine = "\r\n";
 public static readonly int _spacesPerTab = 4;
 private static string GetTabs(int number) => new string('\t', number);
 
+private static (int left, int right) Split(int input) {
+    var result = input / 2;
+    return (result, input - result);
+}
 
-private List<string> GetGenericArgs(int startIndex, int numberOfArgs)
-    => Enumerable.Range(startIndex, numberOfArgs).Select(e => $"T{e}").ToList();
-private List<string> GetItems(int numberOfArgs, string item)
-    => Enumerable.Range(0, numberOfArgs).Select(x => item).ToList();
-private List<string> GetItemsWithArgNumber(int numberOfArgs, Func<int, string> mapFunc)
-    => Enumerable.Range(0, numberOfArgs).Select(mapFunc).ToList();
+
+private string GetGenericArgs(int startIndex, int numberOfArgs) 
+    => GetItemsWithArgNumber(startIndex, numberOfArgs, e => $"T{e}");
+private string GetItems(int startIndex, int numberOfArgs, string item)
+    => GetItemsWithArgNumber(startIndex, numberOfArgs, _ => item);
+private string GetItemsWithArgNumber(int startIndex, int numberOfArgs, Func<int, string> mapFunc)
+    => Join(Enumerable.Range(startIndex, numberOfArgs).Select(mapFunc));
+    
+private string Join<T>(IEnumerable<T> inputs) => string.Join(", ", inputs);
 
 private string BuildResultVariable(int index) => $"result{index}";
 private string BuildValueVariable(int index) => $"item{index}";
 
-private string BuildPlusErrorExtensionMethod(int numberOfArgs){
-    var genericArgs = GetGenericArgs(0, numberOfArgs);
-    var inputs = Enumerable.Range(0, numberOfArgs).Select(x => $"Result<T{x}> {BuildResultVariable(x)}");
-    var firstPlusArgs = Enumerable.Range(1, numberOfArgs - 2).Select(BuildResultVariable);
-    return $@"
-        public static Result<({Join(genericArgs)})>
-            Plus<{Join(genericArgs)}>
-                (this {Join(inputs)})
-                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(TupleHelper.Unfold);";
+private string _mergeFunc = "mergeFunc.ThrowIfDefault(nameof(mergeFunc))";
+string BuildPlus(int start, int length, bool withMergeFunc){
+    var remainder = withMergeFunc ? $", {_mergeFunc}" : "";
+    if(length == 1){
+        return BuildResultVariable(start);
+    }
+    return $"Result.Plus({GetItemsWithArgNumber(start, length, BuildResultVariable)}{remainder})";
 }
 
-private string BuildTupleDeconstructMethods(int numberOfArgs){
+private string BuildPlusErrorExtensionMethod(int numberOfArgs){
     var genericArgs = GetGenericArgs(0, numberOfArgs);
-    var finalArgIndex = numberOfArgs -1;
-    var inputArgs = GetGenericArgs(0, finalArgIndex);
+    var inputs = GetItemsWithArgNumber(0, numberOfArgs, x => $"Result<T{x}> {BuildResultVariable(x)}");
+    var (left, right) = Split(numberOfArgs);
+    var firstPlusArgs = GetItemsWithArgNumber(1, numberOfArgs - 2, BuildResultVariable);
     return $@"
-        public static({Join(genericArgs)})
-            Unfold<{Join(genericArgs)}>
-                (this
-                    (({Join(inputArgs)}), T{finalArgIndex})
-                    item)
-        {{
-            var (tuple, item{finalArgIndex}) = item;
-            var ({Join(GetItemsWithArgNumber(finalArgIndex, BuildValueVariable))}) = tuple;
-            return ({Join(GetItemsWithArgNumber(numberOfArgs, BuildValueVariable))});
-        }}";
+        public static Result<({genericArgs})>
+            Plus<{genericArgs}>
+                (this {inputs})
+                    => Result.Plus({BuildPlus(0, left, false)}, {BuildPlus(left, right, false)}).Map(TupleHelper.Unfold);";
 }
 
 private string BuildPlusExtensionMethod(int numberOfArgs){
     var genericArgs = GetGenericArgs(0, numberOfArgs);
-    var inputs = Enumerable.Range(0, numberOfArgs).Select(x => $"Result<T{x}, TError> {BuildResultVariable(x)}");
-    var firstPlusArgs = Enumerable.Range(1, numberOfArgs - 2).Select(BuildResultVariable);
+    var (left, right) = Split(numberOfArgs);
+    var inputs = GetItemsWithArgNumber(0, numberOfArgs, x => $"Result<T{x}, TError> {BuildResultVariable(x)}");
     return $@"
-        public static Result<({Join(genericArgs)}), TError>
-            Plus<{Join(genericArgs)}, TError>
-                (this {Join(inputs)}, Func<TError, TError, TError> mergeFunc)
-                    => result0.Plus({Join(firstPlusArgs)}, mergeFunc.ThrowIfDefault(nameof(mergeFunc))).Plus({BuildResultVariable(numberOfArgs -1)}, mergeFunc).Map(TupleHelper.Unfold);
+        public static Result<({genericArgs}), TError>
+            Plus<{genericArgs}, TError>
+                (this {inputs}, Func<TError, TError, TError> mergeFunc)
+                    => Result.Plus({BuildPlus(0, left, true)}, {BuildPlus(left, right, true)}, {_mergeFunc}).Map(TupleHelper.Unfold);
 
-        public static Result<({Join(genericArgs)}), TError>
-            Plus<{Join(genericArgs)}, TError>
-                (this {Join(inputs)}) where TError : IPlus<TError, TError>
-                    => result0.Plus({Join(firstPlusArgs)}).Plus({BuildResultVariable(numberOfArgs -1)}).Map(TupleHelper.Unfold);";
+        public static Result<({genericArgs}), TError>
+            Plus<{genericArgs}, TError>
+                (this {inputs}) where TError : IPlus<TError, TError>
+                    => Result.Plus({BuildPlus(0, left, false)}, {BuildPlus(left, right, false)}).Map(TupleHelper.Unfold);";
+}
+
+private string BuildTupleDeconstructMethods((int, int) input){
+    var (left, right) = input;
+    string TryWrap(string value, int numberOfArgs) => numberOfArgs != 1 ? $"({value})" : value; 
+    var genericArgs = GetGenericArgs(0, left + right);
+    var leftArgs = TryWrap(GetGenericArgs(0, left), left);
+    var rightArgs = TryWrap(GetGenericArgs(left, right), right);
+    var leftItems = GetItemsWithArgNumber(0, left, BuildValueVariable); 
+    var rightItems = GetItemsWithArgNumber(left, right, BuildValueVariable);
+    return $@"
+        public static({genericArgs})
+            Unfold<{genericArgs}>
+                (this
+                    ({leftArgs}, {rightArgs})
+                    item)
+        {{
+            var ({TryWrap(leftItems, left)}, {TryWrap(rightItems, right)}) = item;
+            return ({leftItems}, {rightItems});
+        }}";
 }
 
 public string GetTupleExtensionsContent(){
@@ -95,6 +112,12 @@ namespace OneOf.ROP
 }
 
 public string GetTupleHelperContent(){
+    var items = Enumerable
+        .Range(3, 6)
+        .SelectMany(x => 
+            Enumerable
+                .Range(1, x / 2)
+                .SelectMany(y =>  new [] { (x - y, y), (y, x - y)}).Distinct());
     var sb = new StringBuilder();
     sb.Append(@"using System;
 
@@ -102,10 +125,11 @@ namespace OneOf.ROP.Utils
 {
     internal static class TupleHelper
     {");
-        for (var i = 3; i < 9; i++)
+        foreach(var i in items)
         {
             sb.AppendLine(BuildTupleDeconstructMethods(i));
         }
+        
     sb.AppendLine(@"
     }
 }");

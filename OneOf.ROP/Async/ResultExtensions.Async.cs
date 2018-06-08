@@ -3,26 +3,19 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using OneOf.ROP.Utils;
 
-namespace OneOf.ROP.Async
+namespace OneOf.ROP
 {
 
     public static partial class Result
     {
         //BindAsync on Result<T, TError>
-        public static Task<Result<TResult, TError>> BindAsync<TResult, T, TError>(this Result<T, TError> value, Func<T, Task<Result<TResult, TError>>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), errors => Task.FromResult(errors.Fail<TResult, TError>()));
-
         public static Task<Result<TResult, TError>> BindAsync<TResult, T, TError>(this Task<Result<T, TError>> value, Func<T, Result<TResult, TError>> bindFunc)
             => value.WrapAsync(item => item.Bind(bindFunc));
 
         public static Task<Result<TResult, TError>> BindAsync<TResult, T, TError>(this Task<Result<T, TError>> value, Func<T, Task<Result<TResult, TError>>> bindFunc)
             => value.WrapAsync(item => item.BindAsync(bindFunc));
 
-
         //BindAsync on Result<T>
-        public static Task<Result<TResult>> BindAsync<TResult, T>(this Result<T> value, Func<T, Task<Result<TResult>>> bindFunc)
-            => value.Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), error => Task.FromResult(error.Fail<TResult>()));
-
         public static Task<Result<TResult>> BindAsync<TResult, T>(this Task<Result<T>> value, Func<T, Result<TResult>> bindFunc)
             => value.WrapAsync(item => item.Bind(bindFunc));
 
@@ -30,15 +23,6 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item => item.BindAsync(bindFunc));
 
         //MapAsync on Result<T, TError>
-        public static Task<Result<TResult, TError>> MapAsync<TResult, T, TError>(this Result<T, TError> value, Func<T, Task<TResult>> mapFunc)
-            => value.Map2Async(Task.FromResult, mapFunc);
-
-        public static Task<Result<TResult, TErrorResult>> Map2Async<TResult, T, TError, TErrorResult>(
-            this Result<T, TError> value, Func<TError, Task<TErrorResult>> errorMapFunc, Func<T, Task<TResult>> mapFunc)
-            => value.Match(
-                async success => (await mapFunc(success).ConfigureAwait(false)).Ok<TResult, TErrorResult>(),
-                async error => (await errorMapFunc(error).ConfigureAwait(false)).Fail<TResult, TErrorResult>());
-
         public static Task<Result<TResult, TError>> MapAsync<TResult, T, TError>(this Task<Result<T, TError>> value, Func<T, TResult> mapFunc)
             => value.WrapAsync(item => item.Map(mapFunc));
 
@@ -53,14 +37,6 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item => item.Map2Async(errorMapFunc, mapFunc));
 
         //MapAsync on Result<T>
-        public static async Task<Result<TResult>> MapAsync<T, TResult>(this Result<T> value, Func<T, Task<TResult>> mapFunc)
-            => await value.Map2Async(Task.FromResult, mapFunc).ConfigureAwait(false);
-
-        public static Task<Result<TResult, TError>> Map2Async<TResult, T, TError>(this Result<T> value, Func<IEnumerable<string>, Task<TError>> errorMapFunc, Func<T, Task<TResult>> mapFunc)
-            => value.Match(
-                async success => (await mapFunc(success).ConfigureAwait(false)).Ok<TResult, TError>(),
-                async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail<TResult, TError>());
-
         public static Task<Result<TResult>> MapAsync<T, TResult>(this Task<Result<T>> value, Func<T, TResult> mapFunc)
             => value.WrapAsync(item => item.Map(mapFunc));
 
@@ -74,19 +50,11 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item => item.Map2Async(errorMapFunc, mapFunc));
 
         //MapErrorAsync on Result<T, TError>
-        public static Task<Result<T, TErrorResult>> MapErrorAsync<T, TError, TErrorResult>(this Result<T, TError> value, Func<TError, Task<TErrorResult>> errorMapFunc)
-            => value.Map2Async(errorMapFunc, Task.FromResult);
-
         public static Task<Result<T, TErrorResult>> MapErrorAsync<T, TError, TErrorResult>(this Task<Result<T, TError>> value, Func<TError, TErrorResult> errorMapFunc)
             => value.WrapAsync(item => item.MapError(errorMapFunc));
 
         public static Task<Result<T, TErrorResult>> MapErrorAsync<T, TError, TErrorResult>(this Task<Result<T, TError>> value, Func<TError, Task<TErrorResult>> errorMapFunc)
             => value.WrapAsync(item => item.MapErrorAsync(errorMapFunc));
-
-        public static Task<Result<T>> MapErrorAsync<T, TError>(this Result<T, TError> value, Func<TError, Task<IEnumerable<string>>> errorMapFunc)
-            => value.Match(
-                item => Task.FromResult(item.Ok()),
-                async error => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(error).ConfigureAwait(false)).Fail<T>());
 
         public static Task<Result<T>> MapErrorAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, IEnumerable<string>> errorMapFunc)
             => value.WrapAsync(item => item.MapError(errorMapFunc));
@@ -95,26 +63,13 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item => item.MapErrorAsync(errorMapFunc));
 
         //MapError on Result<T>
-        public static Task<Result<T, TError>> MapErrorAsync<T, TError>(this Result<T> value, Func<IEnumerable<string>, Task<TError>> errorMapFunc)
-            => value.Match(
-                item => Task.FromResult(item.Ok<T, TError>()),
-                async error => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(error).ConfigureAwait(false)).Fail<T, TError>());
-
         public static Task<Result<T, TError>> MapErrorAsync<T, TError>(this Task<Result<T>> value, Func<IEnumerable<string>, TError> errorMapFunc)
             => value.WrapAsync(item => item.MapError(errorMapFunc));
 
         public static Task<Result<T, TError>> MapErrorAsync<T, TError>(this Task<Result<T>> value, Func<IEnumerable<string>, Task<TError>> errorMapFunc)
             => value.WrapAsync(item => item.MapErrorAsync(errorMapFunc));
 
-
         //TeeAsync on Result<T, TError>
-        public static async Task<Result<T, TError>> TeeAsync<T, TError>(this Result<T, TError> value, Func<T, Task> asyncFunc)
-            => await value.MapAsync(async item =>
-            {
-                await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(item).ConfigureAwait(false);
-                return item;
-            }).ConfigureAwait(false);
-
         public static Task<Result<T, TError>> TeeAsync<T, TError>(this Task<Result<T, TError>> value, Action<T> action)
             => value.WrapAsync(item => item.Tee(action));
 
@@ -122,13 +77,6 @@ namespace OneOf.ROP.Async
             => value.WrapAsync(item => item.TeeAsync(asyncFunc));
 
         //TeeAsync on Result<T>
-        public static async Task<Result<T>> TeeAsync<T>(this Result<T> value, Func<T, Task> asyncFunc)
-            => await value.MapAsync(async item =>
-            {
-                await asyncFunc(item).ConfigureAwait(false);
-                return item;
-            }).ConfigureAwait(false);
-
         public static Task<Result<T>> TeeAsync<T>(this Task<Result<T>> value, Action<T> action)
             => value.WrapAsync(item => item.Tee(action));
 
@@ -183,5 +131,48 @@ namespace OneOf.ROP.Async
                     return ROP.Result.Ok();
                 },
                 errors => Task.FromResult(errors.Fail()));
+
+        //DiscardErrorAsync on Result<T, TError>
+        public static Task<Option<T>> DiscardErrorAsync<T, TError>(this Result<T, TError> value, Func<TError, Task> errorAction)
+            => value.Match(
+                item => Task.FromResult(item.Some()),
+                async errors =>
+                {
+                    await errorAction.ThrowIfDefault(nameof(errorAction))(errors);
+                    return Option<T>.None;
+                });
+
+        public static Task<Option<T>> DiscardErrorAsync<T, TError>(this Task<Result<T, TError>> value, Action<TError> errorAction)
+            => value.WrapAsync(item => item.DiscardError(errorAction));
+
+        public static Task<Option<T>> DiscardErrorAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, Task> errorAction)
+            => value.WrapAsync(item => item.DiscardErrorAsync(errorAction));
+
+        public static Task<Option<T>> DiscardErrorAsync<T, TError>(this Task<Result<T, TError>> value)
+            => value.WrapAsync(x => x.DiscardError());
+
+        //DiscardErrorAsync on Result<T>
+        public static Task<Option<T>> DiscardErrorAsync<T>(this Task<Result<T>> value, Action<IEnumerable<string>> errorAction)
+            => value.WrapAsync(item => item.DiscardError(errorAction));
+
+        public static Task<Option<T>> DiscardErrorAsync<T>(this Task<Result<T>> value, Func<IEnumerable<string>, Task> errorAction)
+            => value.WrapAsync(item => item.DiscardErrorAsync(errorAction));
+
+        public static Task<Option<T>> DiscardErrorAsync<T>(this Task<Result<T>> value)
+            => value.WrapAsync(item => item.DiscardError());
+
+        //DiscardValueAsync on Result<T, TError>
+        public static Task<VoidResult<TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value)
+            => value.WrapAsync(item => item.DiscardValue());
+
+        public static Task<VoidResult<TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value, Func<T, VoidResult<TError>> bindFunc)
+            => value.WrapAsync(x => x.DiscardValue(bindFunc));
+
+        //DiscardValueAsync on Result<T>
+        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value)
+            => value.WrapAsync(item => item.DiscardValue());
+
+        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value, Func<T, VoidResult> bindFunc)
+            => value.WrapAsync(x => x.DiscardValue(bindFunc));
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
-using OneOf.Types;
+using System.Threading.Tasks;
 using OneOf.ROP.Utils;
+using OneOf.Types;
 
 namespace OneOf.ROP
 {
@@ -39,14 +40,29 @@ namespace OneOf.ROP
         public Option<TResult> Bind<TResult>(Func<T, Option<TResult>> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), none => none);
 
+        public Task<Option<TResult>> BindAsync<TResult>(Func<T, Task<Option<TResult>>> bindFunc)
+            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), none => Task.FromResult<Option<TResult>>(none));
+
         public Option<TResult> Map<TResult>(Func<T, TResult> bindFunc)
             => Match(value => bindFunc.ThrowIfDefault(nameof(bindFunc))(value).Some(), none => none);
+
+        public Task<Option<TResult>> MapAsync<TResult>(Func<T, Task<TResult>> bindFunc)
+            => Match(
+                async item2 => (await bindFunc.ThrowIfDefault(nameof(bindFunc))(item2).ConfigureAwait(false)).Some(),
+                none => Task.FromResult<Option<TResult>>(none));
 
         public Option<T> Tee(Action<T> teeAction)
             => Map(value =>
             {
                 teeAction.ThrowIfDefault(nameof(teeAction))(value);
                 return value;
+            });
+
+        public Task<Option<T>> TeeAsync(Func<T, Task> asyncFunc)
+            => MapAsync(async x =>
+            {
+                await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(x).ConfigureAwait(false);
+                return x;
             });
     }
 }
