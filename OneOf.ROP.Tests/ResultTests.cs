@@ -1,4 +1,6 @@
 ﻿using NUnit.Framework;
+using FluentAssertions;
+using FluentAssertions.OneOf;
 
 namespace OneOf.ROP.Tests
 {

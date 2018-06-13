@@ -7,7 +7,7 @@ source https://www.nuget.org/api/v2
 
 //Main
 nuget OneOf >= 2.1.125
-nuget System.ValueTuple >= 4.4
+nuget System.ValueTuple >= 4.5
 
 // Testing
 nuget Microsoft.NET.Test.Sdk >= 15.5.0
