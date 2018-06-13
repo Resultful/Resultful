@@ -1,5 +1,3 @@
-using System;
-
 namespace OneOf.ROP.Utils
 {
     internal static class TupleHelper

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace OneOf.ROP
+﻿namespace OneOf.ROP
 {
     public interface IPlus<T, TResult>
     {

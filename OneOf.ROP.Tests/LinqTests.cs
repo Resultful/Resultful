@@ -1,7 +1,4 @@
-﻿using FluentAssertions;
-using FluentAssertions.OneOf;
-using NUnit.Framework;
-using OneOf.ROP.LINQ;
+﻿using NUnit.Framework;
 
 namespace OneOf.ROP.Tests
 {

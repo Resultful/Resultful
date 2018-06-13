@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using OneOf.ROP.Utils;
-using OneOf.Types;
 
 namespace OneOf.ROP
 {
