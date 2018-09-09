@@ -5,6 +5,8 @@ source https://api.nuget.org/v3/index.json
 source https://www.nuget.org/api/v2
 
 //Main
+//Maybe contribute a change which doesn't include deps Plus a .paket why lookup
+//github fsprojects/FSharp.TypeProviders.SDK netfx.props
 
 // Testing
 nuget Microsoft.NET.Test.Sdk >= 15.5.0
