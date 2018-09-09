@@ -1,2 +1,2 @@
 group example-deps
-  Microsoft.AspNetCore.All
+  Microsoft.AspNetCore.App

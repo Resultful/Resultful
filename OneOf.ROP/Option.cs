@@ -64,5 +64,21 @@ namespace OneOf.ROP
                 await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(x).ConfigureAwait(false);
                 return x;
             });
+
+        public Option<T> Or(Func<Option<T>> otherFunc)
+            => Match<Option<T>>(x => x, _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
+
+        public Option<T> Or(Option<T> other)
+            => Match(x => x, _ => other);
+
+        public Task<Option<T>> OrAsync(Func<Task<Option<T>>> otherFunc)
+            => Match(
+                x => Task.FromResult<Option<T>>(x),
+                _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
+
+        public Task<Option<T>> OrAsync(Task<Option<T>> other)
+            => Match(
+                x => Task.FromResult<Option<T>>(x),
+                _ => other);
     }
 }

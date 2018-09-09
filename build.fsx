@@ -1,67 +1,48 @@
-#r "packages/build-deps/FAKE/tools/FakeLib.dll"
-#r "packages/build-deps/FSharp.Configuration/lib/net45/FSharp.Configuration.dll"
+#r "paket: groupref build-deps //"
+
+#load "./.fake/build.fsx/intellisense.fsx"
+#if !FAKE
+  #r "netstandard"
+#endif
 
 open System
-open Fake
 open Fake.Core
 open Fake.IO
-open Fake.Core.TargetOperators
-open FSharp.Configuration
+open Fake.DotNet
 
-type VersionConfig = YamlConfig<"version.yml">
-let versionFile = VersionConfig()
+type Build = {
+    Version: string
+    Publish: bool
+}
+
+let config = {
+    Version = "0.1.1"
+    Publish = true
+}
+
+let buildDir = "build"
 
 let assertVersion inputStr =
-    if SemVer.isValidSemVer inputStr then
+    if Fake.Core.SemVer.isValid inputStr then
         ()
     else
         failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
 
-assertVersion versionFile.MainVersion
+assertVersion config.Version
 
-let globalTimeout = TimeSpan.FromMinutes 2.;
 
-let runCommand execuatable command timeout  =
-    let exitCode =
-        Process.ExecProcess (fun info ->
-        { info with
-            FileName = execuatable
-            Arguments = command
-        }) (timeout)
+let inline withVersionArgs version options =
+    options |> DotNet.Options.withCustomParams (Some (sprintf "/p:VersionPrefix=\"%s\"" version))
 
-    if exitCode <> 0 then failwithf "Look at error for  command %s %s" execuatable command
 
-let runMonoCommand timeout command  =
-    runCommand "mono" command timeout
-
-let runPaketCommand timeout paketCommand =
-    sprintf ".paket/paket.exe %s" paketCommand |> runMonoCommand timeout
-
-let buildDir = "./build"
-
-let publishPackage shouldPublish version project =
-    if shouldPublish then
-        sprintf "push build/%s.%s.nupkg" project version
-            |> runPaketCommand globalTimeout
-    else
-        Trace.log (sprintf "Package upload skipped because %s was not set to be published" project )
-
-let packProject version projectPath =
-    Fake.DotNetCli.Pack(fun p ->
-        { p with
-            Project = projectPath;
-            TimeOut = globalTimeout;
-            Configuration = "Release";
-            OutputPath = "../build";
-            AdditionalArgs = [ "--no-build"; sprintf "/p:VersionPrefix=\"%s\"" version ;  ]//"--include-source" ;  "--include-symbols"  ]
-        })
 let nugetKeyVariable =
     "NUGET_KEY"
 
 // *** Define Targets ***
-Target.Create "Clean" (fun _ ->
+Target.create "Clean" (fun _ ->
     let projects = [
         "./OneOf.ROP"
+        "./OneOf.ROP.Examples"
         "./OneOf.ROP.Tests"
     ]
 
@@ -69,40 +50,61 @@ Target.Create "Clean" (fun _ ->
         projects
         |> List.collect (fun project -> [ sprintf "%s/bin" project ; sprintf "%s/obj" project ])
 
-    Shell.CleanDirs (buildDir :: allFoldersToClean)
+    Shell.cleanDirs (buildDir :: allFoldersToClean)
 )
 
-Target.Create "Build" (fun _ ->
-    DotNetCli.Build (fun p ->
+Target.create "Build" (fun _ ->
+    DotNet.build (fun p ->
         { p with
-            TimeOut = globalTimeout;
-            Configuration = "Release";
-        })
+            Configuration = DotNet.BuildConfiguration.Release;
+
+        }) ""
 )
 
-Target.Create "Test" (fun _ ->
-    DotNetCli.Test (fun p ->
-        { p with
-            TimeOut = globalTimeout;
-            Configuration = "Release";
-            Project = "OneOf.ROP.Tests";
-            AdditionalArgs = [ "--no-build" ; ]
-        })
+Target.create "Test" (fun _ ->
+    let test project =
+        DotNet.test (fun p ->
+            { p with
+                Configuration = DotNet.BuildConfiguration.Release;
+                NoBuild = true
+            }) project
+
+    test "OneOf.ROP.Tests"
 )
 
-Target.Create "Package" (fun _ ->
+Target.create "Package" (fun _ ->
     Directory.ensure buildDir
-    packProject versionFile.MainVersion "OneOf.ROP/OneOf.ROP.csproj"
+    let packProject version projectPath =
+        DotNet.pack (fun p ->
+            { p with
+                Configuration = DotNet.BuildConfiguration.Release
+                OutputPath = Some (sprintf "../%s" buildDir)
+                NoBuild = true
+            } |> withVersionArgs version) projectPath
+
+    packProject config.Version "OneOf.ROP/OneOf.ROP.csproj"
 )
 
-Target.Create "Publish" (fun _ ->
-    match environVarOrNone nugetKeyVariable with
-    | Some _ -> publishPackage versionFile.MainPublish versionFile.MainVersion "OneOf.ROP"
+
+
+Target.create "Publish" (fun _ ->
+    let publishPackage shouldPublish project =
+        if shouldPublish then
+            Fake.DotNet.Paket.push (fun p ->
+                { p with
+                    WorkingDir = "build"
+                })
+        else
+            Trace.log (sprintf "Package upload skipped because %s was not set to be published" project )
+
+    match Environment.environVarOrNone nugetKeyVariable with
+    | Some _ -> publishPackage config.Publish "OneOf.ROP"
     | None -> Trace.log (sprintf "Package upload skipped because %s was not found" nugetKeyVariable)
 )
 
-
 // *** Define Dependencies ***
+open Fake.Core.TargetOperators
+
 "Clean"
     ==> "Build"
 
@@ -115,4 +117,4 @@ Target.Create "Publish" (fun _ ->
     ==> "Publish"
 
 // *** Start Build ***
-Target.RunOrDefault "Package"
+Fake.Core.Target.runOrDefault "Package"

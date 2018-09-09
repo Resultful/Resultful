@@ -1,5 +1,3 @@
-OneOf
-System.ValueTuple
 FluentAssertions.OneOf
 NUnit
 NUnit3TestAdapter

@@ -44,5 +44,12 @@ namespace OneOf.ROP
 
         public static Task<Option<T>> TeeAsync<T>(this Task<Option<T>> value, Action<T> teeAction)
             => value.WrapAsync(item => item.Tee(teeAction));
+
+        //OrAsync on Option<T>
+        public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Task<Option<T>> other)
+            => value.WrapAsync(item => item.OrAsync(other));
+
+        public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Func<Task<Option<T>>> otherFunc)
+            => value.WrapAsync(item => item.OrAsync(otherFunc));
     }
 }

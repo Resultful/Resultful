@@ -1,6 +1,6 @@
 language: csharp
 mono: latest
-dotnet: 2.1.300
+dotnet: 2.1.401
 sudo: enabled
 before_install:
   - chmod +x build.sh

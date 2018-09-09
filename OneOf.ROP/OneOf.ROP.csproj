@@ -7,6 +7,8 @@
     <PackageProjectUrl>https://github.com/rtkelly13/OneOf.ROP</PackageProjectUrl>
     <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
     <Description>Railway Oriented Programming library that is built ontop of OneOf for C#, it is based upon chessie an F# library and is intented to be idiomatic for C#.</Description>
+    <RepositoryUrl>https://github.com/rtkelly13/OneOf.ROP.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <Import Project="..\.paket\Paket.Restore.targets" />
