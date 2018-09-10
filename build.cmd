@@ -1,2 +1,2 @@
-dotnet tool install fake-cli -g --version 5.6.1
-fake build -t Publish
+dotnet tool install fake-cli --version 5.6.1 --tool-path .fake/tool-path
+.fake/tool-path/fake build -t Publish

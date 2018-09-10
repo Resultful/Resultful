@@ -5,7 +5,6 @@
   #r "netstandard"
 #endif
 
-open System
 open Fake.Core
 open Fake.IO
 open Fake.DotNet
