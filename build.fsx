@@ -6,6 +6,8 @@
 
 #endif
 
+open System
+open System.IO
 open Fake.Core
 open Fake.IO
 open Fake.DotNet
