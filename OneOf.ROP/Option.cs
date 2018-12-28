@@ -66,19 +66,35 @@ namespace OneOf.ROP
             });
 
         public Option<T> Or(Func<Option<T>> otherFunc)
-            => Match<Option<T>>(x => x, _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
+            => Match(x => x, _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
+
+        public T Or(Func<T> otherFunc)
+            => Match(x => x, _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
 
         public Option<T> Or(Option<T> other)
             => Match(x => x, _ => other);
+
+        public T Or(T otherValue)
+            => Match(x => x, _ => otherValue);
 
         public Task<Option<T>> OrAsync(Func<Task<Option<T>>> otherFunc)
             => Match(
                 x => Task.FromResult<Option<T>>(x),
                 _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
 
+        public Task<T> OrAsync(Func<Task<T>> other)
+            => Match(
+                Task.FromResult,
+                _ => other());
+
         public Task<Option<T>> OrAsync(Task<Option<T>> other)
             => Match(
                 x => Task.FromResult<Option<T>>(x),
                 _ => other);
+
+        public Task<T> OrAsync(Task<T> otherValue)
+            => Match(
+                Task.FromResult,
+                _ => otherValue);
     }
 }

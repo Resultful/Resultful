@@ -83,6 +83,21 @@ namespace OneOf.ROP
         public static Task<Result<T>> TeeAsync<T>(this Task<Result<T>> value, Func<T, Task> asyncFunc)
             => value.WrapAsync(item => item.TeeAsync(asyncFunc).AsTask());
 
+        //TeeErrorAsync on Result<T, TError>
+        public static Task<Result<T, TError>> TeeErrorAsync<T, TError>(this Task<Result<T, TError>> value, Action<TError> action)
+            => value.WrapAsync(item => item.TeeError(action));
+
+        public static Task<Result<T, TError>> TeeErrorAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, Task> asyncFunc)
+            => value.WrapAsync(item => item.TeeErrorAsync(asyncFunc).AsTask());
+
+        //TeeErrorAsync on Result<T>
+        public static Task<Result<T>> TeeErrorAsync<T>(this Task<Result<T>> value, Action<IEnumerable<string>> action)
+            => value.WrapAsync(item => item.TeeError(action));
+
+        public static Task<Result<T>> TeeErrorAsync<T>(this Task<Result<T>> value, Func<IEnumerable<string>, Task> asyncFunc)
+            => value.WrapAsync(item => item.TeeErrorAsync(asyncFunc).AsTask());
+
+
         //FlattenAsync on Result<T, TError>
         public static Task<Result<T, TError>> FlattenAsync<T, TError>(this Task<Result<Result<T, TError>, TError>> value)
             => value.WrapAsync(item => item.Flatten());
@@ -168,11 +183,20 @@ namespace OneOf.ROP
         public static Task<VoidResult<TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value, Func<T, VoidResult<TError>> bindFunc)
             => value.WrapAsync(x => x.DiscardValue(bindFunc));
 
+        public static Task<VoidResult<TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value, Func<T, Task<VoidResult<TError>>> bindFunc)
+            => value.WrapAsync(x => x.DiscardValueAsync(bindFunc));
+
         //DiscardValueAsync on Result<T>
-        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value)
+        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value)
             => value.WrapAsync(item => item.DiscardValue());
 
-        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value, Func<T, VoidResult> bindFunc)
+        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, VoidResult> bindFunc)
             => value.WrapAsync(x => x.DiscardValue(bindFunc));
+
+        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task<VoidResult>> bindFunc)
+            => value.WrapAsync(x => x.DiscardValueAsync(bindFunc));
+
+        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task> bindFunc)
+            => value.WrapAsync(x => x.DiscardValueAsync(bindFunc));
     }
 }

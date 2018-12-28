@@ -33,3 +33,4 @@ group build-deps
     nuget Fake.Core.ReleaseNotes
     nuget Fake.DotNet.Cli
     nuget Fake.DotNet.Paket
+    nuget Fake.Tools.Git

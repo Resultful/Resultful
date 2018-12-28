@@ -85,6 +85,20 @@ namespace OneOf.ROP
                 return item;
             }).ConfigureAwait(false);
 
+        public Result<T, TError> TeeError(Action<TError> teeAction)
+            => MapError(x =>
+            {
+                teeAction.ThrowIfDefault(nameof(teeAction))(x);
+                return x;
+            });
+
+        public async Task<Result<T, TError>> TeeErrorAsync(Func<TError, Task> asyncFunc)
+            => await MapErrorAsync(async item =>
+            {
+                await asyncFunc(item).ConfigureAwait(false);
+                return item;
+            }).ConfigureAwait(false);
+
         public Option<T> DiscardError(Action<TError> errorAction)
             => Match(Option.Some, errors =>
             {
@@ -111,6 +125,9 @@ namespace OneOf.ROP
             => Match(
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
                 error => Task.FromResult(error.Fail()));
+
+        public Task<VoidResult<TError>> DiscardValueAsync(Func<T, Task> bindFunc)
+            => DiscardValueAsync(_ => Task.FromResult(Result.Ok<TError>()));
 
         public VoidResult<TError> DiscardValue()
             => DiscardValue(_ => Result.Ok<TError>());

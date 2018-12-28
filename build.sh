@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
-dotnet tool install fake-cli --version 5.6.1 --tool-path .fake/tool-path
-.fake/tool-path/fake -v build  -t Publish
+dotnet tool install fake-cli --version 5.10.1 -g
+export PATH="$HOME/.dotnet/tools:$PATH"
+fake -v build  -t Publish

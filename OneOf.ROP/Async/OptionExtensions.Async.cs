@@ -46,8 +46,27 @@ namespace OneOf.ROP
             => value.WrapAsync(item => item.Tee(teeAction));
 
         //OrAsync on Option<T>
+
+        public static Task<T> OrAsync<T>(this Task<Option<T>> value, T otherValue)
+            => value.WrapAsync(item => item.Or(otherValue));
+
+        public static Task<T> OrAsync<T>(this Task<Option<T>> value, Task<T> otherValue)
+            => value.WrapAsync(item => item.OrAsync(otherValue));
+
+        public static Task<T> OrAsync<T>(this Task<Option<T>> value, Func<T> otherFunc)
+            => value.WrapAsync(item => item.Or(otherFunc));
+
+        public static Task<T> OrAsync<T>(this Task<Option<T>> value, Func<Task<T>> otherFunc)
+            => value.WrapAsync(item => item.OrAsync(otherFunc));
+
+        public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Option<T> other)
+            => value.WrapAsync(item => item.Or(other));
+
         public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Task<Option<T>> other)
             => value.WrapAsync(item => item.OrAsync(other));
+
+        public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Func<Option<T>> otherFunc)
+            => value.WrapAsync(item => item.Or(otherFunc));
 
         public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Func<Task<Option<T>>> otherFunc)
             => value.WrapAsync(item => item.OrAsync(otherFunc));

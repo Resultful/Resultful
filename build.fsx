@@ -1,13 +1,15 @@
 #r "paket: groupref build-deps //"
-
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
-  #r "netstandard"
+#r "netstandard"
+#r "Facades/netstandard"
+
 #endif
 
 open Fake.Core
 open Fake.IO
 open Fake.DotNet
+open Fake.Tools.Git
 
 type Build = {
     Version: string
@@ -15,11 +17,13 @@ type Build = {
 }
 
 let config = {
-    Version = "0.1.2"
+    Version = "0.2.0-alpha01"
     Publish = true
 }
 
 let buildDir = "build"
+
+let gitBranch = Information.getBranchName ""
 
 let assertVersion inputStr =
     if Fake.Core.SemVer.isValid inputStr then
@@ -37,6 +41,11 @@ let inline withVersionArgs version options =
 let nugetKeyVariable =
     "NUGET_KEY"
 
+let getProjFolders projPath =
+    let dir = Path.GetDirectoryName projPath
+    [ sprintf "%s/bin" dir
+      sprintf "%s/obj" dir ]
+
 // *** Define Targets ***
 Target.create "Clean" (fun _ ->
     let projects = [
@@ -47,7 +56,7 @@ Target.create "Clean" (fun _ ->
 
     let allFoldersToClean =
         projects
-        |> List.collect (fun project -> [ sprintf "%s/bin" project ; sprintf "%s/obj" project ])
+        |> List.collect (fun project -> getProjFolders project)
 
     Shell.cleanDirs (buildDir :: allFoldersToClean)
 )
@@ -56,7 +65,6 @@ Target.create "Build" (fun _ ->
     DotNet.build (fun p ->
         { p with
             Configuration = DotNet.BuildConfiguration.Release;
-
         }) ""
 )
 
@@ -88,13 +96,13 @@ Target.create "Package" (fun _ ->
 
 Target.create "Publish" (fun _ ->
     let publishPackage shouldPublish project =
-        if shouldPublish then
+        if shouldPublish && gitBranch = "master" then
             Fake.DotNet.Paket.push (fun p ->
                 { p with
                     WorkingDir = "build"
                 })
         else
-            Trace.log (sprintf "Package upload skipped because %s was not set to be published" project )
+            Trace.log (sprintf "Package upload skipped because %s was not set to be published or the branch %s is not master" project gitBranch )
 
     match Environment.environVarOrNone nugetKeyVariable with
     | Some _ -> publishPackage config.Publish "OneOf.ROP"

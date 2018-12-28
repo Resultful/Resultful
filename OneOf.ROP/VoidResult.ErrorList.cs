@@ -51,8 +51,14 @@ namespace OneOf.ROP
         public Result<TResult> Map<TResult>(Func<Unit, TResult> mapFunc)
             => Map2(Result.Id, mapFunc);
 
-        public async Task<Result<TResult>> MapAsync<TResult>(Func<Task<TResult>> mapFunc)
-            => await Map2Async(Task.FromResult, mapFunc).ConfigureAwait(false);
+        public Task<Result<TResult>> MapAsync<TResult>(Func<Unit, Task<TResult>> mapFunc)
+            => BindValueAsync(async _ => (await mapFunc.ThrowIfDefault(nameof(mapFunc))(_).ConfigureAwait(false)).Ok());
+
+        public Result<T> Map<T>(T value)
+            => Map(_ => value);
+
+        public Task<Result<T>> MapAsync<T>(Task<T> value)
+            => MapAsync(_ => value);
 
         public Result<TResult, TError> Map2<TResult, TError>(Func<IEnumerable<string>, TError> errorMapFunc, Func<Unit, TResult> mapFunc)
             => Match(
@@ -80,6 +86,8 @@ namespace OneOf.ROP
                 success => Task.FromResult(Result.Ok()),
                 async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail());
 
+
+
         public VoidResult Bind(Func<Unit, VoidResult> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
 
@@ -94,18 +102,32 @@ namespace OneOf.ROP
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
                 error => Task.FromResult(error.Fail<T>()));
 
-        public VoidResult Tee(Action action)
-            => Map(unit =>
+        public VoidResult Tee(Action<Unit> action)
+            => Map(_ =>
             {
-                action.ThrowIfDefault(nameof(action))();
-                return unit;
+                action.ThrowIfDefault(nameof(action))(_);
+                return _;
             });
 
-        public async Task<VoidResult> TeeAsync(Func<Task> asyncFunc)
-            => await MapAsync(async () =>
+        public async Task<VoidResult> TeeAsync(Func<Unit, Task> asyncFunc)
+            => await MapAsync(async _ =>
             {
-                await asyncFunc.ThrowIfDefault(nameof(asyncFunc))().ConfigureAwait(false);
+                await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(_).ConfigureAwait(false);
                 return Unit.Value;
+            }).ConfigureAwait(false);
+
+        public VoidResult TeeError(Action<IEnumerable<string>> action)
+            => MapError(error =>
+            {
+                action.ThrowIfDefault(nameof(action))(error);
+                return error;
+            });
+
+        public async Task<VoidResult> TeeErrorAsync(Func<IEnumerable<string>, Task> asyncFunc)
+            => await MapErrorAsync(async error =>
+            {
+                await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(error).ConfigureAwait(false);
+                return error;
             }).ConfigureAwait(false);
     }
 }

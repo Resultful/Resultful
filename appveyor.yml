@@ -7,6 +7,8 @@ artifacts:
   - path: build
     name: build
 
+test: off
+
 environment:
   NUGET_KEY:
     secure: A6mzQ7YryI/Mm3uvMSxiNMS9P9XPphcqcVxjwsJ01bBDJgmhsw+dR+3+d3EuSz0+
