@@ -1,6 +1,8 @@
 language: csharp
 dotnet: 2.2.101
 mono: none
+os: linux
+dist: xenial
 sudo: enabled
 before_install:
   - chmod +x build.sh
