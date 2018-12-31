@@ -2,7 +2,6 @@
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
 #r "netstandard"
-#r "Facades/netstandard"
 
 #endif
 
@@ -25,8 +24,6 @@ let config = {
 
 let buildDir = "build"
 
-let gitBranch = Information.getBranchName ""
-
 let assertVersion inputStr =
     if Fake.Core.SemVer.isValid inputStr then
         ()
@@ -47,6 +44,21 @@ let getProjFolders projPath =
     let dir = Path.GetDirectoryName projPath
     [ sprintf "%s/bin" dir
       sprintf "%s/obj" dir ]
+
+let runDotNet cmd workingDir =
+    let result = DotNet.exec (DotNet.Options.withWorkingDirectory workingDir) cmd ""
+    if result.ExitCode <> 0 then failwithf "'dotnet %s' failed in %s" cmd workingDir
+
+Target.create "PaketInstall" (fun _ ->
+    let tool =
+        if Environment.isUnix then "paket"
+        else "paket.exe"
+
+    let toolPath = (sprintf ".paket\\%s" tool)
+    match ProcessUtils.tryFindFileOnPath toolPath with
+    | Some _ -> runDotNet "tool update --tool-path \".paket\" Paket" "."
+    | None -> runDotNet "tool install --tool-path \".paket\" Paket --add-source https://api.nuget.org/v3/index.json" "."
+)
 
 // *** Define Targets ***
 Target.create "Clean" (fun _ ->
@@ -97,6 +109,7 @@ Target.create "Package" (fun _ ->
 
 
 Target.create "Publish" (fun _ ->
+    let gitBranch = Information.getBranchName ""
     let publishPackage shouldPublish project =
         if shouldPublish && gitBranch = "master" then
             Fake.DotNet.Paket.push (fun p ->
@@ -114,7 +127,8 @@ Target.create "Publish" (fun _ ->
 // *** Define Dependencies ***
 open Fake.Core.TargetOperators
 
-"Clean"
+"PaketInstall"
+    ==> "Clean"
     ==> "Build"
 
 "Build"

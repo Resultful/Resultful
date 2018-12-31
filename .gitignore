@@ -288,3 +288,6 @@ __pycache__/
 
 
 publish.cmd
+.paket
+!.paket\Paket.Restore.targets
+!.paket\paket.targets
