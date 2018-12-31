@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\netfx.props" />
-  <PropertyGroup>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\OneOf.ROP\OneOf.ROP.csproj" />
-  </ItemGroup>
-  <Import Project="..\.paket\Paket.Restore.targets" />
+    <Import Project="..\netfx.props" />
+    <PropertyGroup>
+        <TargetFramework>netcoreapp2.2</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\OneOf.ROP\OneOf.ROP.csproj" />
+    </ItemGroup>
+    <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>
