@@ -19,10 +19,10 @@ nuget NETStandard.Library >= 1.6.1
 
 //Examples
 group example-deps
-    framework: auto-detect
+    framework: netcoreapp2.1
     source https://api.nuget.org/v3/index.json
 
-    nuget Microsoft.AspNetCore.App
+    nuget Microsoft.AspNetCore.App ~> 2.1.6
 
 // [ Fake Group ]
 group build-deps
