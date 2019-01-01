@@ -109,9 +109,13 @@ Target.create "Package" (fun _ ->
 
 
 Target.create "Publish" (fun _ ->
-    let gitBranch = Information.getBranchName ""
+    let gitBranch = Information.getBranchName "."
+
+    Trace.log (sprintf "Git branch: %s" gitBranch)
+    //let isMaster = gitBranch = "master"
+    let isMaster = false
     let publishPackage shouldPublish project =
-        if shouldPublish && gitBranch = "master" then
+        if shouldPublish && isMaster then
             Fake.DotNet.Paket.push (fun p ->
                 { p with
                     WorkingDir = "build"
