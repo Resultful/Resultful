@@ -17,7 +17,7 @@ type Build =
       Publish : bool }
 
 let config =
-    { Version = "0.2.0-alpha01"
+    { Version = "0.2.0-alpha02"
       Publish = true }
 
 let buildDir = "build"
@@ -61,8 +61,7 @@ Target.create "Package" (fun _ ->
 Target.create "Publish" (fun _ ->
     let gitBranch = Information.getBranchName "."
     Trace.log (sprintf "Git branch: %s" gitBranch)
-    //let isMaster = gitBranch = "master"
-    let isMaster = true
+    let isMaster = gitBranch = "master"
 
     let publishPackage shouldPublish project =
         if shouldPublish && isMaster then Fake.DotNet.Paket.push (fun p -> { p with WorkingDir = "build" })
