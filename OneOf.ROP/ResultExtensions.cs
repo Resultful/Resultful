@@ -11,8 +11,6 @@ namespace OneOf.ROP
     {
         public static T Id<T>(this T value) => value;
 
-        public static Task<Unit> TaskUnit => Task.FromResult(Unit.Value);
-
         //Builder for Result<T, TError>
         public static Result<T, IEnumerable<TError>> Fail<T, TError>(this IEnumerable<TError> errors)
             => new Result<T, IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);

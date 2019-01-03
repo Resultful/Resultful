@@ -17,7 +17,7 @@ type Build =
       Publish : bool }
 
 let config =
-    { Version = "0.2.0-alpha02"
+    { Version = "0.2.0-alpha03"
       Publish = true }
 
 let buildDir = "build"

@@ -50,7 +50,7 @@ namespace OneOf.ROP
             => await value.WrapAsync(item => item.Map2(errorMapFunc, Id)).ConfigureAwait(false);
 
         public static async Task<VoidResult<TErrorResult>> MapError<TErrorResult>(this Task<VoidResult> value, Func<IEnumerable<string>, Task<TErrorResult>> errorMapFunc)
-            => await value.WrapAsync(item => item.Map2Async(errorMapFunc, () => Task.FromResult(Unit.Value))).ConfigureAwait(false);
+            => await value.WrapAsync(item => item.Map2Async(errorMapFunc, () => TaskUnit)).ConfigureAwait(false);
 
         //MapErrorAsync on VoidResult<Terror>
         public static async Task<VoidResult<TErrorResult>> MapErrorAsync<TError, TErrorResult>(this Task<VoidResult<TError>> value, Func<TError, TErrorResult> errorMapFunc)

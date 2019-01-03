@@ -120,16 +120,13 @@ namespace OneOf.ROP
         public Option<T> DiscardError()
             => Match(Option.Some, _ => Option<T>.None);
 
-        public  VoidResult DiscardValue(Func<T, VoidResult> bindFunc)
+        public VoidResult DiscardValue(Func<T, VoidResult> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
 
         public Task<VoidResult> DiscardValueAsync(Func<T, Task<VoidResult>> bindFunc)
             => Match(
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
                 error => Task.FromResult(error.Fail()));
-
-        public Task<VoidResult> DiscardValueAsync(Func<T, Task> bindFunc)
-            => DiscardValueAsync(_ => Task.FromResult(Result.Ok()));
 
         public VoidResult DiscardValue()
             => Match(_ => Result.Ok(), Result.Fail);

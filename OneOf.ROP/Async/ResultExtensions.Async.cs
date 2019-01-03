@@ -196,7 +196,6 @@ namespace OneOf.ROP
         public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task<VoidResult>> bindFunc)
             => value.WrapAsync(x => x.DiscardValueAsync(bindFunc));
 
-        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task> bindFunc)
-            => value.WrapAsync(x => x.DiscardValueAsync(bindFunc));
+
     }
 }

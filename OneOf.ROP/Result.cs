@@ -9,7 +9,7 @@ namespace OneOf.ROP
     public struct Result<T, TError>
     {
         //Private Members
-        private OneOf<T,TError> _value;
+        private OneOf<T, TError> _value;
 
         //Constructors
         internal Result(T value)
@@ -126,8 +126,6 @@ namespace OneOf.ROP
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
                 error => Task.FromResult(error.Fail()));
 
-        public Task<VoidResult<TError>> DiscardValueAsync(Func<T, Task> bindFunc)
-            => DiscardValueAsync(_ => Task.FromResult(Result.Ok<TError>()));
 
         public VoidResult<TError> DiscardValue()
             => DiscardValue(_ => Result.Ok<TError>());
