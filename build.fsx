@@ -8,6 +8,7 @@
 open Fake.Core
 open Fake.DotNet
 open Fake.IO
+open Fake.IO.Globbing.Operators
 open Fake.Tools.Git
 open System
 open System.IO
@@ -39,9 +40,11 @@ let getProjFolders projPath =
 
 // *** Define Targets ***
 Target.create "Clean" (fun _ ->
-    let projects = [ "./Resultful"; "./Resultful.Examples"; "./Resultful.Tests" ]
-    let allFoldersToClean = projects |> List.collect (fun project -> getProjFolders project)
-    Shell.cleanDirs (buildDir :: allFoldersToClean))
+    let projFoldersToDelete =
+        !!"*/*.csproj" |> List.ofSeq |> List.collect (fun project -> getProjFolders project)
+    let allFoldersToClean = (buildDir :: projFoldersToDelete)
+    Trace.logfn "All folders to clean: %A" allFoldersToClean
+    Shell.cleanDirs allFoldersToClean)
 Target.create "Build" (fun _ -> DotNet.build (fun p -> { p with Configuration = DotNet.BuildConfiguration.Release }) "")
 Target.create "Test" (fun _ ->
     let test project =
