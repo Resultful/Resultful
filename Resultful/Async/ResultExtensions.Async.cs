@@ -169,37 +169,37 @@ namespace Resultful
         //UnwrapAsync on Result<T, TError>
         public static Task<Result<T, TError>> UnwrapAsync<T, TError>(this Result<Task<T>, TError> value)
             => value.Match(
-                async item => (await item.ConfigureAwait(false)).Ok<T, TError>(),
-                errors => Task.FromResult(errors.Fail<T, TError>()));
+                async item => (await item.ConfigureAwait(false)).Ok().Result<TError>(),
+                errors => Task.FromResult(errors.Err().Result<T>()));
 
         public static Task<Result<T, TError>> UnwrapAsync<T, TError>(this Result<T, Task<TError>> value)
             => value.Match(
-                item => Task.FromResult(item.Ok<T, TError>()),
-                async errors => (await errors.ConfigureAwait(false)).Fail<T, TError>());
+                item => Task.FromResult(item.Ok().Result<TError>()),
+                async errors => (await errors.ConfigureAwait(false)).Err().Result<T>());
 
         public static Task<VoidResult<TError>> UnwrapAsync<TError>(this Result<Task, TError> value)
             => value.Match(
                 async item =>
                 {
                     await item.ConfigureAwait(false);
-                    return Ok<TError>();
+                    return Ok().Result<TError>();
                 },
-                errors => Task.FromResult(errors.Fail()));
+                errors => Task.FromResult(errors.Err().Result()));
 
         //UnwrapAsync on Result<T>
         public static Task<Result<T>> Unwrap<T>(this Result<Task<T>> value)
             => value.Match(
-                async item => (await item.ConfigureAwait(false)).Ok(),
-                errors => Task.FromResult(errors.Fail<T>()));
+                async item => (await item.ConfigureAwait(false)).Ok().Result(),
+                errors => Task.FromResult(errors.Fail().Result<T>()));
 
         public static Task<VoidResult> Unwrap<T>(this Result<Task> value)
             => value.Match(
                 async item =>
                 {
                     await item.ConfigureAwait(false);
-                    return Ok();
+                    return Ok().Result();
                 },
-                errors => Task.FromResult(errors.Fail()));
+                errors => Task.FromResult(errors.Fail().Result()));
 
         //DiscardErrorAsync on Result<T, TError>
         public static Task<Option<T>> DiscardErrorAsync<T, TError>(this Result<T, TError> value, Func<TError, Task> errorAction)

@@ -12,11 +12,11 @@ namespace Resultful.Tests
         public void AssertThing()
         {
             var trimmedValue =
-                from s in "  Test ".Ok()
+                from s in "  Test ".Ok().Result()
                 select s.Trim();
             var projectedValue =
                 from s in trimmedValue
-                from j in "Final Value".Ok()
+                from j in "Final Value".Ok().Result()
                 select $"{s}: {j}";
 
             projectedValue.ToOneOf().Should().Be<string>().And.Should().Be("Test: Final Value");

@@ -13,26 +13,23 @@ namespace Resultful
         private OneOf<T, IEnumerable<string>> _value;
 
         //Constructors
-        internal Result(T value)
-            => _value = value;
+        internal Result(Ok<T> item)
+            => _value = item.Value;
 
-        internal Result(IEnumerable<string> value)
-            => _value = OneOf<T, IEnumerable<string>>.FromT1(value);
+        internal Result(Fail item)
+            => _value = OneOf<T, IEnumerable<string>>.FromT1(item.Value);
 
         //Implicit Converters
         public static implicit operator Result<T>(Result<T, IEnumerable<string>> value)
-            => value.Match(
+            => value.Match<Result<T>>(
                 result => result.Ok(),
-                errors => errors.Fail<T>());
+                errors => errors.Fail());
 
-        public static implicit operator Result<T>(string[] value)
-            => value.Fail<T>();
+        public static implicit operator Result<T>(Ok<T> item)
+            => new Result<T>(item);
 
-        public static implicit operator Result<T>(List<string> value)
-            => value.Fail<T>();
-
-        public static implicit operator Result<T>(string value)
-            => Result.Fail<T>(value);
+        public static implicit operator Result<T>(Fail item)
+            => new Result<T>(item);
 
         //Local Methods
         public void Switch(Action<T> successfulFunc, Action<IEnumerable<string>> errorFunc)
@@ -60,12 +57,12 @@ namespace Resultful
         public Result<TResult> Bind<TResult>(Func<T, Result<TResult>> bindFunc)
             => Match(
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
-                errors => errors.Fail<TResult>());
+                errors => errors.Fail());
 
         public Task<Result<TResult>> BindAsync<TResult>(Func<T, Task<Result<TResult>>> bindFunc)
             => Match(
-                bindFunc.ThrowIfDefault(nameof(bindFunc)),
-                error => Task.FromResult(error.Fail<TResult>()));
+                bindFunc.ThrowIfDefault(nameof(bindFunc)), 
+                error => Task.FromResult<Result<TResult>>(error.Fail()));
 
         public Result<TResult> Map<TResult>(Func<T, TResult> mapFunc)
             => Map2(Result.Id, mapFunc);
@@ -77,20 +74,20 @@ namespace Resultful
             => Map2(errorMapFunc, Result.Id);
 
         public Task<Result<T, TError>> MapErrorAsync<TError>(Func<IEnumerable<string>, Task<TError>> errorMapFunc)
-            => Match(
-                item => Task.FromResult(item.Ok<T, TError>()),
-                async error => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(error).ConfigureAwait(false)).Fail<T, TError>());
+            => Match<Task<Result<T, TError>>>(
+                item => Task.FromResult<Result<T, TError>>(item.Ok()),
+                async error => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(error).ConfigureAwait(false)).Err());
 
 
         public Result<TResult, TError> Map2<TResult, TError>(Func<IEnumerable<string>, TError> errorMapFunc, Func<T, TResult> mapFunc)
-            => Match(
-                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TError>(),
-                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TError>());
+            => Match<Result<TResult, TError>>(
+                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok(),
+                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Err());
 
         public Task<Result<TResult, TError>> Map2Async<TResult, TError>(Func<IEnumerable<string>, Task<TError>> errorMapFunc, Func<T, Task<TResult>> mapFunc)
-            => Match(
-                async success => (await mapFunc(success).ConfigureAwait(false)).Ok<TResult, TError>(),
-                async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail<TResult, TError>());
+            => Match<Task<Result<TResult, TError>>>(
+                async success => (await mapFunc(success).ConfigureAwait(false)).Ok(),
+                async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Err());
 
         public Result<T> Tee(Action<T> teeAction)
             => Map(x =>
@@ -140,15 +137,15 @@ namespace Resultful
             => Match(Option.Some, _ => Option<T>.None);
 
         public VoidResult DiscardValue(Func<T, VoidResult> bindFunc)
-            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
+            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), err => err.Fail());
 
         public Task<VoidResult> DiscardValueAsync(Func<T, Task<VoidResult>> bindFunc)
             => Match(
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
-                error => Task.FromResult(error.Fail()));
+                error => Task.FromResult<VoidResult>(error.Fail()));
 
         public VoidResult DiscardValue()
-            => Match(_ => Result.Ok(), Result.Fail);
+            => Match<VoidResult>(_ => Result.Ok(), err => err.Fail());
 
         public T ReturnOrValue(Func<IEnumerable<string>, T> func)
             => Match(Result.Id, func);

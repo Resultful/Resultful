@@ -8,35 +8,17 @@ namespace Resultful
 {
     public static partial class Result
     {
-        //Builder for VoidResult<TError>
-        public static VoidResult<TError> Fail<TError>(this TError value)
-            => new VoidResult<TError>(value);
 
-        public static VoidResult<IEnumerable<TError>> Fail<TError>(params TError[] errors)
-            => new VoidResult<IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
-
-        public static VoidResult<TError> Ok<TError>()
-            => new VoidResult<TError>(Unit.Value);
-
-        //Builder for VoidResult
-        public static VoidResult Fail(this IEnumerable<string> value)
-            => new VoidResult(value ?? EmptyArray<string>.Get);
-
-        public static VoidResult Fail(params string[] errors)
-            => new VoidResult(errors ?? EmptyArray<string>.Get);
-
-        public static VoidResult Ok()
-            => new VoidResult(Unit.Value);
 
         //Plus on VoidResult<TError>
         public static VoidResult<TError> Plus<TError>(this VoidResult<TError> left, VoidResult<TError> right, Func<TError, TError, TError> mergeFunc)
             => left.Match(
                 leftValue => right.Match(
-                    rightValue => Ok<TError>(), Fail
+                    rightValue => Ok().Result<TError>(), error => error.Err()
                 ),
                 error => right.Match(
-                    rightValue => Fail(error),
-                    otherError => Fail(mergeFunc.ThrowIfDefault(nameof(mergeFunc))(error, otherError))
+                    rightValue => Err(error),
+                    otherError => Err(mergeFunc.ThrowIfDefault(nameof(mergeFunc))(error, otherError))
                 )
             );
 
@@ -46,8 +28,8 @@ namespace Resultful
         //Plus on VoidResult
         public static VoidResult Plus(this VoidResult left, VoidResult right)
             => left.Match(
-                leftValue => right.Match(_ => Ok(), Fail),
-                error => right.Match(rightValue => Fail(error), otherError => Fail(error.Concat(otherError)))
+                leftValue => right.Match(_ => Ok().Result(), error => error.Fail()),
+                error => right.Match(rightValue => error.Fail(), otherError => error.Concat(otherError).Fail())
             );
 
         //Fold on VoidResult<TError>
@@ -79,6 +61,6 @@ namespace Resultful
 
         //Flatten on VoidResult<TError>
         public static VoidResult<TError> Flatten<TError>(this VoidResult<VoidResult<TError>> value)
-            => value.Match(_ => Ok<TError>(), Id);
+            => value.Match(_ => Ok().Result<TError>(), Id);
     }
 }
