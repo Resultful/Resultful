@@ -1,11 +1,13 @@
-# OneOf.ROP
+# Resultful
+
 Utility classes for Railway Oriented Programming using OneOf a Discriminated Union library.
 
 Inspired by this article on [F# for fun and profit](https://fsharpforfunandprofit.com/posts/recipe-part2/)
 Designed to be consumed for C#.
 
 ## Installation
-Instructions to install using your appropriate package manager can be [found here](https://www.nuget.org/packages/OneOf.ROP/)
+
+Instructions to install using your appropriate package manager can be [found here](https://www.nuget.org/packages/Resultful/)
 
 ## Types
 
@@ -21,12 +23,14 @@ There are 5 fundamental types in this library
 
 There are 3 parts to building a pipeline using this library.
 I am going to write the majority of the examples against `Result<T, TError>` as it is the most generic type, but the idea is applicable to all types where.
+
 1. `Result<T>` = `Result<T, IEnumerable<string>>`
 2. `VoidResult<TError>` = `Result<Unit, TError>`
 3. `VoidResult` = `Result<Unit, IEnumerable<string>>`
 4. `Option<T>` = `Result<T, None>`
 
 ### Building
+
 There are implicit converters to each of the result types from their Union element.
 
 ```cs
@@ -46,6 +50,7 @@ The because it would interfere with any Results that could also be interpreted a
 ### Pipelining
 
 There are three main pipelining operators which can be performed on a result type, going to write these examples against the
+
 1. Map
 2. Bind
 3. Tee
@@ -126,4 +131,4 @@ Or anywhere that accepts `Func<T, T, T>` is typically written to remove that arg
 
 There are Async operations available which can either accept the input as a Task and/or the `Func` given returns a `Task`. These should be available for all standard operations of the library such as `Map`, `Bind`, `Tee`.
 This has not been implemented for Plus or Fold as the Task could actually be in a variety of locations on the arguments. Everything desired could be achieved using other methods in the library or using methods in the TPL.
-Also some special ones unique for Async  such as ones that convert `Result<Task<T>>` into `Task<Result<T>>`.
+Also some special ones unique for Async such as ones that convert `Result<Task<T>>` into `Task<Result<T>>`.

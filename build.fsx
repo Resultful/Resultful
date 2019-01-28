@@ -39,7 +39,7 @@ let getProjFolders projPath =
 
 // *** Define Targets ***
 Target.create "Clean" (fun _ ->
-    let projects = [ "./OneOf.ROP"; "./OneOf.ROP.Examples"; "./OneOf.ROP.Tests" ]
+    let projects = [ "./Resultful"; "./Resultful.Examples"; "./Resultful.Tests" ]
     let allFoldersToClean = projects |> List.collect (fun project -> getProjFolders project)
     Shell.cleanDirs (buildDir :: allFoldersToClean))
 Target.create "Build" (fun _ -> DotNet.build (fun p -> { p with Configuration = DotNet.BuildConfiguration.Release }) "")
@@ -48,7 +48,7 @@ Target.create "Test" (fun _ ->
         DotNet.test (fun p ->
             { p with Configuration = DotNet.BuildConfiguration.Release
                      NoBuild = true }) project
-    test "OneOf.ROP.Tests")
+    test "Resultful.Tests")
 Target.create "Package" (fun _ ->
     Directory.ensure buildDir
     let packProject version projectPath =
@@ -57,7 +57,7 @@ Target.create "Package" (fun _ ->
                      OutputPath = Some(sprintf "../%s" buildDir)
                      NoBuild = true }
             |> withVersionArgs version) projectPath
-    packProject config.Version "OneOf.ROP/OneOf.ROP.csproj")
+    packProject config.Version "Resultful/Resultful.csproj")
 Target.create "Publish" (fun _ ->
     let gitBranch = Information.getBranchName "."
     Trace.log (sprintf "Git branch: %s" gitBranch)
@@ -70,7 +70,7 @@ Target.create "Publish" (fun _ ->
                 (sprintf "Package upload skipped because %s was not set to be published or the branch %s is not master"
                      project gitBranch)
     match Environment.environVarOrNone nugetKeyVariable with
-    | Some _ -> publishPackage config.Publish "OneOf.ROP"
+    | Some _ -> publishPackage config.Publish "Resultful"
     | None -> Trace.log (sprintf "Package upload skipped because %s was not found" nugetKeyVariable))
 
 // *** Define Dependencies ***

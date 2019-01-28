@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\netfx.props" />
+  <PropertyGroup>
+    <TargetFrameworks>netstandard1.3; net451; net47</TargetFrameworks>
+    <AssemblyName>Resultful</AssemblyName>
+    <Authors>Ryan Kelly</Authors>
+    <PackageProjectUrl>https://github.com/rtkelly13/Resultful</PackageProjectUrl>
+    <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
+    <Description>Railway Oriented Programming library that is built ontop of OneOf for C#, it is based upon chessie an F# library and is intented to be idiomatic for C#.</Description>
+    <RepositoryUrl>https://github.com/rtkelly13/Resultful.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <Import Project="..\.paket\Paket.Restore.targets" />
+</Project>
