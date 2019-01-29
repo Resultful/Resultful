@@ -42,10 +42,14 @@ namespace Resultful
 
         //Local Methods
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<IEnumerable<string>, TResult> errorFunc)
-            => _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            => _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public void Switch(Action<Unit> successfulFunc, Action<IEnumerable<string>> errorFunc)
-            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            => _value.Switch(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public OneOf<Unit, IEnumerable<string>> ToOneOf() => _value;
 
@@ -92,8 +96,10 @@ namespace Resultful
         public VoidResult Bind(Func<Unit, VoidResult> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
 
-        public Task<VoidResult> BindAsync(Func<Task<VoidResult>> bindFunc)
-            => Match(x => bindFunc.ThrowIfDefault(nameof(bindFunc))(), error => Task.FromResult(error.Fail()));
+        public Task<VoidResult> BindAsync(Func<Unit, Task<VoidResult>> bindFunc)
+            => Match(
+                x => bindFunc.ThrowIfDefault(nameof(bindFunc))(Unit.Value),
+                error => Task.FromResult(error.Fail()));
 
         public Result<T> BindValue<T>(Func<Unit, Result<T>> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail<T>);

@@ -76,7 +76,7 @@ namespace Resultful
         public static Task<VoidResult> BindAsync(this Task<VoidResult> value, Func<Unit, VoidResult> bindFunc)
             => value.WrapAsync(item => item.Bind(bindFunc));
 
-        public static Task<VoidResult> BindAsync(this Task<VoidResult> value, Func<Task<VoidResult>> bindFunc)
+        public static Task<VoidResult> BindAsync(this Task<VoidResult> value, Func<Unit, Task<VoidResult>> bindFunc)
             => value.WrapAsync(item => item.BindAsync(bindFunc));
 
         //BindValueAsync on VoidResult<TError>
