@@ -2,6 +2,7 @@
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
 #r "netstandard"
+#r "Facades/netstandard"
 #endif
 
 
