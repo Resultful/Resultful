@@ -131,10 +131,14 @@ namespace Resultful
         public VoidResult<TError> DiscardValue()
             => DiscardValue(_ => Result.Ok<TError>());
 
-        public T DefaultWith(Func<TError, T> func)
+
+        public T ReturnOrValue(Func<TError, T> func)
             => Match(Result.Id, func);
 
-        public Task<T> DefaultWithAsync(Func<TError, Task<T>> func)
+        public Task<T> ReturnOrValueAsync(Func<TError, Task<T>> func)
             => Match(Result.IdAsync, func);
+
+        public T ReturnOrFail<TExn>(Func<TError, TExn> failFunc) where TExn : Exception
+            => Match(Result.Id, err => throw failFunc.ThrowIfDefault(nameof(failFunc))(err));
     }
 }

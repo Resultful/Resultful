@@ -165,20 +165,5 @@ namespace Resultful
         public static VoidResult Flatten(this Result<VoidResult> value)
             => value.Match(Id, Fail);
 
-
-        //DefaultWith on Result<T>
-        public static Task<T> DefaultWithAsync<T>(this Task<Result<T>> value,Func<IEnumerable<string>, T> func)
-            => value.WrapAsync(x => x.DefaultWith(func));
-
-        public static Task<T> DefaultWithAsync<T>(this Task<Result<T>> value, Func<IEnumerable<string>, Task<T>> func)
-            => value.WrapAsync(x => x.DefaultWithAsync(func));
-
-        //DefaultWith on Result<T, TError>
-        public static Task<T> DefaultWithAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, T> func)
-            => value.WrapAsync(x => x.DefaultWith(func));
-
-        public static Task<T> DefaultWithAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, Task<T>> func)
-            => value.WrapAsync(x => x.DefaultWithAsync(func));
-
     }
 }
