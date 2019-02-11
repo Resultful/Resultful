@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Resultful.Utils;
 
 namespace Resultful
@@ -9,6 +10,7 @@ namespace Resultful
     public static partial class Result
     {
         public static T Id<T>(this T value) => value;
+        public static Task<T> IdAsync<T>(this T value) => Task.FromResult(value);
 
         //Builder for Result<T, TError>
         public static Result<T, IEnumerable<TError>> Fail<T, TError>(this IEnumerable<TError> errors)
@@ -162,6 +164,21 @@ namespace Resultful
 
         public static VoidResult Flatten(this Result<VoidResult> value)
             => value.Match(Id, Fail);
+
+
+        //DefaultWith on Result<T>
+        public static Task<T> DefaultWithAsync<T>(this Task<Result<T>> value,Func<IEnumerable<string>, T> func)
+            => value.WrapAsync(x => x.DefaultWith(func));
+
+        public static Task<T> DefaultWithAsync<T>(this Task<Result<T>> value, Func<IEnumerable<string>, Task<T>> func)
+            => value.WrapAsync(x => x.DefaultWithAsync(func));
+
+        //DefaultWith on Result<T, TError>
+        public static Task<T> DefaultWithAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, T> func)
+            => value.WrapAsync(x => x.DefaultWith(func));
+
+        public static Task<T> DefaultWithAsync<T, TError>(this Task<Result<T, TError>> value, Func<TError, Task<T>> func)
+            => value.WrapAsync(x => x.DefaultWithAsync(func));
 
     }
 }
