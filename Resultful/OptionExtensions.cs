@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using OneOf.Types;
 using Resultful.Utils;
 
 namespace Resultful
@@ -39,6 +40,10 @@ namespace Resultful
         //Unroll on IEnumerable<Option<T>>
         public static Option<IEnumerable<T>> Unroll<T>(this IEnumerable<Option<T>> values)
             => values.Fold(EmptyArray<T>.Get.Some<IEnumerable<T>>(), (acc, item) => acc.Concat(new[] { item }));
+
+        //ToOption
+        public static Option<T> ToOption<T>(this T value)
+            => value?.Some() ?? new None();
 
     }
 }

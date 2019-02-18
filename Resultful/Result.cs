@@ -28,10 +28,24 @@ namespace Resultful
 
         //Local Methods
         public void Switch(Action<T> successfulFunc, Action<TError> errorFunc)
-            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            => _value.Switch(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<TError, TResult> errorFunc) =>
-            _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+
+        public void SwitchAsync(Func<T, Task> successfulFunc, Func<TError, Task> errorFunc)
+            => _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+
+        public Task<TResult> MatchAsync<TResult>(Func<T, Task<TResult>> successfulFunc, Func<TError, Task<TResult>> errorFunc) =>
+            _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
         public OneOf<T, TError> ToOneOf() => _value;
 

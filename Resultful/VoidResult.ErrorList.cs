@@ -51,6 +51,16 @@ namespace Resultful
                 successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
                 errorFunc.ThrowIfDefault(nameof(errorFunc)));
 
+        public void SwitchAsync(Func<Unit, Task> successfulFunc, Func<IEnumerable<string>, Task> errorFunc)
+            => _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+
+        public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<IEnumerable<string>, Task<TResult>> errorFunc) =>
+            _value.Match(
+                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
+                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+
         public OneOf<Unit, IEnumerable<string>> ToOneOf() => _value;
 
         public Result<TResult> Map<TResult>(Func<Unit, TResult> mapFunc)
