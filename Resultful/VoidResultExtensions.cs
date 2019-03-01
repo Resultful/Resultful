@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using OneOf.Types;
 using Resultful.Utils;
 
 namespace Resultful
@@ -59,9 +60,20 @@ namespace Resultful
         public static VoidResult<TError> Fold<TError>(params VoidResult<TError>[] values) where TError : IPlus<TError, TError>
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item));
 
+        //FoldUntil on VoidResult<TError>
+        public static VoidResult<TError> FoldUntil<TError>(this IEnumerable<VoidResult<TError>> values)
+            => values.FoldUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
+
+        public static VoidResult<TError> FoldUntil<TError>(params VoidResult<TError>[] values)
+            => values.FoldUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
+
         //Fold on VoidResult
         public static VoidResult Fold(this IEnumerable<VoidResult> values)
             => values.Aggregate(Ok(), (acc, item) => acc.Plus(item));
+
+        //FoldUntil on VoidResult
+        public static VoidResult FoldUntil(this IEnumerable<VoidResult> values)
+            => values.FoldUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
 
         //Flatten on VoidResult<TError>
         public static VoidResult<TError> Flatten<TError>(this VoidResult<VoidResult<TError>> value)

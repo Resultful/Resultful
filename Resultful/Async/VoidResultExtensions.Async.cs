@@ -3,11 +3,20 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Resultful.Utils;
 using TaskExt;
+using OneOf;
+using OneOf.Types;
 
 namespace Resultful
 {
     public static partial class Result
     {
+        //ToOneOf
+        public static Task<OneOf<Unit, IEnumerable<string>>> ToOneOf<T>(this Task<VoidResult> value)
+            => value.Map(x => x.ToOneOf());
+
+        public static Task<OneOf<Unit, TError>> ToOneOf<T, TError>(this Task<VoidResult<TError>> value)
+            => value.Map(x => x.ToOneOf());
+
         //Switch on Task<Result<T>>
         public static Task Switch<T>(this Task<VoidResult> value, Action<Unit> successFunc, Action<IEnumerable<string>> errorFunc)
             => value.Discard(item => item.Switch(
@@ -143,28 +152,28 @@ namespace Resultful
             => value.Map(item => item.Tee(action));
 
         public static Task<VoidResult<TError>> TeeAsync<TError>(this Task<VoidResult<TError>> value, Func<Unit ,Task> asyncFunc)
-            => value.Tee(item => item.TeeAsync(asyncFunc).AsTask());
+            => value.Tee(item => item.TeeAsync(asyncFunc).Discard());
 
         //TeeAsync on VoidResult
         public static Task<VoidResult> Tee(this Task<VoidResult> value, Action<Unit> action)
             => value.Map(item => item.Tee(action));
 
         public static Task<VoidResult> TeeAsync(this Task<VoidResult> value, Func<Unit, Task> asyncFunc)
-            => value.Tee(item => item.TeeAsync(asyncFunc).AsTask());
+            => value.Tee(item => item.TeeAsync(asyncFunc).Discard());
 
         //TeeErrorAsync on VoidResult<TError>
         public static Task<VoidResult<TError>> TeeError<TError>(this Task<VoidResult<TError>> value, Action<TError> action)
             => value.Map(item => item.TeeError(action));
 
         public static Task<VoidResult<TError>> TeeErrorAsync<TError>(this Task<VoidResult<TError>> value, Func<TError, Task> asyncFunc)
-            => value.Tee(item => item.TeeErrorAsync(asyncFunc).AsTask());
+            => value.Tee(item => item.TeeErrorAsync(asyncFunc).Discard());
 
         //TeeErrorAsync on VoidResult
         public static Task<VoidResult> TeeError(this Task<VoidResult> value, Action<IEnumerable<string>> action)
             => value.Map(item => item.TeeError(action));
 
         public static Task<VoidResult> TeeErrorAsync(this Task<VoidResult> value, Func<IEnumerable<string>, Task> asyncFunc)
-            => value.Tee(item => item.TeeErrorAsync(asyncFunc).AsTask());
+            => value.Tee(item => item.TeeErrorAsync(asyncFunc).Discard());
 
 
         //FlattenAsync on VoidResult<T>
