@@ -19,7 +19,7 @@ type Build =
       Publish : bool }
 
 let config =
-    { Version = "0.2.0-alpha04"
+    { Version = "0.2.0-alpha01"
       Publish = true }
 
 let buildDir = "build"
@@ -80,8 +80,6 @@ Target.create "Publish" (fun _ ->
 // *** Define Dependencies ***
 open Fake.Core.TargetOperators
 
-"Clean" ==> "Build"
-"Build" ==> "Package" ==> "Publish"
-"Build" ==> "Test" ==> "Publish"
+"Clean" ==> "Build" ==> "Test" ==> "Package" ==> "Publish"
 // *** Start Build ***
 Fake.Core.Target.runOrDefault "Package"

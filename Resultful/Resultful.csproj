@@ -5,10 +5,10 @@
     <TargetFrameworks>netstandard1.3; net451; net47</TargetFrameworks>
     <AssemblyName>Resultful</AssemblyName>
     <Authors>Ryan Kelly</Authors>
-    <PackageProjectUrl>https://github.com/rtkelly13/Resultful</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/Resultful/Resultful</PackageProjectUrl>
     <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
-    <Description>Railway Oriented Programming library that is built ontop of OneOf for C#, it is based upon chessie an F# library and is intented to be idiomatic for C#.</Description>
-    <RepositoryUrl>https://github.com/rtkelly13/Resultful.git</RepositoryUrl>
+    <Description>Railway Oriented Programming library that is intented to be idiomatic for C#. With full Async support </Description>
+    <RepositoryUrl>https://github.com/Resultful/Resultful.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
