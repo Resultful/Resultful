@@ -14,25 +14,48 @@ open Fake.Tools.Git
 open System
 open System.IO
 
-type Build =
-    { Version : string
-      Publish : bool }
+let version = "0.2.0"
+let rnd = Random()
 
-let config =
-    { Version = "0.2.0-alpha01"
-      Publish = true }
-
-let buildDir = "build"
-
+let env = Environment.environVarOrNone
 let assertVersion inputStr =
     if Fake.Core.SemVer.isValid inputStr then ()
     else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
 
-assertVersion config.Version
+let packageVersion = lazy(
+    let localBranch =
+        let gitBranch = Information.getBranchName "."
+
+        match gitBranch with
+        | "NoBranch" -> None
+        | "master" -> Some version
+        | _ ->
+            Some (sprintf "%s-local%d" version (rnd.Next(1, 1000)))
+
+    let travisBranch () =
+        let isPr = env "TRAVIS_PULL_REQUEST" <> Some "false"
+        if isPr then None
+        else
+        match env "TRAVIS_BRANCH", env "TRAVIS_BUILD_NUMBER" with
+        | Some "master", _ -> Some version
+        | Some _, Some buildNum -> Some (sprintf "%s-build%s" version buildNum)
+        | _, _ -> Trace.log "Travis information not found"; None
+    let ciBranch =
+        let isTravis = env "Travis" <> Some "true"
+        if isTravis
+        then travisBranch()
+        else None
+
+    if env "CI" <> Some "true" then ciBranch else localBranch)
+
+
+let buildDir = "build"
+
+assertVersion version
 
 let inline withVersionArgs version options =
     options |> DotNet.Options.withCustomParams (Some(sprintf "/p:VersionPrefix=\"%s\"" version))
-let nugetKeyVariable = "NUGET_KEY"
+
 
 let getProjFolders projPath =
     let dir = Path.GetDirectoryName projPath
@@ -42,7 +65,7 @@ let getProjFolders projPath =
 // *** Define Targets ***
 Target.create "Clean" (fun _ ->
     let projFoldersToDelete =
-        !!"*/*.csproj" |> List.ofSeq |> List.collect (fun project -> getProjFolders project)
+        !!"*/*.csproj" |> List.ofSeq |> List.collect getProjFolders
     let allFoldersToClean = (buildDir :: projFoldersToDelete)
     Trace.logfn "All folders to clean: %A" allFoldersToClean
     Shell.cleanDirs allFoldersToClean)
@@ -61,21 +84,16 @@ Target.create "Package" (fun _ ->
                      OutputPath = Some(sprintf "../%s" buildDir)
                      NoBuild = true }
             |> withVersionArgs version) projectPath
-    packProject config.Version "Resultful/Resultful.csproj")
+    match packageVersion.Value with
+    | Some v -> packProject v "Resultful/Resultful.csproj"
+    | None -> ())
 Target.create "Publish" (fun _ ->
-    let gitBranch = Information.getBranchName "."
-    Trace.log (sprintf "Git branch: %s" gitBranch)
-    let isMaster = gitBranch = "master"
-
-    let publishPackage shouldPublish project =
-        if shouldPublish && isMaster then Fake.DotNet.Paket.push (fun p -> { p with WorkingDir = "build" })
-        else
-            Trace.log
-                (sprintf "Package upload skipped because %s was not set to be published or the branch %s is not master"
-                     project gitBranch)
-    match Environment.environVarOrNone nugetKeyVariable with
-    | Some _ -> publishPackage config.Publish "Resultful"
-    | None -> Trace.log (sprintf "Package upload skipped because %s was not found" nugetKeyVariable))
+    let nugetKeyVariable = "NUGET_KEY"
+    let publishPackage () =
+        Fake.DotNet.Paket.push (fun p -> { p with WorkingDir = "build"; PublishUrl = "https://www.myget.org/F/resultful" })
+    match env nugetKeyVariable, packageVersion.Value with
+    | Some _, Some _ ->  publishPackage()
+    | _ -> Trace.log (sprintf "Package upload skipped because %s was not found and/or No package packed" nugetKeyVariable))
 
 // *** Define Dependencies ***
 open Fake.Core.TargetOperators

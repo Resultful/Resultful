@@ -7,7 +7,7 @@
     <Authors>Ryan Kelly</Authors>
     <PackageProjectUrl>https://github.com/Resultful/Resultful</PackageProjectUrl>
     <PackageLicenseUrl>http://opensource.org/licenses/MIT</PackageLicenseUrl>
-    <Description>Railway Oriented Programming library that is intented to be idiomatic for C#. With full Async support </Description>
+    <Description>Functional Error Handling library that is intented to be idiomatic for C#. Based on the Railway Oriented Programming idea</Description>
     <RepositoryUrl>https://github.com/Resultful/Resultful.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
