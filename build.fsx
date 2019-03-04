@@ -14,7 +14,7 @@ open Fake.Tools.Git
 open System
 open System.IO
 
-let version = "0.2.0"
+let version = "0.2.0-alpha02"
 let rnd = Random()
 
 let env = Environment.environVarOrNone
