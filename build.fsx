@@ -50,7 +50,7 @@ let packageVersion = lazy(
         | "master", _ -> Some version
         | _, buildNum -> Some (sprintf "%s-build%s" version buildNum)
     let ciBranch =
-        let isTravis = env "TRAVIS" <> Some "true"
+        let isTravis = env "TRAVIS" = Some "true"
         if isTravis
         then travisBranch()
         else None
