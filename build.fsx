@@ -21,7 +21,7 @@ let rnd = Random()
 let env x =
     let result = Environment.environVarOrNone x
     match result with
-    | Some v -> Trace.logfn "%s from environment variable: %s" v x
+    | Some v -> Trace.logfn "ENV: %s - VALUE: %s" x v
     | None -> Trace.logfn "Did not find variable with name: %s" x
     result
 
@@ -50,7 +50,7 @@ let packageVersion = lazy(
         | "master", _ -> Some version
         | _, buildNum -> Some (sprintf "%s-build%s" version buildNum)
     let ciBranch =
-        let isTravis = env "Travis" <> Some "true"
+        let isTravis = env "TRAVIS" <> Some "true"
         if isTravis
         then travisBranch()
         else None
