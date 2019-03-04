@@ -1,3 +1,4 @@
+open Fake.Core
 #r "paket: groupref build-deps //"
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -17,7 +18,16 @@ open System.IO
 let version = "0.2.0-alpha02"
 let rnd = Random()
 
-let env = Environment.environVarOrNone
+let env x =
+    let result = Environment.environVarOrNone x
+    match result with
+    | Some v -> Trace.logfn "%s from environment variable: %s" v x
+    | None -> Trace.logfn "Did not find variable with name: %s" x
+    result
+
+let envStrict x=
+    env x |> Option.defaultWith (fun () -> failwithf "Unable to get environmentVariable %s" x)
+
 let assertVersion inputStr =
     if Fake.Core.SemVer.isValid inputStr then ()
     else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
@@ -33,20 +43,23 @@ let packageVersion = lazy(
             Some (sprintf "%s-local%d" version (rnd.Next(1, 1000)))
 
     let travisBranch () =
-        let isPr = env "TRAVIS_PULL_REQUEST" <> Some "false"
+        let isPr = envStrict "TRAVIS_PULL_REQUEST" <> "false"
         if isPr then None
         else
-        match env "TRAVIS_BRANCH", env "TRAVIS_BUILD_NUMBER" with
-        | Some "master", _ -> Some version
-        | Some _, Some buildNum -> Some (sprintf "%s-build%s" version buildNum)
-        | _, _ -> Trace.log "Travis information not found"; None
+        match envStrict "TRAVIS_BRANCH", envStrict "TRAVIS_BUILD_NUMBER" with
+        | "master", _ -> Some version
+        | _, buildNum -> Some (sprintf "%s-build%s" version buildNum)
     let ciBranch =
         let isTravis = env "Travis" <> Some "true"
         if isTravis
         then travisBranch()
         else None
 
-    if env "CI" <> Some "true" then ciBranch else localBranch)
+    let result = if env "CI" = Some "true" then ciBranch else localBranch
+    match result with
+    | Some x -> Trace.logfn "Version to package %s" x
+    | None -> Trace.log "No Version generated, so no package will be generated"
+    result)
 
 
 let buildDir = "build"
@@ -91,9 +104,9 @@ Target.create "Publish" (fun _ ->
     let nugetKeyVariable = "NUGET_KEY"
     let publishPackage () =
         Fake.DotNet.Paket.push (fun p -> { p with WorkingDir = "build"; PublishUrl = "https://www.myget.org/F/resultful" })
-    match env nugetKeyVariable, packageVersion.Value with
-    | Some _, Some _ ->  publishPackage()
-    | _ -> Trace.log (sprintf "Package upload skipped because %s was not found and/or No package packed" nugetKeyVariable))
+    match Environment.hasEnvironVar nugetKeyVariable, packageVersion.Value with
+    | true, Some _ -> publishPackage()
+    | x, y -> Trace.logfn "Package upload skipped because %s existed: %b and/or package version %A" nugetKeyVariable x y)
 
 // *** Define Dependencies ***
 open Fake.Core.TargetOperators
