@@ -43,10 +43,12 @@ let packageVersion = lazy(
             Some (sprintf "%s-local%d" version (rnd.Next(1, 1000)))
 
     let travisBranch () =
+        let travisBranch = envStrict "TRAVIS_BRANCH"
+        let travisBuildNum = envStrict "TRAVIS_BUILD_NUMBER"
         let isPr = envStrict "TRAVIS_PULL_REQUEST" <> "false"
         if isPr then None
         else
-        match envStrict "TRAVIS_BRANCH", envStrict "TRAVIS_BUILD_NUMBER" with
+        match travisBranch, travisBuildNum with
         | "master", _ -> Some version
         | _, buildNum -> Some (sprintf "%s-build%s" version buildNum)
     let ciBranch =
