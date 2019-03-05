@@ -1,6 +1,6 @@
 language: csharp
 dotnet: 2.1.502
-mono: latest
+mono: none
 os: linux
 dist: xenial
 sudo: enabled
