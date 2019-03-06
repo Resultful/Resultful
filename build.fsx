@@ -16,7 +16,6 @@ open System
 open System.IO
 
 let version = "0.2.0-alpha02"
-let rnd = Random()
 
 let env x =
     let result = Environment.environVarOrNone x
@@ -29,28 +28,40 @@ let envStrict x=
     env x |> Option.defaultWith (fun () -> failwithf "Unable to get environmentVariable %s" x)
 
 let assertVersion inputStr =
-    if Fake.Core.SemVer.isValid inputStr then ()
+    if SemVer.isValid inputStr then SemVer.parse inputStr
     else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
 
 let packageVersion = lazy(
+    //let rnd = Random()
+    let semVerVersion = assertVersion version
+
+    let shortVersion = sprintf "%d.%d.%d" semVerVersion.Major semVerVersion.Minor semVerVersion.Patch
     let localBranch =
         let gitBranch = Information.getBranchName "."
 
         match gitBranch with
-        | "NoBranch" -> None
-        | "master" -> Some version
+        | "master" -> Some semVerVersion
         | _ ->
-            Some (sprintf "%s-local%d" version (rnd.Next(1, 1000)))
+            None
+            // Need to figure out what to do with this case
+            //Some (sprintf "%s-build+%04i" version (rnd.Next(1, 1000)))
 
     let travisBranch () =
-        let travisBranch = envStrict "TRAVIS_BRANCH"
-        let travisBuildNum = envStrict "TRAVIS_BUILD_NUMBER"
-        let isPr = envStrict "TRAVIS_PULL_REQUEST" <> "false"
-        if isPr then None
+        let branch = envStrict "TRAVIS_BRANCH"
+        let buildNum = envStrict "TRAVIS_BUILD_NUMBER" |> int32
+        let pr = envStrict "TRAVIS_PULL_REQUEST"
+        if pr <> "false" then
+            let prBranch = envStrict "TRAVIS_PULL_REQUEST_BRANCH"
+            let prNumber = int32 pr
+            // eg 2.0.1-cipr+00304 PR 3 Build 4
+            sprintf "%s-cipr+%s%03i%02i" shortVersion prBranch prNumber buildNum |> assertVersion |> Some
+        elif branch = "master" then
+            Some semVerVersion
         else
-        match travisBranch, travisBuildNum with
-        | "master", _ -> Some version
-        | _, buildNum -> Some (sprintf "%s-build%s" version buildNum)
+            None
+            // Need to figure out what to do with this case
+            //Some (sprintf "%s-ci%04i" version buildNum)
+
     let ciBranch =
         let isTravis = env "TRAVIS" = Some "true"
         if isTravis
@@ -59,7 +70,7 @@ let packageVersion = lazy(
 
     let result = if env "CI" = Some "true" then ciBranch else localBranch
     match result with
-    | Some x -> Trace.logfn "Version to package %s" x
+    | Some x -> Trace.logfn "Version to package %A" x
     | None -> Trace.log "No Version generated, so no package will be generated"
     result)
 
@@ -93,12 +104,12 @@ Target.create "Test" (fun _ ->
     test "Resultful.Tests")
 Target.create "Package" (fun _ ->
     Directory.ensure buildDir
-    let packProject version projectPath =
+    let packProject (version: SemVerInfo) projectPath =
         DotNet.pack (fun p ->
             { p with Configuration = DotNet.BuildConfiguration.Release
                      OutputPath = Some(sprintf "../%s" buildDir)
                      NoBuild = true }
-            |> withVersionArgs version) projectPath
+            |> withVersionArgs (version.ToString())) projectPath
     match packageVersion.Value with
     | Some v -> packProject v "Resultful/Resultful.csproj"
     | None -> ())
