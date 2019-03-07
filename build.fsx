@@ -6,13 +6,10 @@ open Fake.Core
 #r "Facades/netstandard"
 #endif
 
-
-open Fake.Core
 open Fake.DotNet
 open Fake.IO
 open Fake.IO.Globbing.Operators
 open Fake.Tools.Git
-open System
 open System.IO
 
 let version = "0.2.0-alpha02"
@@ -24,8 +21,20 @@ let env x =
     | None -> Trace.logfn "Did not find variable with name: %s" x
     result
 
+
+let envSecret x = 
+    let result = Environment.environVarOrNone x
+    match result with
+    | Some v -> TraceSecrets.register v (sprintf "ENVSecret %s" x)
+    | None -> ()
+    result
+
 let envStrict x=
     env x |> Option.defaultWith (fun () -> failwithf "Unable to get environmentVariable %s" x)
+
+let runDotNet cmd workingDir =
+    let result = DotNet.exec (DotNet.Options.withWorkingDirectory workingDir) cmd ""
+    if result.ExitCode <> 0 then failwithf "'dotnet %s' failed in %s" cmd workingDir
 
 let assertVersion inputStr =
     if SemVer.isValid inputStr then SemVer.parse inputStr
@@ -115,11 +124,11 @@ Target.create "Package" (fun _ ->
     | None -> ())
 Target.create "Publish" (fun _ ->
     let nugetKeyVariable = "NUGET_KEY"
-    let publishPackage () =
-        Fake.DotNet.Paket.push (fun p -> { p with WorkingDir = "build"; PublishUrl = "https://www.myget.org/F/resultful" })
-    match Environment.hasEnvironVar nugetKeyVariable, packageVersion.Value with
-    | true, Some _ -> publishPackage()
-    | x, y -> Trace.logfn "Package upload skipped because %s existed: %b and/or package version %A" nugetKeyVariable x y)
+    let publishPackage apiKey =
+        runDotNet buildDir (sprintf "nuget push -f %s -s %s" apiKey "https://www.myget.org/F/resultful")
+    match envSecret nugetKeyVariable, packageVersion.Value with
+    | Some y, Some _ -> publishPackage y
+    | x, y -> Trace.logfn "Package upload skipped because %s no API Key: %A and/or package version %A" nugetKeyVariable x y)
 
 // *** Define Dependencies ***
 open Fake.Core.TargetOperators
