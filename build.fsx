@@ -123,9 +123,10 @@ Target.create "Package" (fun _ ->
     | Some v -> packProject v "Resultful/Resultful.csproj"
     | None -> ())
 Target.create "Publish" (fun _ ->
+    let dotnetBuildDir = sprintf ".\\%s" buildDir
     let nugetKeyVariable = "NUGET_KEY"
     let publishPackage apiKey =
-        runDotNet buildDir (sprintf "nuget push -f %s -s %s" apiKey "https://www.myget.org/F/resultful")
+        runDotNet (sprintf "nuget push -f %s -s %s" apiKey "https://www.myget.org/F/resultful") dotnetBuildDir
     match envSecret nugetKeyVariable, packageVersion.Value with
     | Some y, Some _ -> publishPackage y
     | x, y -> Trace.logfn "Package upload skipped because %s no API Key: %A and/or package version %A" nugetKeyVariable x y)
