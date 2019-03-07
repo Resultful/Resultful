@@ -123,7 +123,7 @@ Target.create "Package" (fun _ ->
     | Some v -> packProject v "Resultful/Resultful.csproj"
     | None -> ())
 Target.create "Publish" (fun _ ->
-    let dotnetBuildDir = sprintf ".\\%s" buildDir
+    let dotnetBuildDir = sprintf "./%s" buildDir
     let nugetKeyVariable = "NUGET_KEY"
     let publishPackage apiKey =
         runDotNet (sprintf "nuget push -f %s -s %s" apiKey "https://www.myget.org/F/resultful") dotnetBuildDir
