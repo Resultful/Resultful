@@ -1,4 +1,4 @@
-open Fake.Core
+
 #r "paket: groupref build-deps //"
 #load "./.fake/build.fsx/intellisense.fsx"
 #if !FAKE
@@ -6,11 +6,13 @@ open Fake.Core
 #r "Facades/netstandard"
 #endif
 
+open Fake.Core
 open Fake.DotNet
 open Fake.IO
 open Fake.IO.Globbing.Operators
 open Fake.Tools.Git
 open System.IO
+open System
 
 let version = "0.2.0-alpha02"
 
@@ -22,7 +24,7 @@ let env x =
     result
 
 
-let envSecret x = 
+let envSecret x =
     let result = Environment.environVarOrNone x
     match result with
     | Some v -> TraceSecrets.register v (sprintf "ENVSecret %s" x)
@@ -41,7 +43,6 @@ let assertVersion inputStr =
     else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
 
 let packageVersion = lazy(
-    //let rnd = Random()
     let semVerVersion = assertVersion version
 
     let shortVersion = sprintf "%d.%d.%d" semVerVersion.Major semVerVersion.Minor semVerVersion.Patch
@@ -49,11 +50,12 @@ let packageVersion = lazy(
         let gitBranch = Information.getBranchName "."
 
         match gitBranch with
-        | "master" -> Some semVerVersion
+        | "master"
+        | "develop" -> Some semVerVersion
         | _ ->
-            None
+            let rnd = Random()
             // Need to figure out what to do with this case
-            //Some (sprintf "%s-build+%04i" version (rnd.Next(1, 1000)))
+            (sprintf "%s-build+experiment%04i" shortVersion (rnd.Next(1, 1000))) |> assertVersion |> Some
 
     let travisBranch () =
         let branch = envStrict "TRAVIS_BRANCH"
@@ -123,12 +125,12 @@ Target.create "Package" (fun _ ->
     | Some v -> packProject v "Resultful/Resultful.csproj"
     | None -> ())
 Target.create "Publish" (fun _ ->
-    let dotnetBuildDir = sprintf "./%s" buildDir
     let nugetKeyVariable = "NUGET_KEY"
-    let publishPackage apiKey =
-        runDotNet (sprintf "nuget push -f %s -s %s" apiKey "https://www.myget.org/F/resultful") dotnetBuildDir
+    let publishPackage apiKey (version: SemVerInfo) =
+        let packagePath = sprintf "Resultful.%s.nupkg" (version.Normalize())
+        runDotNet (sprintf "nuget push -k %s -s %s ./build/%s" apiKey "https://www.myget.org/F/resultful" packagePath ) "."
     match envSecret nugetKeyVariable, packageVersion.Value with
-    | Some y, Some _ -> publishPackage y
+    | Some key, Some ver -> publishPackage key ver
     | x, y -> Trace.logfn "Package upload skipped because %s no API Key: %A and/or package version %A" nugetKeyVariable x y)
 
 // *** Define Dependencies ***
