@@ -13,6 +13,8 @@ nuget Microsoft.NET.Test.Sdk >= 15.5.0
 nuget NUnit >= 3.9.0
 nuget NUnit3TestAdapter >= 3.9.0
 nuget FluentAssertions.OneOf >= 0.0.5
+
+// Deps
 nuget OneOf >= 2.1.127
 nuget System.ValueTuple >= 4.5
 nuget NETStandard.Library >= 1.6.1
