@@ -40,7 +40,7 @@ let runDotNet cmd workingDir =
 
 let assertVersion inputStr =
     if SemVer.isValid inputStr then SemVer.parse inputStr
-    else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
+    else failwithf "Value in version.yml must adhere to the SemanticVersion 2.0 Spec - %s" inputStr
 
 let packageVersion = lazy(
     let semVerVersion = assertVersion version
@@ -65,7 +65,7 @@ let packageVersion = lazy(
             let prBranch = envStrict "TRAVIS_PULL_REQUEST_BRANCH"
             let prNumber = int32 pr
             // eg 2.0.1-cipr004+BranchNum003 PR 3 Build 4
-            sprintf "%s%03i-cipr+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
+            sprintf "%s-cipr%03i+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
         elif branch = "master" then
             Some semVerVersion
         else
