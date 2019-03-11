@@ -64,8 +64,8 @@ let packageVersion = lazy(
         if pr <> "false" then
             let prBranch = envStrict "TRAVIS_PULL_REQUEST_BRANCH"
             let prNumber = int32 pr
-            // eg 2.0.1-cipr+00304 PR 3 Build 4
-            sprintf "%s-cipr+%s%03i%02i" shortVersion prBranch prNumber buildNum |> assertVersion |> Some
+            // eg 2.0.1-cipr004+BranchNum003 PR 3 Build 4
+            sprintf "%s%03i-cipr+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
         elif branch = "master" then
             Some semVerVersion
         else
