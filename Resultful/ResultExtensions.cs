@@ -171,18 +171,18 @@ namespace Resultful
             => values.Fold(seed.Ok(), aggrFunc);
 
         //FoldUntil on Result<T>
-        public static Result<T> ReduceUtil<T>(this IEnumerable<Result<T>> values, Func<T, T, T> plusFunc)
+        public static Result<T> ReduceUntil<T>(this IEnumerable<Result<T>> values, Func<T, T, T> plusFunc)
             => values.ThrowIfDefault(nameof(values)).Aggregate((acc, value) =>
                 acc.Bind(x => value.Map(y => plusFunc.ThrowIfDefault(nameof(plusFunc))(x, y))));
 
-        public static Result<TResult> FoldUtil<TResult, T>(this IEnumerable<Result<T>> values,
+        public static Result<TResult> FoldUntil<TResult, T>(this IEnumerable<Result<T>> values,
             Result<TResult> seed, Func<TResult, T, TResult> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).Aggregate(seed, (acc, value) =>
                 acc.Bind(x => value.Map(y => aggrFunc.ThrowIfDefault(nameof(aggrFunc))(x, y))));
 
-        public static Result<TResult> FoldUtil<TResult, T>(this IEnumerable<Result<T>> values,
+        public static Result<TResult> FoldUntil<TResult, T>(this IEnumerable<Result<T>> values,
             TResult seed, Func<TResult, T, TResult> aggrFunc)
-            => values.FoldUtil(seed.Ok(), aggrFunc);
+            => values.FoldUntil(seed.Ok(), aggrFunc);
 
 
         //Unroll on IEnumerable<Result<T>>

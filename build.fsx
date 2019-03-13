@@ -55,7 +55,7 @@ let packageVersion = lazy(
         | _ ->
             let rnd = Random()
             // Need to figure out what to do with this case
-            (sprintf "%s-build+experiment%04i" shortVersion (rnd.Next(1, 1000))) |> assertVersion |> Some
+            (sprintf "%s-alpha.build%04i+experiment.%s" shortVersion (rnd.Next(1, 1000)) gitBranch) |> assertVersion |> Some
 
     let travisBranch () =
         let branch = envStrict "TRAVIS_BRANCH"
@@ -65,7 +65,7 @@ let packageVersion = lazy(
             let prBranch = envStrict "TRAVIS_PULL_REQUEST_BRANCH"
             let prNumber = int32 pr
             // eg 2.0.1-cipr004+BranchNum003 PR 3 Build 4
-            sprintf "%s-cipr%03i+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
+            sprintf "%s-alpha.cipr%03i+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
         elif branch = "master" then
             Some semVerVersion
         else
