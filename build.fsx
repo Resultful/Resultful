@@ -14,7 +14,6 @@ open Fake.Tools.Git
 open System.IO
 open System
 
-let version = "0.2.0-alpha02"
 
 let env x =
     let result = Environment.environVarOrNone x
@@ -43,6 +42,7 @@ let assertVersion inputStr =
     else failwithf "Value in version.yml must adhere to the SemanticVersion 2.0 Spec - %s" inputStr
 
 let packageVersion = lazy(
+    let version = env "VERSION" |> Option.defaultValue "0.0.1-alpha01" 
     let semVerVersion = assertVersion version
 
     let shortVersion = sprintf "%d.%d.%d" semVerVersion.Major semVerVersion.Minor semVerVersion.Patch
@@ -88,7 +88,6 @@ let packageVersion = lazy(
 
 let buildDir = "build"
 
-assertVersion version
 
 let inline withVersionArgs version options =
     options |> DotNet.Options.withCustomParams (Some(sprintf "/p:VersionPrefix=\"%s\"" version))
