@@ -42,7 +42,7 @@ let assertVersion inputStr =
     else failwithf "Value in version.yml must adhere to the SemanticVersion 2.0 Spec - %s" inputStr
 
 let packageVersion = lazy(
-    let version = env "VERSION" |> Option.defaultValue "0.0.1-alpha01" 
+    let version = env "PACKAGE_VERSION" |> Option.defaultValue "0.0.1-alpha01"
     let semVerVersion = assertVersion version
 
     let shortVersion = sprintf "%d.%d.%d" semVerVersion.Major semVerVersion.Minor semVerVersion.Patch

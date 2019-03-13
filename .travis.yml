@@ -9,7 +9,7 @@ before_install:
 script:
   - "./build.sh"
 env:
-  - VERSION: 0.2.0-alpha02
+  - PACKAGE_VERSION: 0.2.0-alpha02
 branches:
   only:
     - master
