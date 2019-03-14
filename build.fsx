@@ -14,7 +14,6 @@ open Fake.Tools.Git
 open System.IO
 open System
 
-let version = "0.2.0-alpha02"
 
 let env x =
     let result = Environment.environVarOrNone x
@@ -40,9 +39,10 @@ let runDotNet cmd workingDir =
 
 let assertVersion inputStr =
     if SemVer.isValid inputStr then SemVer.parse inputStr
-    else failwith "Value in version.yml must adhere to the SemanticVersion 2.0 Spec"
+    else failwithf "Value in version.yml must adhere to the SemanticVersion 2.0 Spec - %s" inputStr
 
 let packageVersion = lazy(
+    let version = env "PACKAGE_VERSION" |> Option.defaultValue "0.0.1-alpha01"
     let semVerVersion = assertVersion version
 
     let shortVersion = sprintf "%d.%d.%d" semVerVersion.Major semVerVersion.Minor semVerVersion.Patch
@@ -55,7 +55,7 @@ let packageVersion = lazy(
         | _ ->
             let rnd = Random()
             // Need to figure out what to do with this case
-            (sprintf "%s-build+experiment%04i" shortVersion (rnd.Next(1, 1000))) |> assertVersion |> Some
+            (sprintf "%s-alpha.build%04i+experiment.%s" shortVersion (rnd.Next(1, 1000)) gitBranch) |> assertVersion |> Some
 
     let travisBranch () =
         let branch = envStrict "TRAVIS_BRANCH"
@@ -64,8 +64,8 @@ let packageVersion = lazy(
         if pr <> "false" then
             let prBranch = envStrict "TRAVIS_PULL_REQUEST_BRANCH"
             let prNumber = int32 pr
-            // eg 2.0.1-cipr+00304 PR 3 Build 4
-            sprintf "%s-cipr+%s%03i%02i" shortVersion prBranch prNumber buildNum |> assertVersion |> Some
+            // eg 2.0.1-cipr004+BranchNum003 PR 3 Build 4
+            sprintf "%s-alpha.cipr%03i+%s%03i" shortVersion buildNum prBranch prNumber  |> assertVersion |> Some
         elif branch = "master" then
             Some semVerVersion
         else
@@ -88,7 +88,6 @@ let packageVersion = lazy(
 
 let buildDir = "build"
 
-assertVersion version
 
 let inline withVersionArgs version options =
     options |> DotNet.Options.withCustomParams (Some(sprintf "/p:VersionPrefix=\"%s\"" version))

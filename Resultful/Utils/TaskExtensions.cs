@@ -30,14 +30,9 @@ namespace TaskExt
         }
 
         internal static async Task Discard<T>(this Task<T> value, Action<T> helperFunc)
-        {
-            var result = await value.ThrowIfDefault(nameof(value)).ConfigureAwait(false);
-            helperFunc.ThrowIfDefault(nameof(helperFunc))(result);
-        }
+            => helperFunc.ThrowIfDefault(nameof(helperFunc))(await value.ThrowIfDefault(nameof(value)).ConfigureAwait(false));
 
-        internal static async Task AsTask<T>(this Task<T> value)
-        {
-            await value.ThrowIfDefault(nameof(value)).ConfigureAwait(false);
-        }
+        internal static async Task Discard<T>(this Task<T> value)
+            => await value.ThrowIfDefault(nameof(value)).ConfigureAwait(false);
     }
 }

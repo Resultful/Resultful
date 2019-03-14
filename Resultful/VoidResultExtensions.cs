@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using OneOf.Types;
 using Resultful.Utils;
 
 namespace Resultful
@@ -50,18 +51,29 @@ namespace Resultful
             );
 
         //Fold on VoidResult<TError>
-        public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values, Func<TError, TError, TError> mergeFunc)
+        public static VoidResult<TError> Reduce<TError>(this IEnumerable<VoidResult<TError>> values, Func<TError, TError, TError> mergeFunc)
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item, mergeFunc));
 
-        public static VoidResult<TError> Fold<TError>(this IEnumerable<VoidResult<TError>> values) where TError : IPlus<TError, TError>
+        public static VoidResult<TError> Reduce<TError>(this IEnumerable<VoidResult<TError>> values) where TError : IPlus<TError, TError>
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item));
 
-        public static VoidResult<TError> Fold<TError>(params VoidResult<TError>[] values) where TError : IPlus<TError, TError>
+        public static VoidResult<TError> Reduce<TError>(params VoidResult<TError>[] values) where TError : IPlus<TError, TError>
             => values.Aggregate(Ok<TError>(), (acc, item) => acc.Plus(item));
+
+        //FoldUntil on VoidResult<TError>
+        public static VoidResult<TError> ReduceUntil<TError>(this IEnumerable<VoidResult<TError>> values)
+            => values.ReduceUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
+
+        public static VoidResult<TError> ReduceUntil<TError>(params VoidResult<TError>[] values)
+            => values.ReduceUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
 
         //Fold on VoidResult
-        public static VoidResult Fold(this IEnumerable<VoidResult> values)
+        public static VoidResult Reducew(this IEnumerable<VoidResult> values)
             => values.Aggregate(Ok(), (acc, item) => acc.Plus(item));
+
+        //FoldUntil on VoidResult
+        public static VoidResult ReduceUntil(this IEnumerable<VoidResult> values)
+            => values.ReduceUntil((acc, next) => acc.Match(_ => next.Some(), err => new None()));
 
         //Flatten on VoidResult<TError>
         public static VoidResult<TError> Flatten<TError>(this VoidResult<VoidResult<TError>> value)

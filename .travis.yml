@@ -9,8 +9,7 @@ before_install:
 script:
   - "./build.sh"
 env:
-  global:
-    - secure: ZiEPHJ0eyCmI+Qe+RDXcyqDxGGVysiU9UhlyVLMTYxUlaM7rSVlK6ZCSjLXHcN2eE4Qu2QRAcbLPdppSUgUUfLQFt/gccOn2xixRhrTw4hRXf8pkuschL959HQ9OxlTv/BCUh4mlAxHabvtA/SU2WaHTDhP8ggWFZIlheqT560tqcfSrdFlUzqrnQXMu3IlrGGGWKS4HLLyzkkvFIB5ZLFmlypYKBJbDljCVqU852N3WN5cFanrJH9tg9Z1KcAVBshTx8sRCyWoY0BOOzcNviVQUbRvrHSUm1ovF1MwN5IdS0xbjbAzS/ZeA6KJFoOCBhgEs1BK4bkob+J168Dn9n59k45PRW/bj3Us6mMg/Ina66bEnUJ0nfpGw2APdnTHiDqk87ChqXtXeQZ8Qv02SZfBEzlByzy4p/xUbkaeQc9ViKlRu3ioUV2JpEYAnSGWm1o+JELVTENvecCOX+Q+ei4OiaaBuWBvG/ogg21nZSSRAfB0nskTJC+X/ox2+DE/Y66zDzZNNjel43JnZMI0FqUI0zaQLt8R/DNyYAmTMUpd4gCQ4qSkXlWX7leG8BhGMnehbvEiZtDvc7Uatdh2eUHzP0Id5c+SQefmPH0X47/7oKSK2QDgnqFsF8LuO5iOyKzkFRBOQYKp8mTyyOnq1C2AGA9hQG9Vwv1LwdRZ9rS0=
+  - PACKAGE_VERSION: 0.2.0-beta01
 branches:
   only:
     - master
