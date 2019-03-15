@@ -73,6 +73,13 @@ namespace Resultful
         public static Task<Option<T>> Tee<T>(this Task<Option<T>> value, Action<T> teeAction)
             => value.Map(item => item.Tee(teeAction));
 
+        //FoldAsync on Option<T>
+        public static Task<TResult> Fold<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, TResult> func)
+            => value.Map(x => x.Fold(seed, func));
+
+        public static Task<TResult> FoldAsync<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, Task<TResult>> func)
+            => value.Bind(x => x.FoldAsync(seed, func));
+
         //OrAsync on Option<T>
 
         public static Task<T> Or<T>(this Task<Option<T>> value, T otherValue)

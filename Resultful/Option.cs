@@ -76,6 +76,12 @@ namespace Resultful
                 return x;
             });
 
+        public TResult Fold<TResult>(TResult seed, Func<TResult, T, TResult> foldFunc)
+            => Match(item => foldFunc.ThrowIfDefault(nameof(foldFunc))(seed, item), _ => seed);
+
+        public Task<TResult> FoldAsync<TResult>(TResult seed, Func<TResult, T, Task<TResult>> foldFunc)
+            => Match(item => foldFunc.ThrowIfDefault(nameof(foldFunc))(seed, item), _ => Task.FromResult(seed));
+
         public Option<T> Or(Func<Option<T>> otherFunc)
             => Match(x => x, _ => otherFunc.ThrowIfDefault(nameof(otherFunc))());
 
