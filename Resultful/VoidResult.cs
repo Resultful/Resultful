@@ -141,6 +141,8 @@ namespace Resultful
                 return error;
             }).ConfigureAwait(false);
 
+        public VoidResult<TCast> Cast<TCast>() => MapError(x => (TCast)(object)x);
+
     }
 
 }

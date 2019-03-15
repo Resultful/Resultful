@@ -113,5 +113,8 @@ namespace Resultful
             => Match(
                 Task.FromResult,
                 _ => otherValue);
+
+        public Option<TCast> CastError<TCast>() => Map(x => (TCast)(object)x);
+
     }
 }

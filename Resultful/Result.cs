@@ -154,5 +154,9 @@ namespace Resultful
 
         public T ReturnOrFail<TExn>(Func<TError, TExn> failFunc) where TExn : Exception
             => Match(Result.Id, err => throw failFunc.ThrowIfDefault(nameof(failFunc))(err));
+
+        public Result<T, TCast> CastError<TCast>() => MapError(x => (TCast)(object)x);
+
+        public Result<TCast, TError> Cast<TCast>() => Map(x => (TCast)(object)x);
     }
 }
