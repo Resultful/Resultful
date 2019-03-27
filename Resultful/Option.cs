@@ -30,11 +30,11 @@ namespace Resultful
             => new Option<T>(new None());
 
         //Local Methods
-        public void Switch(Action<T> successfulFunc, Action<None> errorFunc)
-            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        public void Switch(Action<T> successfulFunc, Action<None> noneFunc)
+            => _value.Switch(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), noneFunc.ThrowIfDefault(nameof(noneFunc)));
 
-        public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<None, TResult> errorFunc) =>
-            _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<None, TResult> noneFunc) =>
+            _value.Match(successfulFunc.ThrowIfDefault(nameof(successfulFunc)), noneFunc.ThrowIfDefault(nameof(noneFunc)));
 
         public Task SwitchAsync(Func<T, Task> someFunc, Func<None, Task> noneFunc)
             => _value.Match(

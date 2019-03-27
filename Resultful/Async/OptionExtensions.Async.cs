@@ -80,6 +80,7 @@ namespace Resultful
         public static Task<TResult> FoldAsync<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, Task<TResult>> func)
             => value.Bind(x => x.FoldAsync(seed, func));
 
+
         //OrAsync on Option<T>
 
         public static Task<T> Or<T>(this Task<Option<T>> value, T otherValue)
@@ -109,5 +110,134 @@ namespace Resultful
         //ToOptionAsync
         public static Task<Option<T>> ToOption<T>(this Task<T> value)
             => value.Map(item => item.ToOption());
+
+        //List FoldAsync
+        //public static Task<Option<TResult>> FoldAsync<TResult, T>(this IEnumerable<Option<T>> values, TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
+        //    => values.FoldAsync(seed.Some(), aggrFunc);
+
+        //Reduce on Option<T>
+        //public static Task<Option<T>> ReduceAsync<T>(this IEnumerable<Option<T>> values, Func<T, T, Task<T>> plusFunc)
+
+            
+        //Fold on Option<T>
+        //public static Task<Option<TResult>> FoldAsync<TResult, T>(this IEnumerable<Option<T>> values, Option<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+
+
+
+        //Base Fold/Reduce(Until)
+        //public static async Task<TResult> FoldAsync<TResult, T>(this IEnumerable<T> values, TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
+
+
+        //public static async Task<T> ReduceAsync<T>(this IEnumerable<T> values,
+        //    Func<T, T, Task<T>> aggrFunc)
+        //{
+        //    using (var enumerator = values.GetEnumerator())
+        //    {
+        //        if (!enumerator.MoveNext())
+        //        {
+        //            throw new ArgumentException("Must have at least one item present", nameof(values));
+        //        }
+        //        return await FoldUntilInternalAsync(enumerator, enumerator.Current, aggrFunc).ConfigureAwait(false);
+        //    }
+        //}
+
+        public static async Task<TResult> FoldUntilAsync<TResult, T>(this IEnumerable<T> values, TResult seed,
+            Func<TResult, T, Task<Option<TResult>>> aggrFunc)
+        {
+            using (var enumerator = values.GetEnumerator())
+            {
+                return await FoldUntilInternalAsync(enumerator, seed, aggrFunc).ConfigureAwait(false);
+            }
+        }
+
+        public static async Task<T> ReduceUntilAsync<T>(this IEnumerable<T> values,
+            Func<T, T, Task<Option<T>>> aggrFunc)
+        {
+            using (var enumerator = values.GetEnumerator())
+            {
+                if (!enumerator.MoveNext())
+                {
+                    throw new ArgumentException("Must have at least one item present", nameof(values));
+                }
+                return await FoldUntilInternalAsync(enumerator, enumerator.Current, aggrFunc).ConfigureAwait(false);
+            }
+        }
+
+
+
+        //Internal Methods
+        public static async Task<Option<T>> TryReduceUntilAsync<T>(this IEnumerable<T> values,
+            Func<T, T, Task<Option<T>>> aggrFunc)
+        {
+            using (var enumerator = values.GetEnumerator())
+            {
+                return !enumerator.MoveNext()
+                    ? Option<T>.None
+                    : await FoldUntilInternalAsync(enumerator, enumerator.Current, aggrFunc).ConfigureAwait(false);
+            }
+        }
+
+        public static async Task<Option<T>> TryReduceAsync<T>(this IEnumerable<T> values,
+            Func<T, T, Task<T>> aggrFunc)
+        {
+            using (var enumerator = values.GetEnumerator())
+            {
+                return !enumerator.MoveNext()
+                    ? Option<T>.None
+                    : await ReduceAsyncInternal(enumerator, enumerator.Current, aggrFunc).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task<TResult> ReduceAsyncInternal<TResult, T>(this IEnumerator<T> values, TResult seed,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            while (values.MoveNext())
+            {
+                seed = await aggrFunc(seed, values.Current).ConfigureAwait(false);
+            }
+            return seed;
+        }
+
+        private static async Task<Option<TResult>> FoldUntilInternal<TResult, T>(this IEnumerator<T> values, Option<TResult> seed,
+            Func<TResult, T, Task<Option<TResult>>> aggrFunc)
+        {
+            var exit = false;
+
+            do
+            {
+                await seed.SwitchAsync(async x =>
+                    {
+                        if (values.MoveNext())
+                        {
+                            seed = await aggrFunc(x, values.Current).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            exit = true;
+                        }
+                    },
+                    async _ => { exit = true; }).ConfigureAwait(false);
+            } while (!exit);
+            return seed;
+        }
+
+        private static async Task<TResult> FoldUntilInternalAsync<TResult, T>(this IEnumerator<T> values, TResult seed,
+            Func<TResult, T, Task<Option<TResult>>> aggrFunc)
+        {
+            var exit = false;
+            while (!exit && values.MoveNext())
+            {
+                await aggrFunc(seed, values.Current).Switch(
+                    x =>
+                    {
+                        seed = x;
+                    },
+                    _ =>
+                    {
+                        exit = true;
+                    }).ConfigureAwait(false);
+            }
+            return seed;
+        }
     }
 }

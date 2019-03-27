@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using OneOf.Types;
 using Resultful.Utils;
 
@@ -20,13 +21,15 @@ namespace Resultful
         public static Option<TResult> Plus<TLeft, TRight, TResult>(this Option<TLeft> left, Option<TRight> right, Func<TLeft, TRight, TResult> plusFunc)
             => left.Bind(leftValue => right.Map(rightValue => plusFunc.ThrowIfDefault(nameof(plusFunc))(leftValue, rightValue)));
 
-        //Fold on Option<T>
+        //Reduce on Option<T>
         public static Option<T> Reduce<T>(this IEnumerable<Option<T>> values, Func<T, T, T> plusFunc)
             => values.ThrowIfDefault(nameof(values)).Aggregate((seed, input) => seed.Plus(input, plusFunc));
 
         public static Option<T> Reduce<T>(this IEnumerable<Option<T>> values) where T : IPlus<T, T>
             => values.ThrowIfDefault(nameof(values)).Aggregate((seed, input) => seed.Plus<T, T, T>(input));
 
+
+        //Fold on Option<T>
         public static Option<TResult> Fold<TResult, T>(this IEnumerable<Option<T>> values, Option<TResult> seed, Func<TResult, T, TResult> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).Aggregate(seed, (acc, value) => acc.Plus(value).Map(x =>
             {
@@ -34,7 +37,11 @@ namespace Resultful
                 return aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal);
             }));
 
+        public static Option<TResult> Fold<TResult, T>(this IEnumerable<Option<T>> values, TResult seed, Func<TResult, T, TResult> aggrFunc)
+            => values.Fold(seed.Some(), aggrFunc);
 
+
+        //FoldUntil on Option<T>
         public static TResult FoldUntil<TResult, T>(this IEnumerable<T> values, TResult seed,
             Func<TResult, T, Option<TResult>> aggrFunc)
         {
@@ -44,16 +51,27 @@ namespace Resultful
             }
         }
 
+        //ReduceUntil on Option<T>
         public static T ReduceUntil<T>(this IEnumerable<T> values,
             Func<T, T, Option<T>> aggrFunc)
         {
             using (var enumerator = values.GetEnumerator())
             {
-                if (!enumerator.MoveNext())
-                {
-                    throw new ArgumentException("Must have at least one item present", nameof(values));
-                }
-                return FoldUntilInternal(enumerator, enumerator.Current, aggrFunc);
+                return !enumerator.MoveNext()
+                    ? throw new ArgumentException("Must have at least one item present", nameof(values))
+                    : FoldUntilInternal(enumerator, enumerator.Current, aggrFunc);
+            }
+        }
+
+        //Internal Methods
+        public static Option<T> TryReduceUntil<T>(this IEnumerable<T> values,
+            Func<T, T, Option<T>> aggrFunc)
+        {
+            using (var enumerator = values.GetEnumerator())
+            {
+                return !enumerator.MoveNext()
+                    ? Option<T>.None
+                    : FoldUntilInternal(enumerator, enumerator.Current, aggrFunc).Some();
             }
         }
 
@@ -65,32 +83,35 @@ namespace Resultful
             while (!exit && values.MoveNext())
             {
                 aggrFunc(seed, values.Current).Switch(
-                    x =>
-                    {
-                        seed = x;
-                    },
-                    _ =>
-                    {
-                        exit = true;
-                    });
+                    x => { seed = x; },
+                    _ => { exit = true; });
             }
             return seed;
         }
 
-        //Recursive Version
-        //private static TResult FoldUntilInternal<TResult, T>(this IEnumerator<T> values, TResult seed,
-        //    Func<TResult, T, Option<TResult>> aggrFunc)
-        //      => values.MoveNext() ?
-        //    aggrFunc(seed, values.Current)
-        //        .Match(
-        //            x => FoldUntilInternal(values, x, aggrFunc),
-        //            _ => seed)
-        //    : seed;
+        private static Option<TResult> FoldUntilInternal<TResult, T>(this IEnumerator<T> values, Option<TResult> seed,
+            Func<TResult, T, Option<TResult>> aggrFunc)
+        {
+            var exit = false;
 
-
-
-        public static Option<TResult> Fold<TResult, T>(this IEnumerable<Option<T>> values, TResult seed, Func<TResult, T, TResult> aggrFunc)
-            => values.Fold(seed.Some(), aggrFunc);
+            do
+            {
+                seed.Switch(
+                    x =>
+                    {
+                        if (values.MoveNext())
+                        {
+                            seed = aggrFunc(x, values.Current);
+                        }
+                        else
+                        {
+                            exit = true;
+                        }
+                    },
+                    _ => { exit = true; });
+            } while (!exit);
+            return seed;
+        }
 
         //Unroll on IEnumerable<Option<T>>
         public static Option<IEnumerable<T>> Unroll<T>(this IEnumerable<Option<T>> values)

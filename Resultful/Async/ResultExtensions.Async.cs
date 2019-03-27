@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using OneOf;
 using Resultful.Utils;
@@ -272,5 +273,43 @@ namespace Resultful
         public static Task<T> ReturnOrFail<T, TError, TExn>(this Task<Result<T, TError>> value, Func<TError, TExn> func) where TExn : Exception
             => value.Map(x => x.ReturnOrFail(func));
 
+        //Fold on Result<T>
+        public static Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).Aggregate(Task.FromResult(seed), async (acc, value) =>
+            {
+                var accValue = await acc.ConfigureAwait(false);
+                return await accValue.Plus(value).MapAsync(async x =>
+                {
+                    var (finalAcc, finalVal) = x;
+                    return await aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            });
+
+        //FoldUntil on Result<T>
+        public static Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Task<Result<TResult>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).FoldUntil(seed, async (acc, value) =>
+            {
+                var accValue = await acc.ConfigureAwait(false);
+                return await Result.Plus<TResult, T>(accValue, value).MapAsync(async item =>
+                {
+                    var (finalAcc, finalItem) = item;
+                    return await aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalItem).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            });
+
+        //Fold on Result<T, TError>
+        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
+            Result<TResult, TError> seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).Aggregate(Task.FromResult(seed), async (acc, value) =>
+            {
+                var accValue = await acc.ConfigureAwait(false);
+                return await accValue.Plus(value, mergeFunc.ThrowIfDefault(nameof(mergeFunc))).MapAsync(async x =>
+                {
+                    var (finalAcc, finalVal) = x;
+                    return await aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+            });
     }
 }
