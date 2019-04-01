@@ -115,11 +115,8 @@ namespace Resultful
         //Fold on Result<T, TError>
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, TResult> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed, (acc, value) => acc.Plus(value, mergeFunc).Map(x =>
-            {
-                var (finalAcc, finalVal) = x;
-                return aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal);
-            }));
+            => values.ThrowIfDefault(nameof(values)).Aggregate(seed,
+                (acc, value) => AggrHelper.Func(acc, value, aggrFunc, mergeFunc));
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, TResult> aggrFunc)
@@ -127,11 +124,8 @@ namespace Resultful
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed, (acc, value) => acc.Plus(value).Map(x =>
-            {
-                var (finalAcc, finalVal) = x;
-                return aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal);
-            }));
+            => values.ThrowIfDefault(nameof(values)).Aggregate(seed,
+                (acc, value) => AggrHelper.Func(acc, value, aggrFunc, Plus));
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
@@ -139,7 +133,8 @@ namespace Resultful
 
         //ReduceUntil on Result<T, TError>
         public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, T> plusFunc)
-            => values.ThrowIfDefault(nameof(values)).ReduceUntil((acc, item) => acc.Match(x => item.Map(y => plusFunc(x, y)).Some(), err => new None()));
+            => values.ThrowIfDefault(nameof(values)).ReduceUntil(
+                (acc, value) => AggrHelper.FuncUntil(acc, value, plusFunc));
 
         public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values) where T : IPlus<T, T>
             => values.ReduceUntil((acc, item) => Plus(acc, item));
@@ -196,9 +191,17 @@ namespace Resultful
         public static Result<IEnumerable<T>> Unroll<T>(this IEnumerable<Result<T>> values)
             => values.Fold(EmptyArray<T>.Get.Ok<IEnumerable<T>>(), (acc, item) => acc.Concat(new[] { item }));
 
+        //UnrollUntil on IEnumerable<Result<T>>
+        public static Result<IEnumerable<T>> UnrollUntil<T>(this IEnumerable<Result<T>> values)
+            => values.FoldUntil(EmptyArray<T>.Get.Ok<IEnumerable<T>>(), (acc, item) => acc.Concat(new[] { item }));
+
         //Unroll on IEnumerable<Result<T, TError>>
         public static Result<IEnumerable<T>, TError> Unroll<T, TError>(this IEnumerable<Result<T, TError>> values, Func<TError, TError, TError> mergeFunc)
             => values.Fold(EmptyArray<T>.Get.Ok<IEnumerable<T>, TError>(), mergeFunc, (acc, item) => acc.Concat(new[] { item }));
+
+        //Unroll on IEnumerable<Result<T, TError>>
+        public static Result<IEnumerable<T>, TError> UnrollUntil<T, TError>(this IEnumerable<Result<T, TError>> values)
+            => values.FoldUntil(EmptyArray<T>.Get.Ok<IEnumerable<T>, TError>(), (acc, item) => acc.Concat(new[] { item }));
 
         //Flatten on Result<T, TError>
         public static Result<T, TError> Flatten<T, TError>(this Result<Result<T, TError>, TError> value)
@@ -213,6 +216,18 @@ namespace Resultful
 
         public static VoidResult Flatten(this Result<VoidResult> value)
             => value.Match(Id, Fail);
+
+        //Unfold on Result<Option<T>>
+        public static Option<Result<T>> Unfold<T>(this Result<Option<T>> value)
+            => value.Match(
+                vOpt => vOpt.Match(v => v.Ok().Some(), _ => Option<Result<T>>.None),
+                err => err.Fail<T>().Some());
+
+        //Unfold on Result<Option<T>, TError>
+        public static Option<Result<T, TError>> Unfold<T, TError>(this Result<Option<T>, TError> value)
+            => value.Match(
+                vOpt => vOpt.Match(v => v.Ok<T, TError>().Some(), _ => Option<Result<T, TError>>.None),
+                err => err.Fail<T, TError>().Some());
 
     }
 }

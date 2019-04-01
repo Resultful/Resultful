@@ -47,7 +47,7 @@ namespace Resultful
         {
             using (var enumerator = values.GetEnumerator())
             {
-                return FoldUntilInternal(enumerator, seed, aggrFunc);
+                return InternalList.FoldUntilInternal(enumerator, seed, aggrFunc);
             }
         }
 
@@ -59,7 +59,7 @@ namespace Resultful
             {
                 return !enumerator.MoveNext()
                     ? throw new ArgumentException("Must have at least one item present", nameof(values))
-                    : FoldUntilInternal(enumerator, enumerator.Current, aggrFunc);
+                    : InternalList.FoldUntilInternal(enumerator, enumerator.Current, aggrFunc);
             }
         }
 
@@ -71,51 +71,16 @@ namespace Resultful
             {
                 return !enumerator.MoveNext()
                     ? Option<T>.None
-                    : FoldUntilInternal(enumerator, enumerator.Current, aggrFunc).Some();
+                    : InternalList.FoldUntilInternal(enumerator, enumerator.Current, aggrFunc).Some();
             }
-        }
-
-
-        private static TResult FoldUntilInternal<TResult, T>(this IEnumerator<T> values, TResult seed,
-            Func<TResult, T, Option<TResult>> aggrFunc)
-        {
-            var exit = false;
-            while (!exit && values.MoveNext())
-            {
-                aggrFunc(seed, values.Current).Switch(
-                    x => { seed = x; },
-                    _ => { exit = true; });
-            }
-            return seed;
-        }
-
-        private static Option<TResult> FoldUntilInternal<TResult, T>(this IEnumerator<T> values, Option<TResult> seed,
-            Func<TResult, T, Option<TResult>> aggrFunc)
-        {
-            var exit = false;
-
-            do
-            {
-                seed.Switch(
-                    x =>
-                    {
-                        if (values.MoveNext())
-                        {
-                            seed = aggrFunc(x, values.Current);
-                        }
-                        else
-                        {
-                            exit = true;
-                        }
-                    },
-                    _ => { exit = true; });
-            } while (!exit);
-            return seed;
         }
 
         //Unroll on IEnumerable<Option<T>>
         public static Option<IEnumerable<T>> Unroll<T>(this IEnumerable<Option<T>> values)
             => values.Fold(EmptyArray<T>.Get.Some<IEnumerable<T>>(), (acc, item) => acc.Concat(new[] { item }));
+
+
+
 
         //ToOption
         public static Option<T> ToOption<T>(this T value)
