@@ -274,32 +274,33 @@ namespace Resultful
             => value.Map(x => x.ReturnOrFail(func));
 
         //Fold on Result<T>
-        public static Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+        public static async Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
             Task<Result<TResult>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed, async (acc, value) =>
-            {
-                var accValue = await acc.ConfigureAwait(false);
-                return await AggrHelper.FuncAsync(accValue, value, aggrFunc)
-                    .ConfigureAwait(false);
-            });
+        {
+            var seedVal = await seed.ConfigureAwait(false);
+            return await FoldAsync(values, seedVal, aggrFunc).ConfigureAwait(false);
+        }
 
-        public static Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
-            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.FoldAsync(Task.FromResult(seed), aggrFunc);
+        public static async Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc) =>
+            await values.FoldAsync(seed,
+                    (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc))
+                .ConfigureAwait(false);
 
         public static Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
             TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
             => values.FoldAsync(Task.FromResult(seed.Ok()), aggrFunc);
 
-        //FoldUntil on Result<T>
+        //FoldUntilAsync on Result<T>
         public static Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
             TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed.Ok(), aggrFunc);
 
-        public static Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
-            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed,
-                (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc));
+        public static async Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc) =>
+            await values.FoldUntilAsync(seed,
+                    (acc, value) => AggrHelper.FuncUntilAsync(acc, value, aggrFunc))
+                .ConfigureAwait(false);
 
         public static async Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
             Task<Result<TResult>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
@@ -309,7 +310,7 @@ namespace Resultful
                 .ConfigureAwait(false);
         }
 
-        //Reduce on Result<T>
+        //ReduceAsync on Result<T>
         public static Task<Result<T>> ReduceAsync<T>(this IEnumerable<Result<T>> values,
             Func<T, T, Task<T>> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).ReduceAsync(
@@ -327,53 +328,54 @@ namespace Resultful
             => values.ThrowIfDefault(nameof(values)).TryReduceAsync(
                 (acc, val) => AggrHelper.FuncAsync(acc, val, aggrFunc));
 
-        //TryReduceUntil on Result<T>
+        //TryReduceUntilAsync on Result<T>
         public static Task<Option<Result<T>>> TryReduceUntilAsync<T>(this IEnumerable<Result<T>> values,
             Func<T, T, Task<T>> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).TryReduceUntilAsync(
                 (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc));
 
-        //Fold on Result<T, TError>
-        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
+        //FoldAsync on Result<T, TError>
+        public static async Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
             Task<Result<TResult, TError>> seed,
             Func<TError, TError, TError> mergeFunc,
             Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed, async (acc, value) =>
-            {
-                var accValue = await acc.ConfigureAwait(false);
-                return await AggrHelper.FuncAsync(accValue, value, aggrFunc, mergeFunc)
-                    .ConfigureAwait(false);
-            });
+        {
+            var seedVal = await seed.ConfigureAwait(false);
+            return await values.FoldAsync(seedVal, mergeFunc, aggrFunc);
+        }
 
-        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+        public static async Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
             this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TError, TError, TError> mergeFunc,
             Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.FoldAsync(Task.FromResult(seed), mergeFunc, aggrFunc);
+            => await EnumerableExtensions.FoldAsync(values, seed,
+                    (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, mergeFunc))
+                .ConfigureAwait(false);
 
         public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
             this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TError, TError, TError> mergeFunc,
             Func<TResult, T, Task<TResult>> aggrFunc)
-            => values.FoldAsync(Task.FromResult(seed.Ok<TResult, TError>()), mergeFunc, aggrFunc);
+            => values.FoldAsync(seed.Ok<TResult, TError>(), mergeFunc, aggrFunc);
 
         public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
             this IEnumerable<Result<T, TError>> values,
             TResult seed,
             Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
-            => values.FoldAsync(seed, Plus, aggrFunc);
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
 
         public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
             this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed,
             Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
-            => values.FoldAsync(seed, Plus, aggrFunc);
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
 
         public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
             this IEnumerable<Result<T, TError>> values,
             Task<Result<TResult, TError>> seed,
             Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
-            => values.FoldAsync(seed, Plus, aggrFunc);
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
 
 
         //FoldUntil on Result<T, TError>
@@ -390,7 +392,7 @@ namespace Resultful
             Task<Result<TResult, TError>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
         {
             var seedValue = await seed.ConfigureAwait(false);
-            return await FoldUntilAsync(values, seedValue, aggrFunc).ConfigureAwait(false);
+            return await FoldUntilAsync(values.ThrowIfDefault(nameof(values)), seedValue, aggrFunc).ConfigureAwait(false);
         }
 
         //Reduce on Result<T, TError>
@@ -402,7 +404,7 @@ namespace Resultful
         public static Task<Result<T, TError>> ReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
             Func<T, T, Task<T>> aggrFunc) where TError : IPlus<TError, TError>
             => values.ThrowIfDefault(nameof(values)).ReduceAsync(
-                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, Plus));
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, PlusHelper.Plus));
 
         //ReduceUntil on Result<T, TError>
         public static Task<Result<T, TError>> ReduceUntilAsync<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, Task<T>> aggrFunc)
@@ -418,7 +420,7 @@ namespace Resultful
         public static Task<Option<Result<T, TError>>> TryReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
             Func<T, T, Task<T>> aggrFunc) where TError : IPlus<TError, TError>
             => values.ThrowIfDefault(nameof(values)).TryReduceAsync(
-                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, Plus));
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, PlusHelper.Plus));
 
         //TryReduceUntil on Result<T, TError>
         public static Task<Option<Result<T, TError>>> TryReduceUntilAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
