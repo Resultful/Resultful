@@ -90,8 +90,14 @@ namespace Resultful
             });
 
         //Reduce on Result<T, TError>
-        public static Result<T, TError> Reduce<T, TError>(this IEnumerable<Result<T, TError>> values, Func<TError, TError, TError> mergeFunc, Func<T, T, T> plusFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate((acc, val) => AggrHelper.Func(acc, val, plusFunc, mergeFunc));
+        public static Result<T, TError> Reduce<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<TError, TError, TError> mergeFunc, Func<T, T, T> plusFunc)
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.ReduceInternal(enumerable, (acc, val) => AggrHelper.Func(acc, val, plusFunc, mergeFunc));
+            }
+        }
 
         public static Result<T, TError> Reduce<T, TError>(this IEnumerable<Result<T, TError>> values,
             Func<TError, TError, TError> mergeFunc) where T : IPlus<T, T>
@@ -107,8 +113,12 @@ namespace Resultful
         //Fold on Result<T, TError>
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, TResult> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed,
-                (acc, value) => AggrHelper.Func(acc, value, aggrFunc, mergeFunc));
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.FoldInternal(enumerable, seed, (acc, value) => AggrHelper.Func(acc, value, aggrFunc, mergeFunc));
+            }
+        }
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, TResult> aggrFunc)
@@ -116,17 +126,21 @@ namespace Resultful
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed,
-                (acc, value) => AggrHelper.Func(acc, value, aggrFunc, PlusHelper.Plus));
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.FoldInternal(enumerable, seed, (acc, value) => AggrHelper.Func(acc, value, aggrFunc, PlusHelper.Plus));
+            }
+        }
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
             => values.Fold(seed.Ok<TResult, TError>(), aggrFunc);
 
         //ReduceUntil on Result<T, TError>
-        public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, T> plusFunc)
+        public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, T> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).ReduceUntil(
-                (acc, value) => AggrHelper.FuncUntil(acc, value, plusFunc));
+                (acc, value) => AggrHelper.FuncUntil(acc, value, aggrFunc));
 
         public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values) where T : IPlus<T, T>
             => values.ReduceUntil((acc, item) => PlusHelper.Plus(acc, item));
@@ -142,16 +156,31 @@ namespace Resultful
             => values.FoldUntil(seed.Ok<TResult, TError>(), aggrFunc);
 
         //Reduce on Result<T>
-        public static Result<T> Reduce<T>(this IEnumerable<Result<T>> values, Func<T, T, T> plusFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate((acc, val) => AggrHelper.Func(acc, val, plusFunc));
+        public static Result<T> Reduce<T>(this IEnumerable<Result<T>> values, Func<T, T, T> aggrFunc)
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.ReduceInternal(enumerable, (acc, val) => AggrHelper.Func(acc, val, aggrFunc));
+            }
+        }
 
         public static Result<T> Reduce<T>(this IEnumerable<Result<T>> values) where T : IPlus<T, T>
-            => values.ThrowIfDefault(nameof(values)).Aggregate((acc, val) => AggrHelper.Func(acc, val, PlusHelper.Plus));
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.ReduceInternal(enumerable, (acc, val) => AggrHelper.Func(acc, val, PlusHelper.Plus));
+            }
+        }
 
         //Fold on Result<T>
         public static Result<TResult> Fold<TResult, T>(this IEnumerable<Result<T>> values,
             Result<TResult> seed, Func<TResult, T, TResult> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Aggregate(seed, (acc, val) => AggrHelper.Func(acc, val, aggrFunc));
+        {
+            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return InternalList.FoldInternal(enumerable, seed, (acc, val) => AggrHelper.Func(acc, val, aggrFunc));
+            }
+        }
 
         public static Result<TResult> Fold<TResult, T>(this IEnumerable<Result<T>> values,
             TResult seed, Func<TResult, T, TResult> aggrFunc)

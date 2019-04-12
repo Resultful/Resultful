@@ -9,6 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Resultful.Tests", "Resultfu
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AFAED463-596C-4E5B-A309-0398491AEB6A}"
 	ProjectSection(SolutionItems) = preProject
+		.travis.yml = .travis.yml
 		build.cmd = build.cmd
 		build.fsx = build.fsx
 		build.sh = build.sh
@@ -38,7 +39,7 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		        SolutionGuid = {5A8BA889-15B7-4B23-9E76-F2FD13420BA8}
 		SolutionGuid = {AE0E2808-BB86-47F6-A6FB-17F98968F011}
+		        SolutionGuid = {5A8BA889-15B7-4B23-9E76-F2FD13420BA8}
 	EndGlobalSection
 EndGlobal
