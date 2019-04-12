@@ -80,6 +80,14 @@ namespace Resultful
         public static Task<TResult> FoldAsync<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, Task<TResult>> func)
             => value.Bind(x => x.FoldAsync(seed, func));
 
+        //FoldUntilAsync on Option<T>
+        public static Task<Option<TResult>> FoldUntil<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, Option<TResult>> func)
+            => value.Map(x => x.FoldUntil(seed, func));
+
+        public static Task<Option<TResult>> FoldUntilAsync<T, TResult>(this Task<Option<T>> value, TResult seed, Func<TResult, T, Task<Option<TResult>>> func)
+            => value.Bind(x => x.FoldUntilAsync(seed, func));
+
+
         //OrAsync on Option<T>
 
         public static Task<T> Or<T>(this Task<Option<T>> value, T otherValue)
@@ -106,8 +114,94 @@ namespace Resultful
         public static Task<Option<T>> OrAsync<T>(this Task<Option<T>> value, Func<Task<Option<T>>> otherFunc)
             => value.Bind(item => item.OrAsync(otherFunc));
 
+        //Flatten
+        public static Task<Option<T>> Flatten<T>(this Task<Option<Option<T>>> value)
+            => value.Map(x => x.Flatten());
+
         //ToOptionAsync
         public static Task<Option<T>> ToOption<T>(this Task<T> value)
             => value.Map(item => item.ToOption());
+
+        //Reduce on List<Option<T>>
+        public static async Task<Option<T>> ReduceAsync<T>(this IEnumerable<Option<T>> values, Func<T, T, Task<T>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.ReduceInternalAsync(enumerator,
+                    (acc, val) => AggrHelper.FuncAsync(acc, val, aggrFunc))
+                    .ConfigureAwait(false);
+            }
+        }
+
+        //ReduceUntil on List<Option<T>>
+        public static async Task<Option<T>> ReduceUntil<T>(this IEnumerable<Option<T>> values,
+            Func<T, T, Task<Option<T>>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.ReduceUntilInternalAsync(enumerator,
+                    (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc))
+                    .ConfigureAwait(false);
+            }
+        }
+
+        //Fold on List<Option<T>>
+        public static async Task<TResult> FoldAsync<TResult, T>(this IEnumerable<Option<T>> values, TResult seed,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.FoldInternalAsync(enumerator, seed,
+                    (acc, val) => val.FoldAsync(acc, aggrFunc))
+                    .ConfigureAwait(false);
+            }
+        }
+
+        public static Task<Option<TResult>> FoldAsync<TResult, T>(this IEnumerable<Option<T>> values, Option<TResult> seed,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+            => seed.MapAsync(x => FoldAsync(values.ThrowIfDefault(nameof(values)), x, aggrFunc));
+
+        //FoldUntil on List<Option<T>>
+        public static async Task<TResult> FoldUntilAsync<TResult, T>(this IEnumerable<Option<T>> values, TResult seed,
+            Func<TResult, T, Task<Option<TResult>>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.FoldUntilInternalAsync(enumerator, seed,
+                    (acc, val) => val.FoldUntilAsync(acc, aggrFunc))
+                    .ConfigureAwait(false);
+            }
+        }
+
+        public static Task<Option<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Option<T>> values, Option<TResult> seed,
+            Func<TResult, T, Task<Option<TResult>>> aggrFunc)
+            => seed.MapAsync(x => FoldUntilAsync(values.ThrowIfDefault(nameof(values)), x, aggrFunc));
+
+
+        //TryReduceUntil on List<Option<T>>
+        public static async Task<Option<T>> TryReduceAsync<T>(this IEnumerable<Option<T>> values,
+            Func<T, T, Task<T>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.TryReduceInternalAsync(enumerator,
+                    (acc, val) => AggrHelper.FuncAsync(acc, val, aggrFunc))
+                    .Flatten().ConfigureAwait(false);
+            }
+        }
+
+        //TryReduceUntil on List<Option<T>>
+        public static async Task<Option<T>> TryReduceUntilAsync<T>(this IEnumerable<Option<T>> values,
+            Func<T, T, Task<Option<T>>> aggrFunc)
+        {
+            using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
+            {
+                return await InternalList.TryReduceUntilInternalAsync(enumerator,
+                    (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc))
+                    .Flatten().ConfigureAwait(false);
+            }
+        }
+
+
     }
 }

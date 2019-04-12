@@ -1,5 +1,6 @@
 framework: auto-detect
 lowest_matching: true
+version: 5.198.0
 
 source https://api.nuget.org/v3/index.json
 source https://www.nuget.org/api/v2

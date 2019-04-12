@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using OneOf;
 using Resultful.Utils;
@@ -271,6 +272,161 @@ namespace Resultful
         //ReturnOrFail on Result<T, TError>
         public static Task<T> ReturnOrFail<T, TError, TExn>(this Task<Result<T, TError>> value, Func<TError, TExn> func) where TExn : Exception
             => value.Map(x => x.ReturnOrFail(func));
+
+        //Fold on Result<T>
+        public static async Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Task<Result<TResult>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            var seedVal = await seed.ConfigureAwait(false);
+            return await FoldAsync(values, seedVal, aggrFunc).ConfigureAwait(false);
+        }
+
+        public static async Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc) =>
+            await values.FoldAsync(seed,
+                    (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc))
+                .ConfigureAwait(false);
+
+        public static Task<Result<TResult>> FoldAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.FoldAsync(Task.FromResult(seed.Ok()), aggrFunc);
+
+        //FoldUntilAsync on Result<T>
+        public static Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed.Ok(), aggrFunc);
+
+        public static async Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Result<TResult> seed, Func<TResult, T, Task<TResult>> aggrFunc) =>
+            await values.FoldUntilAsync(seed,
+                    (acc, value) => AggrHelper.FuncUntilAsync(acc, value, aggrFunc))
+                .ConfigureAwait(false);
+
+        public static async Task<Result<TResult>> FoldUntilAsync<TResult, T>(this IEnumerable<Result<T>> values,
+            Task<Result<TResult>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            var seedValue = await seed.ConfigureAwait(false);
+            return await values.FoldUntilAsync(seedValue, aggrFunc)
+                .ConfigureAwait(false);
+        }
+
+        //ReduceAsync on Result<T>
+        public static Task<Result<T>> ReduceAsync<T>(this IEnumerable<Result<T>> values,
+            Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).ReduceAsync(
+                (acc, val) => AggrHelper.FuncAsync(acc, val, aggrFunc));
+
+        //ReduceUntil on Result<T>
+        public static Task<Result<T>> ReduceUntilAsync<T>(this IEnumerable<Result<T>> values,
+            Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).ReduceUntilAsync(
+                (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc));
+
+        //TryReduce on Result<T>
+        public static Task<Option<Result<T>>> TryReduceAsync<T>(this IEnumerable<Result<T>> values,
+            Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).TryReduceAsync(
+                (acc, val) => AggrHelper.FuncAsync(acc, val, aggrFunc));
+
+        //TryReduceUntilAsync on Result<T>
+        public static Task<Option<Result<T>>> TryReduceUntilAsync<T>(this IEnumerable<Result<T>> values,
+            Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).TryReduceUntilAsync(
+                (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc));
+
+        //FoldAsync on Result<T, TError>
+        public static async Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            Task<Result<TResult, TError>> seed,
+            Func<TError, TError, TError> mergeFunc,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            var seedVal = await seed.ConfigureAwait(false);
+            return await values.FoldAsync(seedVal, mergeFunc, aggrFunc);
+        }
+
+        public static async Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            Result<TResult, TError> seed, Func<TError, TError, TError> mergeFunc,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+            => await EnumerableExtensions.FoldAsync(values, seed,
+                    (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, mergeFunc))
+                .ConfigureAwait(false);
+
+        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            TResult seed, Func<TError, TError, TError> mergeFunc,
+            Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.FoldAsync(seed.Ok<TResult, TError>(), mergeFunc, aggrFunc);
+
+        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            TResult seed,
+            Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
+
+        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            Result<TResult, TError> seed,
+            Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
+
+        public static Task<Result<TResult, TError>> FoldAsync<TResult, T, TError>(
+            this IEnumerable<Result<T, TError>> values,
+            Task<Result<TResult, TError>> seed,
+            Func<TResult, T, Task<TResult>> aggrFunc) where TError : IPlus<TError, TError>
+            => values.FoldAsync(seed, PlusHelper.Plus, aggrFunc);
+
+
+        //FoldUntil on Result<T, TError>
+        public static Task<Result<TResult, TError>> FoldUntilAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
+            TResult seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed.Ok<TResult, TError>(), aggrFunc);
+
+        public static Task<Result<TResult, TError>> FoldUntilAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
+            Result<TResult, TError> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed,
+                (acc, value) =>  AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
+
+        public static async Task<Result<TResult, TError>> FoldUntilAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
+            Task<Result<TResult, TError>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
+        {
+            var seedValue = await seed.ConfigureAwait(false);
+            return await FoldUntilAsync(values.ThrowIfDefault(nameof(values)), seedValue, aggrFunc).ConfigureAwait(false);
+        }
+
+        //Reduce on Result<T, TError>
+        public static Task<Result<T, TError>> ReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<TError, TError, TError> mergeFunc, Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).ReduceAsync(
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, mergeFunc));
+
+        public static Task<Result<T, TError>> ReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<T, T, Task<T>> aggrFunc) where TError : IPlus<TError, TError>
+            => values.ThrowIfDefault(nameof(values)).ReduceAsync(
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, PlusHelper.Plus));
+
+        //ReduceUntil on Result<T, TError>
+        public static Task<Result<T, TError>> ReduceUntilAsync<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).ReduceUntilAsync(
+                (acc, value) =>  AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
+
+        //TryReduce on Result<T, TError>
+        public static Task<Option<Result<T, TError>>> TryReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<T, T, Task<T>> aggrFunc, Func<TError, TError, TError> mergeFunc)
+            => values.ThrowIfDefault(nameof(values)).TryReduceAsync(
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, mergeFunc));
+
+        public static Task<Option<Result<T, TError>>> TryReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<T, T, Task<T>> aggrFunc) where TError : IPlus<TError, TError>
+            => values.ThrowIfDefault(nameof(values)).TryReduceAsync(
+                (acc, value) => AggrHelper.FuncAsync(acc, value, aggrFunc, PlusHelper.Plus));
+
+        //TryReduceUntil on Result<T, TError>
+        public static Task<Option<Result<T, TError>>> TryReduceUntilAsync<T, TError>(this IEnumerable<Result<T, TError>> values,
+            Func<T, T, Task<T>> aggrFunc)
+            => values.ThrowIfDefault(nameof(values)).TryReduceUntilAsync(
+                (acc, val) => AggrHelper.FuncUntilAsync(acc, val, aggrFunc));
 
     }
 }
