@@ -291,3 +291,4 @@ publish.cmd
 .paket
 !.paket\Paket.Restore.targets
 !.paket\paket.targets
+build.fsx.lock
