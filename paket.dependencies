@@ -3,34 +3,22 @@ lowest_matching: true
 version: 5.198.0
 
 source https://api.nuget.org/v3/index.json
-source https://www.nuget.org/api/v2
-
-//Main
-//Maybe contribute a change which doesn't include deps Plus a .paket why lookup
-//github fsprojects/FSharp.TypeProviders.SDK netfx.props
 
 // Testing
 nuget Microsoft.NET.Test.Sdk >= 15.5.0
 nuget NUnit >= 3.9.0
 nuget NUnit3TestAdapter >= 3.9.0
+nuget NunitXml.TestLogger 3.0.91
 nuget FluentAssertions.OneOf >= 0.0.5
+nuget FluentAssertions >= 5.10.3
 
 // Deps
-nuget OneOf >= 2.1.127
+nuget OneOf >= 3.0.178
 nuget System.ValueTuple >= 4.5
 nuget NETStandard.Library >= 1.6.1
 
 //Examples
 group example-deps
-    framework: netcoreapp2.1
+    framework: net5.0
     source https://api.nuget.org/v3/index.json
 
-    nuget Microsoft.AspNetCore.App ~> 2.1.6
-
-// [ Fake Group ]
-group build-deps
-    source https://api.nuget.org/v3/index.json
-    nuget Fake.Core.Target
-    nuget Fake.Core.ReleaseNotes
-    nuget Fake.DotNet.Cli
-    nuget Fake.Tools.Git

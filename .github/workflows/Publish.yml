@@ -1,0 +1,41 @@
+﻿name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 5.0.100
+      - name: Install Tools
+        run: dotnet tool restore
+      - name: Cache Paket
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.nuget/packages
+            !~/.nuget/packages/unwanted
+          key: ${{ runner.os }}-nuget-${{ hashFiles('paket.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - name: Install Dependencies
+        run: dotnet restore
+      - name: Publish
+        run: dotnet fake build --target Publish
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_KEY }}
+      - uses: MirrorNG/nunit-reporter@v1.0.9
+        if: always()
+        with:
+          path: testResults/test-results-*.xml
+          access-token: ${{ secrets.GITHUB_TOKEN }}
