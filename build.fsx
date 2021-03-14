@@ -17,7 +17,7 @@ open System
 
 let buildDir = "build"
 let testResultDir = "testResults"
-let packageVersion = "0.2.0-beta05"
+let packageVersion = "0.2.0"
 let packageFeed = "https://www.myget.org/F/resultful/api/v2/package"
 
 let env x =
