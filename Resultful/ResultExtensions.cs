@@ -14,31 +14,6 @@ namespace Resultful
         public static T Id<T>(this T value) => value;
         public static Task<T> IdAsync<T>(this T value) => Task.FromResult(value);
 
-        //Builder for Result<T, TError>
-        public static Result<T, IEnumerable<TError>> Fail<T, TError>(this IEnumerable<TError> errors)
-            => new Result<T, IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
-
-        public static Result<T, IEnumerable<TError>> Fail<T, TError>(params TError[] errors)
-            => new Result<T, IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
-
-        public static Result<T, TError> Fail<T, TError>(this TError value)
-            => new Result<T, TError>(value);
-
-        public static Result<T, TError> Ok<T, TError>(this T value)
-            => new Result<T, TError>(value);
-
-        //Builder for Result<T>
-        public static Result<T> Fail<T>(this IEnumerable<string> errors)
-            => new Result<T>(errors);
-
-        public static Result<T> Fail<T>(params string[] errors)
-            => new Result<T>(errors);
-
-
-        public static Result<T> Ok<T>(this T value)
-            => new Result<T>(value);
-
-
         //Plus on Result<T, TError>
         public static Result<(TLeft, TRight), TError> Plus<TLeft, TRight, TError>(this Result<TLeft, TError> left,
             Result<TRight, TError> right, Func<TError, TError, TError> mergeFunc)
@@ -50,19 +25,24 @@ namespace Resultful
 
         public static Result<TResult, TError> Plus<TLeft, TRight, TResult, TError>(this Result<TLeft, TError> left, Result<TRight, TError> right, Func<TError, TError, TError> mergeFunc, Func<TLeft, TRight, TResult> plusFunc)
             => left.Match(
-                leftValue => right.Match(
-                    rightValue => Ok<TResult, TError>(plusFunc(leftValue, rightValue)),
-                    Fail<TResult, TError>
+                leftValue => right.Match<Result<TResult, TError>>(
+                    rightValue => plusFunc(leftValue, rightValue).Ok(),
+                    rightErr => rightErr.Err()
                 ),
-                errors => right.Match(
-                    rightValue => Fail<TResult, TError>(errors),
-                    otherErrors => Fail<TResult, TError>(mergeFunc.ThrowIfDefault(nameof(mergeFunc))(errors, otherErrors))
+                errors => right.Match<Result<TResult, TError>>(
+                    rightValue => errors.Err(),
+                    otherErrors => mergeFunc.ThrowIfDefault(nameof(mergeFunc))(errors, otherErrors).Err()
                 )
             );
 
         public static Result<TResult, TError> Plus<TLeft, TRight, TResult, TError>(this Result<TLeft, TError> left,
             Result<TRight, TError> right, Func<TError, TError, TError> mergeFunc) where TLeft : IPlus<TRight, TResult>
             => left.Plus(right, mergeFunc, (leftValue, rightValue) => leftValue.Plus(rightValue));
+
+        public static Result<T, TError> Plus<T, TError>(this Result<T, TError> left,
+            Result<T, TError> right, Func<TError, TError, TError> mergeFunc) where T : IPlus<T, T>
+            => left.Plus(right, mergeFunc, (leftValue, rightValue) => leftValue.Plus(rightValue));
+
 
         public static Result<TResult, TError> Plus<TLeft, TRight, TResult, TError>(this Result<TLeft, TError> left,
             Result<TRight, TError> right, Func<TLeft, TRight, TResult> plusFunc) where TError : IPlus<TError, TError>
@@ -72,14 +52,18 @@ namespace Resultful
             Result<TRight, TError> right) where TLeft : IPlus<TRight, TResult> where TError : IPlus<TError, TError>
             => left.Plus(right, (leftError, rightError) => leftError.Plus(rightError), (leftValue, rightValue) => leftValue.Plus(rightValue));
 
+        public static Result<T, TError> Plus<T, TError>(this Result<T, TError> left,
+            Result<T, TError> right) where T : IPlus<T, T> where TError : IPlus<TError, TError>
+            => left.Plus(right, (leftError, rightError) => leftError.Plus(rightError), (leftValue, rightValue) => leftValue.Plus(rightValue));
+
         //Plus on Result<T>
         public static Result<(TLeft, TRight)> Plus<TLeft, TRight>(this Result<TLeft> left, Result<TRight> right)
             => left.Plus(right, (leftValue, rightValue) => (leftValue, rightValue));
 
         public static Result<TResult> Plus<TLeft, TRight, TResult>(this Result<TLeft> left, Result<TRight> right, Func<TLeft, TRight, TResult> plusFunc)
             => left.Match(
-                leftValue => right.Match(rightValue => Ok(plusFunc.ThrowIfDefault(nameof(plusFunc))(leftValue, rightValue)), Fail<TResult>),
-                errors => right.Match(rightValue => Fail<TResult>(errors), otherErrors => Fail<TResult>(errors.Concat(otherErrors)))
+                leftValue => right.Match<Result<TResult>>(rightValue => Ok(plusFunc.ThrowIfDefault(nameof(plusFunc))(leftValue, rightValue)), error => error.Fail()),
+                errors => right.Match<Result<TResult>>(rightValue => errors.Fail(), otherErrors => errors.Concat(otherErrors).Fail())
             );
 
         public static Result<TResult> Plus<TLeft, TRight, TResult>(this Result<TLeft> left, Result<TRight> right) where TLeft : IPlus<TRight, TResult>
@@ -122,7 +106,7 @@ namespace Resultful
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TError, TError, TError> mergeFunc, Func<TResult, T, TResult> aggrFunc)
-            => values.Fold(seed.Ok<TResult, TError>(), mergeFunc, aggrFunc);
+            => values.Fold(seed.Ok(), mergeFunc, aggrFunc);
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
@@ -135,7 +119,7 @@ namespace Resultful
 
         public static Result<TResult, TError> Fold<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             TResult seed, Func<TResult, T, TResult> aggrFunc) where TError : IPlus<TError, TError>
-            => values.Fold(seed.Ok<TResult, TError>(), aggrFunc);
+            => values.Fold(seed.Ok(), aggrFunc);
 
         //ReduceUntil on Result<T, TError>
         public static Result<T, TError> ReduceUntil<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, T> aggrFunc)
@@ -225,17 +209,17 @@ namespace Resultful
 
         //Flatten on Result<T, TError>
         public static Result<T, TError> Flatten<T, TError>(this Result<Result<T, TError>, TError> value)
-            => value.Match(Id, errors => errors.Fail<T, TError>());
+            => value.Match(Id, errors => errors.Err());
 
         public static VoidResult<TError> Flatten<TError>(this Result<VoidResult<TError>, TError> value)
-            => value.Match(Id, errors => errors.Fail());
+            => value.Match(Id, errors => errors.Err().Result());
 
         //Flatten on Result<T>
         public static Result<T> Flatten<T>(this Result<Result<T>> value)
-            => value.Match(Id, Fail<T>);
+            => value.Match(Id, error => error.Fail());
 
         public static VoidResult Flatten(this Result<VoidResult> value)
-            => value.Match(Id, Fail);
+            => value.Match(Id, error => error.Fail());
 
         //Unfold on Result<Option<T>>
         public static Option<Result<T>> Unfold<T>(this Result<Option<T>> value)
