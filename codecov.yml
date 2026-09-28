@@ -1,0 +1,21 @@
+# Codecov Configuration (Governed by shared-utilities)
+# See https://docs.codecov.com/docs/codecov-yaml for details
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+comment:
+  layout: "header, diff, flags, files"
+  behavior: default
+  require_changes: false
