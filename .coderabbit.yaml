@@ -1,0 +1,31 @@
+# CodeRabbit Configuration (Governed by shared-utilities)
+# See https://docs.coderabbit.ai/guides/configure-coderabbit for details
+
+language: "en-US"
+tone_instructions: "Be concise, objective, and constructive. Focus on correctness, edge cases, and performance."
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "master"
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/temp/**"
+    - "!**/.temp/**"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+
+chat:
+  auto_reply: true

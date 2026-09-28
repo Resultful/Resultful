@@ -1,0 +1,6 @@
+# Qodana Configuration (Governed by shared-utilities)
+# See https://www.jetbrains.com/help/qodana/qodana-yaml.html
+
+version: "1.0"
+profile:
+  name: qodana.recommended
