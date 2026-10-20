@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Resultful.Utils;
@@ -141,7 +141,7 @@ namespace Resultful
                 return error;
             }).ConfigureAwait(false);
 
-        public VoidResult<TCast> Cast<TCast>() => MapError(x => (TCast)(object)x);
+        public VoidResult<TCast> Cast<TCast>() => MapError(x => (TCast)(object)x!);
 
     }
 

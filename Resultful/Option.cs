@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Resultful.Utils;
 using OneOf.Types;
@@ -129,7 +129,7 @@ namespace Resultful
                 Task.FromResult,
                 _ => otherValue);
 
-        public Option<TCast> CastError<TCast>() => Map(x => (TCast)(object)x);
+        public Option<TCast> CastError<TCast>() => Map(x => (TCast)(object)x!);
 
     }
 }
