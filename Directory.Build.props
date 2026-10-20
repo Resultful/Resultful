@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <NoWarn>$(NoWarn);CA1716;CA1000</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>Ryan Kelly</Authors>
+    <PackageProjectUrl>https://github.com/Resultful/Resultful</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Resultful/Resultful.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName.EndsWith(&quot;Examples&quot;))' or '$(MSBuildProjectName.EndsWith(&quot;Tests&quot;))'">
+    <NoWarn>$(NoWarn);CA1305;CA1822;CA1062</NoWarn>
+  </PropertyGroup>
+</Project>

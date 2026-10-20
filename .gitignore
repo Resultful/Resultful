@@ -292,3 +292,19 @@ publish.cmd
 !.paket\Paket.Restore.targets
 !.paket\paket.targets
 build.fsx.lock
+
+# Temporary files, databases, scratch files, and worktrees
+temp/
+.temp/
+
+# Local TODO files
+TODO.md
+todo.md
+
+# MSBuild binary logs
+*.binlog
+
+# NuGet packages
+nupkg/
+*.nupkg
+
