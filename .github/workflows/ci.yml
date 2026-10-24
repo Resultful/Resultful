@@ -1,4 +1,4 @@
-name: CI & Publish
+name: ci
 
 on:
   push:
