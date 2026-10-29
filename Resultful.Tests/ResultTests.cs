@@ -10,7 +10,7 @@ namespace Resultful.Tests
         [Test]
         public void AssertChange()
         {
-            var projectedValue = "Test ".Ok().Map(x => x.Trim()).Plus("Final Value".Ok(), (s, j) => $"{s}: {j}");
+            var projectedValue = "Test ".Ok().Result().Map(x => x.Trim()).Plus("Final Value".Ok().Result(), (s, j) => $"{s}: {j}");
 
             projectedValue.ToOneOf().Should().Be<string>().And.Should().Be("Test: Final Value");
         }
