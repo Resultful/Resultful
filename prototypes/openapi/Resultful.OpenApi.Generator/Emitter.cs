@@ -13,7 +13,7 @@ namespace Resultful.OpenApi.Generator
     /// Turns one OpenAPI document into C# source. Prototype scope: component schemas that are objects, string enums or
     /// discriminated oneOf unions; JSON bodies; path, query and header parameters.
     /// </summary>
-    internal sealed class Emitter
+    internal sealed partial class Emitter
     {
         /// <summary>Component schemas that map onto framework types instead of being generated.</summary>
         private static readonly Dictionary<string, string> WellKnownSchemas = new()
@@ -95,10 +95,10 @@ namespace Resultful.OpenApi.Generator
         /// does. It renames nothing the spec did not name and invents nothing: every rule below is driven by the spec's
         /// own unions and enums, and the round-trip test compares the result against the spec.
         /// </summary>
-        private string EmitOpenApi()
+        private string EmitOpenApi(string? typesNamespace = null)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Linq", "System.Threading.Tasks", "Microsoft.AspNetCore.OpenApi", "Microsoft.OpenApi");
+            w.Usings("System.Collections.Generic", "System.Linq", "System.Threading.Tasks", "Microsoft.AspNetCore.OpenApi", "Microsoft.OpenApi");
 
             w.Open($"public static class {_apiName}OpenApi");
 
@@ -122,7 +122,7 @@ namespace Resultful.OpenApi.Generator
             w.Line("/// string enums written in the spec's form rather than ASP.NET Core's.");
             w.Line("/// </summary>");
             w.Open($"public static OpenApiOptions Add{_apiName}Schemas(this OpenApiOptions options)");
-            w.Line($"options.CreateSchemaReferenceId = type => type.Type.Namespace == {Naming.Literal(_namespace)}");
+            w.Line($"options.CreateSchemaReferenceId = type => type.Type.Namespace == {Naming.Literal(typesNamespace ?? _namespace)}");
             w.Line("    ? type.Type.Name");
             w.Line("    : OpenApiOptions.CreateDefaultSchemaReferenceId(type);");
             w.Line("options.AddDocumentTransformer((document, _, _) =>");
@@ -633,6 +633,9 @@ namespace Resultful.OpenApi.Generator
             /// <summary>The body the fake answers with by default: the spec's example, or a valid sample built from the schema.</summary>
             public string? SampleJson { get; set; }
 
+            /// <summary>The body's schema, for turning a sample into C#.</summary>
+            public IOpenApiSchema? Schema { get; set; }
+
             public string CaseName => Naming.StatusNames[Status];
 
             /// <summary>
@@ -833,7 +836,12 @@ namespace Resultful.OpenApi.Generator
 
                 var sample = JsonMedia(pair.Value.Content) is { } m ? Sample(m.Value, $"{context} response '{pair.Key}'") : null;
                 (status is >= 200 and < 300 ? operation.Successes : operation.Errors)
-                    .Add(new Response(status, bodyType, mediaType, isValidation, schemaName) { IsList = isList, SampleJson = sample });
+                    .Add(new Response(status, bodyType, mediaType, isValidation, schemaName)
+                    {
+                        IsList = isList,
+                        SampleJson = sample,
+                        Schema = JsonSchema(pair.Value.Content),
+                    });
             }
 
             if (operation.Successes.Count == 0)

@@ -65,6 +65,13 @@ consumers actually use, not against the whole spec.
 - **Available from day one.** It exists as soon as the spec does, so consumers build against it while the service is
   still being written.
 
+**Both directions from one spec:**
+- **Generated behaviour** you never touch: the fake.
+- **Owned code** you start from and keep: scaffolding writes ordinary ASP.NET controllers and a reference
+  implementation that answers with the spec's examples, so the service runs and conforms on day one. Then the team
+  replaces one handler body at a time. It is also the way off the generator: the contract stays generated, and the
+  server becomes plain ASP.NET.
+
 The three uses share one engine. Most teams will start with testing or the fake, because neither asks anything of
 the service, and move to spec-first services for new work.
 
@@ -118,6 +125,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ Scenarios of expected calls, in order or not, written in code or JSON and checked against the spec; a fake server
   that stands up an isolated fake API per scenario.
 - ✓ A fluent fake server for .NET tests: typed `Given` rules and `Should()` assertions, on a real port.
+- ✓ Scaffolding the server as owned ASP.NET source (controllers or Minimal API) with a reference implementation, checked
+  against the spec before anyone edits it.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
