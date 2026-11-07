@@ -63,11 +63,13 @@ namespace Resultful.OpenApi.Generator
                 files["Responses"] = EmitResponses(operations);
                 files["Handlers"] = EmitHandlers(operations);
                 files["Client"] = EmitClient(operations);
+                files["Fake"] = EmitFake(operations);
             }
 
             if (server)
             {
                 files["Endpoints"] = EmitEndpoints(operations);
+                files["FakeControl"] = EmitFakeControl();
                 if (_describesItself)
                 {
                     files["OpenApi"] = EmitOpenApi();
@@ -619,6 +621,9 @@ namespace Resultful.OpenApi.Generator
 
             public bool IsList { get; set; }
 
+            /// <summary>The body the fake answers with by default: the spec's example, or a valid sample built from the schema.</summary>
+            public string? SampleJson { get; set; }
+
             public string CaseName => Naming.StatusNames[Status];
 
             /// <summary>
@@ -684,6 +689,9 @@ namespace Resultful.OpenApi.Generator
             public string SuccessType => SuccessIsUnion ? Name + "Success" : Successes[0].BodyType ?? "global::Resultful.Unit";
 
             public string ErrorType => Name + "Error";
+
+            /// <summary>What the handler's Task completes with; null when it is a plain Task.</summary>
+            public string? HandlerResultType => HandlerReturnType == "Task" ? null : HandlerReturnType.Substring(5, HandlerReturnType.Length - 6);
 
             public string HandlerReturnType => (Errors.Count, SuccessIsUnion || Successes[0].BodyType is not null) switch
             {
@@ -814,8 +822,9 @@ namespace Resultful.OpenApi.Generator
                     schemaName = RefId(target) is { } id && _schemas.TryGetValue(id, out var s) && !IsEnum(s) ? Naming.Pascal(id) : null;
                 }
 
+                var sample = JsonMedia(pair.Value.Content) is { } m ? Sample(m.Value, $"{context} response '{pair.Key}'") : null;
                 (status is >= 200 and < 300 ? operation.Successes : operation.Errors)
-                    .Add(new Response(status, bodyType, mediaType, isValidation, schemaName) { IsList = isList });
+                    .Add(new Response(status, bodyType, mediaType, isValidation, schemaName) { IsList = isList, SampleJson = sample });
             }
 
             if (operation.Successes.Count == 0)
@@ -1199,43 +1208,46 @@ namespace Resultful.OpenApi.Generator
             w.Line("using var __response = await _http.SendAsync(__request, cancellationToken).ConfigureAwait(false);");
             w.Open("switch ((int)__response.StatusCode)");
 
-            var hasErrors = operation.Errors.Count > 0;
-            var successHasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
-            foreach (var response in operation.Successes)
+            foreach (var response in operation.Successes.Concat(operation.Errors))
             {
                 var value = ClientRead(operation, response);
-                string result;
-                if (operation.SuccessIsUnion)
-                {
-                    var union = $"{operation.SuccessType}.{response.CaseName}({value ?? string.Empty})";
-                    result = hasErrors ? $"global::Resultful.Result.Ok<{operation.SuccessType}, {operation.ErrorType}>({union})" : union;
-                }
-                else if (successHasValue)
-                {
-                    result = hasErrors ? $"global::Resultful.Result.Ok<{response.BodyType}, {operation.ErrorType}>({value})" : value!;
-                }
-                else
-                {
-                    result = hasErrors ? $"global::Resultful.Result.Ok<{operation.ErrorType}>()" : string.Empty;
-                }
-
-                EmitCase(w, operation, response, result, value is null);
-            }
-
-            foreach (var response in operation.Errors)
-            {
-                var value = ClientRead(operation, response);
-                var error = $"{operation.ErrorType}.{response.CaseName}({value ?? string.Empty})";
-                var result = successHasValue
-                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
-                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
-                EmitCase(w, operation, response, result, value is null);
+                EmitCase(w, operation, response, Outcome(operation, response, value), value is null);
             }
 
             w.Line("default:");
             w.Line($"    throw Undocumented({Naming.Literal(operation.Id)}, __response);");
             w.Close();
             w.Close();
+        }
+
+        /// <summary>
+        /// The handler's return value for a documented response, given an expression for its body (null when it has none).
+        /// Empty for an operation whose handler returns a plain Task. Shared by the client and the fake.
+        /// </summary>
+        private static string Outcome(Operation operation, Response response, string? value)
+        {
+            var hasErrors = operation.Errors.Count > 0;
+            var successHasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+            if (operation.Errors.Contains(response))
+            {
+                var error = $"{operation.ErrorType}.{response.CaseName}({value ?? string.Empty})";
+                return successHasValue
+                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
+                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
+            }
+
+            if (operation.SuccessIsUnion)
+            {
+                var union = $"{operation.SuccessType}.{response.CaseName}({value ?? string.Empty})";
+                return hasErrors ? $"global::Resultful.Result.Ok<{operation.SuccessType}, {operation.ErrorType}>({union})" : union;
+            }
+
+            if (successHasValue)
+            {
+                return hasErrors ? $"global::Resultful.Result.Ok<{response.BodyType}, {operation.ErrorType}>({value})" : value!;
+            }
+
+            return hasErrors ? $"global::Resultful.Result.Ok<{operation.ErrorType}>()" : string.Empty;
         }
 
         private static void EmitCase(CodeWriter w, Operation operation, Response response, string result, bool observeHere)
@@ -1264,6 +1276,309 @@ namespace Resultful.OpenApi.Generator
                     ? $"items => ValidateEach(items, {ValidationClass}.Validate)"
                     : $"{ValidationClass}.Validate";
             return $"await Read<{response.BodyType}>(__response, {Naming.Literal(operation.Id)}, {Naming.Literal(response.MediaType!)}, {validate}, cancellationToken).ConfigureAwait(false)";
+        }
+
+        // ---------------------------------------------------------------- samples
+
+        /// <summary>
+        /// A JSON body for a response: the media type's example, else the schema's, else one built from the schema that
+        /// passes its own constraints (required properties, lengths, ranges, the first enum value, the first oneOf member).
+        /// </summary>
+        private string? Sample(IOpenApiMediaType media, string context)
+        {
+            var example = media.Example ?? media.Examples?.Values.Select(e => e.Value).FirstOrDefault(v => v is not null);
+            var node = example?.DeepClone() ?? SampleOf(media.Schema, context, 0);
+            return node?.ToJsonString();
+        }
+
+        private System.Text.Json.Nodes.JsonNode? SampleOf(IOpenApiSchema? schema, string context, int depth)
+        {
+            if (schema is null || depth > 8)
+            {
+                return null;
+            }
+
+            if (ExampleOf(schema) is { } example)
+            {
+                return example.DeepClone();
+            }
+
+            if (RefId(schema) is { } id)
+            {
+                if (id == "ProblemDetails")
+                {
+                    return new System.Text.Json.Nodes.JsonObject { ["title"] = "Example problem" };
+                }
+
+                if (id == ValidationSchema)
+                {
+                    return new System.Text.Json.Nodes.JsonObject { ["title"] = "One or more validation errors occurred.", ["errors"] = new System.Text.Json.Nodes.JsonObject() };
+                }
+
+                if (!_schemas.TryGetValue(id, out var target))
+                {
+                    return null;
+                }
+
+                if (ExampleOf(target) is { } targetExample)
+                {
+                    return targetExample.DeepClone();
+                }
+
+                if (target.OneOf is { Count: > 0 } && target.OneOf[0] is OpenApiSchemaReference first)
+                {
+                    return SampleOf(first, context, depth + 1);
+                }
+
+                if (IsEnum(target))
+                {
+                    return System.Text.Json.Nodes.JsonValue.Create(target.Enum![0].GetValue<string>());
+                }
+
+                var obj = new System.Text.Json.Nodes.JsonObject();
+                _unionMembers.TryGetValue(id, out var union);
+                foreach (var property in target.Properties ?? new Dictionary<string, IOpenApiSchema>())
+                {
+                    if (union.Property == property.Key)
+                    {
+                        obj[property.Key] = union.Value;
+                    }
+                    else if (target.Required?.Contains(property.Key) == true)
+                    {
+                        obj[property.Key] = Has(property.Value, JsonSchemaType.Null) ? null : SampleOf(property.Value, $"{context} property '{id}.{property.Key}'", depth + 1);
+                    }
+                }
+
+                return obj;
+            }
+
+            var type = (schema.Type ?? 0) & ~JsonSchemaType.Null;
+            switch (type)
+            {
+                case JsonSchemaType.String:
+                    var text = schema.Format switch
+                    {
+                        "date-time" => "2026-01-01T00:00:00Z",
+                        "date" => "2026-01-01",
+                        "uuid" => "00000000-0000-0000-0000-000000000001",
+                        _ => new string('x', Math.Max(1, Math.Min(schema.MinLength ?? 1, schema.MaxLength ?? int.MaxValue))),
+                    };
+                    if (schema.Pattern is { } pattern && !System.Text.RegularExpressions.Regex.IsMatch(text, pattern))
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.UnsampleableString, _location, context));
+                    }
+
+                    return System.Text.Json.Nodes.JsonValue.Create(text);
+                case JsonSchemaType.Integer:
+                case JsonSchemaType.Number:
+                    var value = decimal.TryParse(schema.Minimum, NumberStyles.Float, CultureInfo.InvariantCulture, out var min) ? Math.Max(min, 1) : 1m;
+                    if (decimal.TryParse(schema.Maximum, NumberStyles.Float, CultureInfo.InvariantCulture, out var max))
+                    {
+                        value = Math.Min(value, max);
+                    }
+
+                    return type == JsonSchemaType.Integer
+                        ? System.Text.Json.Nodes.JsonValue.Create((long)value)
+                        : System.Text.Json.Nodes.JsonValue.Create(value);
+                case JsonSchemaType.Boolean:
+                    return System.Text.Json.Nodes.JsonValue.Create(true);
+                case JsonSchemaType.Array:
+                    return new System.Text.Json.Nodes.JsonArray(SampleOf(schema.Items, context, depth + 1));
+                case JsonSchemaType.Object:
+                    return new System.Text.Json.Nodes.JsonObject();
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>A schema's example: OpenAPI 3.1's <c>examples</c>, or the older single <c>example</c>.</summary>
+        private static System.Text.Json.Nodes.JsonNode? ExampleOf(IOpenApiSchema schema)
+        {
+            if (schema.Examples is { Count: > 0 } examples)
+            {
+                return examples[0];
+            }
+
+#pragma warning disable CS0618 // Still how a 3.0-style `example` arrives.
+            return schema.Example;
+#pragma warning restore CS0618
+        }
+
+        // ---------------------------------------------------------------- fake
+
+        /// <summary>
+        /// A fake implementation of the handler interfaces. Every operation answers with its first documented success,
+        /// using the spec's example or a generated sample, until a test scripts another outcome. It records every call.
+        /// Behind the generated endpoints it is a fake server that needs no code.
+        /// </summary>
+        private string EmitFake(List<Operation> operations)
+        {
+            var w = new CodeWriter(_namespace);
+            w.Usings("System", "System.Collections.Concurrent", "System.Collections.Generic", "System.Linq", "System.Text.Json",
+                "System.Text.Json.Serialization", "System.Threading", "System.Threading.Tasks", "Resultful");
+
+            w.Line("/// <summary>A call the fake received: the operation and its arguments, in order.</summary>");
+            w.Line("public sealed record FakeCall(string Operation, IReadOnlyList<object?> Arguments);");
+            w.Line();
+
+            var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
+            var name = _apiName + "Fake";
+            w.Line("/// <summary>");
+            w.Line($"/// A fake <c>{_apiName}</c>. Each operation answers with its first documented success (the spec's example, or a");
+            w.Line("/// sample built from the schema) until scripted with <c>On{Operation}</c> or <see cref=\"Respond\"/>. Calls are recorded.");
+            w.Line("/// </summary>");
+            w.Open($"public sealed class {name} : {interfaces}");
+            w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)");
+            w.Line("{");
+            w.Line("    NumberHandling = JsonNumberHandling.Strict,");
+            w.Line("    AllowOutOfOrderMetadataProperties = true,");
+            w.Line("};");
+            w.Line();
+            w.Line("private readonly ConcurrentQueue<FakeCall> _calls = new();");
+            foreach (var operation in operations)
+            {
+                w.Line($"private {Responder(operation)} _{Naming.Camel(operation.Id).TrimStart('@')} = null!;");
+            }
+
+            w.Line();
+            w.Line($"public {name}() => Reset();");
+            w.Line();
+            w.Line("/// <summary>Every call so far, oldest first.</summary>");
+            w.Line("public IReadOnlyList<FakeCall> Calls => _calls.ToList();");
+            w.Line();
+            w.Line("/// <summary>Forgets the calls and returns every operation to its default answer.</summary>");
+            w.Open("public void Reset()");
+            w.Line("_calls.Clear();");
+            foreach (var operation in operations)
+            {
+                w.Line($"Respond({Naming.Literal(operation.Id)}, {operation.Successes[0].Status.Invariant()});");
+            }
+
+            w.Close();
+
+            foreach (var operation in operations)
+            {
+                var field = "_" + Naming.Camel(operation.Id).TrimStart('@');
+                var args = operation.Parameters.Select(p => $"{p.Type} {p.Identifier}").ToList();
+                var names = operation.Parameters.Select(p => p.Identifier).ToList();
+                var types = operation.Parameters.Select(p => p.Type).ToList();
+                if (operation.Body is not null)
+                {
+                    args.Add($"{operation.Body.Type} body");
+                    names.Add("body");
+                    types.Add(operation.Body.Type);
+                }
+
+                w.Line();
+                w.Open($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
+                w.Line($"_calls.Enqueue(new FakeCall({Naming.Literal(operation.Id)}, new object?[] {{ {string.Join(", ", names)} }}));");
+                w.Line($"return {field}({string.Join(", ", names.Append("cancellationToken"))});");
+                w.Close();
+                w.Line();
+                w.Line($"/// <summary>Answers <c>{operation.Id}</c> with this function from now on.</summary>");
+                w.Open($"public {name} On{operation.Name}({Responder(operation)} respond)");
+                w.Line($"{field} = respond;");
+                w.Line("return this;");
+                w.Close();
+
+                if (operation.HandlerResultType is { } result)
+                {
+                    var sync = $"Func<{string.Join(", ", types.Append(result))}>";
+                    var lambdaArgs = names.Count == 0 ? "_" : $"({string.Join(", ", names.Append("_"))})";
+                    w.Line();
+                    w.Open($"public {name} On{operation.Name}({sync} respond)");
+                    w.Line($"{field} = {lambdaArgs} => Task.FromResult(respond({string.Join(", ", names)}));");
+                    w.Line("return this;");
+                    w.Close();
+                }
+            }
+
+            w.Line();
+            w.Line("/// <summary>");
+            w.Line("/// Answers every later call to <paramref name=\"operation\"/> (its operationId) with the documented response for");
+            w.Line("/// <paramref name=\"status\"/>: <paramref name=\"json\"/> as its body, or the default sample. False if the spec");
+            w.Line("/// documents no such response.");
+            w.Line("/// </summary>");
+            w.Open("public bool Respond(string operation, int status, string? json = null)");
+            w.Open("switch ((operation, status))");
+            foreach (var operation in operations)
+            {
+                var field = "_" + Naming.Camel(operation.Id).TrimStart('@');
+                var discards = string.Join(", ", Enumerable.Repeat("_", operation.Parameters.Count + (operation.Body is null ? 0 : 1) + 1));
+                var lambdaArgs = discards == "_" ? "_" : $"({discards})";
+                foreach (var response in operation.Successes.Concat(operation.Errors))
+                {
+                    w.Line($"case ({Naming.Literal(operation.Id)}, {response.Status.Invariant()}):");
+                    w.Line("{");
+                    string? value = null;
+                    if (response.BodyType is not null)
+                    {
+                        w.Line($"    var body = json ?? {Naming.Literal(response.SampleJson ?? "null")};");
+                        value = $"Body<{response.BodyType}>(body)";
+                    }
+
+                    var outcome = Outcome(operation, response, value);
+                    w.Line(operation.HandlerResultType is { } result
+                        ? $"    {field} = {lambdaArgs} => Task.FromResult<{result}>({outcome});"
+                        : $"    {field} = {lambdaArgs} => Task.CompletedTask;");
+                    w.Line("    return true;");
+                    w.Line("}");
+                }
+            }
+
+            w.Line("default:");
+            w.Line("    return false;");
+            w.Close();
+            w.Close();
+            w.Line();
+            w.Line("private static T Body<T>(string json)");
+            w.Line("    => JsonSerializer.Deserialize<T>(json, Json) ?? throw new ArgumentException(\"The body is null.\", nameof(json));");
+            w.Close();
+            return w.ToString();
+        }
+
+        private static string Responder(Operation operation)
+        {
+            var types = operation.Parameters.Select(p => p.Type).ToList();
+            if (operation.Body is not null)
+            {
+                types.Add(operation.Body.Type);
+            }
+
+            types.Add("CancellationToken");
+            types.Add(operation.HandlerReturnType);
+            return $"Func<{string.Join(", ", types)}>";
+        }
+
+        /// <summary>HTTP endpoints for scripting the fake from any language: hidden from the OpenAPI document.</summary>
+        private string EmitFakeControl()
+        {
+            var w = new CodeWriter(_namespace);
+            w.Usings("System.Text.Json", "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Routing");
+            w.Line("/// <summary>A scripted answer: a documented status and, optionally, its body.</summary>");
+            w.Line("public sealed record FakeResponse(int Status, JsonElement? Body);");
+            w.Line();
+            w.Open($"public static class {_apiName}FakeControl");
+            w.Line("/// <summary>");
+            w.Line($"/// Maps <c>PUT {{prefix}}/{{operationId}}</c> (body: <c>{{\"status\": 404, \"body\": {{...}}}}</c>), <c>GET {{prefix}}/calls</c> and");
+            w.Line("/// <c>DELETE {prefix}</c> (reset), for scripting the fake over HTTP. They are left out of the OpenAPI document.");
+            w.Line("/// </summary>");
+            w.Open($"public static IEndpointRouteBuilder Map{_apiName}FakeControl(this IEndpointRouteBuilder app, {_apiName}Fake fake, string prefix = \"/__fake\")");
+            w.Line("var group = app.MapGroup(prefix).ExcludeFromDescription();");
+            w.Line("group.MapPut(\"/{operation}\", (string operation, FakeResponse response) =>");
+            w.Line("    fake.Respond(operation, response.Status, response.Body?.GetRawText())");
+            w.Line("        ? Results.NoContent()");
+            w.Line("        : Results.Problem($\"The spec documents no {response.Status} response for '{operation}'.\", statusCode: 404));");
+            w.Line("group.MapGet(\"/calls\", () => Results.Ok(fake.Calls));");
+            w.Line("group.MapDelete(\"/\", () =>");
+            w.Line("{");
+            w.Line("    fake.Reset();");
+            w.Line("    return Results.NoContent();");
+            w.Line("});");
+            w.Line("return app;");
+            w.Close();
+            w.Close();
+            return w.ToString();
         }
 
         // ---------------------------------------------------------------- endpoints

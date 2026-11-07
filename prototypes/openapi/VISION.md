@@ -47,8 +47,18 @@ consumers actually use, not against the whole spec.
 - **Migrations are safe:** the same suite runs against the old and new implementations, and the results are compared
   outcome by outcome.
 
-The two uses share one engine. Most teams will start with the second, because it asks nothing of the service, and move
-to the first for new work.
+**For teams consuming APIs,** a fake server that costs nothing to build:
+- **Generated from the spec.** No hand-written behaviour, no database. It answers with the spec's examples, or with
+  samples built to pass the schema.
+- **Behaves like the real thing at the edges.** It uses the real service's generated endpoints, so it validates
+  requests, writes problems as `problem+json` and publishes the same OpenAPI document.
+- **Scripted per test.** Any documented outcome can be scripted in-process with typed functions, or over HTTP from any
+  language. An undocumented one can't be scripted, so a consumer can't test against behaviour the API will never have.
+- **Available from day one.** It exists as soon as the spec does, so consumers build against it while the service is
+  still being written.
+
+The three uses share one engine. Most teams will start with testing or the fake, because neither asks anything of
+the service, and move to spec-first services for new work.
 
 ## Principles
 
@@ -95,6 +105,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ A typed client that implements the contract and checks every response.
 - ✓ One contract suite run in-process and over HTTP, with outcome coverage.
 - ✓ Contract and server generated as separate parts.
+- ✓ A generated fake: in-process, or as a runnable server scripted over HTTP. Every documented outcome it can produce
+  is checked against the spec.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
@@ -130,6 +142,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - **Teams can state their outcome coverage,** and it's above 90%.
 - **Undocumented responses seen in production trend to zero** once observe mode is on.
 - **A legacy API gets a conforming test suite in a day,** with no change to the service.
+- **A consumer starts against a fake server in minutes,** before the service exists, and their tests carry over to
+  the real one unchanged.
 - **A breaking change to a used outcome can't merge** without a new version.
 
 ## Out of scope

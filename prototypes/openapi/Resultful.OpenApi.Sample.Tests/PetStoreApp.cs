@@ -7,7 +7,7 @@ namespace Resultful.OpenApi.Sample.Tests;
 /// The app over its own in-memory SQLite database, started from a named seed scenario
 /// (<c>Empty</c>, <c>Demo</c>, <c>Crowded</c>). Each instance is isolated from every other.
 /// </summary>
-public sealed class PetStoreApp(string seed = "Empty") : WebApplicationFactory<Program>
+public sealed class PetStoreApp(string seed = "Empty") : WebApplicationFactory<PetStore.PetsHandlers>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

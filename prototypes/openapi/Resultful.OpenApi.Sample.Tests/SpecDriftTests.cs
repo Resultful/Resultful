@@ -32,7 +32,7 @@ public sealed class SpecDriftTests
     }
 
     /// <summary>Reads the YAML spec and writes it as OpenAPI 3.1 JSON, so both sides are compared in one form.</summary>
-    private static async Task<JsonNode> LoadSpec()
+    internal static async Task<JsonNode> LoadSpec()
     {
         var settings = new OpenApiReaderSettings();
         settings.AddYamlReader();

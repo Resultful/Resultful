@@ -120,6 +120,31 @@ public sealed class GeneratorTests
     }
 
     [Test]
+    public void A_required_string_whose_pattern_the_sample_cannot_meet_asks_for_an_example()
+    {
+        const string spec = Header + """
+
+            paths:
+              /codes:
+                get:
+                  operationId: getCode
+                  responses:
+                    '200':
+                      description: ok
+                      content: { application/json: { schema: { $ref: '#/components/schemas/Code' } } }
+            components:
+              schemas:
+                Code:
+                  type: object
+                  required: [value]
+                  properties: { value: { type: string, pattern: '^[0-9]{4}$' } }
+            """;
+
+        Run(spec).Diagnostics.Should().ContainSingle(d => d.Id == "RAPI005" && d.GetMessage().Contains("Code.value"));
+        Run(spec.Replace("pattern: '^[0-9]{4}$'", "pattern: '^[0-9]{4}$', example: '1234'")).Diagnostics.Should().BeEmpty();
+    }
+
+    [Test]
     public void The_OpenAPI_document_configuration_is_only_emitted_for_apps_that_use_Microsoft_AspNetCore_OpenApi()
     {
         const string spec = Header + """

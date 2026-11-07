@@ -161,7 +161,12 @@ namespace Resultful.OpenApi.Generator
             "Operation '{0}' has a request body but documents no 400 response with an HttpValidationProblemDetails body; validation failures will be returned anyway",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor UnsampleableString = new(
+            "RAPI005", "No example for a constrained string",
+            "{0} has a pattern the generated sample does not match; give it an example so the fake can answer with a valid body",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation);
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString);
     }
 }
