@@ -6,8 +6,8 @@ a round-trip check against the spec decide whether the server is done.
 
 This is a prototype. Nothing here is packed or published, and the `Resultful` package is unchanged.
 
-**[VISION.md](VISION.md)** is where this is going and why. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its two uses: as the workflow for spec-first services, and as a
-testing framework that checks any API against its spec. This README covers the mechanics.
+**[VISION.md](VISION.md)** is where this is going and why. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
+framework that checks any API against its spec, and a generated fake server. This README covers the mechanics.
 
 ```
 petstore.yaml ──[Resultful.OpenApi.Generator]──▶ DTOs, response unions, IPetsHandlers, validation, MapPetStore()
@@ -31,6 +31,7 @@ The generated files are written to `obj/generated/` in the Contract and Sample p
 | `Resultful.OpenApi.Generator` | The `IIncrementalGenerator` (netstandard2.0). It reads the spec with Microsoft.OpenApi 3.x, which ships inside the analyzer. |
 | `Resultful.OpenApi.Sample.Contract` | `petstore.yaml` and the generated **Contract** part: types, response unions, `IPetsHandlers`, validation, `ValidatingPetsHandlers` and `PetStoreClient`. What a consumer or a test suite references. |
 | `Resultful.OpenApi.Sample` | The service: the generated **Server** part (endpoints, OpenAPI configuration), `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
+| `Resultful.OpenApi.Sample.Fake` | A fake PetStore server: the generated **Server** part over the generated `PetStoreFake`, in a ten-line `Program.cs`. `dotnet run`, then script it with `PUT /__fake/{operationId}`. |
 | `Resultful.OpenApi.Sample.Tests` | `ContractSuite` (one suite against `IPetsHandlers`, run in-process and over HTTP, with outcome coverage), `ClientConformanceTests` (the client catching a server that breaks the spec), `RegressionSuite` (raw HTTP and JSON), `HandlerTests`, `SpecDriftTests` (the round trip). Every server test starts from a named seed scenario. |
 | `Resultful.OpenApi.Generator.Tests` | The generator on small specs: what it emits, and the diagnostics for what it doesn't support. |
 
@@ -66,6 +67,9 @@ Each operation's handler signature comes from its responses:
   every response's status, content type and schema, throwing `ContractViolationException` for anything the spec
   doesn't allow, and records which documented outcomes it received (`Observed`, against
   `PetStoreContract.DocumentedOutcomes`).
+- **The fake** (`PetStoreFake`) implements the handler interfaces with the spec's examples, or samples built to pass the
+  schema. It is scripted with `On{Operation}(...)` or `Respond(operationId, status, json)`, records calls, and with
+  `Map{Api}FakeControl` it can be scripted over HTTP.
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
   configuration. The default is both.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with

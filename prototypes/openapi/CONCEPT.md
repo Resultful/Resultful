@@ -20,7 +20,7 @@ each operation. Independent checks prove that the code, the running server and t
               │
               ▼
       implementations of the one interface:
-        PetsHandlers (in-process)  ·  PetStoreClient (any server, over HTTP)  ·  fakes, adapters
+        PetsHandlers (in-process)  ·  PetStoreClient (any server, over HTTP)  ·  PetStoreFake (generated)
 ```
 
 ## The contract is an interface
@@ -40,15 +40,15 @@ treating that interface (`IPetsHandlers`) as the contract, not the HTTP surface:
 Because the client implements the same interface the server does, the HTTP layer becomes an implementation detail the
 tests can include or leave out.
 
-## Two ways to use it
+## Three ways to use it
 
-| | Production workflow | Testing framework |
-|:--|:--|:--|
-| For | a service designed spec-first | any API: code-first .NET, a legacy service, another language |
-| Generated | Contract and Server parts | the Contract part only, in the test project |
-| You write | the handlers, the contract suite | the contract suite |
-| The service changes? | it is built on the generated contract | no |
-| Checks | compiler, request validation, round-trip document, contract suite on both targets, outcome coverage | response conformance on every call, outcome coverage, round-trip document if the service publishes one |
+| | Production workflow | Testing framework | Fake server |
+|:--|:--|:--|:--|
+| For | a service designed spec-first | any API: code-first .NET, a legacy service, another language | consumers of an API, before or alongside the real one |
+| Generated | Contract and Server parts | the Contract part only, in the test project | Contract and Server parts, over the generated fake |
+| You write | the handlers, the contract suite | the contract suite | a ten-line `Program.cs`, or nothing when used in-process |
+| The service changes? | it is built on the generated contract | no | no, and it needn't exist yet |
+| Checks | compiler, request validation, round-trip document, contract suite on both targets, outcome coverage | response conformance on every call, outcome coverage, round-trip document if the service publishes one | every documented outcome the fake can produce, checked against the spec; its round-trip document |
 
 ### A. Production workflow: spec-first services
 
@@ -98,6 +98,47 @@ change:
 2. Add the round-trip test if the service already publishes an OpenAPI document.
 3. Generate the server part for new endpoints.
 
+### C. Fake server: cheap to build, cheap to consume
+
+`PetStoreFake` is generated with the contract and implements `IPetsHandlers`, so it serves two purposes:
+
+- **In-process,** it's a test double for any code that depends on the contract. Each operation answers with its first
+  documented success until scripted, and every call is recorded:
+
+  ```cs
+  var pets = new PetStoreFake()
+      .OnGetPet(id => GetPetError.NotFound(new ProblemDetails { Title = $"No pet {id}" }));
+  ```
+
+- **Behind the generated endpoints,** it's a fake server: `Resultful.OpenApi.Sample.Fake` is a `Program.cs` of about
+  ten lines with no database and no handlers.
+  - **Run it:** `dotnet run --project Resultful.OpenApi.Sample.Fake`, on http://localhost:5080.
+  - **Script it from any language:**
+    - `PUT /__fake/{operationId}` with `{"status": 404, "body": {...}}` sets the next answers
+    - `GET /__fake/calls` lists the calls received
+    - `DELETE /__fake` resets everything
+
+    These control endpoints are left out of the OpenAPI document.
+
+Default answers come from the spec:
+- the response's `example`, or the schema's
+- otherwise a sample built to pass the schema: required properties, lengths and ranges, the first enum value, and the
+  first `oneOf` member with its discriminator
+
+If a required string has a pattern the generated sample doesn't match, the generator asks for an example (`RAPI005`)
+rather than serve an invalid body.
+
+What makes it trustworthy, not just cheap:
+- **Same edges as the real service.** It runs the real service's generated endpoints, so a consumer sees the same
+  request validation, the same `problem+json` errors and the same OpenAPI document. `FakeTests` checks the document
+  with the round-trip comparer.
+- **Only documented outcomes.** Scripting a status the spec doesn't document is refused, in-process (`Respond` returns
+  false) and over HTTP (404 with a reason).
+- **Every outcome it can give is checked.** `FakeTests` scripts each of the 12 documented outcomes in turn and reads
+  each through the conformance-checking client. Breaking the sample builder on purpose fails it at the exact field.
+- **Tests carry over.** A consumer's tests written against `IPetsHandlers` with the fake run unchanged against
+  `PetStoreClient` and the real service.
+
 ## What each check proves
 
 | Check | Catches | Shown by |
@@ -108,6 +149,7 @@ change:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
+| Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |
 | Black-box regression suite | anything visible over HTTP, written without the generated types | `RegressionSuite` |
 
 The black-box suite and the contract suite overlap on purpose. The contract suite can't catch a mistake the generator

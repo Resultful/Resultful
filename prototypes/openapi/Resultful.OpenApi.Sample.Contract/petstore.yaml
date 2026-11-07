@@ -71,6 +71,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Pet'
+              example:
+                id: 1
+                name: Rex
+                tag: good-dog
+                status: available
+                details:
+                  kind: dog
+                  goodBoy: true
         '404':
           description: No such pet
           content:
