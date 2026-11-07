@@ -80,7 +80,11 @@ public sealed class SchemaValidator(OpenApiSpec spec)
                 CheckString(value.GetValue<string>(), schema, at, errors);
                 break;
             case JsonValueKind.Number:
-                CheckNumber(value.GetValue<decimal>(), schema, at, errors);
+                if (NumberOf(value) is { } number)
+                {
+                    CheckNumber(number, schema, at, errors);
+                }
+
                 break;
             case JsonValueKind.Array:
                 CheckArray(value.AsArray(), schema, path, at, errors, depth);
@@ -279,7 +283,7 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             "object" => kind == JsonValueKind.Object,
             "array" => kind == JsonValueKind.Array,
             "number" => kind == JsonValueKind.Number,
-            "integer" => kind == JsonValueKind.Number && value!.GetValue<decimal>() % 1 == 0,
+            "integer" => kind == JsonValueKind.Number && NumberOf(value) % 1 == 0,
             _ => true,
         });
     }
@@ -325,16 +329,26 @@ public sealed class SchemaValidator(OpenApiSpec spec)
 
     public static string Join(string path, string name) => path.Length == 0 ? name : $"{path}.{name}";
 
-    public static int? Count(JsonObject schema, string keyword) => schema[keyword] is JsonValue v && v.TryGetValue<decimal>(out var d) ? (int)d : null;
+    public static int? Count(JsonObject schema, string keyword) => NumberOf(schema[keyword]) is { } d ? (int)Math.Clamp(d, int.MinValue, int.MaxValue) : null;
 
-    public static decimal? Number(JsonObject schema, string keyword) => schema[keyword] is JsonValue v && v.TryGetValue<decimal>(out var d) ? d : null;
+    public static decimal? Number(JsonObject schema, string keyword) => NumberOf(schema[keyword]);
+
+    /// <summary>
+    /// A JSON number as a decimal, however the node was made: parsed from text, or built in memory from an int, a long or
+    /// a double (which <c>GetValue&lt;decimal&gt;</c> refuses). Null for anything else, or a number too big for decimal.
+    /// </summary>
+    public static decimal? NumberOf(JsonNode? node)
+        => node is JsonValue value && value.GetValueKind() == JsonValueKind.Number
+           && decimal.TryParse(value.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : null;
 
     /// <summary>3.1's numeric exclusiveMinimum, or 3.0's boolean modifier on minimum.</summary>
     public static decimal? ExclusiveBound(JsonObject schema, string exclusive, string inclusive)
         => schema[exclusive] switch
         {
             JsonValue v when v.GetValueKind() == JsonValueKind.True => Number(schema, inclusive),
-            JsonValue v when v.TryGetValue<decimal>(out var d) => d,
+            JsonValue v when NumberOf(v) is { } d => d,
             _ => null,
         };
 }

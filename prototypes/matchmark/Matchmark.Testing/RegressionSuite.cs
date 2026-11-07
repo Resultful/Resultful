@@ -321,7 +321,7 @@ public sealed class RegressionSuite
         private static string Text(JsonNode? value) => value?.GetValueKind() switch
         {
             JsonValueKind.String => value.GetValue<string>(),
-            JsonValueKind.Number => value.GetValue<decimal>().ToString(CultureInfo.InvariantCulture),
+            JsonValueKind.Number => SchemaValidator.NumberOf(value)?.ToString(CultureInfo.InvariantCulture) ?? value.ToJsonString(),
             null => string.Empty,
             _ => value.ToJsonString(),
         };

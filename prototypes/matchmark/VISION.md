@@ -183,14 +183,18 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - Each change checked against consumers' recorded outcomes.
 - Versioned contracts with generated adapters.
 
-**5. Behaviour, not only shape.**
-- Arazzo workflows run as stateful tests.
+**5. Behaviour, not only shape.** The plan is [LAYERS.md](LAYERS.md): infer behaviour from standard HTTP first,
+then Arazzo and Overlays, then `x-matchmark-*`, measured against the [sample corpus](samples/README.md).
+- ✓ A corpus beyond the Pet Store (Museum, Orders), with a ledger of what each sample gets.
+- Arazzo workflows run as stateful tests, and script the fake.
+- Idempotency, concurrency, pagination, work that finishes later, rate limits and deprecation: each as regression
+  checks first, then client, fake and server.
 - Inputs generated from the schemas: ✓ deterministic (boundaries, one per constraint); random and shrinking next.
 - ✓ A differential runner comparing two implementations.
 
 **6. Beyond HTTP.**
 - AsyncAPI for events, and other hosts, through the same model.
-- Traits for retries, paging and idempotency.
+- OpenAPI 3.2: `QUERY`, and streamed items as typed streams.
 
 **7. Twins of APIs we don't own.**
 - A stateful fake: the contract implemented over an in-memory store inferred from the spec's paths.
