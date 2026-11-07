@@ -1,0 +1,167 @@
+using System.Text.Json.Nodes;
+
+namespace Symbolon.Testing;
+
+/// <summary>An OpenAPI 3.x document (JSON), read as far as the regression engine needs it.</summary>
+public sealed class OpenApiSpec
+{
+    private readonly JsonNode _document;
+
+    private OpenApiSpec(JsonNode document)
+    {
+        _document = document;
+        Operations = ReadOperations().ToList();
+    }
+
+    public IReadOnlyList<SpecOperation> Operations { get; }
+
+    public static OpenApiSpec Parse(string json)
+        => new(JsonNode.Parse(json) ?? throw new ArgumentException("The spec is empty.", nameof(json)));
+
+    public SpecOperation Operation(string id)
+        => Operations.FirstOrDefault(o => o.Id == id) ?? throw new KeyNotFoundException($"The spec has no operation '{id}'.");
+
+    /// <summary>The schema a $ref points at, or the schema itself.</summary>
+    public JsonObject Resolve(JsonNode schema)
+    {
+        var seen = 0;
+        while (schema is JsonObject o && o["$ref"]?.GetValue<string>() is { } reference)
+        {
+            schema = Find(reference) ?? throw new InvalidOperationException($"The spec has no '{reference}'.");
+            if (++seen > 32)
+            {
+                throw new InvalidOperationException($"'{reference}' refers to itself.");
+            }
+        }
+
+        return schema as JsonObject ?? new JsonObject();
+    }
+
+    /// <summary>The component schema name of a $ref, if <paramref name="schema"/> is one.</summary>
+    public static string? RefName(JsonNode? schema)
+        => schema?["$ref"]?.GetValue<string>() is { } reference ? reference[(reference.LastIndexOf('/') + 1)..] : null;
+
+    public JsonNode? Find(string reference)
+    {
+        if (!reference.StartsWith("#/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        JsonNode? node = _document;
+        foreach (var segment in reference[2..].Split('/'))
+        {
+            node = node?[segment.Replace("~1", "/").Replace("~0", "~")];
+        }
+
+        return node;
+    }
+
+    private IEnumerable<SpecOperation> ReadOperations()
+    {
+        foreach (var (path, item) in _document["paths"]?.AsObject() ?? [])
+        {
+            var shared = Parameters(item?["parameters"]);
+            foreach (var (method, node) in item?.AsObject() ?? [])
+            {
+                if (method is not ("get" or "put" or "post" or "delete" or "patch" or "head" or "options") || node is not JsonObject operation)
+                {
+                    continue;
+                }
+
+                var own = Parameters(operation["parameters"]);
+                var parameters = own.Concat(shared.Where(s => own.All(o => o.Name != s.Name || o.In != s.In))).ToList();
+                var id = operation["operationId"]?.GetValue<string>() ?? $"{method.ToUpperInvariant()} {path}";
+                yield return new SpecOperation(id, method.ToUpperInvariant(), path, parameters, Body(operation["requestBody"]), Responses(operation["responses"]));
+            }
+        }
+    }
+
+    private List<SpecParameter> Parameters(JsonNode? node)
+        => (node as JsonArray ?? []).Select(p => Resolve(p!)).Select(p => new SpecParameter(
+                p["name"]!.GetValue<string>(),
+                p["in"]!.GetValue<string>(),
+                p["required"]?.GetValue<bool>() == true || p["in"]!.GetValue<string>() == "path",
+                p["schema"] ?? new JsonObject(),
+                p["example"] ?? FirstExample(p["examples"])))
+            .ToList();
+
+    private SpecBody? Body(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        var body = Resolve(node);
+        var (mediaType, content) = (body["content"]?.AsObject() ?? []).FirstOrDefault(c => IsJson(c.Key));
+        return content is null
+            ? null
+            : new SpecBody(body["required"]?.GetValue<bool>() == true, mediaType, content["schema"] ?? new JsonObject(),
+                content["example"] ?? FirstExample(content["examples"]));
+    }
+
+    private Dictionary<string, SpecResponse> Responses(JsonNode? node)
+    {
+        var responses = new Dictionary<string, SpecResponse>(StringComparer.Ordinal);
+        foreach (var (status, value) in node?.AsObject() ?? [])
+        {
+            var response = Resolve(value!);
+            var content = (response["content"]?.AsObject() ?? [])
+                .ToDictionary(c => c.Key, c => c.Value?["schema"], StringComparer.OrdinalIgnoreCase);
+            var headers = (response["headers"]?.AsObject() ?? [])
+                .Select(h => (Name: h.Key, Header: Resolve(h.Value!)))
+                .Select(h => new SpecHeader(h.Name, h.Header["required"]?.GetValue<bool>() == true, h.Header["schema"] ?? new JsonObject()))
+                .ToList();
+            var links = (response["links"]?.AsObject() ?? [])
+                .Select(l => (Name: l.Key, Link: Resolve(l.Value!)))
+                .Where(l => l.Link["operationId"] is not null)
+                .Select(l => new SpecLink(
+                    l.Name,
+                    l.Link["operationId"]!.GetValue<string>(),
+                    (l.Link["parameters"]?.AsObject() ?? []).ToDictionary(p => p.Key, p => p.Value!.ToJsonString().Trim('"'), StringComparer.Ordinal),
+                    l.Link["requestBody"]))
+                .ToList();
+            responses[status] = new SpecResponse(status, content, headers, links);
+        }
+
+        return responses;
+    }
+
+    private static JsonNode? FirstExample(JsonNode? examples)
+        => examples is JsonObject named ? named.Select(e => e.Value?["value"]).FirstOrDefault(v => v is not null) : null;
+
+    /// <summary>application/json, application/problem+json, anything +json.</summary>
+    public static bool IsJson(string mediaType)
+    {
+        var type = mediaType.Split(';')[0].Trim();
+        return type.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+               || type.EndsWith("+json", StringComparison.OrdinalIgnoreCase)
+               || type == "*/*";
+    }
+}
+
+public sealed record SpecOperation(
+    string Id, string Method, string Path, IReadOnlyList<SpecParameter> Parameters, SpecBody? Body, IReadOnlyDictionary<string, SpecResponse> Responses)
+{
+    /// <summary>The documented response for a status: exact, then its range (2XX), then default.</summary>
+    public SpecResponse? Response(int status)
+        => Responses.GetValueOrDefault(status.ToString(System.Globalization.CultureInfo.InvariantCulture))
+           ?? Responses.GetValueOrDefault($"{status / 100}XX")
+           ?? Responses.GetValueOrDefault("default");
+
+    public override string ToString() => $"{Id} ({Method} {Path})";
+}
+
+/// <summary>A path, query or header parameter. Path parameters are always required.</summary>
+public sealed record SpecParameter(string Name, string In, bool Required, JsonNode Schema, JsonNode? Example);
+
+public sealed record SpecBody(bool Required, string MediaType, JsonNode Schema, JsonNode? Example);
+
+public sealed record SpecResponse(
+    string Status, IReadOnlyDictionary<string, JsonNode?> Content, IReadOnlyList<SpecHeader> Headers, IReadOnlyList<SpecLink> Links);
+
+public sealed record SpecHeader(string Name, bool Required, JsonNode Schema);
+
+/// <summary>An OpenAPI link: which operation a response leads to, and how its parameters come from this exchange.</summary>
+public sealed record SpecLink(string Name, string OperationId, IReadOnlyDictionary<string, string> Parameters, JsonNode? RequestBody);

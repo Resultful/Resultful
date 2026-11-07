@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    A fake PetStore server with no hand-written behaviour: the generated endpoints over the generated PetStoreFake.
+    It validates requests and describes itself exactly as the real service does, answers with the spec's examples, and
+    is scripted per test, in-process or over HTTP. Run it: dotnet run (listens on http://localhost:5080).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore.Fake</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="../Symbolon.Sample.Contract/petstore.yaml" Symbolon="true" SymbolonNamespace="PetStore.Api" SymbolonApiName="PetStore" SymbolonParts="Server,FakeServer" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Symbolon" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Symbolon.Sample.Contract/Symbolon.Sample.Contract.csproj" />
+    <ProjectReference Include="../Symbolon.Generator/Symbolon.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+</Project>

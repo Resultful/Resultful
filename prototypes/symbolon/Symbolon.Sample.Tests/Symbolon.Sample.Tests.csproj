@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Symbolon.Sample/Symbolon.Sample.csproj" />
+    <ProjectReference Include="../Symbolon.Sample.Fake/Symbolon.Sample.Fake.csproj" />
+    <ProjectReference Include="../Symbolon.Sample.Scaffolded/Symbolon.Sample.Scaffolded.csproj" />
+    <ProjectReference Include="../Symbolon.Testing/Symbolon.Testing.csproj" />
+    <ProjectReference Include="../Symbolon.Generator/Symbolon.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Regression: the suite generated from the spec (PetStoreRegression), rebuilt whenever the spec changes. -->
+    <AdditionalFiles Include="../Symbolon.Sample.Contract/petstore.yaml" Symbolon="true" SymbolonNamespace="PetStore.Api" SymbolonApiName="PetStore" SymbolonParts="Regression" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Symbolon" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Reads the input spec for the drift check; matches the Microsoft.OpenApi that ASP.NET Core 10 uses. -->
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" VersionOverride="2.12.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../Symbolon.Sample.Contract/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Scenarios/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

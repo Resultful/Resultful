@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <!-- Prototype: no analyzer release tracking for the SYM diagnostics. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="SharpYaml" PrivateAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <!--
+    The compiler loads an analyzer's dependencies from the analyzer's own folder, so the spec reader ships next to the
+    generator. System.Text.Json is not shipped: the .NET 10 compiler host already provides a newer one.
+  -->
+  <Target Name="IncludeGeneratorDependencies" AfterTargets="ResolvePackageDependenciesForBuild">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_OpenApi)/lib/netstandard2.0/Microsoft.OpenApi.dll" IncludeRuntimeDependency="false" />
+      <TargetPathWithTargetPlatformMoniker Include="$(PKGMicrosoft_OpenApi_YamlReader)/lib/netstandard2.0/Microsoft.OpenApi.YamlReader.dll" IncludeRuntimeDependency="false" />
+      <TargetPathWithTargetPlatformMoniker Include="$(PKGSharpYaml)/lib/netstandard2.0/SharpYaml.dll" IncludeRuntimeDependency="false" />
+    </ItemGroup>
+  </Target>
+</Project>
