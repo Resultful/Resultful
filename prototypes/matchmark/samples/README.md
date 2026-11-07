@@ -9,6 +9,7 @@ sample changes the ledger; so does breaking something that worked.
 | Pet Store (`../Matchmark.Sample.Contract/petstore.yaml`) | The worked example: fully supported, with a service, a scaffold and a fake. | links |
 | `museum/` | A real-world OpenAPI 3.1 document written by someone else (Redocly, MIT). Uses what the Pet Store doesn't: primitive component schemas, `allOf`, named arrays. | Arazzo workflows |
 | `orders/` | Written to exercise behaviour across calls and over time: an Idempotency-Key, ETag and If-Match, a cursor, a 202 and an operation to poll, rate limits, deprecation, webhooks. | Overlay, Arazzo |
+| `bookings/` | Written for invariants the schema can't state, in its overlay: a booking ends after it starts and is for a room or a desk, not both (CEL); a search's filters depend on each other (IDL); a new booking is booked (a postcondition). Its generated server enforces them (`GeneratedRulesTests`). | Overlay |
 
 Today's ledger:
 
@@ -16,10 +17,12 @@ Today's ledger:
 petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 79%
 museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps; audit 12 warnings, 20 findings, 82%
 orders: generator skips 1; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 3 warnings, 8 findings, 91%
+bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 ```
 
 The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's
-`operationPath` steps and its workflow in a second document. The Overlay files are not read by anything yet. They are the targets [LAYERS.md](../LAYERS.md) plans for;
-the Orders overlay also carries one example of each kind of invariant from [COMPLETENESS.md](../COMPLETENESS.md), which
-proposes the next samples (Bookings, Ledger, Catalogue search, Feature flags, Notifications).
+`operationPath` steps and its workflow in a second document. The Overlay files are applied by the generator, the CLI
+and the engine. The Orders overlay carries one example of each kind of invariant from
+[COMPLETENESS.md](../COMPLETENESS.md), and the Bookings overlay the invariants its generated server enforces.
+COMPLETENESS.md proposes the next samples (Ledger, Catalogue search, Feature flags, Notifications).
 Large public specs (GitHub, Stripe) belong in a separate, fetched-not-committed run, for scale rather than design.

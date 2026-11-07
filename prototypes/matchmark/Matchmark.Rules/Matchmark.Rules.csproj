@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The invariant languages a spec's overlay can declare, for everything that enforces them: CEL rules over a JSON value
+    (x-matchmark-rules, x-matchmark-transitions) and IDL parameter dependencies (x-dependencies). The regression engine
+    checks them on responses and builds cases from them; generated servers that reference this enforce them as the
+    spec's 400. Nothing but System.Text.Json.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

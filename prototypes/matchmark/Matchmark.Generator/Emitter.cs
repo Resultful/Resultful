@@ -48,8 +48,15 @@ namespace Matchmark.Generator
         private readonly bool _describesItself;
         private readonly bool _hasFakes;
 
-        public Emitter(OpenApiDocument document, string ns, string apiName, Location location, bool describesItself = false, bool hasFakes = false)
+        /// <summary>Matchmark.Rules is referenced, so x-matchmark-rules and x-dependencies are enforced.</summary>
+        private readonly bool _hasRules;
+
+        private bool _rulesReported;
+
+        public Emitter(OpenApiDocument document, string ns, string apiName, Location location, bool describesItself = false, bool hasFakes = false,
+            bool hasRules = false)
         {
+            _hasRules = hasRules;
             _describesItself = describesItself;
             _hasFakes = hasFakes;
             _document = document;
@@ -548,6 +555,12 @@ namespace Matchmark.Generator
                 }
 
                 var hasBase = _unionMembers.TryGetValue(pair.Key, out var union);
+                if (schema.AdditionalPropertiesAllowed == false || schema.AdditionalProperties is { Not: not null })
+                {
+                    // additionalProperties: false: a property the schema doesn't name is refused when read.
+                    w.Line("[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]");
+                }
+
                 w.Open(hasBase ? $"public sealed record {name} : {Naming.Pascal(union.Base)}" : $"public sealed record {name}");
                 foreach (var property in schema.Properties!)
                 {
@@ -566,6 +579,11 @@ namespace Matchmark.Generator
                     var required = schema.Required?.Contains(property.Key) == true;
                     var nullable = !required || Has(property.Value, JsonSchemaType.Null);
                     w.Line($"[JsonPropertyName({Naming.Literal(property.Key)})]");
+                    if (!required && !Has(property.Value, JsonSchemaType.Null))
+                    {
+                        // Optional, but never null: absent is left out, not written as null (and null is refused when read).
+                        w.Line("[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]");
+                    }
                     foreach (var annotation in Annotations(property.Value))
                     {
                         w.Line(annotation);
@@ -629,6 +647,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
     if (missing.Success)
     {
         return (at.Length == 0 ? missing.Groups[1].Value : at + ""."" + missing.Groups[1].Value, $""'{missing.Groups[1].Value}' is required."");
+    }
+
+    var unmapped = Regex.Match(message, ""JSON property '([^']+)' could not be mapped"");
+    if (unmapped.Success)
+    {
+        return (at.Length == 0 || at.EndsWith(unmapped.Groups[1].Value, System.StringComparison.Ordinal) ? (at.Length == 0 ? unmapped.Groups[1].Value : at) : at + ""."" + unmapped.Groups[1].Value,
+            $""'{unmapped.Groups[1].Value}' isn't a property this object has."");
     }
 
     var body = at.Length == 0 || at == ""body"" ? ""body"" : at;
@@ -781,7 +806,79 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     w.Close(braces: !(IsValueType(type) && !nullable));
                 }
 
+                foreach (var (rule, message) in Rules(schema))
+                {
+                    w.Line($"Rule(value, path, {Naming.Literal(rule)}, {Naming.Literal(message ?? $"Must satisfy {rule}.")}, errors);");
+                }
+
                 w.Close();
+                w.Line();
+            }
+
+            var refused = _schemas.Where(s => !IsEnum(s.Value) && s.Value.OneOf is not { Count: > 0 } && s.Value.Properties is { Count: > 0 })
+                .Select(s => (Type: Naming.Pascal(s.Key), Names: s.Value.Properties!
+                    .Where(p => s.Value.Required?.Contains(p.Key) != true && !Has(p.Value, JsonSchemaType.Null)
+                                && !(_unionMembers.TryGetValue(s.Key, out var u) && u.Property == p.Key))
+                    .Select(p => p.Key).ToList()))
+                .Where(t => t.Names.Count > 0).ToList();
+            w.Line("/// <summary>");
+            w.Line("/// A JSON resolver modifier: refuses null, when read, for the optional properties the schema doesn't let be null, so that");
+            w.Line("/// leaving one out and sending it as null aren't confused. The server's JSON options add it.");
+            w.Line("/// </summary>");
+            w.Open("public static void RefuseNulls(global::System.Text.Json.Serialization.Metadata.JsonTypeInfo typeInfo)");
+            w.Open("if (!NotNull.TryGetValue(typeInfo.Type, out var names))");
+            w.Line("return;");
+            w.Close();
+            w.Line();
+            w.Open("foreach (var property in typeInfo.Properties)");
+            w.Open("if (property.Set is { } set && global::System.Array.IndexOf(names, property.Name) >= 0)");
+            w.Line("var name = property.Name;");
+            w.Line("property.Set = (target, value) => set(target, value ?? throw new global::System.Text.Json.JsonException($\"'{name}' can't be null; leave it out instead.\"));");
+            w.Close();
+            w.Close();
+            w.Close();
+            w.Line();
+            w.Line($"private static readonly Dictionary<global::System.Type, string[]> NotNull = new() {{ {string.Join(", ", refused.Select(t => $"[typeof({t.Type})] = new[] {{ {string.Join(", ", t.Names.Select(Naming.Literal))} }}"))} }};");
+            w.Line();
+
+            if (_hasRules)
+            {
+                // An absent optional value is absent to CEL's has(), not a null.
+                w.Line("private static readonly global::System.Text.Json.JsonSerializerOptions RulesJson = new(global::System.Text.Json.JsonSerializerDefaults.Web) { DefaultIgnoreCondition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };");
+                w.Line();
+                w.Line("/// <summary>An x-matchmark-rules rule (CEL over the value as JSON); a value it can't be evaluated on is left to the handler.</summary>");
+                w.Open("private static void Rule<T>(T value, string path, string rule, string message, Errors errors)");
+                w.Open("if (global::Matchmark.Rules.Cel.Check(rule, global::System.Text.Json.JsonSerializer.SerializeToNode(value, RulesJson)) is { Holds: false, Error: null })");
+                w.Line("errors.Add(path.Length == 0 ? \"$\" : path.TrimEnd('.'), message);");
+                w.Close();
+                w.Close();
+                w.Line();
+                foreach (var operation in operations.Where(o => o.Dependencies.Count > 0))
+                {
+                    var field = $"{operation.Name}Dependencies";
+                    w.Line($"private static readonly global::Matchmark.Rules.Idl[] {field} = new[] {{ {string.Join(", ", operation.Dependencies.Select(d => $"global::Matchmark.Rules.Idl.Parse({Naming.Literal(d)})"))} }};");
+                    w.Line();
+                    w.Line($"/// <summary>The x-dependencies of {operation.Id} its parameters break, keyed by the first parameter each names; null when none.</summary>");
+                    w.Open($"public static Dictionary<string, string[]>? Broken{operation.Name}Dependencies(Dictionary<string, string?> parameters)");
+                    w.Line("var given = new Dictionary<string, string>();");
+                    w.Open("foreach (var parameter in parameters)");
+                    w.Line("if (parameter.Value is { } text) given[parameter.Key] = text;");
+                    w.Close();
+                    w.Line();
+                    w.Line("var errors = new Errors();");
+                    w.Open($"foreach (var dependency in {field})");
+                    w.Open("if (!dependency.Holds(given))");
+                    w.Line("errors.Add(dependency.Parameters.Count > 0 ? dependency.Parameters[0] : \"$\", $\"Must satisfy {dependency.Source}\");");
+                    w.Close();
+                    w.Close();
+                    w.Line();
+                    w.Line("return errors.Result();");
+                    w.Close();
+                    w.Line();
+                }
+
+                w.Line("/// <summary>A parameter as the text it travels as, for its dependencies.</summary>");
+                w.Line("public static string? Text(object? value) => value switch { null => null, bool b => b ? \"true\" : \"false\", global::System.IFormattable f => f.ToString(null, global::System.Globalization.CultureInfo.InvariantCulture), _ => value.ToString() };");
                 w.Line();
             }
 
@@ -949,6 +1046,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public List<Param> Parameters { get; } = new();
 
+            /// <summary>A parameter has constraints (bounds, lengths, a pattern) the endpoint checks.</summary>
+            public bool ValidatesParameters => Parameters.Any(p => p.Schema is { } s && (s.Minimum is not null || s.Maximum is not null
+                || s.MinLength is not null || s.MaxLength is not null || s.Pattern is not null));
+
+            /// <summary>Its x-dependencies (IDL), enforced at the endpoint when Matchmark.Rules is referenced.</summary>
+            public List<string> Dependencies { get; } = new();
+
             public Body? Body { get; set; }
 
             public List<Response> Successes { get; } = new();
@@ -983,7 +1087,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 get
                 {
                     var types = Successes.Select(r => r.ResultType).ToList();
-                    if (Body is not null)
+                    if (Body is not null || Dependencies.Count > 0 || ValidatesParameters)
                     {
                         types.Add("ValidationProblem");
                     }
@@ -1044,8 +1148,95 @@ public static (string Key, string Message) BindingError(string? key, string mess
             return operations;
         }
 
+        /// <summary>The checks of an endpoint's bound parameters, each adding to <c>__invalid</c>, by the spec's constraints.</summary>
+        private static IEnumerable<string> ParameterChecks(Operation operation)
+        {
+            foreach (var (parameter, index) in operation.Parameters.Select((p, i) => (p, i)))
+            {
+                if (parameter.Schema is not { } schema)
+                {
+                    continue;
+                }
+
+                var type = parameter.Type.TrimEnd('?');
+                var key = Naming.Literal(parameter.Name);
+
+                // A pattern variable in an if's condition is in scope for the whole block: one name per check.
+                var checks = 0;
+                string local = string.Empty;
+                string When() => $"{parameter.Identifier} is {{ }} {local = $"__p{index.Invariant()}_{(checks++).Invariant()}"}";
+                if (type is "int" or "long" or "float" or "double" or "decimal" or "short")
+                {
+                    if (schema.Minimum is { } minimum)
+                    {
+                        yield return $"if ({When()} && {local} < {Number(minimum)}) __invalid[{key}] = new[] {{ \"Must be at least {Number(minimum)}.\" }};";
+                    }
+
+                    if (schema.Maximum is { } maximum)
+                    {
+                        yield return $"if ({When()} && {local} > {Number(maximum)}) __invalid[{key}] = new[] {{ \"Must be at most {Number(maximum)}.\" }};";
+                    }
+                }
+                else if (type == "string")
+                {
+                    if (schema.MinLength is { } min)
+                    {
+                        yield return $"if ({When()} && {local}.Length < {min.Invariant()}) __invalid[{key}] = new[] {{ \"Must be at least {min.Invariant()} characters.\" }};";
+                    }
+
+                    if (schema.MaxLength is { } max)
+                    {
+                        yield return $"if ({When()} && {local}.Length > {max.Invariant()}) __invalid[{key}] = new[] {{ \"Must be at most {max.Invariant()} characters.\" }};";
+                    }
+
+                    if (schema.Pattern is { } pattern)
+                    {
+                        yield return $"if ({When()} && !global::System.Text.RegularExpressions.Regex.IsMatch({local}, {Naming.Literal(pattern)})) __invalid[{key}] = new[] {{ {Naming.Literal("Must match " + pattern + ".")} }};";
+                    }
+                }
+            }
+        }
+
+        /// <summary>A schema's x-matchmark-rules (rule, message), when Matchmark.Rules is referenced to enforce them.</summary>
+        private IEnumerable<(string Rule, string? Message)> Rules(IOpenApiSchema schema)
+        {
+            if (Extension(schema.Extensions, "x-matchmark-rules") is not System.Text.Json.Nodes.JsonArray rules || !Enforced("x-matchmark-rules"))
+            {
+                yield break;
+            }
+
+            foreach (var rule in rules.OfType<System.Text.Json.Nodes.JsonObject>())
+            {
+                if (rule["rule"] is System.Text.Json.Nodes.JsonValue text && text.GetValueKind() == System.Text.Json.JsonValueKind.String)
+                {
+                    yield return (text.GetValue<string>(), rule["message"] is System.Text.Json.Nodes.JsonValue m && m.GetValueKind() == System.Text.Json.JsonValueKind.String ? m.GetValue<string>() : null);
+                }
+            }
+        }
+
+        /// <summary>Whether invariants are enforced; reports once (MM025) when the spec declares some and nothing can enforce them.</summary>
+        private bool Enforced(string what)
+        {
+            if (!_hasRules && !_rulesReported)
+            {
+                _rulesReported = true;
+                Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.RulesNotEnforced, _location, what));
+            }
+
+            return _hasRules;
+        }
+
+        private static System.Text.Json.Nodes.JsonNode? Extension(IDictionary<string, IOpenApiExtension>? extensions, string name)
+            => extensions is not null && extensions.TryGetValue(name, out var extension) && extension is JsonNodeExtension node ? node.Node : null;
+
         private bool TryBuild(Operation operation, OpenApiOperation spec, IList<IOpenApiParameter>? pathParameters)
         {
+            if (Extension(spec.Extensions, "x-dependencies") is System.Text.Json.Nodes.JsonArray dependencies && dependencies.Count > 0 && Enforced("x-dependencies"))
+            {
+                operation.Dependencies.AddRange(dependencies.OfType<System.Text.Json.Nodes.JsonValue>()
+                    .Where(d => d.GetValueKind() == System.Text.Json.JsonValueKind.String).Select(d => d.GetValue<string>()));
+            }
+
             var context = $"Operation '{operation.Id}'";
             var parameters = (pathParameters ?? Array.Empty<IOpenApiParameter>()).Concat(spec.Parameters ?? Array.Empty<IOpenApiParameter>());
             foreach (var parameter in parameters)
@@ -2486,6 +2677,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line("{");
             w.Line("    options.SerializerOptions.NumberHandling = global::System.Text.Json.Serialization.JsonNumberHandling.Strict;");
             w.Line("    options.SerializerOptions.AllowOutOfOrderMetadataProperties = true;");
+            w.Line($"    options.SerializerOptions.TypeInfoResolver = global::System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(options.SerializerOptions.TypeInfoResolver ?? new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(), {ValidationClass}.RefuseNulls);");
             w.Line("});");
             w.Close();
             w.Line();
@@ -2581,6 +2773,33 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             w.Line($"app.MapMethods({Naming.Literal(operation.Path)}, new[] {{ {Naming.Literal(operation.Method)} }}, static async Task<{returnType}> ({string.Join(", ", args)}) =>");
             w.Open(string.Empty);
 
+            var bounds = ParameterChecks(operation).ToList();
+            if (bounds.Count > 0)
+            {
+                // Bound parameters, checked against the spec's constraints: the binding only checks their type.
+                w.Line("var __invalid = new Dictionary<string, string[]>();");
+                foreach (var check in bounds)
+                {
+                    w.Line(check);
+                }
+
+                w.Line("if (__invalid.Count > 0)");
+                w.Line("{");
+                w.Line("    return TypedResults.ValidationProblem(__invalid);");
+                w.Line("}");
+                w.Line();
+            }
+
+            if (operation.Dependencies.Count > 0)
+            {
+                var given = operation.Parameters.Select(p => $"[{Naming.Literal(p.Name)}] = {ValidationClass}.Text({p.Identifier})");
+                w.Line($"if ({ValidationClass}.Broken{operation.Name}Dependencies(new Dictionary<string, string?> {{ {string.Join(", ", given)} }}) is {{ }} __broken)");
+                w.Line("{");
+                w.Line("    return TypedResults.ValidationProblem(__broken);");
+                w.Line("}");
+                w.Line();
+            }
+
             if (operation.Body is { Validated: true })
             {
                 w.Line($"if ({ValidationClass}.Validate(body) is {{ }} __errors)");
@@ -2622,7 +2841,7 @@ private static (string Key, string Message)? BindingError(Exception exception) =
                 w.Line($"    .Produces<{problem.BodyType}>({problem.Status.Invariant()}, \"application/problem+json\")");
             }
 
-            if (operation.Untyped && operation.Body is not null)
+            if (operation.Untyped && (operation.Body is not null || operation.Dependencies.Count > 0 || operation.ValidatesParameters))
             {
                 w.Line("    .ProducesValidationProblem()");
             }

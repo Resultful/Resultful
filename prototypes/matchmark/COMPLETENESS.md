@@ -83,7 +83,10 @@ reads them rather than inventing one.
 - `readOnly` fields sent in a request are ignored or refused, never stored.
 - `writeOnly` fields never appear in a response.
 
-**Declared invariants go in all four places**, as in LAYERS.md:
+**Declared invariants go in all four places**, as in LAYERS.md. The server and client do it when the project
+references **Matchmark.Rules** (the CEL and IDL evaluators the engine uses too); without it the generator says the spec's
+invariants aren't enforced (`MM025`). `GeneratedRulesTests` builds the Bookings server both ways and runs the suite:
+with the runtime it passes, without it the suite finds each rule-breaking request accepted.
 
 | Where | What an invariant becomes |
 |:--|:--|
@@ -115,7 +118,7 @@ invariant scope above, in its overlay.
 | Sample | What it exercises |
 |:--|:--|
 | **Orders** (in the corpus) | idempotency, concurrency, paging, a 202, deprecation; now also a total that must add up, a lifecycle (`pending → paid → shipped`, `cancelled` only from `pending`), and paging and filtering relations |
-| **Bookings** | date ranges (`startsAt < endsAt`); `OnlyOne(roomId, deskId)` (IDL); a 409 for an overlap; time zones; reading back with `If-None-Match` |
+| **Bookings** (in the corpus) | date ranges (`startsAt < endsAt`); `OnlyOne(roomId, deskId)` (IDL); a 409 for an overlap; time zones; reading back with `If-None-Match` |
 | **Ledger** | conservation: a transfer leaves the total balance unchanged, and a balance never goes negative; money as decimal strings; an Idempotency-Key where a retry must not pay twice; settlement as a 202 |
 | **Catalogue search** | OpenAPI 3.2's `query` operations (the QUERY method, RFC 10008); filters, sorting and paging as metamorphic relations (results are a subset, ordered, and a prefix); facet counts that agree with the results |
 | **Feature flags** | JSON Merge Patch and JSON Patch; a version that only goes up; `ETag` on every read; `readOnly` and `writeOnly` |
@@ -135,10 +138,13 @@ invariant scope above, in its overlay.
 4. ✓ **IDL `x-dependencies`,** in the engine: every other case is kept to the dependencies (a valid case repaired or
    dropped), and each dependency gets one case breaking it alone, which must be rejected naming one of its parameters.
    `Idl` reads the IDL grammar (`IF`/`THEN`, `AND`, `OR`, `NOT`, relations, `Or`, `OnlyOne`, `AllOrNone`, `ZeroOrOne`);
-   one it can't read is a gap. Generated validation is next.
+   one it can't read is a gap. ✓ Generated validation: an endpoint checks its `x-dependencies` and answers a broken
+   one with the spec's 400, naming the dependency's first parameter.
 5. ✓ **CEL rules and transitions,** in the engine. `Cel` is a small evaluator of the subset Kubernetes rules use (see
    its summary); every instance of a schema with `x-matchmark-rules` in a response is checked (`SchemaRule`), and
    `x-matchmark-transitions` between successive readings of a resource in a link workflow (`TransitionRule`).
-   Generated validation is next.
+   ✓ Generated validation: a schema's rules are part of its generated `Validate`, so a request body that breaks one is
+   the spec's 400 and the client finds a response that breaks one. A valid case keeps to the rules: a body that breaks
+   one is that rule's invalid case, and an invalid case leaves out an optional value to keep to the rest.
 6. ✓ **Metamorphic relations,** the prefix relation: declared (`x-matchmark-relations: [{prefix: limit}]`) or inferred
    for a paged list's limit, n results must be the start of n + 1 (`RelationHolds`). `sort` and others are next.

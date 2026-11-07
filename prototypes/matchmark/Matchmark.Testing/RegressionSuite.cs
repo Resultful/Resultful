@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Matchmark.Rules;
 
 namespace Matchmark.Testing;
 
@@ -157,6 +158,8 @@ public sealed class RegressionSuite
         private readonly RegressionSuite _suite;
         private readonly HashSet<string> _names = new(StringComparer.Ordinal);
         private int _unique;
+
+        private readonly HashSet<string> _rulesBroken = new(StringComparer.Ordinal);
         private int _keys;
 
         public Generator(RegressionSuite suite)
@@ -241,8 +244,11 @@ public sealed class RegressionSuite
                     sent[name] = value.DeepClone();
                 }
 
-                Add(operation, CaseKind.ReadOnlySent, $"valid, with read-only {string.Join(", ", sentinels.Keys)} sent", required, sent, "body");
-                Cases[^1] = Cases[^1] with { ReadOnlySent = sentinels };
+                if (Add(operation, CaseKind.ReadOnlySent, $"valid, with read-only {string.Join(", ", sentinels.Keys)} sent", required, sent, "body")
+                    && Cases[^1].Kind == CaseKind.ReadOnlySent)
+                {
+                    Cases[^1] = Cases[^1] with { ReadOnlySent = sentinels };
+                }
             }
 
             // Every other member of every union in the body.
@@ -401,7 +407,8 @@ public sealed class RegressionSuite
         private static Dictionary<SpecParameter, JsonNode?> Parameters(SpecOperation operation, Dictionary<string, string> texts)
             => operation.Parameters.Where(p => texts.ContainsKey(p.Name)).ToDictionary(p => p, p => (JsonNode?)JsonValue.Create(texts[p.Name]));
 
-        private void Add(SpecOperation operation, CaseKind kind, string description, IReadOnlyDictionary<SpecParameter, JsonNode?> parameters, JsonNode? body,
+        /// <summary>Adds the case, unless it can't keep to the operation's dependencies or rules (then false).</summary>
+        private bool Add(SpecOperation operation, CaseKind kind, string description, IReadOnlyDictionary<SpecParameter, JsonNode?> parameters, JsonNode? body,
             string? location = null, string? raw = null, string? contentType = null, bool keep = false)
         {
             // Every other case keeps to the operation's dependencies: a valid one is repaired (or dropped), an invalid one
@@ -416,12 +423,23 @@ public sealed class RegressionSuite
 
                 // Repaired without touching the value the case is about.
                 var broken = location is null ? null : dependency.Parameters.FirstOrDefault(n => location.EndsWith($".{n}", StringComparison.Ordinal));
-                if (dependency.Satisfy(texts, name => Sample(operation, name)) is not { } satisfied
-                    || broken is not null && satisfied.GetValueOrDefault(broken) != texts.GetValueOrDefault(broken))
+                var satisfied = dependency.Satisfy(texts, name => Sample(operation, name));
+                if (satisfied is null || broken is not null && satisfied.GetValueOrDefault(broken) != texts.GetValueOrDefault(broken))
+                {
+                    // Keep the value the case is about, and leave out one of the dependency's other optional values instead.
+                    satisfied = broken is null
+                        ? null
+                        : dependency.Parameters
+                            .Where(n => n != broken && texts.ContainsKey(n) && operation.Parameters.FirstOrDefault(p => p.Name == n) is { Required: false })
+                            .Select(n => texts.Where(t => t.Key != n).ToDictionary(t => t.Key, t => t.Value, StringComparer.Ordinal))
+                            .FirstOrDefault(dependency.Holds);
+                }
+
+                if (satisfied is null)
                 {
                     if (kind != CaseKind.Invalid)
                     {
-                        return;
+                        return false;
                     }
 
                     continue;
@@ -434,6 +452,42 @@ public sealed class RegressionSuite
             if (kind != CaseKind.Invalid && operation.Body is { } schema)
             {
                 body = _suite.Samples.Unique(body, schema.Schema, ++_unique, kind == CaseKind.Boundary ? location?.Split('.').ElementAtOrDefault(1) : null);
+            }
+
+            // A body valid by its schema can still break a rule the spec declares (x-matchmark-rules). The first such body
+            // for each rule is that rule's invalid case; the rest are dropped, so every valid case keeps to every rule.
+            if (kind != CaseKind.Invalid && raw is null && operation.Body is { } ruled && body is not null
+                && SchemaRules.Broken(_suite.Spec, body, ruled.Schema).FirstOrDefault(b => b.Error is null) is { Rule: not null } rule)
+            {
+                if (kind == CaseKind.Example)
+                {
+                    Gaps.Add($"{operation}: its example breaks the rule {rule.Rule}");
+                }
+
+                if (!_rulesBroken.Add($"{operation.Id} {rule.Path} {rule.Rule}"))
+                {
+                    return false;
+                }
+
+                kind = CaseKind.Invalid;
+                description = $"{description}, breaking the rule {rule.Rule}";
+                location = BodyWhere(rule.Path.TrimStart('$').TrimStart('.'));
+            }
+            else if (kind == CaseKind.Invalid && raw is null && contentType is null && location?.StartsWith("body.", StringComparison.Ordinal) == true
+                     && operation.Body is { } constrained && body is JsonObject sent
+                     && SchemaRules.Broken(_suite.Spec, body, constrained.Schema).Any(b => b.Error is null))
+            {
+                // An invalid body should be wrong in one way: leave out an optional property (not the one it breaks) so
+                // that it keeps to the declared rules, or drop the case, which would otherwise say nothing.
+                var target = location["body.".Length..].Split('.', '[')[0];
+                var mandatory = (_suite.Spec.Resolve(constrained.Schema)["required"] as JsonArray ?? []).Select(n => n?.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+                body = sent.Select(p => p.Key).Where(k => k != target && !mandatory.Contains(k))
+                    .Select(k => { var copy = (JsonObject)sent.DeepClone(); copy.Remove(k); return copy; })
+                    .FirstOrDefault(copy => !SchemaRules.Broken(_suite.Spec, copy, constrained.Schema).Any(b => b.Error is null));
+                if (body is null)
+                {
+                    return false;
+                }
             }
 
             var path = operation.Path;
@@ -478,6 +532,7 @@ public sealed class RegressionSuite
             };
 
             Cases.Add(new RegressionCase(Unique($"{operation.Id}: {description}"), operation, kind, request, location));
+            return true;
         }
 
         /// <summary>A case from another union member's body, unless the first member's already made one of that name.</summary>

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
 using NUnit.Framework;
+using Matchmark.Rules;
 
 namespace Matchmark.Testing.Tests;
 
