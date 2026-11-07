@@ -18,5 +18,7 @@ museum: generator skips 29; suite 100 cases, 0 workflows, 0 gaps
 orders: generator skips 3; suite 89 cases, 2 workflows, 0 gaps
 ```
 
-The Overlay and Arazzo files are not read by anything yet. They are the targets [LAYERS.md](../LAYERS.md) plans for.
+The Overlay and Arazzo files are not read by anything yet. They are the targets [LAYERS.md](../LAYERS.md) plans for;
+the Orders overlay also carries one example of each kind of invariant from [COMPLETENESS.md](../COMPLETENESS.md), which
+proposes the next samples (Bookings, Ledger, Catalogue search, Feature flags, Notifications).
 Large public specs (GitHub, Stripe) belong in a separate, fetched-not-committed run, for scale rather than design.

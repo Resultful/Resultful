@@ -26,3 +26,34 @@ actions:
       x-matchmark-long-running:
         poll: getOperation
         done: $response.body#/status != 'running'
+
+  # Invariants (COMPLETENESS.md, section 2): one example per scope. Nothing reads these yet.
+  - target: $.components.schemas.LineItem.properties
+    description: A price per line, so the total can be checked.
+    update:
+      unitPrice: { type: number, minimum: 0 }
+  - target: $.components.schemas.Order
+    description: One payload. CEL, following Kubernetes' x-kubernetes-validations.
+    update:
+      x-matchmark-rules:
+        - rule: self.total == self.items.map(i, i.quantity * i.unitPrice).sum()
+          message: The total is the sum of the lines.
+        - rule: self.status != 'shipped' || self.items.size() > 0
+          message: Nothing ships empty.
+      x-matchmark-transitions:
+        - rule: "!has(oldSelf.status) || oldSelf.status == self.status || (oldSelf.status == 'pending' && self.status in ['paid', 'cancelled']) || (oldSelf.status == 'paid' && self.status == 'shipped')"
+          message: An order goes pending, then paid, then shipped; it can only be cancelled while pending.
+  - target: $.paths['/orders'].get
+    description: Parameters (IDL) and metamorphic relations.
+    update:
+      x-dependencies:
+        - IF cursor THEN limit;
+      x-matchmark-relations:
+        - prefix: limit
+          description: The first n orders are the start of the first n + 1.
+  - target: $.paths['/orders'].post
+    description: Request to response. Arazzo criteria.
+    update:
+      x-matchmark-ensures:
+        - condition: $response.body#/status == 'pending'
+        - condition: $response.body#/items/0/sku == $request.body#/items/0/sku
