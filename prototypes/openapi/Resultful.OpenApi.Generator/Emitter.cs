@@ -52,7 +52,7 @@ namespace Resultful.OpenApi.Generator
 
         private string ValidationClass => _apiName + "Validation";
 
-        public Dictionary<string, string> Emit(bool contract = true, bool server = true, bool fakeServer = false)
+        public Dictionary<string, string> Emit(bool contract = true, bool server = true, bool fakeServer = false, bool regression = false)
         {
             CollectSchemas();
             var operations = CollectOperations();
@@ -83,6 +83,11 @@ namespace Resultful.OpenApi.Generator
             if (fakeServer && _hasFakes)
             {
                 files["FakeHosting"] = EmitFakeHosting(operations);
+            }
+
+            if (regression)
+            {
+                files["Regression"] = EmitRegression();
             }
 
             return files;
@@ -429,6 +434,62 @@ namespace Resultful.OpenApi.Generator
 
         // ---------------------------------------------------------------- validation
 
+        /// <summary>
+        /// The translation of a binding failure (ASP.NET Core's key and message) into the spec's terms, shared by the
+        /// generated endpoints and the scaffolded controllers. Found necessary by the regression suite generated from the spec.
+        /// </summary>
+        private const string BindingErrorMethod = @"/// <summary>
+/// A request that couldn't be bound, in the spec's terms: which value was wrong (<c>name</c>, <c>details.goodBoy</c>,
+/// <c>petId</c>, or <c>body</c> for the whole body) and what was wrong with it. <paramref name=""key""/> is where ASP.NET Core
+/// put the failure (a JSON path such as <c>$.name</c>, or a parameter name) and <paramref name=""message""/> its message.
+/// The generated endpoints and the scaffolded controllers both answer through this, so they answer alike.
+/// </summary>
+public static (string Key, string Message) BindingError(string? key, string message)
+{
+    var at = key is null || key.Length == 0 || key == ""$"" ? string.Empty : key.StartsWith(""$."", System.StringComparison.Ordinal) ? key.Substring(2) : key.TrimStart('$');
+    var missing = Regex.Match(message, ""missing required properties including: '([^']+)'"");
+    if (missing.Success)
+    {
+        return (at.Length == 0 ? missing.Groups[1].Value : at + ""."" + missing.Groups[1].Value, $""'{missing.Groups[1].Value}' is required."");
+    }
+
+    var body = at.Length == 0 || at == ""body"" ? ""body"" : at;
+    var discriminator = Regex.Match(message, ""discriminator id '([^']*)'"");
+    if (discriminator.Success)
+    {
+        return (body, $""'{discriminator.Groups[1].Value}' is not a known kind."");
+    }
+
+    if (message.Contains(""must specify a type discriminator""))
+    {
+        return (body, ""The type discriminator is missing."");
+    }
+
+    var value = Regex.Match(message, @""(?:value '([^']*)' is not valid|from \x22([^\x22]*)\x22)"");
+    if (value.Success)
+    {
+        return (body, $""'{(value.Groups[1].Success ? value.Groups[1].Value : value.Groups[2].Value)}' is not a valid value."");
+    }
+
+    if (message.Contains(""request body is required"") || message.Contains(""was not provided from body""))
+    {
+        return (""body"", ""A request body is required."");
+    }
+
+    var type = Regex.Match(message, @""converted to ([\w.]+)\."");
+    var expected = type.Groups[1].Value switch
+    {
+        ""System.String"" => ""a string"",
+        ""System.Boolean"" => ""true or false"",
+        ""System.Int16"" or ""System.Int32"" or ""System.Int64"" => ""an integer"",
+        ""System.Single"" or ""System.Double"" or ""System.Decimal"" => ""a number"",
+        ""System.DateTime"" or ""System.DateTimeOffset"" => ""a date-time"",
+        ""System.Guid"" => ""a uuid"",
+        _ => null,
+    };
+    return (body, expected is null ? ""The body is not valid JSON for this operation."" : $""Expected {expected}."");
+}";
+
         private string EmitValidation(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
@@ -439,6 +500,8 @@ namespace Resultful.OpenApi.Generator
             w.Line("/// The endpoints run it on request bodies; the client runs it on response bodies.");
             w.Line("/// </summary>");
             w.Open($"public static class {ValidationClass}");
+            w.Block(BindingErrorMethod);
+            w.Line();
 
             foreach (var bodyType in _schemas.Where(s => !IsEnum(s.Value)).Select(s => Naming.Pascal(s.Key)))
             {
@@ -2190,17 +2253,23 @@ namespace Resultful.OpenApi.Generator
         {
             var w = new CodeWriter(_namespace);
             w.Usings(
+                "System",
                 "System.Threading",
                 "System.Threading.Tasks",
                 "Microsoft.AspNetCore.Builder",
                 "Microsoft.AspNetCore.Http",
                 "Microsoft.AspNetCore.Http.HttpResults",
                 "Microsoft.AspNetCore.Mvc",
-                "Microsoft.AspNetCore.Routing");
+                "Microsoft.AspNetCore.Routing",
+                "System.Collections.Generic",
+                "System.Text.Json",
+                "System.Text.RegularExpressions");
 
             w.Open($"public static class {_apiName}Endpoints");
             w.Line("/// <summary>Configures JSON the way the spec reads: numbers are numbers, and a oneOf discriminator may come anywhere.</summary>");
             w.Open($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{_apiName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+            w.Line($"// A request that can't be bound throws, so Use{_apiName}Problems can answer it as the spec's validation problem.");
+            w.Line("global::Microsoft.Extensions.DependencyInjection.OptionsServiceCollectionExtensions.Configure<RouteHandlerOptions>(services, options => options.ThrowOnBadRequest = true);");
             w.Open("return global::Microsoft.Extensions.DependencyInjection.HttpJsonServiceExtensions.ConfigureHttpJsonOptions(services, options =>", braces: false);
             w.Line("{");
             w.Line("    options.SerializerOptions.NumberHandling = global::System.Text.Json.Serialization.JsonNumberHandling.Strict;");
@@ -2208,8 +2277,16 @@ namespace Resultful.OpenApi.Generator
             w.Line("});");
             w.Close();
             w.Line();
-            w.Line("/// <summary>Maps every operation in the spec onto its handler interface, which must be registered in DI.</summary>");
+            w.Line("/// <summary>");
+            w.Line("/// Maps every operation in the spec onto its handler interface, which must be registered in DI. On an application");
+            w.Line($"/// (not a route group) it also adds Use{_apiName}Problems, so requests that can't be bound get the spec's validation problem.");
+            w.Line("/// </summary>");
             w.Open($"public static IEndpointRouteBuilder Map{_apiName}(this IEndpointRouteBuilder app)");
+            w.Line("if (app is IApplicationBuilder pipeline)");
+            w.Line("{");
+            w.Line($"    pipeline.Use{_apiName}Problems();");
+            w.Line("}");
+            w.Line();
 
             foreach (var operation in operations)
             {
@@ -2219,6 +2296,8 @@ namespace Resultful.OpenApi.Generator
             w.Line("return app;");
             w.Close();
             w.Line();
+            w.Block(ProblemsMiddleware.Replace("{Api}", _apiName).Replace("{Validation}", ValidationClass));
+            w.Line();
             w.Line("/// <summary>Writes a problem as application/problem+json with the status the spec gives it, whatever the handler set.</summary>");
             w.Open("private static ProblemHttpResult Problem(ProblemDetails problem, int status)");
             w.Line("problem.Status = status;");
@@ -2227,6 +2306,43 @@ namespace Resultful.OpenApi.Generator
             w.Close();
             return w.ToString();
         }
+
+        /// <summary>
+        /// The answer to a request the endpoints can't bind. ASP.NET Core would write an empty 400 (or, for a body missing its
+        /// oneOf discriminator, a 500); the spec documents a validation problem naming what was wrong. Found by the
+        /// regression suite generated from the spec.
+        /// </summary>
+        private const string ProblemsMiddleware = @"/// <summary>
+/// Answers a request that can't be bound (a body that isn't the schema's JSON, a parameter of the wrong type) with the
+/// spec's validation problem, naming the value that was wrong, instead of an empty 400 or a 500.
+/// </summary>
+public static IApplicationBuilder Use{Api}Problems(this IApplicationBuilder app)
+    => app.Use(async (context, next) =>
+    {
+        try
+        {
+            await next(context).ConfigureAwait(false);
+        }
+        catch (BadHttpRequestException e) when (!context.Response.HasStarted && e.StatusCode != StatusCodes.Status400BadRequest)
+        {
+            await TypedResults.Problem(statusCode: e.StatusCode).ExecuteAsync(context).ConfigureAwait(false);
+        }
+        catch (Exception e) when (!context.Response.HasStarted && BindingError(e) is { } error)
+        {
+            await TypedResults.ValidationProblem(new Dictionary<string, string[]> { [error.Key] = [error.Message] }).ExecuteAsync(context).ConfigureAwait(false);
+        }
+    });
+
+/// <summary>The value a binding failure is about, and what was wrong with it; null for any other exception.</summary>
+private static (string Key, string Message)? BindingError(Exception exception) => exception switch
+{
+    BadHttpRequestException { InnerException: JsonException json } => {Validation}.BindingError(json.Path ?? ""$"", json.Message),
+    BadHttpRequestException bad => {Validation}.BindingError(
+        Regex.Match(bad.Message, @""parameter \x22(?:[^\x22]* )?([^\x22 ]+)\x22"") is { Success: true } parameter ? parameter.Groups[1].Value : ""body"", bad.Message),
+    NotSupportedException { Source: ""System.Text.Json"" } unsupported when unsupported.Message.Contains(""type discriminator"", StringComparison.Ordinal)
+        => {Validation}.BindingError(Regex.Match(unsupported.Message, @""Path: (\$\S*)"").Groups[1].Value, unsupported.Message),
+    _ => null,
+};";
 
         private void EmitEndpoint(CodeWriter w, Operation operation)
         {
@@ -2359,6 +2475,15 @@ namespace Resultful.OpenApi.Generator
             {
                 _indent--;
                 Line("}" + suffix);
+            }
+        }
+
+        /// <summary>Several lines at the current indentation.</summary>
+        public void Block(string text)
+        {
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                Line(line);
             }
         }
 

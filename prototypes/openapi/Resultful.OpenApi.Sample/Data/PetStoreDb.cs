@@ -29,6 +29,10 @@ public sealed class PetStoreDb(DbContextOptions<PetStoreDb> options) : DbContext
         var pet = modelBuilder.Entity<PetRecord>();
         pet.ToTable("Pets");
 
+        // upsertPet lets a client choose any id. With AUTOINCREMENT, one pet at the largest int64 would make every later
+        // createPet fail (SQLite can't go past it); a plain rowid picks an unused id instead. Found by the regression suite.
+        pet.Property(p => p.Id).Metadata.SetValueGenerationStrategy(Microsoft.EntityFrameworkCore.Metadata.SqliteValueGenerationStrategy.None);
+
         // Names are unique ignoring case, as createPet's 409 says; NOCASE makes '=' in queries ignore case too.
         pet.Property(p => p.Name).UseCollation("NOCASE");
         pet.HasIndex(p => p.Name).IsUnique();

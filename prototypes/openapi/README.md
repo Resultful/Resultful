@@ -32,10 +32,12 @@ The generated files are written to `obj/generated/` in the Contract and Sample p
 | `Resultful.OpenApi.Sample.Contract` | `petstore.yaml` and the generated **Contract** part: types, response unions, `IPetsHandlers`, validation, `ValidatingPetsHandlers` and `PetStoreClient`. What a consumer or a test suite references. |
 | `Resultful.OpenApi.Sample` | The service: the generated **Server** part (endpoints, OpenAPI configuration), `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
 | `Resultful.OpenApi.Fakes` | The runtime for generated fakes: `Scenario` (expected calls, in code or JSON), `ScenarioRunner` (order, request expectations, verification), `FakeCall`. Referencing it turns on the generated fake and scenario builder. |
-| `Resultful.OpenApi.Scaffold` | The scaffolding tool: writes the server side of a spec as owned ASP.NET source (controllers or Minimal API), with a reference implementation. Never overwrites without `--force`. |
+| `Resultful.OpenApi.Scaffold` | The command-line tool. `scaffold` writes the server side of a spec as owned ASP.NET source (controllers or Minimal API), with a reference implementation, and never overwrites without `--force`. `scaffold regress <spec> <url>` runs the regression suite generated from a spec against any HTTP API. |
+| `Resultful.OpenApi.Testing` | The regression engine: from an OpenAPI 3.1 document (JSON), it generates examples, valid requests, boundary values, one invalid request per constraint, and workflows from `links`, and checks every response. It needs only System.Text.Json. |
+| `Resultful.OpenApi.Testing.Tests` | The engine on small specs, against a stub. |
 | `Resultful.OpenApi.Sample.Scaffolded` | The Pet Store as the scaffolder writes it, untouched; tested to match the spec before anyone edits it. |
 | `Resultful.OpenApi.Sample.Fake` | A fake PetStore server: the generated **Server** part over the generated fakes, in a ten-line `Program.cs`. `dotnet run`, then script the default fake with `PUT /__fake/{operationId}`, or stand up an isolated fake from a scenario with `POST /__fake/sessions`. |
-| `Resultful.OpenApi.Sample.Tests` | `ContractSuite` (one suite against `IPetsHandlers`, run in-process and over HTTP, with outcome coverage), `ClientConformanceTests` (the client catching a server that breaks the spec), `RegressionSuite` (raw HTTP and JSON), `HandlerTests`, `SpecDriftTests` (the round trip). Every server test starts from a named seed scenario. |
+| `Resultful.OpenApi.Sample.Tests` | `ContractSuite` (one suite against `IPetsHandlers`, run in-process and over HTTP, with outcome coverage), `ClientConformanceTests` (the client catching a server that breaks the spec), `RegressionSuite` (raw HTTP and JSON), `SpecRegressionTests` (the suite generated from the spec, against the service, the scaffold and the fake, as a differential, and with a fault per check), `HandlerTests`, `SpecDriftTests` (the round trip). Every server test starts from a named seed scenario. |
 | `Resultful.OpenApi.Generator.Tests` | The generator on small specs: what it emits, and the diagnostics for what it doesn't support. |
 
 ## What the spec becomes
@@ -78,7 +80,9 @@ Each operation's handler signature comes from its responses:
 - **The fluent fake** (`fake.Given...`, `fake.Should()...`) and **`PetStoreFakeServer`**, a real server on a free port
   for tests. See CONCEPT.md.
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
-  configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`); `"Verify"` generates
+  configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`); `"Regression"` (with
+  `Resultful.OpenApi.Testing`) generates `PetStoreRegression`, the spec as JSON and the regression suite built from it;
+  `"Verify"` generates
   nothing and checks the project's hand-written controllers and Map calls against the spec: operations, responses and
   names (`RAPI010`–`RAPI015`, for controllers and Minimal API alike), parameter and body binding (`RAPI016`–`RAPI020`),
   model shapes and constraints against the schemas (`RAPI021`–`RAPI022`; the generated types match by construction), and
@@ -149,7 +153,11 @@ and expected the wrong way round and almost none of its assertions chain.
 
    Checked by breaking it on purpose: an extra hand-written endpoint fails the test (`GET /health: served, not in the
    spec`), and so does a wrong generated constraint (`Pet.name maxLength: spec has '50', served '51'`).
-2. **The regression suite catches handler bugs the compiler can't.** Returning 200 where the spec means 201
+2. **The regression suites catch what the compiler can't.** The suite generated from the spec found five defects that
+   every other check had passed: a 500 for a body missing its discriminator, binding failures answered with an
+   unnamed (in Production, empty) 400, an upsert that broke every later create, and two in the scaffolded controllers.
+   CONCEPT.md describes each.
+   The hand-written suite catches handler bugs the compiler can't. Returning 200 where the spec means 201
    type-checks, because both are documented cases, but it fails both the HTTP test and the handler test.
 3. **The contract caught a gap in the spec.** Once names were unique in the database, `PUT` could hit a name clash,
    but `upsertPet` documented no error, so its handler had no way to report one. Adding a 409 to the spec changed the
@@ -193,7 +201,7 @@ it by hand.
 
 ## Next steps, if this goes further
 
-- A Schemathesis run against the sample in CI, adding property-based coverage on top of the hand-written suite.
+- Random, shrinking inputs (CsCheck) on top of the generated suite's deterministic cases.
 - Trying the generator on a large real spec, to find the next unsupported constructs.
 - Deciding whether a success union belongs in Resultful itself.
 - Use `Resultful.AwesomeAssertions.OneOf` in these tests in place of the `Case<T>` helper, once it supports

@@ -41,6 +41,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Pet'
+          links:
+            GetCreatedPet:
+              operationId: getPet
+              parameters:
+                petId: $response.body#/id
+            ReplaceCreatedPet:
+              operationId: upsertPet
+              parameters:
+                petId: $response.body#/id
+            DeleteCreatedPet:
+              operationId: deletePet
+              parameters:
+                petId: $response.body#/id
         '400':
           description: The request failed validation
           content:

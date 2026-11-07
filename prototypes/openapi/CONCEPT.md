@@ -282,9 +282,86 @@ change:
 - **Fakes for consumers.** A consumer's tests can implement `IPetsHandlers` by hand. Because the fake has the same
   outcome types as the real client, it cannot return something the real API never would.
 
+#### The generated regression suite: the spec tests itself
+
+The hand-written suites test what someone thought to test. The **Regression** part makes the spec write its own suite:
+`ResultfulParts="Regression"` in a test project generates `PetStoreRegression`, which holds the spec as OpenAPI 3.1 JSON
+and the suite built from it by `Resultful.OpenApi.Testing`. That runtime needs only System.Text.Json and an
+`HttpClient`, so the suite runs against any server, in any language. The suite is rebuilt with the spec, so it can't
+drift from it.
+
+**What it generates,** for every operation (the Pet Store gets 90 cases and a workflow):
+
+| Kind | Cases | Expectation |
+|:--|:--|:--|
+| Example | the spec's request and parameter examples | accepted |
+| Valid | only what's required; every value; every member of every `oneOf` (`(cat)`); the same request again; a resource that doesn't exist (the largest id allowed) | accepted, and answered as documented |
+| Boundary | each value at each bound: `minLength`, `maxLength`, `minimum`, `maximum`, exclusive bounds, `minItems`, `maxItems`, `null` where allowed | accepted |
+| Invalid | one broken constraint each: a required value missing, `null`, the wrong type, too short or long, off its pattern, off its enum, out of range, too big for `int32` or `int64`, an unknown or missing discriminator, a body that isn't JSON, is missing, or is `text/plain` | rejected with a 4xx that names the broken value |
+| Workflow | from each response with OpenAPI `links`: follow every link, read back what was written, write it again and read it back, delete it, and read it again | the resource is there, reads back as written, and is gone after the delete |
+
+Every value is checked against the schema before it is sent: a valid case passes every schema, and an invalid one
+fails exactly where it says. Free text gets a unique suffix, so repeated creates don't collide, except in a boundary
+case, which keeps the exact value it tests. Generation is deterministic, so a failure is reproducible, and each
+failure comes with the request as a `curl` command.
+
+**What it checks,** on every response:
+
+| Check | Fails when |
+|:--|:--|
+| `NotAServerError` | a 5xx the spec doesn't document |
+| `StatusDocumented` | a status the operation doesn't document. Rejecting an invalid request with an undocumented 4xx is a warning ("document how it rejects bad input") |
+| `ContentTypeDocumented` | a content type the spec doesn't document for that status, or a body where it documents none |
+| `BodyConforms` | a body that breaks its schema, reported at the path |
+| `HeadersDocumented` | a required response header is missing |
+| `ValidAccepted` | a valid request is rejected (400, 415, 422) |
+| `InvalidRejected` | an invalid request is accepted |
+| `RejectionNamesTheValue` | a validation problem (a body with `errors`) doesn't name the broken value, or a 400 documented as one has no `errors` |
+| `ResourceAvailable` | following a link from a success fails |
+| `ReadAfterWrite` | reading back what was just written differs from what the write returned |
+| `DeletedIsGone` | after a successful delete, reading it back isn't 404 or 410 |
+
+The report also measures **outcome coverage:** which documented operation-and-status pairs any request reached. Against
+the Pet Store service it reaches all 12, conflicts and missing pets included.
+
+**Every check is checked.** `SpecRegressionTests` puts a fault injector in front of the real service, one fault per
+check: a 404 turned into a 500, or into a 410; JSON sent as `text/plain`; a pet without its status; a valid pet
+rejected; an invalid one accepted; errors that name the wrong thing; a pet lost as soon as it's created, or read back
+renamed; a delete that doesn't happen. Each fault fails the check it guards. `EngineTests` covers the required header,
+which the Pet Store's spec doesn't declare.
+
+**Where it runs:**
+- **Against the service, the untouched scaffold and the fake server.** All three pass. Stateless targets (the
+  reference implementation and the fake) skip the workflows.
+- **As a differential test.** `report.Compare(other)` lists every case and workflow step where two runs answered
+  differently: status, then body, ignoring the trace id. The generated Minimal API endpoints and the scaffolded
+  `[ApiController]` controllers, both over the real handlers and an empty database, answer every request identically.
+  So the two directions from one spec behave alike at the edges, not just in the description.
+- **From the command line, against anything:** `scaffold regress petstore.yaml http://localhost:5080` prints the report
+  and exits 0 or 1. `RegressCommandTests` runs it against a small hand-written Todo API with a bug planted (it accepts a
+  21-character title). The run fails, naming exactly that case. Fixed, it passes.
+
+**What it found** in code that every other check had passed:
+1. The generated server answered a body missing its `oneOf` discriminator with a **500**. System.Text.Json throws
+   `NotSupportedException` there, not `JsonException`, so ASP.NET Core doesn't treat it as a bad request.
+2. Every request the generated server couldn't bind got a 400 that named nothing: a wrong JSON type, a missing required
+   property, an unknown discriminator, a missing body, a malformed path or query value. In Production, ASP.NET Core
+   writes that 400 with **no body at all**, though the spec documents a validation problem. The generated endpoints now
+   answer each of them as the spec's validation problem, naming the value (`name`, `details.goodBoy`, `petId`, `body`).
+3. The sample service let one request break creation for everyone. `upsertPet` accepts any id, and once a pet existed
+   at the largest `int64`, SQLite's `AUTOINCREMENT` made **every later `createPet` fail with a 500**. The table now uses
+   a plain rowid.
+4. The scaffolded controllers turned off MVC's invalid-model-state filter, to keep MVC's DataAnnotations out of the way
+   of the generated validator. That also turned off binding errors. A malformed body reached the action as `null` and
+   threw (**a 500**). Worse, `PUT /pets/abc` bound `petId` to 0, and over the real handlers **created a pet with id 0**.
+   The conventions now keep the filter, clear only the validators, and answer binding failures through the same
+   generated `PetStoreValidation.BindingError` as the endpoints.
+5. The differential run then found the last difference between the two directions: the controllers' problems had no
+   `type`. They are now completed by MVC's `ProblemDetailsFactory`, and the answers are identical.
+
 **How to adopt it,** smallest step first:
-1. Generate the contract into the test project of an existing API and run its tests through the client. The service is
-   untouched.
+1. Run `scaffold regress` against an existing API, or generate the contract into its test project and run its tests
+   through the client. The service is untouched.
 2. Add the round-trip test if the service already publishes an OpenAPI document.
 3. Generate the server part for new endpoints.
 
@@ -449,6 +526,8 @@ What makes it trustworthy, not just cheap:
 | Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |
 | Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |
 | Black-box regression suite | anything visible over HTTP, written without the generated types | `RegressionSuite` |
+| Generated regression suite | a response, status, content type, body or header the spec doesn't allow; a valid request rejected or an invalid one accepted; a rejection that doesn't say what was wrong; a resource that can't be read back as written, or survives its delete | `SpecRegressionTests`, one injected fault per check; `RegressCommandTests` against a hand-written API |
+| Differential run | two implementations of the spec answering differently | generated endpoints against scaffolded controllers, over the same handlers |
 
 The black-box suite and the contract suite overlap on purpose. The contract suite can't catch a mistake the generator
 makes consistently on both sides, because the server and the client come from the same generator. The black-box suite
@@ -481,9 +560,9 @@ In order of value for each mode:
 
 | | Production workflow | Testing framework |
 |:--|:--|:--|
-| Next | **Runtime conformance middleware.** The client's checks, run on the server's own responses. *Observe* mode logs undocumented responses in production, *enforce* mode fails tests. | **Differential runner.** One suite, two clients (old and new), results compared outcome by outcome. |
-| Then | **Spec diff in CI.** Classify spec changes as additive or breaking, and fail a breaking change that isn't versioned. | **Workflows.** Arazzo files describing call sequences, run as stateful tests with generated inputs, from the seed scenarios. |
-| Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | **Generated inputs.** Schema-derived generators (CsCheck), so the suite explores beyond hand-picked examples. |
+| Next | **Runtime conformance middleware.** The regression engine's response checks, run on the server's own responses. *Observe* mode logs undocumented responses in production, *enforce* mode fails tests. | **Arazzo workflows.** Call sequences beyond what `links` can say, run as stateful tests from the seed scenarios. |
+| Then | **Spec diff in CI.** Classify spec changes as additive or breaking, and fail a breaking change that isn't versioned. | **Random inputs.** Schema-derived generators (CsCheck) on top of the deterministic cases, shrinking each failure to its smallest request. |
+| Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | **Parameter constraints in the generated server.** It validates bodies; the suite will catch the gap as soon as a spec constrains a parameter. |
 
 One step serves both modes and comes first: **packaging.** That means a NuGet package with a `.props` file declaring
 the build metadata, problem types the contract owns, and a lenient client mode. The prototype can't be adopted without

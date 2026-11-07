@@ -189,7 +189,8 @@ namespace Resultful.OpenApi.Generator
         private string EmitController(string tag, List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Threading", "System.Threading.Tasks", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc", "Resultful");
+            w.Usings("System.Collections.Generic", "System.Threading", "System.Threading.Tasks", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc",
+                "Microsoft.AspNetCore.Mvc.Infrastructure", "Microsoft.AspNetCore.Mvc.ModelBinding", "Microsoft.Extensions.DependencyInjection", "Resultful");
             var name = $"{Naming.Pascal(tag)}Controller";
             w.Line("/// <summary>");
             w.Line($"/// The <c>{tag}</c> operations as an ASP.NET Core controller. Each action calls <see cref=\"{HandlerInterface(tag)}\"/> and turns");
@@ -242,7 +243,7 @@ namespace Resultful.OpenApi.Generator
                 if (operation.Body is not null)
                 {
                     w.Open($"if ({ValidationClass}.Validate(body) is {{ }} errors)");
-                    w.Line("return ValidationProblem(new ValidationProblemDetails(errors));");
+                    w.Line("return ValidationProblem(modelStateDictionary: Invalid(errors));");
                     w.Close();
                     w.Line();
                 }
@@ -274,10 +275,33 @@ namespace Resultful.OpenApi.Generator
                 w.Line();
             }
 
-            w.Line("/// <summary>A problem as application/problem+json, with the status the spec gives it.</summary>");
-            w.Open("private static ObjectResult ProblemResponse(ProblemDetails problem, int status)");
-            w.Line("problem.Status = status;");
-            w.Line("return new ObjectResult(problem) { StatusCode = status, ContentTypes = { \"application/problem+json\" } };");
+            w.Line("/// <summary>");
+            w.Line("/// A problem as application/problem+json, with the status the spec gives it, completed (type, trace id) the way MVC");
+            w.Line("/// completes its own problems, so it reads the same as the generated endpoints' problems.");
+            w.Line("/// </summary>");
+            w.Open("private ObjectResult ProblemResponse(ProblemDetails problem, int status)");
+            w.Line("var completed = HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>()");
+            w.Line("    .CreateProblemDetails(HttpContext, status, problem.Title, problem.Type, problem.Detail, problem.Instance);");
+            w.Line("foreach (var (key, value) in problem.Extensions)");
+            w.Line("{");
+            w.Line("    completed.Extensions[key] = value;");
+            w.Line("}");
+            w.Line();
+            w.Line("return new ObjectResult(completed) { StatusCode = status, ContentTypes = { \"application/problem+json\" } };");
+            w.Close();
+            w.Line();
+            w.Line("/// <summary>Validation errors keyed by JSON path, for <see cref=\"ControllerBase.ValidationProblem()\"/>.</summary>");
+            w.Open("private static ModelStateDictionary Invalid(IDictionary<string, string[]> errors)");
+            w.Line("var state = new ModelStateDictionary();");
+            w.Line("foreach (var (key, messages) in errors)");
+            w.Line("{");
+            w.Line("    foreach (var message in messages)");
+            w.Line("    {");
+            w.Line("        state.AddModelError(key, message);");
+            w.Line("    }");
+            w.Line("}");
+            w.Line();
+            w.Line("return state;");
             w.Close();
             w.Close();
             return w.ToString();
@@ -291,7 +315,7 @@ namespace Resultful.OpenApi.Generator
         /// <summary>The ControllerBase result for a documented response, given its body.</summary>
         private static string Action(Response response, string body) => response switch
         {
-            { IsValidation: true } => $"ValidationProblem(new ValidationProblemDetails({body}.Errors) {{ Title = {body}.Title, Detail = {body}.Detail }})",
+            { IsValidation: true } => $"ValidationProblem(detail: {body}.Detail, title: {body}.Title, modelStateDictionary: Invalid({body}.Errors))",
             { IsProblem: true } => $"ProblemResponse({body}, {response.Status.Invariant()})",
             { BodyType: null, Status: 204 } => "NoContent()",
             { BodyType: null } => $"StatusCode({response.Status.Invariant()})",
@@ -305,12 +329,15 @@ namespace Resultful.OpenApi.Generator
         private string EmitConventions()
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Linq", "System.Text.Json.Serialization", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Mvc.Formatters",
-                "Microsoft.Extensions.DependencyInjection");
+            w.Usings("System", "System.Linq", "System.Text.Json.Serialization", "System.Text.RegularExpressions", "Microsoft.AspNetCore.Mvc",
+                "Microsoft.AspNetCore.Mvc.Filters", "Microsoft.AspNetCore.Mvc.Formatters", "Microsoft.AspNetCore.Mvc.Infrastructure",
+                "Microsoft.AspNetCore.Mvc.ModelBinding", "Microsoft.Extensions.DependencyInjection");
             w.Open($"public static class {_apiName}Conventions");
             w.Line("/// <summary>");
             w.Line("/// JSON as the spec reads it (numbers are numbers; a oneOf discriminator may come anywhere), for both MVC and the");
-            w.Line("/// OpenAPI document; and request validation from the spec's constraints rather than MVC's automatic 400.");
+            w.Line("/// OpenAPI document. Requests that can't be bound get the spec's validation problem, worded as the generated");
+            w.Line($"/// endpoints word it ({ValidationClass}.BindingError); the spec's constraints are checked by the generated validator, not");
+            w.Line("/// by MVC's DataAnnotations.");
             w.Line("/// </summary>");
             w.Open($"public static IServiceCollection Add{_apiName}Conventions(this IServiceCollection services)");
             w.Line("services.ConfigureHttpJsonOptions(options =>");
@@ -323,11 +350,24 @@ namespace Resultful.OpenApi.Generator
             w.Line("    options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;");
             w.Line("    options.JsonSerializerOptions.AllowOutOfOrderMetadataProperties = true;");
             w.Line("});");
-            w.Line("services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);");
+            w.Line("services.Configure<ApiBehaviorOptions>(options => options.InvalidModelStateResponseFactory = context =>");
+            w.Line("{");
+            w.Line("    // Only binding failures reach here (no validators run): answer the first, preferring the JSON path it happened at.");
+            w.Line("    var (key, entry) = context.ModelState.Where(e => e.Value?.Errors.Count > 0).OrderBy(e => e.Key.StartsWith('$') ? 0 : 1).First();");
+            w.Line("    var failure = entry!.Errors[0];");
+            w.Line($"    var (name, message) = {ValidationClass}.BindingError(key, failure.ErrorMessage.Length > 0 ? failure.ErrorMessage : failure.Exception?.Message ?? string.Empty);");
+            w.Line("    return Problem(context.HttpContext, name, message);");
+            w.Line("});");
             w.Line();
-            w.Line("// MVC's JSON input also accepts application/*+json and text/json; the spec documents application/json only.");
             w.Line("services.Configure<MvcOptions>(options =>");
             w.Line("{");
+            w.Line("    // The generated validator checks the spec's constraints; MVC's DataAnnotations would check them again, worded differently.");
+            w.Line("    options.ModelValidatorProviders.Clear();");
+            w.Line();
+            w.Line("    // A body missing its oneOf discriminator fails with NotSupportedException, which MVC's JSON input doesn't catch.");
+            w.Line("    options.Filters.Add(new MissingDiscriminator());");
+            w.Line();
+            w.Line("    // MVC's JSON input also accepts application/*+json and text/json; the spec documents application/json only.");
             w.Line("    foreach (var json in options.InputFormatters.OfType<SystemTextJsonInputFormatter>())");
             w.Line("    {");
             w.Line("        json.SupportedMediaTypes.Remove(\"application/*+json\");");
@@ -336,9 +376,33 @@ namespace Resultful.OpenApi.Generator
             w.Line("});");
             w.Line("return services;");
             w.Close();
+            w.Line();
+            w.Block(ConventionsProblems.Replace("{Validation}", ValidationClass));
             w.Close();
             return w.ToString();
         }
+
+        private const string ConventionsProblems = @"/// <summary>The spec's validation problem for one value, as MVC writes problems.</summary>
+private static BadRequestObjectResult Problem(Microsoft.AspNetCore.Http.HttpContext context, string name, string message)
+{
+    var errors = new ModelStateDictionary();
+    errors.AddModelError(name, message);
+    return new BadRequestObjectResult(context.RequestServices.GetRequiredService<ProblemDetailsFactory>().CreateValidationProblemDetails(context, errors));
+}
+
+/// <summary>A body missing its oneOf discriminator: a validation problem, not a 500.</summary>
+private sealed class MissingDiscriminator : IExceptionFilter
+{
+    public void OnException(ExceptionContext context)
+    {
+        if (context.Exception is NotSupportedException { Source: ""System.Text.Json"" } e && e.Message.Contains(""type discriminator"", StringComparison.Ordinal))
+        {
+            var (name, message) = {Validation}.BindingError(Regex.Match(e.Message, @""Path: (\$\S*)"").Groups[1].Value, e.Message);
+            context.Result = Problem(context.HttpContext, name, message);
+            context.ExceptionHandled = true;
+        }
+    }
+}";
 
         private string EmitProgram(List<Operation> operations, string contractNamespace, bool controllers)
         {

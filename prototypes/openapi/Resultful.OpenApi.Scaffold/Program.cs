@@ -14,7 +14,15 @@ const string Usage = """
       --api                 the API name used in type names (default: from the spec file name)
       --force               overwrite files that exist. Without it, existing files are kept, so re-running after a
                             spec change only adds what is new; the compiler then shows what no longer fits.
+
+    or:    scaffold regress <spec> <base url> [--no-workflows]
+           runs the regression suite generated from the spec against any HTTP API.
     """;
+
+if (args.Length > 0 && args[0] == "regress")
+{
+    return await Regress.RunAsync(args[1..], Console.Out);
+}
 
 if (args.Length < 2 || args.Contains("--help"))
 {

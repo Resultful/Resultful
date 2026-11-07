@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The regression engine: reads an OpenAPI 3.1 document (JSON) and tests any HTTP API against it. It generates cases
+    from the spec (examples, valid samples, boundary values, one invalid request per constraint), follows the spec's
+    links as stateful workflows, and checks every response. It needs nothing but System.Text.Json, so it runs against
+    any server in any language; the generator's Regression part and the CLI hand it the spec.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

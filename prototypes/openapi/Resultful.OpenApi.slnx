@@ -8,4 +8,7 @@
   <Project Path="Resultful.OpenApi.Sample.Scaffolded/Resultful.OpenApi.Sample.Scaffolded.csproj" />
   <Project Path="Resultful.OpenApi.Sample.Tests/Resultful.OpenApi.Sample.Tests.csproj" />
   <Project Path="Resultful.OpenApi.Sample/Resultful.OpenApi.Sample.csproj" />
+  <Project Path="Resultful.OpenApi.Scaffold/Resultful.OpenApi.Scaffold.csproj" />
+  <Project Path="Resultful.OpenApi.Testing.Tests/Resultful.OpenApi.Testing.Tests.csproj" />
+  <Project Path="Resultful.OpenApi.Testing/Resultful.OpenApi.Testing.csproj" />
 </Solution>
