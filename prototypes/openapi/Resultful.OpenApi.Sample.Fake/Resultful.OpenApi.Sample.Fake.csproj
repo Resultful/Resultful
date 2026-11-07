@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Server" />
+    <AdditionalFiles Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Server,FakeServer" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />

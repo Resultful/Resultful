@@ -71,10 +71,14 @@ Each operation's handler signature comes from its responses:
 - **The fake** (`PetStoreFake`) implements the handler interfaces with the spec's examples, or samples built to pass the
   schema. It is scripted with `On{Operation}(...)`, `Respond(operationId, status, json)` or a scenario of expected
   calls (`PetStoreScenario`, or JSON), and records calls. `Add{Api}FakeHub`, `Use{Api}FakeHub` and
-  `Map{Api}FakeControl` host it as a fake server with isolated sessions. Generated only when the project references
-  `Resultful.OpenApi.Fakes`.
+  `Map{Api}FakeControl` host it as a fake server with isolated sessions (the `FakeServer` part). The fake is generated
+  only when the project references `Resultful.OpenApi.Fakes`.
+- **The fluent fake** (`fake.Given...`, `fake.Should()...`) and **`PetStoreFakeServer`**, a real server on a free port
+  for tests. See CONCEPT.md.
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
-  configuration. The default is both.
+  configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`). The
+  default is `Contract,Server`. Separate parts with commas: the value reaches the generator through an `.editorconfig`,
+  where `;` starts a comment.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with
   `JsonStringEnumMemberName`. A discriminated `oneOf` becomes an abstract record with `[JsonPolymorphic]`.
   `ProblemDetails` and `HttpValidationProblemDetails` map to the framework types.

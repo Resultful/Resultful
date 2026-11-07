@@ -128,6 +128,59 @@ Default answers come from the spec:
 If a required string has a pattern the generated sample doesn't match, the generator asks for an example (`RAPI005`)
 rather than serve an invalid body.
 
+#### The fluent fake server
+
+For .NET tests, the generator also writes a fluent API over the fake, typed per operation from the spec, and
+`PetStoreFakeServer`, which hosts it on a real Kestrel port:
+
+```cs
+await using var server = await PetStoreFakeServer.StartAsync();       // http://127.0.0.1:{free port}/
+
+server.Given.GetPet(petId: 7).Returns.Ok(rex).Then.NotFound();        // answers named after the spec's responses
+server.Given.CreatePet(where: body => body.Name == "Rex").Returns.Conflict();
+server.Given.NothingElse();                                             // anything unmatched fails
+
+// ... the code under test calls server.BaseAddress, or server.CreateClient() ...
+
+server.Should().HaveReceived.GetPet(petId: 7).Twice();
+server.Should().HaveReceivedInOrder(c => c.CreatePet(), c => c.GetPet(petId: 7));
+server.Should().HaveReceivedNoOtherCalls();
+```
+
+- **`Given`** sets up rules. A call matches by argument equality (leave an argument out to match anything) or a typed
+  predicate (`where:`). The latest matching rule wins, so a test can narrow an earlier, broader rule. `Returns`
+  offers only the operation's documented responses, by name (`Ok`, `Created`, `NotFound`, `Conflict`, `BadRequest`).
+  An answer without a body uses the spec's example, and an answer whose body breaks the schema throws when given.
+  `Then` adds the next answer in a sequence; the last one repeats.
+- **`Should()`** checks what was received, in AwesomeAssertions' style:
+  - `HaveReceived.{Operation}(...)`, followed by `Once`, `Twice`, `Times(n)`, `Never`, `AtLeast(n)` or `AtMost(n)`
+  - `HaveReceivedInOrder(...)`
+  - `HaveReceivedNoOtherCalls()`, which fails if any call wasn't covered by an earlier check
+  - `HaveMetItsScenario()`
+
+  Failures throw `FakeAssertionException`, which any test framework reports, with the expectation and the calls
+  actually received:
+
+  ```
+  Expected the fake to have received getPet(petId: 7) once, but it received it 0 times.
+  It received:
+    1. getPet(petId: 1)
+    2. deletePet(petId: 7)
+  ```
+
+The fluent API and scenarios are two styles over the same fake, and they combine: a scenario can run on a fluent
+server, and be checked with `HaveMetItsScenario()`. Use fluent rules for a test's own setup, and scenarios for flows
+shared as files or across languages.
+
+What it takes from the C# fake-server libraries, and what it adds:
+
+| Library | Taken | Added here |
+|:--|:--|:--|
+| WireMock.Net | a real server on a port; `Given` then answer; sequences of answers | typed per operation; answers limited to the spec's responses, with valid bodies |
+| MockHttp | stub versus expectation; failing on outstanding or unmatched calls | `NothingElse()`, `HaveReceivedNoOtherCalls()`, scenarios |
+| Flurl HttpTest | checks after the fact: `ShouldHaveCalled(...).Times(n)` | typed `HaveReceived.GetPet(petId: 7).Twice()`, in-order checks, messages listing the calls received |
+| JustEat HttpClient Interception | words that exist to read well; definitions in JSON | `Returns` / `Then`; scenarios as JSON, checked against the spec |
+
 #### Scenarios: expected calls, in order or not
 
 To check how a consumer uses the API, give the fake a scenario: the calls it expects, what each request must contain,
@@ -200,6 +253,7 @@ What makes it trustworthy, not just cheap:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
+| Fluent fake assertions | a consumer making calls it shouldn't, too often, or in the wrong order | `FluentFakeServerTests` |
 | Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |
 | Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |
 | Black-box regression suite | anything visible over HTTP, written without the generated types | `RegressionSuite` |
