@@ -51,6 +51,69 @@ tests can include or leave out.
 | The service changes? | it is built on the generated contract | no | no, and it needn't exist yet |
 | Checks | compiler, request validation, round-trip document, contract suite on both targets, outcome coverage | response conformance on every call, outcome coverage, round-trip document if the service publishes one | every documented outcome the fake can produce, checked against the spec; its round-trip document |
 
+### Generated or owned: two ways to have the server
+
+The production workflow's server side comes in two forms, from the same spec:
+
+| | Generated (`ResultfulParts="Server"`) | Scaffolded (`Resultful.OpenApi.Scaffold`) |
+|:--|:--|:--|
+| What you get | Minimal API endpoints, rebuilt on every compile | `[ApiController]` controllers (or Minimal API endpoints) as ordinary source, written once |
+| Who owns it | the generator; never edited | the team; edited like any other code |
+| When the spec changes | updates itself | new files are added, existing files are kept; the compiler shows which handlers no longer fit the contract |
+| Handlers | written from scratch | start as a reference implementation that answers with the spec's examples |
+
+**Either way, the contract stays generated** (types, unions, `IPetsHandlers`, validation, client), and the same checks
+apply: the round-trip test and the contract suite don't care which form the server takes.
+
+**When to choose which:**
+- Scaffold when a team wants the familiar ASP.NET shape, wants to customise the HTTP layer (filters, attributes,
+  versioning), or wants to stop depending on the generator for the server.
+- Keep it generated when the HTTP layer should never drift from the spec by hand.
+
+The scaffold is also the way off the generator. Run it once, delete the `Server` part, and the service is plain ASP.NET
+that still implements a generated contract.
+
+```bash
+dotnet run --project Resultful.OpenApi.Scaffold -- Resultful.OpenApi.Sample.Contract/petstore.yaml \
+  Resultful.OpenApi.Sample.Scaffolded --api PetStore --contract-namespace PetStore.Api --namespace PetStore.Scaffolded
+```
+
+What it writes, for the Pet Store:
+- `Controllers/PetsController.cs`:
+  - `[HttpGet("/pets/{petId}", Name = "getPet")]` and `[Tags("pets")]`
+  - `[ProducesResponseType<Pet>(200, "application/json")]`, one per documented response
+  - `[Consumes("application/json")]`
+  - an action that validates the request, calls `IPetsHandlers` and turns the outcome into the documented response
+- `PetsHandlers.cs`: the reference implementation. Each method returns the spec's example (or a valid sample) as C#
+  object construction, not a JSON string, with a TODO to replace it:
+
+  ```cs
+  public Task<Result<Pet, GetPetError>> GetPet(long petId, CancellationToken cancellationToken)
+  {
+      // TODO: replace this reference answer (the spec's 200 Ok) with the real behaviour.
+      Pet answer = new Pet { Id = 1, Name = "Rex", Tag = "good-dog", Status = PetStatus.Available, Details = new Dog { GoodBoy = true } };
+      return Task.FromResult<Result<Pet, GetPetError>>(global::Resultful.Result.Ok<Pet, GetPetError>(answer));
+  }
+  ```
+
+- `PetStoreConventions.cs`:
+  - JSON as the spec reads it, for MVC and the OpenAPI document
+  - request validation from the spec's constraints, in place of MVC's automatic 400
+  - MVC accepting `application/json` only, as documented
+- `PetStoreOpenApi.cs` and `Program.cs`.
+
+The untouched output is committed as `Resultful.OpenApi.Sample.Scaffolded`, and tested:
+- **Faithful.** `ScaffoldTests` checks the scaffolder still writes exactly those files, byte for byte.
+- **Conforms before anyone edits it.** `ScaffoldedServerTests` checks the scaffolded controllers' OpenAPI document
+  against the spec with no excused differences, sends every operation's reference answer through the
+  conformance-checking client, and checks request validation.
+- **Minimal API style builds.** A slow test scaffolds that style into a fresh project and runs `dotnet build`.
+
+The round-trip test earned its keep again here. MVC's JSON input also accepts `application/*+json`, so the controllers
+advertised a request content type the spec doesn't document. The scaffolded conventions now remove it, so the server
+accepts exactly what the spec documents. The test that builds the Minimal API style also found generated code relying
+on a project's implicit usings; generated and scaffolded files now declare their own.
+
 ### A. Production workflow: spec-first services
 
 1. **The spec changes first,** in a pull request reviewed like code. Response codes, errors and constraints are API
@@ -254,6 +317,7 @@ What makes it trustworthy, not just cheap:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
+| Scaffold fidelity | scaffolded controllers describing or answering differently from the spec | `ScaffoldedServerTests`, `ScaffoldTests` |
 | Fluent fake assertions | a consumer making calls it shouldn't, too often, or in the wrong order | `FluentFakeServerTests` |
 | Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |
 | Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |

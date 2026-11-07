@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Writes the server side of a spec as ordinary ASP.NET source a team owns: controllers (or Minimal API endpoints), a
+    reference implementation of each handler interface, the conventions the spec implies, and Program.cs.
+    Run it with dotnet run on this project, passing the spec and an output directory; see Program.cs for the options.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" />
+    <!-- The generator's own dependencies are private to it; as a library here, they're needed at run time. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" />
+  </ItemGroup>
+</Project>

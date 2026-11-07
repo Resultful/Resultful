@@ -5,6 +5,7 @@
   <Project Path="Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" />
   <Project Path="Resultful.OpenApi.Sample.Contract/Resultful.OpenApi.Sample.Contract.csproj" />
   <Project Path="Resultful.OpenApi.Sample.Fake/Resultful.OpenApi.Sample.Fake.csproj" />
+  <Project Path="Resultful.OpenApi.Sample.Scaffolded/Resultful.OpenApi.Sample.Scaffolded.csproj" />
   <Project Path="Resultful.OpenApi.Sample.Tests/Resultful.OpenApi.Sample.Tests.csproj" />
   <Project Path="Resultful.OpenApi.Sample/Resultful.OpenApi.Sample.csproj" />
 </Solution>

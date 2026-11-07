@@ -9,7 +9,7 @@ run; long ones are abridged, marked with `...`.
 
 ```bash
 cd prototypes/openapi
-dotnet test Resultful.OpenApi.slnx                           # 90 tests: generator and sample
+dotnet test Resultful.OpenApi.slnx                           # 97 tests: generator and sample
 dotnet run --project Resultful.OpenApi.Sample                # the real service (SQLite, Demo seed)
 dotnet run --project Resultful.OpenApi.Sample.Fake           # the fake server, http://localhost:5080
 ```
@@ -397,6 +397,65 @@ comparison as the real service's (`FakeTests`). And `FakeTests` scripts each of 
 reading every answer through the conformance-checking client, so the fake can't give an answer the real API never
 would.
 
+## 7. Owning it: the scaffolded server
+
+The fake is the spec turned into behaviour you never touch. Scaffolding goes the other way: the spec turned into
+ordinary ASP.NET source you own. `Resultful.OpenApi.Sample.Scaffolded` is the Pet Store as the scaffolder writes it,
+untouched. Only its project file was written by hand.
+
+```
+$ dotnet run --project Resultful.OpenApi.Scaffold -- Resultful.OpenApi.Sample.Contract/petstore.yaml \
+    Resultful.OpenApi.Sample.Scaffolded --api PetStore --contract-namespace PetStore.Api --namespace PetStore.Scaffolded
+  wrote    Controllers/PetsController.cs
+  wrote    PetStoreConventions.cs
+  wrote    PetStoreOpenApi.cs
+  wrote    PetsHandlers.cs
+  wrote    Program.cs
+```
+
+The controller is the shape most ASP.NET teams already write, with attributes describing exactly the documented
+responses:
+
+```cs
+[ApiController]
+[Tags("pets")]
+public sealed class PetsController(IPetsHandlers handlers) : ControllerBase
+{
+    [HttpGet("/pets/{petId}", Name = "getPet")]
+    [ProducesResponseType<Pet>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/problem+json")]
+    public async Task<IActionResult> GetPet([FromRoute(Name = "petId")] long petId, CancellationToken cancellationToken)
+    {
+        var result = await handlers.GetPet(petId, cancellationToken);
+        return result.Match<IActionResult>(
+            success => Ok(success),
+            error => error.Match<IActionResult>(@case => ProblemResponse(@case.Body, 404)));
+    }
+    // ...
+}
+```
+
+`PetsHandlers.cs` is the reference implementation. Each operation answers with the spec's example as real C#, with a
+TODO, so the service runs and conforms before anyone writes a line:
+
+```cs
+// TODO: replace this reference answer (the spec's 200 Ok) with the real behaviour.
+Pet answer = new Pet { Id = 1, Name = "Rex", Tag = "good-dog", Status = PetStatus.Available, Details = new Dog { GoodBoy = true } };
+```
+
+Re-running the scaffolder keeps every file that exists unless given `--force`. So after a spec change it only adds
+what is new, and the compiler shows which existing handlers no longer fit the contract.
+
+What the tests show about the untouched scaffold:
+- **`ScaffoldedServerTests`:**
+  - the controllers' OpenAPI document matches the spec exactly
+  - every operation's reference answer passes the conformance-checking client
+  - an invalid `NewPet` gets the spec's validation errors (`name`, `tag`, `details.livesLeft`)
+- **`ScaffoldTests`:**
+  - the scaffolder reproduces the committed files byte for byte
+  - it keeps files that exist unless forced
+  - its Minimal API style builds in a fresh project
+
 ## What tells you what
 
 | You... | What tells you |
@@ -411,6 +470,7 @@ would.
 | make the fake answer something the API never would | refused when scripted; `FakeTests` checks every outcome it can give |
 | call the fake in the wrong order or with the wrong request | the scenario, or `Should().HaveReceivedInOrder(...)` |
 | write a scenario file with a typo | `PetStoreFake.Check`, when it's loaded |
+| scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
 
 ## Where things are
 
@@ -428,4 +488,6 @@ would.
 | `Resultful.OpenApi.Sample.Tests/FakeTests.cs` | the fake, in-process and as a server |
 | `Resultful.OpenApi.Sample.Tests/FluentFakeServerTests.cs` | `Given` and `Should()` on a real port |
 | `Resultful.OpenApi.Sample.Tests/ScenarioTests.cs`, `Scenarios/` | scenarios in code and JSON, and sessions |
-| `Resultful.OpenApi.Generator/Emitter.cs` | everything above that wasn't written by hand |
+| `Resultful.OpenApi.Sample.Scaffolded/` | the scaffolder's untouched output: controllers and a reference implementation |
+| `Resultful.OpenApi.Scaffold/Program.cs` | the scaffolding tool |
+| `Resultful.OpenApi.Generator/Emitter.cs`, `EmitterScaffold.cs` | everything above that wasn't written by hand |

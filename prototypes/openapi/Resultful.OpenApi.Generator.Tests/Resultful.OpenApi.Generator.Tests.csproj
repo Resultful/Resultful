@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" />
+    <ProjectReference Include="../Resultful.OpenApi.Scaffold/Resultful.OpenApi.Scaffold.csproj" />
   </ItemGroup>
 
   <ItemGroup>
