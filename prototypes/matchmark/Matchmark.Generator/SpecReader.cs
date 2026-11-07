@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Reader;
+using Path = System.IO.Path;
 
 namespace Matchmark.Generator
 {
@@ -14,13 +15,20 @@ namespace Matchmark.Generator
     /// </summary>
     public static class SpecReader
     {
-        public static OpenApiDocument? Read(string text, string path, out IReadOnlyList<string> problems)
+        /// <param name="overlays">Overlay documents (text and path) applied to the spec, in order, before it's read.</param>
+        public static OpenApiDocument? Read(string text, string path, out IReadOnlyList<string> problems, IEnumerable<(string Text, string Path)>? overlays = null)
         {
             var settings = new OpenApiReaderSettings();
             settings.AddYamlReader();
             ReadResult read;
             try
             {
+                if (overlays?.ToList() is { Count: > 0 } applied)
+                {
+                    text = Overlay.Apply(text, path, applied);
+                    path = Path.ChangeExtension(path, ".json");
+                }
+
                 read = OpenApiDocument.Parse(text, path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml", settings);
             }
 #pragma warning disable CA1031 // A spec that can't be read is reported, never thrown into the caller.

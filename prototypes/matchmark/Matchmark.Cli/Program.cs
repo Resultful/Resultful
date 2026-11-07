@@ -5,7 +5,7 @@ const string Usage = """
     matchmark: the OpenAPI document as an enforceable contract.
 
     matchmark scaffold <spec> <output dir> [--style controllers|minimal] [--contract-namespace NS] [--namespace NS]
-                      [--api NAME] [--force]
+                      [--api NAME] [--overlay <file>]... [--force]
 
       Writes the server side of an OpenAPI spec as ASP.NET source you own. The contract (types, unions, handler
       interfaces) stays generated: reference a project that generates it (MatchmarkParts="Contract").
@@ -17,7 +17,9 @@ const string Usage = """
       --force               overwrite files that exist. Without it, existing files are kept, so re-running after a
                             spec change only adds what is new; the compiler then shows what no longer fits.
 
-    matchmark regress <spec> <base url> [--arazzo <file>]... [--no-workflows]
+    matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows]
+
+      --overlay applies an OpenAPI Overlay to the spec first (repeat for more, applied in order).
 
       Runs the regression suite generated from the spec against any HTTP API.
     """;
@@ -56,9 +58,11 @@ IReadOnlyDictionary<string, string> files;
 IReadOnlyList<string> warnings;
 try
 {
+    var overlays = args.Select((a, i) => (a, i)).Where(x => x.a == "--overlay" && x.i + 1 < args.Length)
+        .Select(x => (File.ReadAllText(args[x.i + 1]), args[x.i + 1])).ToList();
     files = Scaffolder.Scaffold(
         File.ReadAllText(spec), Path.GetFileName(spec), Option("--contract-namespace", $"{api}.Api"), Option("--namespace", api), api,
-        controllers: style == "controllers", out warnings);
+        controllers: style == "controllers", overlays, out warnings);
 }
 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
 {

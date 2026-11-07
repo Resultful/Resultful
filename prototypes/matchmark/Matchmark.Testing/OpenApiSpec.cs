@@ -75,6 +75,7 @@ public sealed class OpenApiSpec
                 yield return new SpecOperation(id, method.ToUpperInvariant(), path, parameters, Body(operation["requestBody"]), Responses(operation["responses"]))
                 {
                     Deprecated = operation["deprecated"]?.GetValueKind() == System.Text.Json.JsonValueKind.True,
+                    Json = operation,
                 };
             }
         }
@@ -147,6 +148,14 @@ public sealed class OpenApiSpec
 public sealed record SpecOperation(
     string Id, string Method, string Path, IReadOnlyList<SpecParameter> Parameters, SpecBody? Body, IReadOnlyDictionary<string, SpecResponse> Responses)
 {
+    /// <summary>The operation as written, for its extensions (<c>x-dependencies</c>, <c>x-matchmark-ensures</c>...).</summary>
+    public JsonObject Json { get; init; } = [];
+
+    /// <summary>Its <c>x-dependencies</c>, parsed. One that can't be parsed is left out (and reported as a gap by the suite).</summary>
+    public IReadOnlyList<Idl> Dependencies => (Json["x-dependencies"] as JsonArray ?? []).Select(d => d?.GetValue<string>())
+        .Where(d => d is not null).Select(d => { try { return Idl.Parse(d!); } catch (FormatException) { return null; } })
+        .Where(d => d is not null).Select(d => d!).ToList();
+
     /// <summary>Marked <c>deprecated: true</c>: its responses must announce it (RFC 9745).</summary>
     public bool Deprecated { get; init; }
 

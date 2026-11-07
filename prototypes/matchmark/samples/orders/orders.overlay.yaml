@@ -1,5 +1,6 @@
 # OpenAPI Overlay 1.0: what the Orders spec's standard HTTP can't say, kept apart from the published spec.
-# Nothing reads this yet; LAYERS.md describes how Matchmark would. Each behaviour is otherwise inferred from the spec:
+# The generator, `matchmark regress --overlay` and the engine apply it (MatchmarkOverlay="true" on the item). The first
+# three x-matchmark-* behaviours below are not read yet: each is inferred from the spec instead:
 # Idempotency-Key from the header parameter, concurrency from ETag and If-Match, work that finishes later from a 202
 # with Location, deprecation from deprecated plus the Deprecation and Sunset headers.
 overlay: 1.0.0
@@ -27,7 +28,7 @@ actions:
         poll: getOperation
         done: $response.body#/status != 'running'
 
-  # Invariants (COMPLETENESS.md, section 2): one example per scope. Nothing reads these yet.
+  # Invariants (COMPLETENESS.md, section 2): one example per scope, each checked by the engine (OrdersTests proves each).
   - target: $.components.schemas.LineItem.properties
     description: A price per line, so the total can be checked.
     update:

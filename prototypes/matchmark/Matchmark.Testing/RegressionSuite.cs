@@ -306,6 +306,26 @@ public sealed class RegressionSuite
                 }
             }
 
+            // Dependencies between parameters (IDL): one request breaking each, with values that are otherwise valid.
+            foreach (var dependency in operation.Dependencies)
+            {
+                var texts = required.Where(r => r.Value is JsonValue).ToDictionary(r => r.Key.Name, r => Text(r.Value), StringComparer.Ordinal);
+                if (dependency.Break(texts, name => Sample(operation, name)) is { } broken)
+                {
+                    var location = string.Join("|", dependency.Parameters.Select(n => operation.Parameters.FirstOrDefault(p => p.Name == n)).Where(p => p is not null).Select(p => Where(p!)));
+                    Add(operation, CaseKind.Invalid, $"breaks the dependency {dependency}", Parameters(operation, broken), minimal, location, raw: null, contentType: null, keep: true);
+                }
+                else
+                {
+                    Gaps.Add($"{operation}: no valid values break the dependency {dependency}, so it has no case");
+                }
+            }
+
+            foreach (var unparsed in (operation.Json["x-dependencies"] as JsonArray ?? []).Select(d => d?.GetValue<string>()).Where(d => d is not null && operation.Dependencies.All(p => p.Source != d!.Trim())))
+            {
+                Gaps.Add($"{operation}: the dependency '{unparsed}' isn't IDL this engine reads");
+            }
+
             // Workflows: from each response with links, starting with a valid request.
             foreach (var (status, response) in operation.Responses.Where(r => r.Value.Links.Count > 0))
             {
@@ -373,9 +393,43 @@ public sealed class RegressionSuite
             return _suite.Samples.TrySample(schema, full, out var value) ? (value, true) : null;
         }
 
+        private string? Sample(SpecOperation operation, string name)
+            => operation.Parameters.FirstOrDefault(p => p.Name == name) is { } parameter && Value(parameter.Example, parameter.Schema, full: false) is { } value
+                ? Text(value.Node)
+                : null;
+
+        private static Dictionary<SpecParameter, JsonNode?> Parameters(SpecOperation operation, Dictionary<string, string> texts)
+            => operation.Parameters.Where(p => texts.ContainsKey(p.Name)).ToDictionary(p => p, p => (JsonNode?)JsonValue.Create(texts[p.Name]));
+
         private void Add(SpecOperation operation, CaseKind kind, string description, IReadOnlyDictionary<SpecParameter, JsonNode?> parameters, JsonNode? body,
-            string? location = null, string? raw = null, string? contentType = null)
+            string? location = null, string? raw = null, string? contentType = null, bool keep = false)
         {
+            // Every other case keeps to the operation's dependencies: a valid one is repaired (or dropped), an invalid one
+            // about something else is repaired too, so that what it breaks is the one thing that's wrong.
+            foreach (var dependency in keep ? [] : operation.Dependencies)
+            {
+                var texts = parameters.Where(p => p.Value is JsonValue).ToDictionary(p => p.Key.Name, p => Text(p.Value), StringComparer.Ordinal);
+                if (dependency.Holds(texts))
+                {
+                    continue;
+                }
+
+                // Repaired without touching the value the case is about.
+                var broken = location is null ? null : dependency.Parameters.FirstOrDefault(n => location.EndsWith($".{n}", StringComparison.Ordinal));
+                if (dependency.Satisfy(texts, name => Sample(operation, name)) is not { } satisfied
+                    || broken is not null && satisfied.GetValueOrDefault(broken) != texts.GetValueOrDefault(broken))
+                {
+                    if (kind != CaseKind.Invalid)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
+                parameters = Parameters(operation, satisfied);
+            }
+
             // Unique free text, so repeated creates don't collide; a boundary keeps the value it is testing.
             if (kind != CaseKind.Invalid && operation.Body is { } schema)
             {

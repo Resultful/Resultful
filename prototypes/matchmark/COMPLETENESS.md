@@ -121,7 +121,15 @@ invariant scope above, in its overlay.
    (`SafeChangesNothing`, `IdempotentTwice`, `LocationReadable`, `ReadOnlyIgnored`, `WriteOnlyHidden`). They need no
    new grammar, they work against any API, and each is proven by an injected fault.
 2. **The audit.** Its numbers come from the suite, so it lands once the suite does what the audit promises.
-3. **Arazzo criteria as postconditions** (`x-matchmark-ensures`), reusing the engine's runtime expressions.
-4. **IDL `x-dependencies`.** Valid and invalid cases in the engine first, then generated validation.
-5. **CEL rules and transitions.** Choose or write the .NET evaluator, then the engine, then generated validation.
-6. **Metamorphic relations.** Inferred for common parameters (`limit`, `cursor`, `sort`), declared for the rest.
+3. ✓ **Arazzo criteria as postconditions** (`x-matchmark-ensures`), reusing the engine's runtime expressions: each
+   success of the operation is checked (`Postcondition`).
+4. ✓ **IDL `x-dependencies`,** in the engine: every other case is kept to the dependencies (a valid case repaired or
+   dropped), and each dependency gets one case breaking it alone, which must be rejected naming one of its parameters.
+   `Idl` reads the IDL grammar (`IF`/`THEN`, `AND`, `OR`, `NOT`, relations, `Or`, `OnlyOne`, `AllOrNone`, `ZeroOrOne`);
+   one it can't read is a gap. Generated validation is next.
+5. ✓ **CEL rules and transitions,** in the engine. `Cel` is a small evaluator of the subset Kubernetes rules use (see
+   its summary); every instance of a schema with `x-matchmark-rules` in a response is checked (`SchemaRule`), and
+   `x-matchmark-transitions` between successive readings of a resource in a link workflow (`TransitionRule`).
+   Generated validation is next.
+6. ✓ **Metamorphic relations,** the prefix relation: declared (`x-matchmark-relations: [{prefix: limit}]`) or inferred
+   for a paged list's limit, n results must be the start of n + 1 (`RelationHolds`). `sort` and others are next.

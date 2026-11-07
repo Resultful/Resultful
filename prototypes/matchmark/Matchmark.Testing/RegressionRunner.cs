@@ -58,6 +58,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             {
                 workflows.Add(await PagesAsync(paged, cancellationToken).ConfigureAwait(false));
             }
+
+            foreach (var (operation, parameter) in suite.Spec.Operations.SelectMany(o => Prefixes(o).Select(p => (o, p))))
+            {
+                workflows.Add(await PrefixAsync(operation, parameter, cancellationToken).ConfigureAwait(false));
+            }
         }
 
         var reached = cases.Select(c => (Id: (string?)c.Case.Operation.Id, c.Exchange.Status))
@@ -227,10 +232,12 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             && response.Content.Values.Any(s => s is not null && suite.Spec.Resolve(s)["properties"]?["errors"] is not null);
         if (exchange.Json()?["errors"] is JsonObject errors)
         {
-            var target = Normalize(location[(location.IndexOf('.') is var dot and >= 0 ? dot + 1 : location.Length)..]);
+            // A location can name several values (a dependency between parameters); naming any of them is enough.
+            var targets = location.Split('|').Select(l => Normalize(l[(l.IndexOf('.') is var dot and >= 0 ? dot + 1 : l.Length)..])).ToList();
+            var target = string.Join("' or '", targets);
             var keys = errors.Select(e => Normalize(e.Key)).ToList();
-            var named = location == "body" || keys.Any(k => k == target || k.StartsWith(target + ".", StringComparison.Ordinal)
-                || k.StartsWith(target + "[", StringComparison.Ordinal) || target.StartsWith(k + ".", StringComparison.Ordinal) && k.Length > 0);
+            var named = location == "body" || targets.Any(t => keys.Any(k => k == t || k.StartsWith(t + ".", StringComparison.Ordinal)
+                || k.StartsWith(t + "[", StringComparison.Ordinal) || t.StartsWith(k + ".", StringComparison.Ordinal) && k.Length > 0));
             if (!named)
             {
                 Add(findings, Checks.RejectionNamesTheValue, @case.Name, exchange,
@@ -317,6 +324,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
                 Add(findings, Checks.BodyConforms, subject, exchange, $"the {exchange.Status} body breaks its schema: {error}");
             }
 
+            if (exchange.Status is >= 200 and < 300)
+            {
+                Invariants(operation, exchange, json, schema, subject, findings);
+            }
+
             foreach (var leak in suite.Validator.WriteOnlyLeaks(json, schema))
             {
                 Add(findings, Checks.WriteOnlyHidden, subject, exchange, $"{leak} is write-only, so it must never be in a response, but the {exchange.Status} has it");
@@ -381,6 +393,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var writes = links.Where(l => l.Operation?.Method is "PUT" or "PATCH" or "POST").ToList();
         var deletes = links.Where(l => l.Operation?.Method == "DELETE").ToList();
         Exchange? current = start;
+        var lastSeen = start;
 
         async Task<Exchange> Follow((SpecLink Link, SpecOperation? Operation) link, string step)
         {
@@ -400,16 +413,25 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
                     Add(findings, Checks.ResourceAvailable, $"{workflow.Name}: {read.Link.Name} after {after}", exchange,
                         $"following {read.Link.Name} gave {exchange.Status}, not the resource: {RegressionReport.Excerpt(exchange.Body)}");
                 }
-                else if (current is null)
+                else
                 {
-                    // The last write didn't return the resource (a payment returns an operation): read it, don't compare.
-                    current = SameSchema(start, exchange) ? exchange : null;
-                }
-                else if (SameSchema(current, exchange) && !JsonNode.DeepEquals(Volatile(current.Json()), Volatile(exchange.Json())))
-                {
-                    Add(findings, Checks.ReadAfterWrite, $"{workflow.Name}: {read.Link.Name} after {after}", exchange,
-                        $"reading it back differs at {RegressionReport.FirstDifference(Volatile(current.Json()), Volatile(exchange.Json()), string.Empty)}: "
-                        + $"wrote {RegressionReport.Excerpt(current.Body)}, read {RegressionReport.Excerpt(exchange.Body)}");
+                    if (SameSchema(lastSeen, exchange))
+                    {
+                        Transitions(lastSeen, exchange, $"{workflow.Name}: {read.Link.Name} after {after}", findings);
+                        lastSeen = exchange;
+                    }
+
+                    if (current is null)
+                    {
+                        // The last write didn't return the resource (a payment returns an operation): read it, don't compare.
+                        current = SameSchema(start, exchange) ? exchange : null;
+                    }
+                    else if (SameSchema(current, exchange) && !JsonNode.DeepEquals(Volatile(current.Json()), Volatile(exchange.Json())))
+                    {
+                        Add(findings, Checks.ReadAfterWrite, $"{workflow.Name}: {read.Link.Name} after {after}", exchange,
+                            $"reading it back differs at {RegressionReport.FirstDifference(Volatile(current.Json()), Volatile(exchange.Json()), string.Empty)}: "
+                            + $"wrote {RegressionReport.Excerpt(current.Body)}, read {RegressionReport.Excerpt(exchange.Body)}");
+                    }
                 }
             }
         }
@@ -425,6 +447,12 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             }
 
             current = SameSchema(start, exchange) ? exchange : null;
+            if (current is not null)
+            {
+                Transitions(lastSeen, exchange, $"{workflow.Name}: {write.Link.Name}", findings);
+                lastSeen = exchange;
+            }
+
             if (write.Operation!.Conditional)
             {
                 await ConditionalAsync(write.Operation, exchange, $"{workflow.Name}: {write.Link.Name}", findings, exchanges, cancellationToken).ConfigureAwait(false);
