@@ -22,11 +22,20 @@ const string Usage = """
       --overlay applies an OpenAPI Overlay to the spec first (repeat for more, applied in order).
 
       Runs the regression suite generated from the spec against any HTTP API.
+
+    matchmark audit <spec> [--arazzo <file>]... [--overlay <file>]... [--sarif <file>] [--spectral <file>] [--strict]
+
+      Reports what the spec leaves out, each finding measured in the cases and workflows its change would add.
     """;
 
 if (args.Length > 0 && args[0] == "regress")
 {
     return await Regress.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "audit")
+{
+    return await AuditCommand.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length < 3 || args[0] != "scaffold" || args.Contains("--help"))

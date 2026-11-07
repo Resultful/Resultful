@@ -268,6 +268,14 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                     without.Remove(name);
                     yield return new Variant(SchemaValidator.Join(path, name), "missing", without);
                 }
+
+                // additionalProperties: false promises an unknown property is refused.
+                if (schema["additionalProperties"]?.GetValueKind() == JsonValueKind.False && properties?.ContainsKey("unexpected") != true)
+                {
+                    var extra = (JsonObject)obj.DeepClone();
+                    extra["unexpected"] = "a property the schema doesn't allow";
+                    yield return new Variant(SchemaValidator.Join(path, "unexpected"), "with a property additionalProperties: false forbids", extra);
+                }
             }
 
             foreach (var (name, child) in obj.ToList())

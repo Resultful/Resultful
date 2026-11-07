@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 using Matchmark.Testing;
+using Matchmark.Cli;
 using NUnit.Framework;
 
 namespace Matchmark.Generator.Tests;
@@ -19,11 +20,11 @@ public sealed class CorpusTests
 {
     private static readonly string Root = Path.GetFullPath(Path.Combine(ThisDirectory(), ".."));
 
-    private static readonly (string Name, string Path, string[] Arazzo)[] Samples =
+    private static readonly (string Name, string Path, string[] Arazzo, string[] Overlays)[] Samples =
     [
-        ("petstore", "Matchmark.Sample.Contract/petstore.yaml", ["Matchmark.Sample.Contract/petstore.arazzo.yaml"]),
-        ("museum", "samples/museum/openapi.yaml", ["samples/museum/arazzo/museum-api.arazzo.yaml", "samples/museum/arazzo/museum-tickets.arazzo.yaml"]),
-        ("orders", "samples/orders/openapi.yaml", ["samples/orders/orders.arazzo.yaml"]),
+        ("petstore", "Matchmark.Sample.Contract/petstore.yaml", ["Matchmark.Sample.Contract/petstore.arazzo.yaml"], []),
+        ("museum", "samples/museum/openapi.yaml", ["samples/museum/arazzo/museum-api.arazzo.yaml", "samples/museum/arazzo/museum-tickets.arazzo.yaml"], []),
+        ("orders", "samples/orders/openapi.yaml", ["samples/orders/orders.arazzo.yaml"], ["samples/orders/orders.overlay.yaml"]),
     ];
 
     [Test]
@@ -35,17 +36,21 @@ public sealed class CorpusTests
             var text = File.ReadAllText(path);
             Scaffolder.Scaffold(text, Path.GetFileName(path), "Corpus.Api", "Corpus", "Corpus", controllers: true, out var warnings);
             var arazzo = sample.Arazzo.Select(a => SpecJson.Arazzo(File.ReadAllText(Path.Combine(Root, a)), a)).ToArray();
-            var suite = RegressionSuite.FromJson(SpecJson.Normalize(text, path), arazzo);
+            var overlays = sample.Overlays.Select(o => (File.ReadAllText(Path.Combine(Root, o)), o)).ToList();
+            var json = SpecJson.Normalize(text, path, out _, overlays);
+            var suite = RegressionSuite.FromJson(json, arazzo);
             var runnable = suite.Arazzo.Count(w => suite.ArazzoGaps(w).Count == 0);
+            var audit = AuditCommand.Measure(json, arazzo);
             return $"{sample.Name}: generator skips {warnings.Distinct().Count()}; suite {suite.Cases.Count} cases, {suite.Workflows.Count} workflows from links, "
-                   + $"{runnable} of {suite.Arazzo.Count} Arazzo workflows runnable, {suite.Gaps.Count} gaps";
+                   + $"{runnable} of {suite.Arazzo.Count} Arazzo workflows runnable, {suite.Gaps.Count} gaps; "
+                   + $"audit {audit.Findings.Count(f => f.Finding.Rule.Level == "warning")} warnings, {audit.Findings.Count} findings, {audit.Score * 100:0}%";
         }).ToList();
 
         File.WriteAllLines(Path.Combine(TestContext.CurrentContext.WorkDirectory, "corpus-ledger.txt"), ledger);
         ledger.Should().Equal(
-            "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps",
-            "museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps",
-            "orders: generator skips 1; suite 85 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps");
+            "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 79%",
+            "museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps; audit 12 warnings, 20 findings, 82%",
+            "orders: generator skips 1; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 3 warnings, 8 findings, 91%");
     }
 
     /// <summary>What the generator writes for each sample compiles: the Contract and Server parts, against Resultful and ASP.NET Core.</summary>

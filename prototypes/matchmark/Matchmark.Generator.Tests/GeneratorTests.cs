@@ -279,12 +279,36 @@ public sealed class GeneratorTests
             .And.Contain("RegressionSuite.FromJson(Spec, Workflows)");
     }
 
-    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null, string? parts = null)
+    [Test]
+    public void MatchmarkAudit_reports_what_the_spec_leaves_out_as_MM024()
+    {
+        const string spec = Header + """
+
+            paths:
+              /things:
+                get:
+                  operationId: listThings
+                  parameters: [{ name: q, in: query, schema: { type: string } }]
+                  responses:
+                    '204': { description: none }
+            """;
+
+        Run(spec, parts: "Contract").Diagnostics.Should().BeEmpty("the audit is opt-in");
+
+        var audited = Run(spec, parts: "Contract", audit: true).Diagnostics;
+        audited.Should().AllSatisfy(d => d.Id.Should().Be("MM024"));
+        audited.Select(d => d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Should().Contain(m =>
+            m.StartsWith("listThings query.q is a string with no maxLength, pattern, format or enum (bounded-string)", StringComparison.Ordinal)
+            && m.Contains("At #/paths/~1things/get/parameters/0/schema", StringComparison.Ordinal));
+        audited.Should().HaveCount(3, "an unbounded string, an undocumented 400 and no invariants");
+    }
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null, string? parts = null, bool audit = false)
     {
         var driver = CSharpGeneratorDriver.Create(
             [new OpenApiSourceGenerator().AsSourceGenerator()],
             [new Spec("/specs/t.yaml", yaml)],
-            optionsProvider: new Options(parts));
+            optionsProvider: new Options(parts, audit));
 
         var compilation = CSharpCompilation.Create("Test", code is null ? [] : [CSharpSyntaxTree.ParseText(code)]);
         var result = driver.RunGenerators(compilation).GetRunResult();
@@ -299,10 +323,11 @@ public sealed class GeneratorTests
         public override SourceText GetText(CancellationToken cancellationToken = default) => SourceText.From(text);
     }
 
-    private sealed class Options(string? parts) : AnalyzerConfigOptionsProvider
+    private sealed class Options(string? parts, bool audit = false) : AnalyzerConfigOptionsProvider
     {
         private readonly AnalyzerConfigOptions _marked = new Values(new Dictionary<string, string>
         {
+            ["build_metadata.AdditionalFiles.MatchmarkAudit"] = audit ? "true" : "false",
             ["build_metadata.AdditionalFiles.Matchmark"] = "true",
             ["build_metadata.AdditionalFiles.MatchmarkApiName"] = "T",
             ["build_metadata.AdditionalFiles.MatchmarkParts"] = parts ?? string.Empty,
