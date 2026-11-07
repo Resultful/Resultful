@@ -1,4 +1,4 @@
-using FluentCheck;
+using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
@@ -34,7 +34,7 @@ public sealed class HandlerTests
 
         var result = await _handlers.CreatePet(NewDog("rex"), CancellationToken.None);
 
-        (Case<CreatePetConflict>(Case<CreatePetError>(result.ToOneOf())).Body.Status ?? 0).Should().Be(409);
+        Case<CreatePetConflict>(Case<CreatePetError>(result.ToOneOf())).Body.Status.Should().Be(409);
     }
 
     [Test]
@@ -57,7 +57,7 @@ public sealed class HandlerTests
 
         var result = await _handlers.GetPet(1, CancellationToken.None);
 
-        (Case<GetPetNotFound>(Case<GetPetError>(result.ToOneOf())).Body.Status ?? 0).Should().Be(404);
+        Case<GetPetNotFound>(Case<GetPetError>(result.ToOneOf())).Body.Status.Should().Be(404);
     }
 
     [Test]
@@ -92,11 +92,7 @@ public sealed class HandlerTests
     }
 
     /// <summary>Asserts which case a union holds and returns it.</summary>
-    private static T Case<T>(IOneOf union)
-    {
-        union.Value.Should().BeOfType<T>();
-        return (T)union.Value;
-    }
+    private static T Case<T>(IOneOf union) => union.Value.Should().BeOfType<T>().Subject;
 
     private static NewPet NewDog(string name) => new() { Name = name, Details = new Dog { GoodBoy = true } };
 }

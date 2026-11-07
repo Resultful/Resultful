@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using FluentCheck;
+using AwesomeAssertions;
 using NUnit.Framework;
 
 namespace Resultful.OpenApi.Sample.Tests;
@@ -42,7 +42,7 @@ public sealed class RegressionSuite
 
         var pets = (await Json(await _client.GetAsync("/pets"))).AsArray();
 
-        Names(pets).Should().BeInExactOrder(["Rex", "Tom", "Bella"]);
+        Names(pets).Should().Equal("Rex", "Tom", "Bella");
         pets[2]!["status"]!.GetValue<string>().Should().Be("adopted");
     }
 
@@ -52,7 +52,7 @@ public sealed class RegressionSuite
         Start("Crowded");
 
         (await Json(await _client.GetAsync("/pets"))).AsArray().Should().HaveCount(100);
-        Names((await Json(await _client.GetAsync("/pets?limit=2"))).AsArray()).Should().BeInExactOrder(["Cat 001", "Dog 002"]);
+        Names((await Json(await _client.GetAsync("/pets?limit=2"))).AsArray()).Should().Equal("Cat 001", "Dog 002");
     }
 
     [Test]
@@ -98,7 +98,7 @@ public sealed class RegressionSuite
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
         var errors = (await Json(response))["errors"]!.AsObject();
-        errors.Select(e => e.Key).Order().Should().BeInExactOrder(["details.livesLeft", "name", "tag"]);
+        errors.Select(e => e.Key).Order().Should().Equal("details.livesLeft", "name", "tag");
     }
 
     [Test]
