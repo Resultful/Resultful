@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.OpenApi.Sample/Resultful.OpenApi.Sample.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Reads the input spec for the drift check; matches the Microsoft.OpenApi that ASP.NET Core 10 uses. -->
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" VersionOverride="2.12.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../Resultful.OpenApi.Sample/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
