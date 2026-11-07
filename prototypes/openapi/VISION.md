@@ -66,6 +66,23 @@ consumers actually use, not against the whole spec.
 - **Available from day one.** It exists as soon as the spec does, so consumers build against it while the service is
   still being written.
 
+**For teams depending on APIs they don't own,** a twin: a fake that remembers, measured against the real thing.
+The fake above answers one call at a time. A twin is the next step up ([GAPS.md](GAPS.md), gaps 1 to 3):
+- **Stateful.** A generated in-memory implementation of the contract. Resources are inferred from paths, so a `POST`
+  followed by a `GET` round-trips, and lists, paging, ETags and deletes behave as the spec's conventions say. Seed
+  scenarios set its starting data, and snapshots let a dev server keep state across restarts.
+- **Measured.** The same request sequences run against the real API (a sandbox, on a schedule) and against the twin.
+  The share of steps that match is its **fidelity score**, per operation and overall, with a floor in CI that only
+  rises. PR builds replay recorded real responses, so they need no credentials.
+- **Grown by agents.** Behaviour beyond CRUD is what nobody on a consuming team knows well enough to write, and the
+  fidelity score is what makes it safe to delegate. Each mismatch becomes a task; an agent writes behaviour in the
+  twin's owned code, bounded by the contract and the compiler, and the change is kept only if fidelity rises on
+  sequences the agent never saw.
+- **An early warning.** When a twin's score drops and nobody changed the twin, the real API changed. The fidelity
+  run doubles as a monitor of upstream behaviour, including changes that never reach the spec.
+- **Shared.** A twin of a popular API is a package anyone can reference, published with its fidelity score and the
+  date it was last measured. Teams stop writing the same fake of the same payment provider.
+
 **Both directions from one spec:**
 - **Generated behaviour** you never touch: the fake.
 - **Owned code** you start from and keep: scaffolding writes ordinary ASP.NET controllers and a reference
@@ -145,10 +162,13 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - A NuGet package that declares its build settings itself.
 - Problem types the contract owns, so a client-only package doesn't need ASP.NET Core.
 - A lenient client mode that logs violations instead of throwing.
-- A run against a large real spec, fixing what it finds.
+- A run against a large real spec, fixing what it finds, growing into a corpus of real specs built in CI, with the
+  share of operations generated without a diagnostic tracked as a number that only rises.
 
 **2. The model in between.**
-- Refactor the generator around a small semantic model.
+- Refactor the generator around a small semantic model, before more outputs are added.
+- Parse the spec once as an incremental step of its own, and emit per tag, so editing a controller or one tag's
+  operations doesn't re-run everything.
 - Test the model directly, independent of any output.
 
 **3. The spec tests itself.**
@@ -169,6 +189,13 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - AsyncAPI for events, and other hosts, through the same model.
 - Traits for retries, paging and idempotency.
 
+**7. Twins of APIs we don't own.**
+- A stateful fake: the contract implemented over an in-memory store inferred from the spec's paths.
+- A fidelity run: recorded sequences against the real API and the twin, normalised and scored, with a floor in CI.
+- An agent loop that closes fidelity gaps in the twin's owned code, scored on held-out sequences.
+- Fidelity drops reported as upstream changes.
+- Twins published as packages, each with its fidelity score.
+
 ## How we'll know it's working
 
 - **A spec change reaches every affected handler and consumer as a compile error** before it reaches a reviewer,
@@ -179,11 +206,14 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - **A consumer starts against a fake server in minutes,** before the service exists, and their tests carry over to
   the real one unchanged.
 - **A breaking change to a used outcome can't merge** without a new version.
+- **Every twin states its fidelity to the real API,** the number only goes up, and a drop is noticed before a
+  consumer's production traffic notices it.
 
 ## Out of scope
 
 - **Generating handler logic.** The behaviour inside an operation is the one thing deliberately left free; it belongs
-  to people, or to an agent working within the contract and its tests.
+  to people, or to an agent working within the contract and its tests. A twin's behaviour is the exception: it is
+  generated for CRUD and agent-written beyond it, and it earns trust only through its fidelity score.
 - **Replacing ASP.NET Core.** The server part generates ordinary Minimal API endpoints.
 - **Covering all of OpenAPI.** The supported subset grows when real specs need it, and anything unsupported is reported,
   never silently mis-generated.
