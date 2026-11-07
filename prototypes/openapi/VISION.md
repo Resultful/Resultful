@@ -71,6 +71,9 @@ consumers actually use, not against the whole spec.
   implementation that answers with the spec's examples, so the service runs and conforms on day one. Then the team
   replaces one handler body at a time. It is also the way off the generator: the contract stays generated, and the
   server becomes plain ASP.NET.
+- **And owned code stays honest.** The generator checks hand-written controllers and Map calls against the spec at
+  compile time: a missing operation, an undocumented endpoint, or a response, name or route parameter that differs is a
+  build error at the line that's wrong.
 
 The three uses share one engine. Most teams will start with testing or the fake, because neither asks anything of
 the service, and move to spec-first services for new work.
@@ -127,6 +130,7 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ A fluent fake server for .NET tests: typed `Given` rules and `Should()` assertions, on a real port.
 - ✓ Scaffolding the server as owned ASP.NET source (controllers or Minimal API) with a reference implementation, checked
   against the spec before anyone edits it.
+- ✓ Compile-time verification that hand-written endpoints cover the spec, and nothing else.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
@@ -158,7 +162,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 
 ## How we'll know it's working
 
-- **A spec change reaches every affected handler and consumer as a compile error** before it reaches a reviewer.
+- **A spec change reaches every affected handler and consumer as a compile error** before it reaches a reviewer,
+  whether the HTTP layer is generated or written by hand.
 - **Teams can state their outcome coverage,** and it's above 90%.
 - **Undocumented responses seen in production trend to zero** once observe mode is on.
 - **A legacy API gets a conforming test suite in a day,** with no change to the service.

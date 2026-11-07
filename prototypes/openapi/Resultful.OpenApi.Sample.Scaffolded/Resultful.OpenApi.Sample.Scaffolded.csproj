@@ -11,6 +11,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Verify: the build checks these hand-written controllers against the spec. Every operation must have an action with
+      its operationId, route and documented responses, and every other action must be left out of the OpenAPI description.
+      Nothing is generated here.
+    -->
+    <AdditionalFiles Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Verify" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../Resultful.OpenApi.Sample.Contract/Resultful.OpenApi.Sample.Contract.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>

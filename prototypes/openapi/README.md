@@ -78,7 +78,8 @@ Each operation's handler signature comes from its responses:
 - **The fluent fake** (`fake.Given...`, `fake.Should()...`) and **`PetStoreFakeServer`**, a real server on a free port
   for tests. See CONCEPT.md.
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
-  configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`). The
+  configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`); `"Verify"` generates
+  nothing and checks the project's hand-written controllers and Map calls against the spec (`RAPI010`–`RAPI015`). The
   default is `Contract,Server`. Separate parts with commas: the value reaches the generator through an `.editorconfig`,
   where `;` starts a comment.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with
