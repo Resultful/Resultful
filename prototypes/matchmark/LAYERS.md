@@ -80,17 +80,20 @@ Running the generator and the engine over specs other than the Pet Store found t
   rejected*. A suite that doesn't know idempotency gets it backwards.
 - **The status table is too small.** The Orders API's 412 and 429 are skipped by the generator.
 - **Webhooks are silently ignored** by both the generator and the engine, so they should at least be reported.
-- **Strict reading turns away real specs.** Bump.sh's Train Travel API (not vendored: its licence isn't stated) is
-  rejected outright: Microsoft.OpenApi reports an `xml` keyword it doesn't expect as an error, the generator treats
-  every reader error as fatal, and the CLI crashes with an unhandled exception instead of reporting it.
+- **Strict reading turned away real specs.** Bump.sh's Train Travel API (not vendored: its licence isn't stated) is
+  OpenAPI 3.2, which deprecates `xml.wrapped` but still allows it. Microsoft.OpenApi 3.11 reports it as an error. The
+  generator treated every reader error as fatal, and the CLI crashed with an unhandled exception. *Fixed:* one lenient
+  reader (`SpecReader`) uses whatever document the reader builds and reports its objections as warnings (`MM007`); the
+  CLI reports errors and exits 2. The Train Travel API now gets 116 regression cases, and the generator's remaining
+  warnings are the breadth gaps below.
 
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
 
 1. **Breadth and robustness.** The generator learns primitive and array component schemas, `allOf` and inline objects;
-   any status code; reader errors that aren't fatal reported as warnings; webhooks and anything unsupported reported,
-   never silently dropped; a CLI that reports instead of crashing. The ledger measures it: Museum's 29 skips go toward 0,
+   any status code; webhooks and anything unsupported reported, never silently dropped. ✓ Reader errors that leave a
+   document are warnings, and the CLI reports instead of crashing. The ledger measures it: Museum's 29 skips go toward 0,
    and Train Travel becomes readable.
 2. **Arazzo in the engine.** It reads workflows next to the spec and runs them as regression workflows: success
    criteria, outputs, runtime expressions, `retry` and `goto`. The same workflow can script the fake. Museum's and

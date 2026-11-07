@@ -25,7 +25,23 @@ public static class Regress
             return 2;
         }
 
-        var suite = RegressionSuite.FromJson(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0]));
+        RegressionSuite suite;
+        IReadOnlyList<string> problems;
+        try
+        {
+            suite = RegressionSuite.FromJson(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            await output.WriteLineAsync($"error: {e.Message}");
+            return 2;
+        }
+
+        foreach (var problem in problems)
+        {
+            await output.WriteLineAsync($"warning: the reader objected, and that part may be missing: {problem}");
+        }
+
         using var client = new HttpClient { BaseAddress = baseAddress };
         var report = await suite.RunAsync(client, new RegressionOptions { Workflows = !args.Contains("--no-workflows") }, cancellationToken);
 

@@ -86,15 +86,12 @@ namespace Matchmark.Generator
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
         {
             var location = Location.Create(spec.Path, default, default);
-            var settings = new OpenApiReaderSettings();
-            settings.AddYamlReader();
-            var read = Microsoft.OpenApi.OpenApiDocument.Parse(spec.Content, spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml", settings);
-            if (read.Document is null || read.Diagnostic?.Errors.Count > 0)
+            if (SpecReader.Read(spec.Content, spec.Path, out _) is not { } document)
             {
-                return; // Generate reports the unreadable spec.
+                return; // Generate reports the unreadable spec, and what the reader objected to.
             }
 
-            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location);
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location);
             foreach (var diagnostic in CoverageVerifier.Verify(emitter, endpoints, location))
             {
                 context.ReportDiagnostic(diagnostic);
@@ -104,32 +101,19 @@ namespace Matchmark.Generator
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression)
         {
             var location = Location.Create(spec.Path, default, default);
-            var format = spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml";
-
-            var settings = new OpenApiReaderSettings();
-            settings.AddYamlReader();
-
-            ReadResult read;
-            try
+            var document = SpecReader.Read(spec.Content, spec.Path, out var problems);
+            if (document is null)
             {
-                read = Microsoft.OpenApi.OpenApiDocument.Parse(spec.Content, format, settings);
-            }
-#pragma warning disable CA1031 // A spec that cannot be read is reported, never thrown into the compiler.
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidSpec, location, spec.Path, ex.Message));
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidSpec, location, spec.Path, string.Join("; ", problems)));
                 return;
             }
 
-            if (read.Document is null || read.Diagnostic?.Errors.Count > 0)
+            foreach (var problem in problems)
             {
-                var message = string.Join("; ", read.Diagnostic?.Errors.Select(e => e.ToString()) ?? Enumerable.Empty<string>());
-                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidSpec, location, spec.Path, message));
-                return;
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes);
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes);
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
@@ -209,6 +193,11 @@ namespace Matchmark.Generator
             "{0} has a pattern the generated sample does not match; give it an example so the fake can answer with a valid body",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ReaderProblem = new(
+            "MM007", "The OpenAPI reader objected to part of the spec",
+            "{0}: {1}. Generated from the rest; the part objected to may be missing.",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly DiagnosticDescriptor RegressionNeedsRuntime = new(
             "MM006", "The Regression part needs Matchmark.Testing",
             "{0} asks for the Regression part, but the project doesn't reference Matchmark.Testing, which runs the suite",
@@ -285,7 +274,7 @@ namespace Matchmark.Generator
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime,
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
                 ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers, ParameterConstraintDiffers);
     }
