@@ -545,6 +545,15 @@ with the status its `$statusCode` criterion names. `$inputs` values are filled i
 body to the runner (`ScenarioRunner.Answered`). A client that reads another pet than it created fails at that step. A
 nested workflow becomes its own steps. A step chosen by `goto` can't be scripted, so a workflow that branches is refused.
 
+#### Webhooks
+
+A spec's `webhooks` are operations the consumer implements, so they are generated as an API of their own,
+`{Api}Webhooks`, over the same types: `I{Api}WebhooksHandlers` and `Map{Api}Webhooks` are the typed receiver (map it
+under any prefix with `MapGroup`), `{Api}WebhooksClient` is the sender the API uses, checked against the spec like any
+client, and with Matchmark.Fakes there is a fake receiver that records what was sent. `RegressionSuite.ForWebhooks`
+(or `matchmark regress <spec> <receiver url> --webhooks`) holds a receiver to the spec: every valid event accepted,
+every invalid one refused.
+
 #### An API that stands up APIs
 
 The fake server is also a hub of isolated fakes, so many tests can share one fake-server process (`/__fake` is left

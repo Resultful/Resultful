@@ -51,6 +51,35 @@ public sealed class RegressionSuite
     public static RegressionSuite FromJson(string specJson, params string[] arazzoJson)
         => new(OpenApiSpec.Parse(specJson), arazzoJson.Select(ArazzoDocument.Parse));
 
+    /// <summary>
+    /// The suite for the spec's webhooks, to run against a receiver: each webhook is an operation at <c>/{name}</c> of the
+    /// receiver's base address (where the generated <c>Map{Api}Webhooks</c> puts it). A receiver must accept every valid
+    /// event, answer as documented, and refuse every invalid one. Null when the spec has no webhooks.
+    /// </summary>
+    public static RegressionSuite? ForWebhooks(string specJson)
+    {
+        var spec = JsonNode.Parse(specJson) as JsonObject ?? throw new ArgumentException("The spec isn't a JSON object.", nameof(specJson));
+        if (spec["webhooks"] is not JsonObject { Count: > 0 } webhooks)
+        {
+            return null;
+        }
+
+        var paths = new JsonObject();
+        foreach (var (name, item) in webhooks)
+        {
+            paths["/" + name] = item?.DeepClone();
+        }
+
+        var receiver = new JsonObject
+        {
+            ["openapi"] = spec["openapi"]?.DeepClone(),
+            ["info"] = spec["info"]?.DeepClone(),
+            ["paths"] = paths,
+            ["components"] = spec["components"]?.DeepClone(),
+        };
+        return FromJson(receiver.ToJsonString());
+    }
+
     /// <summary>The operation an Arazzo step calls: its operationId, with or without its source description's name in front.</summary>
     internal SpecOperation? ArazzoOperation(JsonObject step, ArazzoDocument document)
     {

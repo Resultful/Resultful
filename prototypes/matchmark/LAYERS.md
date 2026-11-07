@@ -60,7 +60,7 @@ defines the behaviour precisely enough to generate the other three.
 | **Work that finishes later** | `202` with `Location`; `Retry-After` on the status | polling reaches a final state within a bound; never a 5xx while running | the client polls until done | Orders |
 | **Rate limits** | `429` with `Retry-After`; RateLimit headers ([draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/)) | a 429 carries `Retry-After`; the suite backs off rather than failing | the client waits and retries; the fake can be told to limit | Orders |
 | **Deprecation** | `deprecated: true`; `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)) and `Sunset` ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) headers | the headers are present, and Sunset isn't before Deprecation | the client warns; generated code is `[Obsolete]` | Orders |
-| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | Orders declares one; both **silently ignore** it |
+| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). Callbacks and AsyncAPI are next |
 | **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | not started; needs a reader that understands 3.2 |
 
 ## What the corpus found
@@ -97,6 +97,10 @@ Running the generator and the engine over specs other than the Pet Store found t
   (a resolver modifier, `RefuseNulls`, so the OpenAPI document's schemas are untouched); and the model refuses unknown
   members, naming them.
 
+- **Webhooks found two more.** Generated enums took a number as a member (`JsonStringEnumConverter` allows integers
+  by default), so `status: 3` was accepted; and a `202` with no body called `TypedResults.Accepted()`, which needs a
+  URI. *Fixed:* enums use `{Api}EnumConverter<T>`, which refuses numbers; the 202 passes a null location.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
@@ -120,7 +124,7 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    `update` (objects merged, arrays appended), `remove`, and `copy`; targets are JSONPath with filters. An overlay is a
    `MatchmarkOverlay="true"` item next to the spec, or `--overlay` to `scaffold` and `regress`. The invariants it carries
    (COMPLETENESS.md) are checked by the engine.
-5. **OpenAPI 3.2 and events.** `QUERY`, streamed items and webhooks, then AsyncAPI. This waits on a reader that
+5. **OpenAPI 3.2 and events.** ✓ Webhooks. `QUERY`, streamed items and callbacks, then AsyncAPI. This waits on a reader that
    understands 3.2.
 
 ## Versions this is written against

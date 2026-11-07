@@ -40,7 +40,6 @@ namespace Matchmark.Generator
 
         private bool _collected;
         private readonly HashSet<IOpenApiSchema> _loose = new(Identity.Instance);
-        private bool _webhooksReported;
 
         /// <summary>Union member schema → (base type, discriminator property, discriminator value).</summary>
         private readonly Dictionary<string, (string Base, string Property, string Value)> _unionMembers = new(StringComparer.Ordinal);
@@ -50,6 +49,9 @@ namespace Matchmark.Generator
 
         /// <summary>Matchmark.Rules is referenced, so x-matchmark-rules and x-dependencies are enforced.</summary>
         private readonly bool _hasRules;
+
+        /// <summary>The webhooks' API: its models are the main API's, so it doesn't write them again.</summary>
+        private bool _shared;
 
         private bool _rulesReported;
 
@@ -78,7 +80,11 @@ namespace Matchmark.Generator
 
             if (contract)
             {
-                files["Models"] = EmitModels();
+                if (!_shared)
+                {
+                    files["Models"] = EmitModels();
+                }
+
                 files["Validation"] = EmitValidation(operations);
                 files["Responses"] = EmitResponses(operations);
                 files["Handlers"] = EmitHandlers(operations);
@@ -106,6 +112,27 @@ namespace Matchmark.Generator
             if (regression)
             {
                 files["Regression"] = EmitRegression(workflows ?? Array.Empty<string>());
+            }
+
+            // Webhooks are operations the consumer implements: generated as an API of their own, {Api}Webhooks, from
+            // the same components. Its handler interface and Map{Api}Webhooks are the typed receiver; its client sends
+            // events (checking each against the spec); its fake records what a sender sent.
+            if (_document.Webhooks is { Count: > 0 } webhooks && (contract || server))
+            {
+                var paths = new OpenApiPaths();
+                foreach (var webhook in webhooks)
+                {
+                    paths["/" + webhook.Key] = webhook.Value;
+                }
+
+                var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = paths },
+                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules) { _shared = true };
+                foreach (var file in receiver.Emit(contract, server))
+                {
+                    files["Webhooks." + file.Key] = file.Value;
+                }
+
+                Diagnostics.AddRange(receiver.Diagnostics.Where(d => !Diagnostics.Any(e => e.Id == d.Id && e.GetMessage(CultureInfo.InvariantCulture) == d.GetMessage(CultureInfo.InvariantCulture))));
             }
 
             return files;
@@ -521,6 +548,16 @@ namespace Matchmark.Generator
             var w = new CodeWriter(_namespace);
             w.Usings("System.Text.Json.Serialization");
 
+            if (_schemas.Values.Any(IsEnum))
+            {
+                // The spec's enums are strings: a number is refused, where JsonStringEnumConverter would take it as a member.
+                w.Line("/// <summary>Reads and writes an enum by its names in the spec, and refuses a number.</summary>");
+                w.Open($"public sealed class {_apiName}EnumConverter<T> : JsonStringEnumConverter<T> where T : struct, global::System.Enum");
+                w.Line($"public {_apiName}EnumConverter() : base(null, allowIntegerValues: false) {{ }}");
+                w.Close();
+                w.Line();
+            }
+
             foreach (var pair in _schemas)
             {
                 var name = Naming.Pascal(pair.Key);
@@ -528,7 +565,7 @@ namespace Matchmark.Generator
 
                 if (IsEnum(schema))
                 {
-                    w.Line($"[JsonConverter(typeof(JsonStringEnumConverter<{name}>))]");
+                    w.Line($"[JsonConverter(typeof({_apiName}EnumConverter<{name}>))]");
                     w.Open($"public enum {name}");
                     foreach (var value in schema.Enum!.Select(v => v.GetValue<string>()))
                     {
@@ -1019,6 +1056,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 (_, true) when !HasFactory => $"TypedResults.StatusCode({Status.Invariant()})",
                 (_, false) when !HasFactory => $"TypedResults.Json({body}, statusCode: {Status.Invariant()})",
                 (201 or 202, false) => $"TypedResults.{CaseName}((string?)null, {body})",
+                (201 or 202, true) => $"TypedResults.{CaseName}((string?)null)",
                 (_, false) => $"TypedResults.{CaseName}({body})",
                 _ => $"TypedResults.{CaseName}()",
             };
@@ -1108,12 +1146,6 @@ public static (string Key, string Message) BindingError(string? key, string mess
         private List<Operation> CollectOperations()
         {
             var operations = new List<Operation>();
-            if (_document.Webhooks is { Count: > 0 } webhooks && !_webhooksReported)
-            {
-                _webhooksReported = true;
-                Unsupported($"Webhooks ({string.Join(", ", webhooks.Keys)})", "webhooks aren't generated yet: no receiver, client or fake is written for them");
-            }
-
             if (_document.Paths is null)
             {
                 return operations;
@@ -1136,7 +1168,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         continue;
                     }
 
-                    var tag = spec.Tags?.FirstOrDefault()?.Name ?? _apiName;
+                    var tag = _shared ? _apiName : spec.Tags?.FirstOrDefault()?.Name ?? _apiName;
                     var operation = new Operation(spec.OperationId!, method, path.Key, tag);
                     if (TryBuild(operation, spec, path.Value.Parameters))
                     {
@@ -1531,19 +1563,22 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Close();
             w.Line();
 
-            w.Line("/// <summary>A response the spec does not allow: an undocumented status, the wrong content type, or a body that breaks the schema.</summary>");
-            w.Open("public sealed class ContractViolationException : Exception");
-            w.Line("public ContractViolationException(string operation, int status, string message, Exception? inner = null)");
-            w.Open("    : base($\"{operation} returned {status}: {message}\", inner)");
-            w.Line("Operation = operation;");
-            w.Line("Status = status;");
-            w.Close();
-            w.Line();
-            w.Line("public string Operation { get; }");
-            w.Line();
-            w.Line("public int Status { get; }");
-            w.Close();
-            w.Line();
+            if (!_shared)
+            {
+                w.Line("/// <summary>A response the spec does not allow: an undocumented status, the wrong content type, or a body that breaks the schema.</summary>");
+                w.Open("public sealed class ContractViolationException : Exception");
+                w.Line("public ContractViolationException(string operation, int status, string message, Exception? inner = null)");
+                w.Open("    : base($\"{operation} returned {status}: {message}\", inner)");
+                w.Line("Operation = operation;");
+                w.Line("Status = status;");
+                w.Close();
+                w.Line();
+                w.Line("public string Operation { get; }");
+                w.Line();
+                w.Line("public int Status { get; }");
+                w.Close();
+                w.Line();
+            }
 
             var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
             w.Line($"/// <summary>Calls <c>{_apiName}</c> over HTTP through the same interfaces its handlers implement. Relative to the HttpClient's BaseAddress.</summary>");
