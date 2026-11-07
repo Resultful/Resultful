@@ -70,16 +70,18 @@ Running the generator and the engine over specs other than the Pet Store found t
 - **The engine crashed on its first other spec.** Numbers it builds in memory (`12345`, an `int`) can't be read back
   as `decimal` by System.Text.Json; only numbers parsed from text can. The Museum API's string parameters triggered it.
   Fixed: every number is now read through one helper. `CorpusTests` fails if it comes back.
-- **The generator's subset is narrow for real specs.** It skips 29 things in the Museum API. Primitive component
-  schemas (`EventId`, `Date`, `Email`), arrays as named components, and `allOf` are all common in real specs.
+- **The generator's subset was narrow for real specs.** It skipped 29 things in the Museum API: primitive component
+  schemas (`EventId`, `Date`, `Email`), arrays as named components, and `allOf`, all common in real specs. *Fixed:*
+  aliases, flattened `allOf`, inline objects, any status and `IResult` past six responses. Museum is down to its
+  webhook and three advisory warnings, and every sample's generated code compiles.
 - **The engine is already broad.** It needs no generated types, so it builds 100 cases over all eight Museum
   operations. It finds **no workflows**, though, because the Museum API has no `links`, yet ships an Arazzo document
   describing exactly the create, read, update and delete flow. That is the case for Arazzo.
 - **Behaviour must be modelled, not just declared.** Against a correct Orders server the suite would send the same
   sampled `Idempotency-Key` with different bodies, get the 422 the draft requires, and report a *valid request
   rejected*. A suite that doesn't know idempotency gets it backwards.
-- **The status table is too small.** The Orders API's 412 and 429 are skipped by the generator.
-- **Webhooks are silently ignored** by both the generator and the engine, so they should at least be reported.
+- **The status table was too small.** The Orders API's 412 and 429 were skipped. *Fixed:* any standard status.
+- **Webhooks were silently ignored.** *Now reported* by the generator; generating them is still to do.
 - **Strict reading turned away real specs.** Bump.sh's Train Travel API (not vendored: its licence isn't stated) is
   OpenAPI 3.2, which deprecates `xml.wrapped` but still allows it. Microsoft.OpenApi 3.11 reports it as an error. The
   generator treated every reader error as fatal, and the CLI crashed with an unhandled exception. *Fixed:* one lenient
@@ -91,9 +93,8 @@ Running the generator and the engine over specs other than the Pet Store found t
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
 
-1. **Breadth and robustness.** The generator learns primitive and array component schemas, `allOf` and inline objects;
-   any status code; webhooks and anything unsupported reported, never silently dropped. ✓ Reader errors that leave a
-   document are warnings, and the CLI reports instead of crashing. The ledger measures it: Museum's 29 skips go toward 0,
+1. ✓ **Breadth and robustness.** Primitive and array component schemas, `allOf`, inline objects, any status code,
+   webhooks reported; reader errors that leave a document are warnings, and the CLI reports instead of crashing. The ledger measures it: Museum's 29 skips go toward 0,
    and Train Travel becomes readable.
 2. ✓ **Arazzo in the engine.** It reads workflows next to the spec and runs them as regression workflows: success
    criteria (`simple`, `regex`, and a JSONPath subset), outputs, runtime expressions, `{$…}` interpolation,

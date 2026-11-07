@@ -14,8 +14,8 @@ Today's ledger:
 
 ```
 petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps
-museum: generator skips 29; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps
-orders: generator skips 3; suite 85 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps
+museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps
+orders: generator skips 1; suite 85 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps
 ```
 
 The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's

@@ -242,6 +242,11 @@ namespace Matchmark.Generator
             "{0}: {1}. Generated from the rest; the part objected to may be missing.",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor LooselyTyped = new(
+            "MM009", "Typed as JSON",
+            "{0} is {1}, so it's typed as JsonElement: it compiles and round-trips, but nothing checks its shape. Add a discriminator to type it.",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly DiagnosticDescriptor UnreadableArazzo = new(
             "MM008", "Arazzo document could not be read",
             "'{0}' could not be read as an Arazzo document, so its workflows aren't in the suite: {1}",
@@ -323,7 +328,7 @@ namespace Matchmark.Generator
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem, UnreadableArazzo,
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem, UnreadableArazzo, LooselyTyped,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
                 ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers, ParameterConstraintDiffers);
     }

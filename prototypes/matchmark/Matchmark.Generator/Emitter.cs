@@ -32,6 +32,16 @@ namespace Matchmark.Generator
         /// <summary>Generated component schemas by name.</summary>
         private readonly Dictionary<string, IOpenApiSchema> _schemas = new(StringComparer.Ordinal);
 
+        /// <summary>Component schemas that are a primitive or an array: a $ref to one is the type it stands for, not a class.</summary>
+        private readonly Dictionary<string, IOpenApiSchema> _aliases = new(StringComparer.Ordinal);
+
+        /// <summary>Inline objects (and allOfs) given generated types, by the schema instance, with the name chosen for each.</summary>
+        private readonly Dictionary<IOpenApiSchema, string> _inline = new(Identity.Instance);
+
+        private bool _collected;
+        private readonly HashSet<IOpenApiSchema> _loose = new(Identity.Instance);
+        private bool _webhooksReported;
+
         /// <summary>Union member schema → (base type, discriminator property, discriminator value).</summary>
         private readonly Dictionary<string, (string Base, string Property, string Value)> _unionMembers = new(StringComparer.Ordinal);
 
@@ -194,10 +204,12 @@ namespace Matchmark.Generator
         private void CollectSchemas()
         {
             var components = _document.Components?.Schemas;
-            if (components is null)
+            if (components is null || _collected)
             {
                 return;
             }
+
+            _collected = true;
 
             foreach (var pair in components)
             {
@@ -214,14 +226,149 @@ namespace Matchmark.Generator
                         continue;
                     }
                 }
+                else if (schema.AllOf is { Count: > 0 })
+                {
+                    if (Flatten(schema) is not { } flat)
+                    {
+                        Unsupported($"Schema '{pair.Key}'", "allOf of anything but objects");
+                        continue;
+                    }
+
+                    schema = flat;
+                }
                 else if (!IsEnum(schema) && !IsObject(schema))
                 {
-                    Unsupported($"Schema '{pair.Key}'", "only objects, string enums and discriminated oneOf are generated");
+                    if (IsAlias(schema))
+                    {
+                        _aliases[pair.Key] = schema;
+                        continue;
+                    }
+
+                    Unsupported($"Schema '{pair.Key}'", "only objects, string enums, discriminated oneOf, allOf, primitives and arrays are generated");
                     continue;
                 }
 
                 _schemas[pair.Key] = schema;
             }
+
+            // Inline objects in the component schemas' properties get types of their own, named from where they are.
+            foreach (var pair in _schemas.ToList())
+            {
+                RegisterInline(Naming.Pascal(pair.Key), pair.Value);
+            }
+        }
+
+        /// <summary>A primitive or an array (of anything the generator can type): used where it's referred to, not generated.</summary>
+        private static bool IsAlias(IOpenApiSchema schema)
+        {
+            var type = (schema.Type ?? 0) & ~JsonSchemaType.Null;
+            return type is JsonSchemaType.String or JsonSchemaType.Integer or JsonSchemaType.Number or JsonSchemaType.Boolean
+                   || type == JsonSchemaType.Array && schema.Items is not null;
+        }
+
+        /// <summary>An allOf as one object: every member's properties and required, members' own allOfs included.</summary>
+        private static OpenApiSchema? Flatten(IOpenApiSchema schema, int depth = 0)
+        {
+            var flat = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Object,
+                Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal),
+                Required = new HashSet<string>(StringComparer.Ordinal),
+                Description = schema.Description,
+            };
+            foreach (var part in (schema.AllOf ?? new List<IOpenApiSchema>()).Append(schema))
+            {
+                if (ReferenceEquals(part, schema))
+                {
+                    Merge(flat, part.Properties, part.Required);
+                    continue;
+                }
+
+                if (part.AllOf is { Count: > 0 })
+                {
+                    if (depth > 8 || Flatten(part, depth + 1) is not { } inner)
+                    {
+                        return null;
+                    }
+
+                    Merge(flat, inner.Properties, inner.Required);
+                }
+                else if (part.Properties is { Count: > 0 } || Has(part, JsonSchemaType.Object))
+                {
+                    Merge(flat, part.Properties, part.Required);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            return flat;
+        }
+
+        private static void Merge(OpenApiSchema flat, IDictionary<string, IOpenApiSchema>? properties, ISet<string>? required)
+        {
+            foreach (var property in properties ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                flat.Properties![property.Key] = property.Value;
+            }
+
+            foreach (var name in required ?? new HashSet<string>())
+            {
+                flat.Required!.Add(name);
+            }
+        }
+
+        /// <summary>Registers, under names from where they are, the inline objects in a schema's properties (and their items).</summary>
+        private void RegisterInline(string name, IOpenApiSchema schema)
+        {
+            foreach (var property in (schema.Properties ?? new Dictionary<string, IOpenApiSchema>()).ToList())
+            {
+                var target = property.Value.Items is { } items && Has(property.Value, JsonSchemaType.Array) ? items : property.Value;
+                var suffix = ReferenceEquals(target, property.Value) ? string.Empty : "Item";
+                if (RefId(target) is null && IsInline(target))
+                {
+                    Inline($"{name}{Naming.Pascal(property.Key)}{suffix}", target);
+                }
+            }
+        }
+
+        private static bool IsInline(IOpenApiSchema schema) => schema.AllOf is { Count: > 0 } || IsObject(schema);
+
+        /// <summary>The type generated for an inline object or allOf, named <paramref name="name"/> (or that with a number) the first time.</summary>
+        private string? Inline(string name, IOpenApiSchema schema)
+        {
+            if (_inline.TryGetValue(schema, out var known))
+            {
+                return known;
+            }
+
+            var shape = schema.AllOf is { Count: > 0 } ? Flatten(schema) : schema;
+            if (shape is null)
+            {
+                return null;
+            }
+
+            var unique = name;
+            for (var n = 2; _schemas.ContainsKey(unique) || _aliases.ContainsKey(unique) || WellKnownSchemas.ContainsKey(unique); n++)
+            {
+                unique = $"{name}{n}";
+            }
+
+            _inline[schema] = unique;
+            _schemas[unique] = shape;
+            RegisterInline(unique, shape);
+            return unique;
+        }
+
+        /// <summary>Schemas compared by identity: the same inline object is the same type, however often it's seen.</summary>
+        private sealed class Identity : IEqualityComparer<IOpenApiSchema>
+        {
+            public static readonly Identity Instance = new();
+
+            public bool Equals(IOpenApiSchema? x, IOpenApiSchema? y) => ReferenceEquals(x, y);
+
+            public int GetHashCode(IOpenApiSchema obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
         }
 
         private bool TryCollectUnion(string name, IOpenApiSchema schema)
@@ -229,7 +376,8 @@ namespace Matchmark.Generator
             var property = schema.Discriminator?.PropertyName;
             if (string.IsNullOrEmpty(property))
             {
-                Unsupported($"Schema '{name}'", "oneOf without a discriminator");
+                // No discriminator, so no union type can be told apart: typed as JSON where it's used (MM009).
+                _aliases[name] = schema;
                 return false;
             }
 
@@ -269,7 +417,8 @@ namespace Matchmark.Generator
             => schema is OpenApiSchemaReference reference ? reference.Reference.Id : null;
 
         /// <summary>The C# type for a schema used as a property, parameter or body.</summary>
-        private string? TypeOf(IOpenApiSchema schema, string context)
+        /// <param name="hint">The name to give an inline object here, if it is one (a request or response body).</param>
+        private string? TypeOf(IOpenApiSchema schema, string context, string? hint = null, int depth = 0)
         {
             if (RefId(schema) is { } id)
             {
@@ -283,8 +432,36 @@ namespace Matchmark.Generator
                     return Naming.Pascal(id);
                 }
 
+                if (_aliases.TryGetValue(id, out var alias) && depth < 8)
+                {
+                    return TypeOf(alias, context, hint, depth + 1);
+                }
+
                 Unsupported(context, $"$ref to skipped or missing schema '{id}'");
                 return null;
+            }
+
+            if (IsInline(schema) && (_inline.TryGetValue(schema, out var named) ? named : hint is null ? null : Inline(hint, schema)) is { } inline)
+            {
+                return Naming.Pascal(inline);
+            }
+
+            // A oneOf or anyOf the serializer can't tell apart (no discriminator): its value, as JSON.
+            if (schema.OneOf is { Count: > 0 } || schema.AnyOf is { Count: > 0 })
+            {
+                if (_loose.Add(schema))
+                {
+                    Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.LooselyTyped, _location, context, "a oneOf or anyOf without a discriminator"));
+                }
+
+                return "global::System.Text.Json.JsonElement";
+            }
+
+            // No type, or an object with no properties: any JSON value, which is exactly what JsonElement is.
+            if ((schema.Type ?? 0) == 0 && schema.Properties is not { Count: > 0 } && schema.AllOf is not { Count: > 0 }
+                || (schema.Type ?? 0) == JsonSchemaType.Object && schema.Properties is not { Count: > 0 } && schema.AdditionalProperties is null)
+            {
+                return "global::System.Text.Json.JsonElement";
             }
 
             var type = (schema.Type ?? 0) & ~JsonSchemaType.Null;
@@ -310,7 +487,7 @@ namespace Matchmark.Generator
                 case JsonSchemaType.Boolean:
                     return "bool";
                 case JsonSchemaType.Array when schema.Items is not null:
-                    return TypeOf(schema.Items, context) is { } item
+                    return TypeOf(schema.Items, context, hint is null ? null : hint + "Item", depth + 1) is { } item
                         ? $"global::System.Collections.Generic.IReadOnlyList<{item}>"
                         : null;
                 case JsonSchemaType.Object when schema.AdditionalProperties is not null && schema.Properties is not { Count: > 0 }:
@@ -324,7 +501,7 @@ namespace Matchmark.Generator
         }
 
         private static bool IsValueType(string type)
-            => type is "int" or "long" or "float" or "double" or "decimal" or "bool"
+            => type is "int" or "long" or "float" or "double" or "decimal" or "bool" or "global::System.Text.Json.JsonElement"
                || type.StartsWith("global::System.DateTimeOffset", StringComparison.Ordinal)
                || type.StartsWith("global::System.DateOnly", StringComparison.Ordinal)
                || type.StartsWith("global::System.Guid", StringComparison.Ordinal);
@@ -650,6 +827,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 Schema = schema;
             }
 
+            /// <summary>A generated object type, so the validation class has a Validate for it (a list or a primitive body has none).</summary>
+            public bool Validated => !Type.Contains("global::", StringComparison.Ordinal) && Type is not ("string" or "int" or "long" or "float" or "double" or "decimal" or "bool");
+
             public string Type { get; }
 
             public IOpenApiSchema Schema { get; }
@@ -718,17 +898,29 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public bool IsProblem => BodyType is { } type && WellKnownSchemas.ContainsValue(type);
 
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
-            public string ResultType => Status == 401
+            public string ResultType => Status == 401 && BodyType is null
                 ? "UnauthorizedHttpResult"
                 : IsValidation ? "ValidationProblem"
                 : IsProblem ? "ProblemHttpResult"
+                : !HasFactory ? BodyType is null ? "StatusCodeHttpResult" : $"JsonHttpResult<{BodyType}>"
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
+
+            /// <summary>A status with a TypedResults factory of its own (TypedResults.Conflict); the rest go out by number.</summary>
+            public bool HasFactory => Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null;
+
+            /// <summary>
+            /// Written by number (TypedResults.Json or StatusCode), so the result type carries no response metadata: the
+            /// endpoint declares it with .Produces, as it does for problems.
+            /// </summary>
+            public bool NeedsProduces => !IsValidation && !IsProblem && !HasFactory;
 
             /// <summary>The TypedResults call that produces it, given the body expression.</summary>
             public string Factory(string body) => (Status, BodyType is null) switch
             {
                 _ when IsValidation => $"TypedResults.ValidationProblem({body}.Errors, {body}.Detail, {body}.Instance, {body}.Title, {body}.Type)",
                 _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
+                (_, true) when !HasFactory => $"TypedResults.StatusCode({Status.Invariant()})",
+                (_, false) when !HasFactory => $"TypedResults.Json({body}, statusCode: {Status.Invariant()})",
                 (201 or 202, false) => $"TypedResults.{CaseName}((string?)null, {body})",
                 (_, false) => $"TypedResults.{CaseName}({body})",
                 _ => $"TypedResults.{CaseName}()",
@@ -803,12 +995,21 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 }
             }
 
-            public string EndpointReturnType => ResultTypes.Count == 1 ? ResultTypes[0] : $"Results<{string.Join(", ", ResultTypes)}>";
+            /// <summary>Results&lt;...&gt; takes at most six types; past that the endpoint returns IResult and declares every response with .Produces.</summary>
+            public bool Untyped => ResultTypes.Count > 6;
+
+            public string EndpointReturnType => Untyped ? "IResult" : ResultTypes.Count == 1 ? ResultTypes[0] : $"Results<{string.Join(", ", ResultTypes)}>";
         }
 
         private List<Operation> CollectOperations()
         {
             var operations = new List<Operation>();
+            if (_document.Webhooks is { Count: > 0 } webhooks && !_webhooksReported)
+            {
+                _webhooksReported = true;
+                Unsupported($"Webhooks ({string.Join(", ", webhooks.Keys)})", "webhooks aren't generated yet: no receiver, client or fake is written for them");
+            }
+
             if (_document.Paths is null)
             {
                 return operations;
@@ -869,9 +1070,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             if (spec.RequestBody is { } requestBody)
             {
-                if (JsonSchema(requestBody.Content) is not { } bodySchema || TypeOf(bodySchema, context + " request body") is not { } bodyType)
+                if (JsonSchema(requestBody.Content) is not { } bodySchema || TypeOf(bodySchema, context + " request body", operation.Name + "Request") is not { } bodyType)
                 {
-                    Unsupported(context + " request body", "request bodies must be a JSON $ref");
+                    Unsupported(context + " request body", "request bodies must be JSON the generator can type");
                     return false;
                 }
 
@@ -896,7 +1097,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     isValidation = operation.Body is not null && status == 400 && RefId(responseSchema) == ValidationSchema;
                     operation.ValidationDocumented |= isValidation;
 
-                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'");
+                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'", $"{operation.Name}{Naming.StatusNames[status]}Body");
                     if (bodyType is null)
                     {
                         return false;
@@ -928,11 +1129,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.UndocumentedValidation, _location, operation.Id));
             }
 
-            if (operation.ResultTypes.Count > 6)
-            {
-                Unsupported(context, "more than 6 responses (Results<...> takes at most 6)");
-                return false;
-            }
+
 
             return true;
         }
@@ -1077,7 +1274,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 args.Add("CancellationToken cancellationToken");
                 call.Add("cancellationToken");
                 var forward = $"_inner.{operation.Name}({string.Join(", ", call)})";
-                var validation = operation.Errors.FirstOrDefault(e => e.IsValidation);
+                var validation = operation.Body?.Validated == true ? operation.Errors.FirstOrDefault(e => e.IsValidation) : null;
 
                 w.Line();
                 if (validation is null)
@@ -2370,7 +2567,7 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             w.Line($"app.MapMethods({Naming.Literal(operation.Path)}, new[] {{ {Naming.Literal(operation.Method)} }}, static async Task<{returnType}> ({string.Join(", ", args)}) =>");
             w.Open(string.Empty);
 
-            if (operation.Body is not null)
+            if (operation.Body is { Validated: true })
             {
                 w.Line($"if ({ValidationClass}.Validate(body) is {{ }} __errors)");
                 w.Line("{");
@@ -2409,6 +2606,19 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             {
                 // ProblemHttpResult carries no response metadata of its own; document each status from the spec.
                 w.Line($"    .Produces<{problem.BodyType}>({problem.Status.Invariant()}, \"application/problem+json\")");
+            }
+
+            if (operation.Untyped && operation.Body is not null)
+            {
+                w.Line("    .ProducesValidationProblem()");
+            }
+
+            foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => r.NeedsProduces || operation.Untyped && !r.IsProblem && !r.IsValidation))
+            {
+                // Written by number, so documented here: TypedResults.Json and StatusCode declare nothing themselves.
+                w.Line(response.BodyType is null
+                    ? $"    .Produces({response.Status.Invariant()})"
+                    : $"    .Produces<{response.BodyType}>({response.Status.Invariant()}, {Naming.Literal(response.MediaType ?? "application/json")})");
             }
 
             w.Line($"    .WithTags({Naming.Literal(operation.Tag)});");
