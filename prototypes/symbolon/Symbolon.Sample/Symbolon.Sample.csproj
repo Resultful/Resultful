@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore</RootNamespace>
+    <!-- Show what the generator wrote under obj/generated. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The service implements the contract: it generates only the endpoints and the OpenAPI configuration. -->
+    <AdditionalFiles Include="../Symbolon.Sample.Contract/petstore.yaml" Symbolon="true" SymbolonNamespace="PetStore.Api" SymbolonApiName="PetStore" SymbolonParts="Server" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Symbolon" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SymbolonParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Symbolon.Sample.Contract/Symbolon.Sample.Contract.csproj" />
+    <ProjectReference Include="../Symbolon.Generator/Symbolon.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+</Project>
