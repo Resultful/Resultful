@@ -1,5 +1,4 @@
-# Arazzo 1.0.1: the checkout as a workflow. Nothing runs this yet; LAYERS.md describes how Matchmark would, as a
-# regression workflow against a server and as a script for the fake.
+# Arazzo 1.0.1: the checkout as a workflow, which the regression engine runs (OrdersTests run it against an Orders API).
 arazzo: 1.0.1
 info:
   title: Orders checkout
@@ -88,5 +87,12 @@ workflows:
           - { name: orderId, in: path, value: $steps.create.outputs.orderId }
         successCriteria:
           - condition: $response.body#/status == 'paid'
+      - stepId: receipt
+        description: Deprecated, so it must say so (RFC 9745) until it's gone.
+        operationId: getReceipt
+        parameters:
+          - { name: orderId, in: path, value: $steps.create.outputs.orderId }
+        successCriteria:
+          - condition: $statusCode == 200
     outputs:
       orderId: $steps.create.outputs.orderId

@@ -326,11 +326,21 @@ failure comes with the request as a `curl` command.
 | `ReadOnlyIgnored` | a `readOnly` value sent anyway (a case of its own; valid cases never send one) was stored |
 | `WriteOnlyHidden` | a `writeOnly` value (a password, a secret) came back in a response |
 | `WorkflowCriteria` | an Arazzo workflow step's success criteria didn't hold, and no `onFailure` action handled it |
+| `IdempotentReplay` | on an operation with an `Idempotency-Key` header, the same key and body again gave a different answer (each case gets its own key) |
+| `IdempotencyKeyReuse` | the same key with a different body was accepted (a 4xx other than the draft's 422 is a warning) |
+| `ETagChanges` | a successful change sent with `If-Match` gave no new ETag |
+| `StaleIfMatchRefused` | the same change with the now-stale `If-Match` wasn't refused with 412 |
+| `PagesComplete` | walking a paged list's cursors (a cursor parameter, an array and a `next` in the response) repeated an item, didn't end, or missed what one big page holds |
+| `OperationCompletes` | work accepted with 202, polled at its `Location` or link, didn't reach a final state |
+| `RetryAfterGiven` | a 429 had no `Retry-After` (with one, the engine waits, capped, and retries) |
+| `DeprecationAnnounced` | a `deprecated` operation's response had no `Deprecation` header (RFC 9745), or its `Sunset` was earlier |
 
 The report also measures **outcome coverage:** which documented operation-and-status pairs any request reached. Against
 the Pet Store service it reaches all 12, conflicts and missing pets included.
 
-`SafeChangesNothing` to `WriteOnlyHidden` need nothing declared: HTTP and JSON Schema already promise them, so they hold any API to them.
+`SafeChangesNothing` to `WriteOnlyHidden` need nothing declared, and `IdempotentReplay` to `DeprecationAnnounced` are
+inferred from standard HTTP the spec already uses (an `Idempotency-Key` or `If-Match` header, a cursor, a 202, a 429,
+`deprecated`). `OrdersTests` proves each against an Orders API in memory, right and then wrong in one way at a time: HTTP and JSON Schema already promise them, so they hold any API to them.
 
 **Arazzo workflows** run too. An Arazzo document given with the spec (`MatchmarkArazzo="true"` on its
 `AdditionalFiles` item, joined by `MatchmarkApiName`, or `--arazzo` on the command line) adds its workflows to the

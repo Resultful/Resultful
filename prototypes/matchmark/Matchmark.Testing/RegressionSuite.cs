@@ -157,6 +157,7 @@ public sealed class RegressionSuite
         private readonly RegressionSuite _suite;
         private readonly HashSet<string> _names = new(StringComparer.Ordinal);
         private int _unique;
+        private int _keys;
 
         public Generator(RegressionSuite suite)
         {
@@ -211,6 +212,9 @@ public sealed class RegressionSuite
 
             var required = values.Where(v => v.Key.Required).ToDictionary(v => v.Key, v => v.Value);
 
+            // A cursor is opaque: only the API can mint a valid one, so valid requests leave it out (invalid ones still break it).
+            var valid = values.Where(v => !Opaque(v.Key)).ToDictionary(v => v.Key, v => v.Value);
+
             // Valid: the examples, only what is required, everything.
             if (example is not null || operation.Parameters.Any(p => p.Example is not null))
             {
@@ -218,9 +222,9 @@ public sealed class RegressionSuite
             }
 
             Add(operation, CaseKind.Valid, "valid, required values only", required, minimal);
-            if (values.Count > required.Count || full?.ToJsonString() != minimal?.ToJsonString())
+            if (valid.Count > required.Count || full?.ToJsonString() != minimal?.ToJsonString())
             {
-                Add(operation, CaseKind.Valid, "valid, every value", values, full);
+                Add(operation, CaseKind.Valid, "valid, every value", valid, full);
             }
 
             // The same request again, byte for byte: whatever it means (a conflict, the same answer), it must be documented.
@@ -257,11 +261,11 @@ public sealed class RegressionSuite
             }
 
             // Boundaries: each value at each bound it has.
-            foreach (var parameter in operation.Parameters.Where(values.ContainsKey))
+            foreach (var parameter in operation.Parameters.Where(p => values.ContainsKey(p) && !Opaque(p)))
             {
                 foreach (var variant in _suite.Samples.Boundaries(values[parameter], parameter.Schema).Where(v => v.Value is not null))
                 {
-                    Add(operation, CaseKind.Boundary, $"{Where(parameter)} {variant.Description}", With(values, parameter, variant.Value), full);
+                    Add(operation, CaseKind.Boundary, $"{Where(parameter)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter));
                 }
             }
 
@@ -281,7 +285,7 @@ public sealed class RegressionSuite
 
             foreach (var parameter in operation.Parameters.Where(values.ContainsKey))
             {
-                foreach (var variant in _suite.Samples.Violations(values[parameter], parameter.Schema).Where(v => Serializable(v.Value)))
+                foreach (var variant in _suite.Samples.Violations(values[parameter], parameter.Schema).Where(v => Serializable(v.Value) && !ValidAsText(parameter, v.Value)))
                 {
                     Add(operation, CaseKind.Invalid, $"{Where(parameter)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter));
                 }
@@ -305,7 +309,9 @@ public sealed class RegressionSuite
             // Workflows: from each response with links, starting with a valid request.
             foreach (var (status, response) in operation.Responses.Where(r => r.Value.Links.Count > 0))
             {
-                var start = Cases.Last(c => c.Operation == operation && c.Kind is CaseKind.Valid or CaseKind.Example);
+                var start = Cases.Where(c => c.Operation == operation && c.Kind is CaseKind.Valid or CaseKind.Example)
+                    .OrderBy(c => c.Kind == CaseKind.Example ? 0 : c.Name.EndsWith("valid, required values only", StringComparison.Ordinal) ? 1 : 2)
+                    .First();
                 Workflows.Add(new RegressionWorkflow($"{operation.Id} {status}, then {string.Join(", ", response.Links.Select(l => l.OperationId))}", start, status, response.Links));
             }
         }
@@ -382,7 +388,12 @@ public sealed class RegressionSuite
             var headers = new List<KeyValuePair<string, string>>();
             foreach (var (parameter, value) in parameters)
             {
-                foreach (var text in Texts(value))
+                // Each case is its own attempt, so it gets its own Idempotency-Key, unless the key is what the case is about.
+                var texts = string.Equals(parameter.Name, "Idempotency-Key", StringComparison.OrdinalIgnoreCase) && parameter.In == "header"
+                            && location != $"header.{parameter.Name}"
+                    ? [$"key-{++_keys}"]
+                    : Texts(value);
+                foreach (var text in texts)
                 {
                     switch (parameter.In)
                     {
@@ -441,7 +452,17 @@ public sealed class RegressionSuite
 
         private static string Where(SpecParameter parameter) => $"{parameter.In}.{parameter.Name}";
 
+        private static bool Opaque(SpecParameter parameter) => parameter.In == "query" && RegressionRunner.Cursors.Contains(parameter.Name.ToLowerInvariant());
+
         private static string BodyWhere(string path) => path.Length == 0 ? "body" : path.StartsWith('[') ? "body" + path : $"body.{path}";
+
+        /// <summary>
+        /// A parameter travels as text, so a violation only counts if its text is invalid too: for a string parameter the
+        /// number 12345 is sent as "12345", which is a valid string.
+        /// </summary>
+        private bool ValidAsText(SpecParameter parameter, JsonNode? value)
+            => value is JsonValue && SchemaValidator.Types(_suite.Spec.Resolve(parameter.Schema)) is var types && types.Contains("string") && !types.Contains("null")
+               && _suite.Validator.IsValid(JsonValue.Create(Text(value)), parameter.Schema);
 
         /// <summary>A parameter value can only be sent as text: a scalar, or an array of scalars.</summary>
         private static bool Serializable(JsonNode? value)

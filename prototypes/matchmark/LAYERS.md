@@ -99,7 +99,8 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    criteria (`simple`, `regex`, and a JSONPath subset), outputs, runtime expressions, `{$…}` interpolation,
    `operationPath`, workflows in other documents, `retry`, `goto` and `end`. The Pet Store's workflow runs against the
    service; every workflow in the corpus is runnable. Next: the same workflow scripting the fake.
-3. **Behaviour in the model, inferred by the rule above.** Each behaviour lands in the engine first: idempotency,
+3. **Behaviour in the model, inferred by the rule above.** ✓ In the engine: idempotency, concurrency, paging, work that
+   finishes later, rate limits and deprecation (`OrdersTests`). Each behaviour lands in the engine first: idempotency,
    concurrency, pagination, work that finishes later, rate limits and deprecation, each with its checks and a fault
    that proves them. Then the generated client, the fake and the server, one behaviour at a time, starting with
    idempotency and concurrency on Orders. This is the semantic model of VISION.md's stage 2, with behaviour as traits on
