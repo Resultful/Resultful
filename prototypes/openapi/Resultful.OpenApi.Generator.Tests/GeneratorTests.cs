@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using FluentAssertions;
+using FluentCheck;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -22,7 +22,7 @@ public sealed class GeneratorTests
     {
         var (diagnostics, _) = Run("openapi: [unclosed");
 
-        diagnostics.Should().Contain(d => d.Id == "RAPI001" && d.Severity == DiagnosticSeverity.Error);
+        diagnostics.Select(d => (d.Id, d.Severity)).Should().Contain(("RAPI001", DiagnosticSeverity.Error));
     }
 
     [Test]
@@ -37,7 +37,7 @@ public sealed class GeneratorTests
                     '204': { description: none }
             """);
 
-        diagnostics.Should().ContainSingle(d => d.Id == "RAPI003");
+        diagnostics.Select(d => d.Id).Should().BeInExactOrder(["RAPI003"]);
         sources["T.Endpoints.g.cs"].Should().NotContain("MapMethods");
     }
 
@@ -60,7 +60,7 @@ public sealed class GeneratorTests
                             properties: { a: { type: string } }
             """);
 
-        diagnostics.Should().Contain(d => d.Id == "RAPI002" && d.GetMessage().Contains("inline object"));
+        diagnostics.Should().ContainSingle(d => d.Id == "RAPI002" && d.GetMessage().Contains("inline object"));
     }
 
     [Test]
@@ -85,7 +85,7 @@ public sealed class GeneratorTests
                   properties: { name: { type: string, minLength: 2 } }
             """);
 
-        diagnostics.Should().ContainSingle(d => d.Id == "RAPI004");
+        diagnostics.Select(d => d.Id).Should().BeInExactOrder(["RAPI004"]);
         sources["T.Endpoints.g.cs"].Should().Contain("Results<NoContent, ValidationProblem>");
     }
 
