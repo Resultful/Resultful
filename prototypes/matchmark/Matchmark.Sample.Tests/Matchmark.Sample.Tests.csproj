@@ -18,6 +18,9 @@
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
+    <!-- The spec's Arazzo workflows join the suite (PetStoreRegression.Workflows). -->
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.arazzo.yaml" MatchmarkArazzo="true" MatchmarkApiName="PetStore" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkArazzo" />
   </ItemGroup>
 
   <ItemGroup>

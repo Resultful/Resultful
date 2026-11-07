@@ -36,8 +36,17 @@ namespace Matchmark.Generator
                     HasFakes: compilation.GetTypeByMetadataName("Matchmark.Fakes.Scenario") is not null,
                     HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null));
 
-            context.RegisterSourceOutput(specs.Combine(references), static (spc, pair) =>
-                Generate(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes, pair.Right.HasRegression));
+            // Arazzo documents for the Regression part: AdditionalFiles marked MatchmarkArazzo, joined to a spec by MatchmarkApiName.
+            var arazzo = context.AdditionalTextsProvider
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Select(static (pair, ct) => ReadArazzo(pair.Left, pair.Right, ct))
+                .Where(static a => a is not null)
+                .Select(static (a, _) => a!.Value)
+                .Collect();
+
+            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo), static (spc, pair) =>
+                Generate(spc, pair.Left.Left, pair.Left.Right.DescribesItself, pair.Left.Right.HasFakes, pair.Left.Right.HasRegression,
+                    pair.Right.Where(a => a.ApiName == pair.Left.Left.ApiName).ToList()));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -50,6 +59,39 @@ namespace Matchmark.Generator
                 .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
             var verified = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)));
             context.RegisterSourceOutput(verified.Combine(endpoints), static (spc, pair) => Verify(spc, pair.Left, pair.Right));
+        }
+
+        /// <summary>Each Arazzo document as JSON, for the regression suite; one that can't be read is a warning.</summary>
+        private static List<string> Workflows(SourceProductionContext context, IReadOnlyList<(string ApiName, string Path, string Content)> arazzo)
+        {
+            var json = new List<string>();
+            foreach (var (_, path, content) in arazzo)
+            {
+                try
+                {
+                    json.Add(SpecJson.Arazzo(content, path));
+                }
+#pragma warning disable CA1031 // An unreadable document is reported, never thrown into the compiler.
+                catch (Exception ex)
+#pragma warning restore CA1031
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.UnreadableArazzo, Location.Create(path, default, default), path, ex.Message));
+                }
+            }
+
+            return json;
+        }
+
+        private static (string ApiName, string Path, string Content)? ReadArazzo(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
+        {
+            var fileOptions = options.GetOptions(text);
+            if (!fileOptions.TryGetValue(MetadataPrefix + "MatchmarkArazzo", out var enabled) || !string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)
+                || !fileOptions.TryGetValue(MetadataPrefix + "MatchmarkApiName", out var apiName) || string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            return (apiName, text.Path, text.GetText(ct)?.ToString() ?? string.Empty);
         }
 
         private static SpecInput? ReadSpec(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
@@ -98,7 +140,8 @@ namespace Matchmark.Generator
             }
         }
 
-        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression)
+        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems);
@@ -119,7 +162,8 @@ namespace Matchmark.Generator
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
                 server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase),
                 fakeServer: parts.Contains("FakeServer", StringComparer.OrdinalIgnoreCase),
-                regression: parts.Contains("Regression", StringComparer.OrdinalIgnoreCase) && hasRegression);
+                regression: parts.Contains("Regression", StringComparer.OrdinalIgnoreCase) && hasRegression,
+                workflows: Workflows(context, arazzo));
             if (parts.Contains("Regression", StringComparer.OrdinalIgnoreCase) && !hasRegression)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.RegressionNeedsRuntime, location, spec.Path));
@@ -198,6 +242,11 @@ namespace Matchmark.Generator
             "{0}: {1}. Generated from the rest; the part objected to may be missing.",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor UnreadableArazzo = new(
+            "MM008", "Arazzo document could not be read",
+            "'{0}' could not be read as an Arazzo document, so its workflows aren't in the suite: {1}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly DiagnosticDescriptor RegressionNeedsRuntime = new(
             "MM006", "The Regression part needs Matchmark.Testing",
             "{0} asks for the Regression part, but the project doesn't reference Matchmark.Testing, which runs the suite",
@@ -274,7 +323,7 @@ namespace Matchmark.Generator
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem,
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem, UnreadableArazzo,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
                 ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers, ParameterConstraintDiffers);
     }

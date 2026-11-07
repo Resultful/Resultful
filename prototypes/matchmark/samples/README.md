@@ -13,12 +13,13 @@ sample changes the ledger; so does breaking something that worked.
 Today's ledger:
 
 ```
-petstore: generator skips 0; suite 90 cases, 1 workflows, 0 gaps
-museum: generator skips 29; suite 100 cases, 0 workflows, 0 gaps
-orders: generator skips 3; suite 89 cases, 2 workflows, 0 gaps
+petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps
+museum: generator skips 29; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps
+orders: generator skips 3; suite 89 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps
 ```
 
-The Overlay and Arazzo files are not read by anything yet. They are the targets [LAYERS.md](../LAYERS.md) plans for;
+The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's
+`operationPath` steps and its workflow in a second document. The Overlay files are not read by anything yet. They are the targets [LAYERS.md](../LAYERS.md) plans for;
 the Orders overlay also carries one example of each kind of invariant from [COMPLETENESS.md](../COMPLETENESS.md), which
 proposes the next samples (Bookings, Ledger, Catalogue search, Feature flags, Notifications).
 Large public specs (GitHub, Stripe) belong in a separate, fetched-not-committed run, for scale rather than design.

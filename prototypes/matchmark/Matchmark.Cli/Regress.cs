@@ -10,11 +10,12 @@ namespace Matchmark.Cli;
 public static class Regress
 {
     public const string Usage = """
-        usage: matchmark regress <spec> <base url> [--no-workflows]
+        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--no-workflows]
 
           Generates a regression suite from the spec (examples, valid requests, boundary values, one invalid request per
           constraint, and workflows from its links) and runs it against the API at <base url>, checking every response.
-          --no-workflows  don't follow links (for a target that keeps no state, such as a fake)
+          --arazzo        an Arazzo document whose workflows run too (repeat for more)
+          --no-workflows  don't follow links or run workflows (for a target that keeps no state, such as a fake)
         """;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -29,9 +30,18 @@ public static class Regress
         IReadOnlyList<string> problems;
         try
         {
-            suite = RegressionSuite.FromJson(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems));
+            var arazzo = new List<string>();
+            for (var i = 2; i < args.Length - 1; i++)
+            {
+                if (args[i] == "--arazzo")
+                {
+                    arazzo.Add(SpecJson.Arazzo(await File.ReadAllTextAsync(args[i + 1], cancellationToken), args[i + 1]));
+                }
+            }
+
+            suite = RegressionSuite.FromJson(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems), [.. arazzo]);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or SharpYaml.YamlException or System.Text.Json.JsonException)
         {
             await output.WriteLineAsync($"error: {e.Message}");
             return 2;

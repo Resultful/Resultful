@@ -69,22 +69,52 @@ public sealed class RegressCommandTests
         output.Should().Contain("0 failures").And.Contain("Workflow addTodo 201, then getTodo: POST 201 → GET 200");
     }
 
-    private static async Task<(int ExitCode, string Output)> Run(bool acceptsLongTitles)
+    [Test]
+    public async Task An_Arazzo_workflow_given_with_the_spec_runs_too()
+    {
+        const string workflow = """
+            arazzo: 1.1.0
+            info: { title: Todos, version: '1' }
+            sourceDescriptions: [{ name: todos, url: ./todos.yaml, type: openapi }]
+            workflows:
+              - workflowId: add-and-read
+                steps:
+                  - stepId: add
+                    operationId: addTodo
+                    requestBody: { contentType: application/json, payload: { title: Buy milk } }
+                    successCriteria: [{ condition: $statusCode == 201 }]
+                    outputs: { id: $response.body#/id }
+                  - stepId: read
+                    operationId: getTodo
+                    parameters: [{ name: id, in: path, value: $steps.add.outputs.id }]
+                    successCriteria: [{ condition: $response.body#/title == 'Buy milk' }]
+            """;
+
+        var (exitCode, output) = await Run(acceptsLongTitles: false, workflow);
+
+        exitCode.Should().Be(0, output);
+        output.Should().Contain("1 from Arazzo").And.Contain("Workflow Todos: add-and-read: POST 201 → GET 200");
+    }
+
+    private static async Task<(int ExitCode, string Output)> Run(bool acceptsLongTitles, string? arazzo = null)
     {
         var spec = Path.Combine(Path.GetTempPath(), $"todos-{Guid.NewGuid():N}.yaml");
+        var workflows = Path.ChangeExtension(spec, ".arazzo.yaml");
         await File.WriteAllTextAsync(spec, Spec);
+        await File.WriteAllTextAsync(workflows, arazzo ?? string.Empty);
         await using var api = TodoApi(acceptsLongTitles);
         await api.StartAsync();
         try
         {
             using var output = new StringWriter();
-            var exitCode = await Regress.RunAsync([spec, api.Urls.Single()], output);
+            var exitCode = await Regress.RunAsync(arazzo is null ? [spec, api.Urls.Single()] : [spec, api.Urls.Single(), "--arazzo", workflows], output);
             return (exitCode, output.ToString());
         }
         finally
         {
             await api.StopAsync();
             File.Delete(spec);
+            File.Delete(workflows);
         }
     }
 

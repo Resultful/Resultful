@@ -15,12 +15,18 @@ public sealed class RegressionOptions
     /// <summary>Checks not to make, by name (<see cref="Checks"/>).</summary>
     public ISet<string> Skip { get; } = new HashSet<string>(StringComparer.Ordinal);
 
+    /// <summary>Inputs for Arazzo workflows, by workflowId. Inputs not given are sampled from the workflow's inputs schema.</summary>
+    public IDictionary<string, JsonObject> WorkflowInputs { get; } = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+
+    /// <summary>The longest an Arazzo retry waits, whatever retryAfter or Retry-After say.</summary>
+    public TimeSpan MaxRetryWait { get; set; } = TimeSpan.FromSeconds(5);
+
     /// <summary>Properties that change from call to call, so reading back what was written ignores them.</summary>
     public ISet<string> Volatile { get; } = new HashSet<string>(StringComparer.Ordinal) { "traceId" };
 }
 
 /// <summary>Sends the suite's requests and checks every response against the spec.</summary>
-internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client, RegressionOptions options)
+internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient client, RegressionOptions options)
 {
     private static readonly int[] Rejections = [400, 415, 422];
 
@@ -38,6 +44,11 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
             foreach (var workflow in suite.Workflows)
             {
                 workflows.Add(await RunWorkflowAsync(workflow, cancellationToken).ConfigureAwait(false));
+            }
+
+            foreach (var workflow in suite.Arazzo)
+            {
+                workflows.Add(await RunArazzoAsync(workflow, cancellationToken).ConfigureAwait(false));
             }
         }
 
@@ -326,7 +337,7 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
         Response(workflow.Start.Operation, start, requestValid: true, workflow.Name, findings);
         if (start.Status.ToString(CultureInfo.InvariantCulture) != workflow.Status)
         {
-            return new WorkflowResult(workflow, exchanges, findings, $"{workflow.Start.Name} answered {start.Status}, not {workflow.Status}, so its links weren't followed");
+            return new WorkflowResult(workflow.Name, exchanges, findings, $"{workflow.Start.Name} answered {start.Status}, not {workflow.Status}, so its links weren't followed");
         }
 
         var links = workflow.Links.Select(l => (Link: l, Operation: suite.Spec.Operations.FirstOrDefault(o => o.Id == l.OperationId))).ToList();
@@ -405,7 +416,7 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
             }
         }
 
-        return new WorkflowResult(workflow, exchanges, findings, null);
+        return new WorkflowResult(workflow.Name, exchanges, findings, null);
     }
 
     private JsonNode? Volatile(JsonNode? node) => RegressionReport.Strip(node, options.Volatile);

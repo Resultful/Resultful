@@ -53,7 +53,7 @@ defines the behaviour precisely enough to generate the other three.
 |:--|:--|:--|:--|:--|
 | **Problems** | [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/problem+json` | content type, schema, a validation problem names the value | generated | ✓ done |
 | **Links** | OpenAPI `links` | the resource is there, reads back as written, is gone after delete | regression only | ✓ done |
-| **Workflows** | Arazzo 1.0 and 1.1 (1.1 adds RFC 9535 JSONPath, JSON Pointer selectors and AsyncAPI steps) | each step's success criteria; outputs passed on; `retry` and `goto` on failure | the fake scripted from a workflow | Museum and Orders ship one; nothing runs them |
+| **Workflows** | Arazzo 1.0 and 1.1 (1.1 adds RFC 9535 JSONPath, JSON Pointer selectors and AsyncAPI steps) | each step's success criteria; outputs passed on; `retry` and `goto` on failure | the fake scripted from a workflow | ✓ run by the engine (`WorkflowCriteria`); XPath and AsyncAPI steps are gaps |
 | **Idempotency** | an `Idempotency-Key` header parameter ([draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/)); Overlay for the window | same key and body gives the same answer; same key, different body gives 422; a fresh key per case otherwise | a key store; a client that retries with the same key | Orders; the engine **wrongly** sends one sampled key everywhere |
 | **Concurrency** | `ETag` response header plus `If-Match` request header ([RFC 9110 §13](https://www.rfc-editor.org/rfc/rfc9110#section-13)); 412, 428 ([RFC 6585](https://www.rfc-editor.org/rfc/rfc6585)) | a stale ETag gives 412; none gives 428; a change gives a new ETag | ETags from a version; the client sends `If-Match` | Orders |
 | **Pagination** | a cursor parameter plus a `next` in the body, or `Link: rel=next` ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)); Overlay to say which | walking every page is complete, with no repeats, and ends | the client yields every item | Orders |
@@ -95,9 +95,10 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    any status code; webhooks and anything unsupported reported, never silently dropped. ✓ Reader errors that leave a
    document are warnings, and the CLI reports instead of crashing. The ledger measures it: Museum's 29 skips go toward 0,
    and Train Travel becomes readable.
-2. **Arazzo in the engine.** It reads workflows next to the spec and runs them as regression workflows: success
-   criteria, outputs, runtime expressions, `retry` and `goto`. The same workflow can script the fake. Museum's and
-   Orders' workflows become runnable cases. This is the biggest gain for the least code, and it works against any server.
+2. ✓ **Arazzo in the engine.** It reads workflows next to the spec and runs them as regression workflows: success
+   criteria (`simple`, `regex`, and a JSONPath subset), outputs, runtime expressions, `{$…}` interpolation,
+   `operationPath`, workflows in other documents, `retry`, `goto` and `end`. The Pet Store's workflow runs against the
+   service; every workflow in the corpus is runnable. Next: the same workflow scripting the fake.
 3. **Behaviour in the model, inferred by the rule above.** Each behaviour lands in the engine first: idempotency,
    concurrency, pagination, work that finishes later, rate limits and deprecation, each with its checks and a fault
    that proves them. Then the generated client, the fake and the server, one behaviour at a time, starting with
