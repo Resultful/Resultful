@@ -6,7 +6,7 @@ a round-trip check against the spec decide whether the server is done.
 
 This is a prototype. Nothing here is packed or published, and the `Resultful` package is unchanged.
 
-**[VISION.md](VISION.md)** is where this is going and why. **[PETSTORE.md](PETSTORE.md)** walks through the sample end to end. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
+**[VISION.md](VISION.md)** is where this is going and why, and **[GAPS.md](GAPS.md)** is where the prototype falls short of it. **[PETSTORE.md](PETSTORE.md)** walks through the sample end to end. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
 framework that checks any API against its spec, and a generated fake server. This README covers the mechanics.
 
 ```
@@ -202,7 +202,8 @@ it by hand.
 ## Next steps, if this goes further
 
 - Random, shrinking inputs (CsCheck) on top of the generated suite's deterministic cases.
-- Trying the generator on a large real spec, to find the next unsupported constructs.
+- Trying the generator on a corpus of large real specs, to find the next unsupported constructs ([GAPS.md](GAPS.md), gap 4).
+- A stateful fake and a fidelity score against a real API: the twin in VISION stage 7 ([GAPS.md](GAPS.md), gaps 1 to 3).
 - Deciding whether a success union belongs in Resultful itself.
 - Use `Resultful.AwesomeAssertions.OneOf` in these tests in place of the `Case<T>` helper, once it supports
   `OneOfBase` (Resultful/FluentAssertions.Resultful#2).
