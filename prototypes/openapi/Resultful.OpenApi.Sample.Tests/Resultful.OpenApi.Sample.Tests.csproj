@@ -7,6 +7,17 @@
     <ProjectReference Include="../Resultful.OpenApi.Sample/Resultful.OpenApi.Sample.csproj" />
     <ProjectReference Include="../Resultful.OpenApi.Sample.Fake/Resultful.OpenApi.Sample.Fake.csproj" />
     <ProjectReference Include="../Resultful.OpenApi.Sample.Scaffolded/Resultful.OpenApi.Sample.Scaffolded.csproj" />
+    <ProjectReference Include="../Resultful.OpenApi.Testing/Resultful.OpenApi.Testing.csproj" />
+    <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Regression: the suite generated from the spec (PetStoreRegression), rebuilt whenever the spec changes. -->
+    <AdditionalFiles Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Regression" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulParts" />
   </ItemGroup>
 
   <ItemGroup>

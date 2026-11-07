@@ -191,6 +191,34 @@ public sealed class GeneratorTests
         sources.Keys.Select(k => k.Split('.')[1]).Order().Should().Equal(files);
     }
 
+    [Test]
+    public void The_Regression_part_writes_the_spec_as_JSON_for_the_regression_engine()
+    {
+        const string spec = Header + """
+
+            paths:
+              /things:
+                get:
+                  operationId: listThings
+                  responses:
+                    '204': { description: none }
+            """;
+
+        var without = Run(spec, parts: "Regression");
+        without.Sources.Should().BeEmpty();
+        without.Diagnostics.Select(d => d.Id).Should().Equal("RAPI006");
+
+        var with = Run(spec, "namespace Resultful.OpenApi.Testing { public sealed class RegressionSuite { } }", "Regression");
+        with.Diagnostics.Should().BeEmpty();
+        with.Sources.Keys.Should().Equal("T.Regression.g.cs");
+        with.Sources["T.Regression.g.cs"].Should()
+            .Contain("public static class TRegression")
+            .And.Contain("public const string Spec = @\"{")
+            .And.Contain("\"\"openapi\"\": \"\"3.1.")
+            .And.Contain("\"\"operationId\"\": \"\"listThings\"\"")
+            .And.Contain("RegressionSuite.FromJson(Spec)");
+    }
+
     private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null, string? parts = null)
     {
         var driver = CSharpGeneratorDriver.Create(

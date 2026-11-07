@@ -33,9 +33,11 @@ namespace Resultful.OpenApi.Generator
             var references = context.CompilationProvider
                 .Select(static (compilation, _) => (
                     DescribesItself: compilation.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null,
-                    HasFakes: compilation.GetTypeByMetadataName("Resultful.OpenApi.Fakes.Scenario") is not null));
+                    HasFakes: compilation.GetTypeByMetadataName("Resultful.OpenApi.Fakes.Scenario") is not null,
+                    HasRegression: compilation.GetTypeByMetadataName("Resultful.OpenApi.Testing.RegressionSuite") is not null));
 
-            context.RegisterSourceOutput(specs.Combine(references), static (spc, pair) => Generate(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes));
+            context.RegisterSourceOutput(specs.Combine(references), static (spc, pair) =>
+                Generate(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes, pair.Right.HasRegression));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -99,7 +101,7 @@ namespace Resultful.OpenApi.Generator
             }
         }
 
-        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes)
+        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression)
         {
             var location = Location.Create(spec.Path, default, default);
             var format = spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml";
@@ -132,7 +134,12 @@ namespace Resultful.OpenApi.Generator
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
                 server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase),
-                fakeServer: parts.Contains("FakeServer", StringComparer.OrdinalIgnoreCase));
+                fakeServer: parts.Contains("FakeServer", StringComparer.OrdinalIgnoreCase),
+                regression: parts.Contains("Regression", StringComparer.OrdinalIgnoreCase) && hasRegression);
+            if (parts.Contains("Regression", StringComparer.OrdinalIgnoreCase) && !hasRegression)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.RegressionNeedsRuntime, location, spec.Path));
+            }
 
             foreach (var diagnostic in emitter.Diagnostics)
             {
@@ -200,6 +207,11 @@ namespace Resultful.OpenApi.Generator
         public static readonly DiagnosticDescriptor UnsampleableString = new(
             "RAPI005", "No example for a constrained string",
             "{0} has a pattern the generated sample does not match; give it an example so the fake can answer with a valid body",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor RegressionNeedsRuntime = new(
+            "RAPI006", "The Regression part needs Resultful.OpenApi.Testing",
+            "{0} asks for the Regression part, but the project doesn't reference Resultful.OpenApi.Testing, which runs the suite",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor OperationNotImplemented = new(
@@ -273,7 +285,7 @@ namespace Resultful.OpenApi.Generator
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString,
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
                 ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers, ParameterConstraintDiffers);
     }

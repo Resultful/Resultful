@@ -42,7 +42,8 @@ consumers actually use, not against the whole spec.
 
 **For teams testing APIs,** a framework that checks any API against its spec:
 - **Which APIs:** code-first, legacy, or not .NET at all, with no change to the service.
-- **Every call is a conformance check,** and the spec's own examples become test cases.
+- **Every call is a conformance check,** and the spec writes its own suite: its examples, its bounds, one broken
+  constraint at a time, and the workflows its links describe.
 - **Coverage is measured in documented behaviours,** not lines.
 - **Migrations are safe:** the same suite runs against the old and new implementations, and the results are compared
   outcome by outcome.
@@ -135,6 +136,10 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
   against the spec before anyone edits it.
 - ✓ Compile-time verification that hand-written endpoints cover the spec, and nothing else: routes, names, responses,
   parameter binding, and model shapes and constraints.
+- ✓ A regression suite generated from the spec: examples, valid requests, boundary values, one invalid request per
+  constraint, and workflows from its links. It runs against any HTTP API, from a test or the command line, and every
+  check in it is proven by an injected fault. Its first runs found five defects every other check had passed.
+- ✓ A differential run: the generated endpoints and the scaffolded controllers answer every generated case alike.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
@@ -147,7 +152,7 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - Test the model directly, independent of any output.
 
 **3. The spec tests itself.**
-- Examples and malformed requests become generated compliance cases.
+- ✓ Examples and malformed requests become generated compliance cases.
 - Runtime conformance middleware in two modes: *observe* in production, *enforce* in tests.
 
 **4. Change without fear.**
@@ -157,8 +162,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 
 **5. Behaviour, not only shape.**
 - Arazzo workflows run as stateful tests.
-- Inputs generated from the schemas (property-based testing), starting from the seed scenarios.
-- A differential runner comparing old and new implementations.
+- Inputs generated from the schemas: ✓ deterministic (boundaries, one per constraint); random and shrinking next.
+- ✓ A differential runner comparing two implementations.
 
 **6. Beyond HTTP.**
 - AsyncAPI for events, and other hosts, through the same model.

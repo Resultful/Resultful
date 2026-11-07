@@ -496,6 +496,70 @@ What the tests show about the untouched scaffold:
   - it keeps files that exist unless forced
   - its Minimal API style builds in a fresh project, with `Verify` on and warnings as errors
 
+## 8. Testing it from the spec: the generated regression suite
+
+The test project generates one more part from the same spec:
+
+```xml
+<AdditionalFiles Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" ... ResultfulParts="Regression" />
+```
+
+That gives `PetStoreRegression.Suite`: 90 cases and one workflow, built from nothing but the spec. Here is some of
+what it sends to `createPet`:
+
+```
+Valid    createPet: valid, every value (cat)                    {"name":"sample-d","tag":"sample-d","details":{"kind":"cat","livesLeft":1}}
+Boundary createPet: body.name at its maxLength 50                {"name":"sampleeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-f",...}
+Boundary createPet: body.details.livesLeft at its maximum 9     {...,"details":{"kind":"cat","livesLeft":9}}
+Invalid  createPet: body.tag '!!', which doesn't match its pattern ^[a-z-]+$
+Invalid  createPet: body.details.kind missing                    {"name":"sample","tag":"sample","details":{"goodBoy":true}}
+Invalid  createPet: body.details.livesLeft 2147483648, too big for int32
+Invalid  getPet: path.petId a string, not integer                GET /pets/not-integer
+```
+
+The spec's `links` say that `createPet`'s 201 leads to `getPet`, `upsertPet` and `deletePet` by the new pet's id, so
+the suite also runs a workflow:
+
+```
+Workflow createPet 201, then getPet, upsertPet, deletePet: POST 201 → GET 200 → PUT 200 → GET 200 → DELETE 204 → GET 404
+```
+
+It reads the pet back as created, replaces it and reads it back as replaced, deletes it, and checks it's gone.
+
+```cs
+var report = await PetStoreRegression.Suite.RunAsync(app.CreateClient());
+report.Failures.Should().BeEmpty(report.ToString());
+```
+
+Today it passes: 90 cases, 0 failures, all 12 documented outcomes reached. Its 11 warnings are honest. The spec
+doesn't say how `listPets`, `getPet` and `deletePet` reject a malformed parameter, or how anything rejects `text/plain`.
+
+The first runs didn't pass. In code every other check had passed, the suite found:
+- a **500** for a body missing its `kind` discriminator
+- 400s that named nothing (empty in Production) for every request the generated server couldn't bind
+- a pet upserted at the largest `int64` making **every later `createPet` fail** (SQLite's `AUTOINCREMENT`)
+- in the scaffolded controllers, a **500** for every malformed body, and `PUT /pets/abc` **creating pet 0**
+
+CONCEPT.md has each fix.
+
+It runs against every Pet Store there is:
+- **The service** (above), with workflows.
+- **The untouched scaffold and the fake server,** without workflows, since neither keeps state. Both pass.
+- **Both directions at once.** The generated endpoints and the scaffolded controllers, over the same real handlers,
+  answer all 90 cases and every workflow step identically:
+
+  ```cs
+  var expected = await Suite.RunAsync(generated.CreateClient());
+  var actual = await Suite.RunAsync(scaffolded.CreateClient());
+  actual.Compare(expected).Should().BeEmpty();
+  ```
+
+And any other API, from the command line:
+
+```console
+$ dotnet run --project Resultful.OpenApi.Scaffold -- regress petstore.yaml http://localhost:5080 --no-workflows
+```
+
 ## What tells you what
 
 | You... | What tells you |
@@ -515,6 +579,8 @@ What the tests show about the untouched scaffold:
 | use a model whose JSON or constraints differ from the schema, or a hand-written one where the generated one would do | the build (`RAPI022`, and `RAPI021` as info) |
 | constrain a parameter differently from the spec (`[Range]`, `[MaxLength]`) | the build (`RAPI023`) |
 | scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
+| answer any request in a way the spec doesn't allow, reject a valid one, accept an invalid one, or lose what was written | the generated regression suite (`SpecRegressionTests`, or `scaffold regress` against any server) |
+| make the controllers answer differently from the generated endpoints | the suite's differential run |
 
 ## Where things are
 
