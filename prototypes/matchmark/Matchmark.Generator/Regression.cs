@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Reader;
@@ -8,18 +9,12 @@ namespace Matchmark.Generator
     /// <summary>A spec (YAML or JSON, OpenAPI 3.0 or 3.1) written as OpenAPI 3.1 JSON: the form the regression engine reads.</summary>
     public static class SpecJson
     {
-        public static string Normalize(string text, string path)
-        {
-            var settings = new OpenApiReaderSettings();
-            settings.AddYamlReader();
-            var read = OpenApiDocument.Parse(text, path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml", settings);
-            if (read.Document is null || read.Diagnostic?.Errors.Count > 0)
-            {
-                throw new InvalidOperationException($"{path} is not a valid OpenAPI document: {string.Join("; ", read.Diagnostic?.Errors ?? [])}");
-            }
+        public static string Normalize(string text, string path) => Normalize(text, path, out _);
 
-            return Write(read.Document);
-        }
+        /// <summary>The spec as OpenAPI 3.1 JSON, with what the reader objected to (and left out).</summary>
+        public static string Normalize(string text, string path, out IReadOnlyList<string> problems)
+            => Write(SpecReader.Read(text, path, out problems)
+                ?? throw new InvalidOperationException($"{path} could not be read: {string.Join("; ", problems)}"));
 
         internal static string Write(OpenApiDocument document)
         {

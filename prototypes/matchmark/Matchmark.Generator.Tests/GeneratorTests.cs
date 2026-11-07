@@ -192,6 +192,40 @@ public sealed class GeneratorTests
     }
 
     [Test]
+    public void A_part_the_reader_objects_to_is_a_warning_and_the_rest_is_generated()
+    {
+        // OpenAPI 3.2 deprecates xml.wrapped but still allows it; Microsoft.OpenApi 3.11 refuses it, as it does in
+        // Bump.sh's Train Travel API. The objection is a warning, and the rest is generated.
+        const string spec = """
+            openapi: 3.2.0
+            info: { title: T, version: '1' }
+            paths:
+              /things:
+                get:
+                  operationId: listThings
+                  responses:
+                    '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Things' } } } }
+            components:
+              schemas:
+                Things:
+                  type: object
+                  properties:
+                    items:
+                      type: array
+                      xml: { name: things, wrapped: true }
+                      items: { type: string }
+            """;
+
+        var (diagnostics, sources) = Run(spec, parts: "Contract");
+
+        diagnostics.Select(d => d.Id).Should().Equal("MM007");
+        diagnostics[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture).Should().Contain("wrapped is not a valid property");
+        sources.Keys.Should().Contain("T.Models.g.cs");
+        SpecJson.Normalize(spec, "t.yaml", out var problems).Should().Contain("\"listThings\"");
+        problems.Should().ContainSingle();
+    }
+
+    [Test]
     public void The_Regression_part_writes_the_spec_as_JSON_for_the_regression_engine()
     {
         const string spec = Header + """

@@ -448,19 +448,13 @@ private sealed class MissingDiscriminator : IExceptionFilter
             string specText, string specName, string contractNamespace, string projectNamespace, string apiName, bool controllers,
             out IReadOnlyList<string> warnings)
         {
-            var settings = new OpenApiReaderSettings();
-            settings.AddYamlReader();
-            var format = specName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml";
-            var read = OpenApiDocument.Parse(specText, format, settings);
-            if (read.Document is null || read.Diagnostic?.Errors.Count > 0)
-            {
-                throw new InvalidOperationException("The spec could not be read: "
-                    + string.Join("; ", read.Diagnostic?.Errors.Select(e => e.ToString()) ?? Enumerable.Empty<string>()));
-            }
-
-            var emitter = new Emitter(read.Document, projectNamespace, apiName, Microsoft.CodeAnalysis.Location.None, describesItself: true);
+            var document = SpecReader.Read(specText, specName, out var problems)
+                ?? throw new InvalidOperationException($"{specName} could not be read: {string.Join("; ", problems)}");
+            var emitter = new Emitter(document, projectNamespace, apiName, Microsoft.CodeAnalysis.Location.None, describesItself: true);
             var files = emitter.Scaffold(contractNamespace, specName, controllers);
-            warnings = emitter.Diagnostics.Select(d => d.GetMessage(CultureInfo.InvariantCulture)).ToList();
+            warnings = problems.Select(p => $"the reader objected: {p}")
+                .Concat(emitter.Diagnostics.Select(d => d.GetMessage(CultureInfo.InvariantCulture)))
+                .ToList();
             return files;
         }
     }

@@ -52,9 +52,19 @@ if (style is not ("controllers" or "minimal"))
     return 1;
 }
 
-var files = Scaffolder.Scaffold(
-    File.ReadAllText(spec), Path.GetFileName(spec), Option("--contract-namespace", $"{api}.Api"), Option("--namespace", api), api,
-    controllers: style == "controllers", out var warnings);
+IReadOnlyDictionary<string, string> files;
+IReadOnlyList<string> warnings;
+try
+{
+    files = Scaffolder.Scaffold(
+        File.ReadAllText(spec), Path.GetFileName(spec), Option("--contract-namespace", $"{api}.Api"), Option("--namespace", api), api,
+        controllers: style == "controllers", out warnings);
+}
+catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+{
+    Console.Error.WriteLine($"error: {e.Message}");
+    return 2;
+}
 
 foreach (var warning in warnings)
 {
