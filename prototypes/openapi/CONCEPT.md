@@ -132,8 +132,35 @@ What it understands:
   in the spec or out of the OpenAPI description.
 
 They are ordinary warnings: with warnings as errors, a gap fails the build, and `.editorconfig` can set each one's
-severity. Responses are checked for controllers; for Minimal API endpoints only the route and name are, since their
-responses come from return types, not attributes.
+severity. Responses are checked for controllers. For Minimal API endpoints the route, name and parameters are checked,
+but not the responses, since those come from return types, not attributes.
+
+It also checks that every parameter is wired up, using ASP.NET Core's own binding rules. An explicit `[From*]`
+attribute wins. Otherwise:
+- a name in the route template binds from the route
+- a simple type binds from the query
+- an interface comes from services
+- a complex type binds from the body (for MVC, only with `[ApiController]`)
+- framework types such as `CancellationToken` are skipped
+
+| Diagnostic | Meaning |
+|:--|:--|
+| `RAPI016` | a spec parameter (path, query or header) isn't bound; the message gives the parameter to add |
+| `RAPI017` | the endpoint binds a route, query or header value the spec doesn't document |
+| `RAPI018` | a parameter or the body is bound with a different type from the spec (`int` for an `int64` id) |
+| `RAPI019` | an optional parameter is bound as a non-nullable value with no default. A Minimal API then answers 400 when it's left out, and MVC silently binds `0` |
+| `RAPI020` | the spec's body isn't bound, or one is bound that the spec doesn't have. It also catches the classic MVC mistake: without `[ApiController]`, a complex parameter binds from the form and query, not the body |
+
+Wiring the scaffolded controller wrong four ways gives:
+
+```
+PetsController.cs(23,6): error RAPI019: PetsController.ListPets (GET /pets): 'limit' is optional in the spec, but binding it as a non-nullable int with no default makes it required; make it int? or give it a default
+PetsController.cs(51,6): error RAPI018: PetsController.GetPet (GET /pets/{petId}): 'petId' is bound as int; the spec says long
+PetsController.cs(32,6): error RAPI020: PetsController.CreatePet (POST /pets): the spec has a NewPet request body, but the endpoint binds none
+PetsController.cs(32,6): error RAPI017: PetsController.CreatePet (POST /pets): 'body' binds query value 'body', which the spec doesn't document
+PetsController.cs(83,6): error RAPI017: PetsController.DeletePet (DELETE /pets/{petId}): 'hard' binds query value 'hard', which the spec doesn't document
+```
+
 
 The scaffolded Pet Store opts in, so its clean build is itself the proof that every operation is covered. Breaking its
 controller five ways at once gives:
@@ -358,7 +385,7 @@ What makes it trustworthy, not just cheap:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
-| Coverage verification | hand-written endpoints missing an operation, adding one, or declaring different responses, names or route parameters; at compile time | `CoverageTests`, and the scaffolded Pet Store's own build |
+| Coverage verification | hand-written endpoints missing an operation, adding one, declaring different responses or names, or wiring parameters and bodies differently from the spec; at compile time | `CoverageTests`, and the scaffolded Pet Store's own build |
 | Scaffold fidelity | scaffolded controllers describing or answering differently from the spec | `ScaffoldedServerTests`, `ScaffoldTests` |
 | Fluent fake assertions | a consumer making calls it shouldn't, too often, or in the wrong order | `FluentFakeServerTests` |
 | Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |

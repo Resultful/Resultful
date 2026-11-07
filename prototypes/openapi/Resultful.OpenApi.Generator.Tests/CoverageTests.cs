@@ -47,6 +47,12 @@ public sealed class CoverageTests
             public sealed class ProducesResponseTypeAttribute<T>(int statusCode, string contentType) : Attribute { }
             public sealed class NonActionAttribute : Attribute { }
             public sealed class ApiExplorerSettingsAttribute : Attribute { public bool IgnoreApi { get; set; } }
+            public sealed class HttpPostAttribute(string template = "") : Attribute { public string? Name { get; set; } }
+            public sealed class FromRouteAttribute : Attribute { public string? Name { get; set; } }
+            public sealed class FromQueryAttribute : Attribute { public string? Name { get; set; } }
+            public sealed class FromHeaderAttribute : Attribute { public string? Name { get; set; } }
+            public sealed class FromBodyAttribute : Attribute { }
+            public sealed class FromServicesAttribute : Attribute { }
             public class ControllerBase { }
         }
 
@@ -59,6 +65,7 @@ public sealed class CoverageTests
             {
                 public static Endpoint MapGet(this App app, string pattern, Delegate handler) => new();
                 public static Endpoint MapDelete(this App app, string pattern, Delegate handler) => new();
+                public static Endpoint MapPost(this App app, string pattern, Delegate handler) => new();
                 public static Endpoint MapMethods(this App app, string pattern, string[] methods, Delegate handler) => new();
                 public static App MapGroup(this App app, string prefix) => app;
                 public static Endpoint WithName(this Endpoint endpoint, string name) => endpoint;
@@ -81,11 +88,11 @@ public sealed class CoverageTests
                 [HttpGet("{thingId:long}", Name = "getThing")]
                 [ProducesResponseType<string>(200, "application/json")]
                 [ProducesResponseType(404)]
-                public object Get(long thingId) => thingId;
+                public object Get(int thingId) => thingId;
 
                 [HttpDelete("/things/{thingId}", Name = "deleteThing")]
                 [ProducesResponseType(204)]
-                public void Delete(long thingId) { }
+                public void Delete(int thingId) { }
 
                 [HttpGet("/health")]
                 [ApiExplorerSettings(IgnoreApi = true)]
@@ -136,12 +143,14 @@ public sealed class CoverageTests
                 public static void Map(App app)
                 {
                     var things = app.MapGroup("/things");
-                    things.MapGet("/{thingId}", () => "x").WithName("getThing");
-                    app.MapMethods("/things/{thingId}", new[] { "DELETE" }, () => { }).WithName("deleteThing");
+                    things.MapGet("/{thingId}", (int thingId) => "x").WithName("getThing");
+                    app.MapMethods("/things/{thingId}", new[] { "DELETE" }, Delete).WithName("deleteThing");
                     app.MapGet("/health", () => "ok").ExcludeFromDescription();
                     var admin = app.MapGroup("/admin").ExcludeFromDescription();
                     admin.MapGet("/stats", () => 1);
                 }
+
+                private static void Delete(int thingId) { }
             }
             """).Should().BeEmpty();
 
@@ -152,7 +161,7 @@ public sealed class CoverageTests
             {
                 public static void Map(App app)
                 {
-                    app.MapGet("/things/{thingId}", () => "x");
+                    app.MapGet("/things/{thingId}", (int thingId) => "x");
                     app.MapGet("/version", () => "1");
                 }
             }
@@ -162,13 +171,121 @@ public sealed class CoverageTests
                 "RAPI014: MapGet(\"/things/{thingId}\") (GET /things/{thingId}) is named 'none'; name it 'getThing', the spec's operationId, which the OpenAPI description uses");
     }
 
+    private const string BindingSpec = """
+        openapi: 3.1.0
+        info: { title: T, version: '1' }
+        paths:
+          /things/{thingId}/notes:
+            post:
+              operationId: addNote
+              parameters:
+                - { name: thingId, in: path, required: true, schema: { type: integer, format: int64 } }
+                - { name: limit, in: query, required: false, schema: { type: integer } }
+                - { name: X-Request-Id, in: header, required: true, schema: { type: string, format: uuid } }
+              requestBody:
+                content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } }
+              responses:
+                '204': { description: added }
+        components:
+          schemas:
+            Note:
+              type: object
+              properties: { text: { type: string } }
+        """;
+
+    private const string Note = """
+        public sealed class Note { public string? Text { get; set; } }
+        public interface IClock { }
+        """;
+
+    [Test]
+    public void Parameters_wired_as_the_spec_says_pass_whether_explicit_or_inferred()
+    {
+        Verify("""
+            using System;
+            using System.Threading;
+            using Microsoft.AspNetCore.Mvc;
+
+            [ApiController]
+            public sealed class NotesController : ControllerBase
+            {
+                [HttpPost("/things/{thingId}/notes", Name = "addNote")]
+                [ProducesResponseType(204)]
+                public void Add(
+                    long thingId,                                            // inferred: in the route template
+                    int? limit,                                              // inferred: a simple type, from the query
+                    [FromHeader(Name = "X-Request-Id")] Guid requestId,      // explicit, renamed
+                    Note note,                                               // inferred: [ApiController] binds a complex type from the body
+                    [FromServices] IClock clock,                             // services are not part of the spec
+                    CancellationToken cancellationToken) { }                 // nor are framework types
+            }
+            """ + Note, BindingSpec).Should().BeEmpty();
+
+        Verify("""
+            using System;
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Mvc;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                    => app.MapPost("/things/{thingId:long}/notes", Add).WithName("addNote");
+
+                private static void Add(long thingId, [FromHeader(Name = "X-Request-Id")] Guid requestId, Note note, IClock clock, int limit = 10) { }
+            }
+            """ + Note, BindingSpec).Should().BeEmpty();
+    }
+
+    [Test]
+    public void Every_kind_of_wiring_mistake_is_reported()
+    {
+        var diagnostics = Verify("""
+            using Microsoft.AspNetCore.Mvc;
+
+            [ApiController]
+            public sealed class NotesController : ControllerBase
+            {
+                [HttpPost("/things/{thingId}/notes", Name = "addNote")]
+                [ProducesResponseType(204)]
+                public void Add(int thingId, int limit, [FromQuery] string? sort, [FromQuery] Note note) { }
+            }
+            """ + Note, BindingSpec);
+
+        diagnostics.Should().Equal(
+            "RAPI016: NotesController.Add (POST /things/{thingId}/notes): the spec's header parameter 'X-Request-Id' is not bound; add [FromHeader(Name = \"X-Request-Id\")] Guid",
+            "RAPI017: NotesController.Add (POST /things/{thingId}/notes): 'note' binds query value 'note', which the spec doesn't document",
+            "RAPI017: NotesController.Add (POST /things/{thingId}/notes): 'sort' binds query value 'sort', which the spec doesn't document",
+            "RAPI018: NotesController.Add (POST /things/{thingId}/notes): 'thingId' is bound as int; the spec says long",
+            "RAPI019: NotesController.Add (POST /things/{thingId}/notes): 'limit' is optional in the spec, but binding it as a non-nullable int with no default makes it required; make it int? or give it a default",
+            "RAPI020: NotesController.Add (POST /things/{thingId}/notes): the spec has a Note request body, but the endpoint binds none");
+    }
+
+    [Test]
+    public void Without_ApiController_a_complex_parameter_is_not_the_body()
+    {
+        Verify("""
+            using System;
+            using Microsoft.AspNetCore.Mvc;
+
+            public sealed class NotesController : ControllerBase
+            {
+                [HttpPost("/things/{thingId}/notes", Name = "addNote")]
+                [ProducesResponseType(204)]
+                public void Add(long thingId, int? limit, [FromHeader(Name = "X-Request-Id")] Guid requestId, Note note) { }
+            }
+            """ + Note, BindingSpec).Should().Equal(
+                "RAPI020: NotesController.Add (POST /things/{thingId}/notes): the spec has a Note request body, but 'note' binds from the form and query: mark it [FromBody], or add [ApiController]");
+    }
+
     [Test]
     public void Nothing_is_verified_unless_the_spec_asks_for_it()
     {
-        Verify("public sealed class Empty { }", parts: "Contract").Should().NotContain(d => d.StartsWith("RAPI01"));
+        Verify("public sealed class Empty { }", parts: "Contract").Should().BeEmpty();
     }
 
-    private static List<string> Verify(string code, string parts = "Verify")
+    private static List<string> Verify(string code, string spec) => Verify(code, "Verify", spec);
+
+    private static List<string> Verify(string code, string parts = "Verify", string spec = Spec)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -181,10 +298,10 @@ public sealed class CoverageTests
 
         var driver = CSharpGeneratorDriver.Create(
             [new OpenApiSourceGenerator().AsSourceGenerator()],
-            [new Text("/specs/t.yaml", Spec)],
+            [new Text("/specs/t.yaml", spec)],
             optionsProvider: new Options(parts));
         return driver.RunGenerators(compilation).GetRunResult().Diagnostics
-            .Where(d => d.Id.StartsWith("RAPI01", StringComparison.Ordinal))
+            .Where(d => int.TryParse(d.Id.AsSpan(4), out var n) && n is >= 10 and < 30) // the verification diagnostics, RAPI010 onwards
             .Select(d => $"{d.Id}: {d.GetMessage()}")
             .Order(StringComparer.Ordinal)
             .ToList();

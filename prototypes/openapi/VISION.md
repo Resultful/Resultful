@@ -72,8 +72,9 @@ consumers actually use, not against the whole spec.
   replaces one handler body at a time. It is also the way off the generator: the contract stays generated, and the
   server becomes plain ASP.NET.
 - **And owned code stays honest.** The generator checks hand-written controllers and Map calls against the spec at
-  compile time: a missing operation, an undocumented endpoint, or a response, name or route parameter that differs is a
-  build error at the line that's wrong.
+  compile time: a missing operation, an undocumented endpoint, a response or name that differs, or a parameter or body
+  bound from the wrong place, with the wrong type or as required when it's optional, is a build error at the line
+  that's wrong.
 
 The three uses share one engine. Most teams will start with testing or the fake, because neither asks anything of
 the service, and move to spec-first services for new work.

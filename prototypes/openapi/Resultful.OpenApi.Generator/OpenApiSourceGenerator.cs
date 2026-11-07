@@ -232,8 +232,34 @@ namespace Resultful.OpenApi.Generator
             "{0}: the route parameter is '{{{1}}}', the spec calls it '{{{2}}}'",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ParameterNotBound = new(
+            "RAPI016", "Spec parameter not bound",
+            "{0}: the spec's {1} parameter '{2}' is not bound; add {3}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ParameterNotDocumented = new(
+            "RAPI017", "Parameter not in the spec",
+            "{0}: '{3}' binds {1} value '{2}', which the spec doesn't document",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor BindingTypeMismatch = new(
+            "RAPI018", "Bound with a different type",
+            "{0}: {1} is bound as {2}; the spec says {3}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor OptionalParameterRequired = new(
+            "RAPI019", "Optional parameter required",
+            "{0}: '{1}' is optional in the spec, but binding it as a non-nullable {2} with no default makes it required; make it {2}? or give it a default",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor BodyMismatch = new(
+            "RAPI020", "Request body not bound as the spec says",
+            "{0}: {1}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
             ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString,
-                OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch);
+                OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
+                ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch);
     }
 }
