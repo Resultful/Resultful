@@ -52,7 +52,8 @@ namespace Matchmark.Generator
 
         private string ValidationClass => _apiName + "Validation";
 
-        public Dictionary<string, string> Emit(bool contract = true, bool server = true, bool fakeServer = false, bool regression = false)
+        public Dictionary<string, string> Emit(bool contract = true, bool server = true, bool fakeServer = false, bool regression = false,
+            IReadOnlyList<string>? workflows = null)
         {
             CollectSchemas();
             var operations = CollectOperations();
@@ -87,7 +88,7 @@ namespace Matchmark.Generator
 
             if (regression)
             {
-                files["Regression"] = EmitRegression();
+                files["Regression"] = EmitRegression(workflows ?? Array.Empty<string>());
             }
 
             return files;

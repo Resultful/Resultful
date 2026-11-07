@@ -18,16 +18,20 @@ namespace Matchmark.Testing;
 /// </summary>
 public sealed class RegressionSuite
 {
-    private RegressionSuite(OpenApiSpec spec)
+    private RegressionSuite(OpenApiSpec spec, IEnumerable<ArazzoDocument> arazzo)
     {
         Spec = spec;
+        Arazzo = arazzo.SelectMany(d => d.Workflows).ToList();
         Validator = new SchemaValidator(spec);
         Samples = new Samples(spec, Validator);
         var generator = new Generator(this);
         Cases = generator.Cases;
         Workflows = generator.Workflows;
-        Gaps = generator.Gaps;
+        Gaps = generator.Gaps.Concat(Arazzo.SelectMany(w => ArazzoGaps(w).Select(g => $"{w.Name}: {g}"))).ToList();
     }
+
+    /// <summary>The Arazzo workflows given with the spec, run after the cases and the workflows from links.</summary>
+    public IReadOnlyList<ArazzoWorkflow> Arazzo { get; }
 
     public OpenApiSpec Spec { get; }
 
@@ -42,8 +46,93 @@ public sealed class RegressionSuite
     /// <summary>What the suite couldn't generate, and why (a required value no sample satisfies, say).</summary>
     public IReadOnlyList<string> Gaps { get; }
 
-    /// <summary>The suite for an OpenAPI 3.x document, as JSON.</summary>
-    public static RegressionSuite FromJson(string specJson) => new(OpenApiSpec.Parse(specJson));
+    /// <summary>The suite for an OpenAPI 3.x document, as JSON, with any Arazzo documents (as JSON) that describe its workflows.</summary>
+    public static RegressionSuite FromJson(string specJson, params string[] arazzoJson)
+        => new(OpenApiSpec.Parse(specJson), arazzoJson.Select(ArazzoDocument.Parse));
+
+    /// <summary>The operation an Arazzo step calls: its operationId, with or without its source description's name in front.</summary>
+    internal SpecOperation? ArazzoOperation(JsonObject step, ArazzoDocument document)
+    {
+        // operationPath: a JSON Pointer into the source description, '{$sourceDescriptions.x.url}#/paths/~1things~1{id}/get'.
+        if (step["operationPath"]?.GetValue<string>() is { } operationPath)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(operationPath, "#/paths/([^/]+)/([a-z]+)$");
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var path = match.Groups[1].Value.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal);
+            var method = match.Groups[2].Value.ToUpperInvariant();
+            return Spec.Operations.FirstOrDefault(o => o.Path == path && o.Method == method);
+        }
+
+        var id = step["operationId"]?.GetValue<string>();
+        foreach (var source in document.OpenApiSources)
+        {
+            foreach (var prefix in new[] { $"$sourceDescriptions.{source}.", $"{source}." })
+            {
+                if (id?.StartsWith(prefix, StringComparison.Ordinal) == true)
+                {
+                    id = id[prefix.Length..];
+                }
+            }
+        }
+
+        return id is null ? null : Spec.Operations.FirstOrDefault(o => o.Id == id);
+    }
+
+    /// <summary>
+    /// The workflow a step or a goto names: by its id in the same document, or as
+    /// <c>$sourceDescriptions.name.workflows.id</c> in another document given with the spec (the one that has that id).
+    /// </summary>
+    internal ArazzoWorkflow? NestedWorkflow(string reference, ArazzoDocument document)
+    {
+        const string marker = ".workflows.";
+        if (!reference.StartsWith("$sourceDescriptions.", StringComparison.Ordinal))
+        {
+            return document.Workflows.FirstOrDefault(w => w.Id == reference);
+        }
+
+        var id = reference.Contains(marker, StringComparison.Ordinal) ? reference[(reference.LastIndexOf(marker, StringComparison.Ordinal) + marker.Length)..] : reference;
+        var matches = Arazzo.Where(w => w.Id == id).ToList();
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    /// <summary>What in a workflow the engine can't run: it's reported, and the workflow isn't run rather than run wrongly.</summary>
+    public IReadOnlyList<string> ArazzoGaps(ArazzoWorkflow workflow)
+    {
+        var gaps = new List<string>();
+        foreach (var step in workflow.Steps)
+        {
+            var id = step["stepId"]?.GetValue<string>();
+            if (step["workflowId"]?.GetValue<string>() is { } nested)
+            {
+                if (NestedWorkflow(nested, workflow.Document) is null)
+                {
+                    gaps.Add($"step {id} runs the workflow {nested}, which isn't in any Arazzo document given");
+                }
+            }
+            else if (step["operationPath"] is { } operationPath && ArazzoOperation(step, workflow.Document) is null)
+            {
+                gaps.Add($"step {id} names {operationPath}, which isn't an operation in the spec");
+            }
+            else if (ArazzoOperation(step, workflow.Document) is null)
+            {
+                gaps.Add($"step {id} calls {step["operationId"]}, which the spec doesn't have");
+            }
+
+            var criteria = new[] { step["successCriteria"] }
+                .Concat((step["onSuccess"] as JsonArray ?? []).Concat(step["onFailure"] as JsonArray ?? []).Select(a => a?["criteria"]))
+                .SelectMany(c => (c as JsonArray ?? []).OfType<JsonObject>());
+            foreach (var criterion in criteria.Where(c => !Criteria.Supported(c)))
+            {
+                gaps.Add($"step {id} has a {Criteria.Type(criterion)} criterion, which isn't supported");
+            }
+        }
+
+        return gaps;
+    }
 
     public RegressionCase Case(string name)
         => Cases.FirstOrDefault(c => c.Name == name) ?? throw new KeyNotFoundException($"The suite has no case '{name}'.");
@@ -61,7 +150,7 @@ public sealed class RegressionSuite
         => new RegressionRunner(this, client, new RegressionOptions()).RunWorkflowAsync(workflow, cancellationToken);
 
     public override string ToString()
-        => $"{Cases.Count} cases ({string.Join(", ", Cases.GroupBy(c => c.Kind).Select(g => $"{g.Count()} {g.Key.ToString().ToLowerInvariant()}"))}) and {Workflows.Count} workflows over {Spec.Operations.Count} operations";
+        => $"{Cases.Count} cases ({string.Join(", ", Cases.GroupBy(c => c.Kind).Select(g => $"{g.Count()} {g.Key.ToString().ToLowerInvariant()}"))}), {Workflows.Count} workflows from links and {Arazzo.Count} from Arazzo, over {Spec.Operations.Count} operations";
 
     private sealed class Generator
     {

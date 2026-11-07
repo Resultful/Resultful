@@ -1,0 +1,85 @@
+# The Pet Store's workflows, in Arazzo 1.1. The regression suite runs them against the service: every step's response is
+# checked against petstore.yaml, and every success criterion must hold.
+arazzo: 1.1.0
+info:
+  title: Pet Store
+  version: 1.0.0
+sourceDescriptions:
+  - name: petstore
+    url: ./petstore.yaml
+    type: openapi
+workflows:
+  - workflowId: register-and-rename
+    summary: Register a pet, find it, rename it, see its new name refused to another pet, then remove it.
+    inputs:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+    steps:
+      - stepId: register
+        operationId: createPet
+        requestBody:
+          contentType: application/json
+          payload:
+            name: $inputs.name
+            details: { kind: cat, livesLeft: 9 }
+        successCriteria:
+          - condition: $statusCode == 201
+          - condition: $response.body#/status == 'available'
+          - context: $response.body
+            condition: $.details.livesLeft == 9
+        outputs:
+          petId: $response.body#/id
+      - stepId: find
+        operationId: getPet
+        parameters:
+          - { name: petId, in: path, value: $steps.register.outputs.petId }
+        successCriteria:
+          - condition: $statusCode == 200
+          - condition: $response.body#/name == $inputs.name
+      - stepId: listed
+        operationId: listPets
+        successCriteria:
+          - condition: $statusCode == 200
+          - context: $response.body
+            type: { type: jsonpath, version: rfc9535 }
+            condition: $[?@.details.kind == 'cat']
+      - stepId: rename
+        operationId: upsertPet
+        parameters:
+          - { name: petId, in: path, value: $steps.register.outputs.petId }
+        requestBody:
+          contentType: application/json
+          payload:
+            name: '{$inputs.name}-renamed'
+            details: { kind: cat, livesLeft: 8 }
+        successCriteria:
+          - condition: $statusCode == 200
+          - condition: $response.body#/details/livesLeft == 8
+        outputs:
+          name: $response.body#/name
+      - stepId: name-taken
+        description: Another pet can't have the name this one has now.
+        operationId: createPet
+        requestBody:
+          contentType: application/json
+          payload:
+            name: $steps.rename.outputs.name
+            details: { kind: dog, goodBoy: true }
+        successCriteria:
+          - condition: $statusCode == 409
+      - stepId: remove
+        operationId: deletePet
+        parameters:
+          - { name: petId, in: path, value: $steps.register.outputs.petId }
+        successCriteria:
+          - condition: $statusCode == 204
+      - stepId: gone
+        operationId: getPet
+        parameters:
+          - { name: petId, in: path, value: $steps.register.outputs.petId }
+        successCriteria:
+          - condition: $statusCode == 404
+    outputs:
+      petId: $steps.register.outputs.petId

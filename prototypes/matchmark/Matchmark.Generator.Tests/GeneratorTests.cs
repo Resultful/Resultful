@@ -250,7 +250,8 @@ public sealed class GeneratorTests
             .And.Contain("public const string Spec = @\"{")
             .And.Contain("\"\"openapi\"\": \"\"3.1.")
             .And.Contain("\"\"operationId\"\": \"\"listThings\"\"")
-            .And.Contain("RegressionSuite.FromJson(Spec)");
+            .And.Contain("public static readonly string[] Workflows = new[] {  };")
+            .And.Contain("RegressionSuite.FromJson(Spec, Workflows)");
     }
 
     private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null, string? parts = null)

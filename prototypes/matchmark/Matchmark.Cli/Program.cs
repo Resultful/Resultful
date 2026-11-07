@@ -17,7 +17,7 @@ const string Usage = """
       --force               overwrite files that exist. Without it, existing files are kept, so re-running after a
                             spec change only adds what is new; the compiler then shows what no longer fits.
 
-    matchmark regress <spec> <base url> [--no-workflows]
+    matchmark regress <spec> <base url> [--arazzo <file>]... [--no-workflows]
 
       Runs the regression suite generated from the spec against any HTTP API.
     """;

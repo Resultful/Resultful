@@ -33,7 +33,9 @@ public sealed class SpecRegressionTests
 
         Write("service", report);
         report.Failures.Should().BeEmpty(report.ToString());
-        report.Workflows.Should().ContainSingle().Which.Skipped.Should().BeNull("the workflow from createPet's links must run to the end");
+        report.Workflows.Should().HaveCount(2).And.OnlyContain(w => w.Skipped == null, "the workflow from createPet's links and the Arazzo workflow both run");
+        report.Workflows.Single(w => w.Name == "Pet Store: register-and-rename").Exchanges.Select(e => $"{e.Request.Method} {e.Status}").Should().Equal(
+            "POST 201", "GET 200", "GET 200", "PUT 200", "POST 409", "DELETE 204", "GET 404");
         report.Outcomes.Where(o => !o.Reached).Should().BeEmpty("the suite reaches every documented outcome, conflicts and missing pets included");
     }
 
@@ -172,6 +174,10 @@ public sealed class SpecRegressionTests
         yield return Case(Checks.ResourceAvailable, "loses a pet as soon as it is created",
             (q, r) => Task.FromResult(q.Method == HttpMethod.Get && r?.StatusCode == HttpStatusCode.OK && q.RequestUri!.AbsolutePath.StartsWith("/pets/", StringComparison.Ordinal) ? Problem(404) : r));
         yield return Case(Checks.ReadAfterWrite, "reads back a different name than it wrote",
+            async (q, r) => q.Method == HttpMethod.Get && r?.StatusCode == HttpStatusCode.OK && q.RequestUri!.AbsolutePath.StartsWith("/pets/", StringComparison.Ordinal)
+                ? Edit(r.StatusCode, await r.Content.ReadAsStringAsync(), json => json["name"] = "Someone else")
+                : r);
+        yield return Case(Checks.WorkflowCriteria, "reads back a different name than it wrote, mid-workflow",
             async (q, r) => q.Method == HttpMethod.Get && r?.StatusCode == HttpStatusCode.OK && q.RequestUri!.AbsolutePath.StartsWith("/pets/", StringComparison.Ordinal)
                 ? Edit(r.StatusCode, await r.Content.ReadAsStringAsync(), json => json["name"] = "Someone else")
                 : r);

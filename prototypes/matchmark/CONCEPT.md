@@ -325,11 +325,34 @@ failure comes with the request as a `curl` command.
 | `LocationReadable` | a success's `Location` can't be read, where the spec has an operation that reads it |
 | `ReadOnlyIgnored` | a `readOnly` value sent anyway (a case of its own; valid cases never send one) was stored |
 | `WriteOnlyHidden` | a `writeOnly` value (a password, a secret) came back in a response |
+| `WorkflowCriteria` | an Arazzo workflow step's success criteria didn't hold, and no `onFailure` action handled it |
 
 The report also measures **outcome coverage:** which documented operation-and-status pairs any request reached. Against
 the Pet Store service it reaches all 12, conflicts and missing pets included.
 
-The last five need nothing declared: HTTP and JSON Schema already promise them, so they hold any API to them.
+`SafeChangesNothing` to `WriteOnlyHidden` need nothing declared: HTTP and JSON Schema already promise them, so they hold any API to them.
+
+**Arazzo workflows** run too. An Arazzo document given with the spec (`MatchmarkArazzo="true"` on its
+`AdditionalFiles` item, joined by `MatchmarkApiName`, or `--arazzo` on the command line) adds its workflows to the
+suite. Each step's request is built from its parameters and payload, with runtime expressions (`$inputs`,
+`$steps.x.outputs`, `$response.body#/…`) and `{$…}` interpolation substituted, and anything else required sampled.
+Its response gets every check above, and its `successCriteria` must hold, or an `onFailure` action (`retry`, honouring
+`Retry-After`; `goto`; `end`) must handle it. The engine runs:
+- `simple` conditions
+- `regex` against a context
+- a JSONPath subset: names, indices, wildcards and `[?…]` filters
+- `operationPath` steps
+- workflows in other documents
+
+What it can't run (XPath, AsyncAPI steps) is reported as a gap rather than run wrongly. The Pet Store's own workflow
+(`petstore.arazzo.yaml`) is a good example:
+1. register a pet
+2. find it, and see it in the list
+3. rename it
+4. see the new name refused to another pet
+5. delete it, and see it gone
+
+It runs against the service, and the scaffolded controllers answer every step identically.
 
 **Every check is checked.** `SpecRegressionTests` puts a fault injector in front of the real service, one fault per
 check: a 404 turned into a 500, or into a 410; JSON sent as `text/plain`; a pet without its status; a valid pet

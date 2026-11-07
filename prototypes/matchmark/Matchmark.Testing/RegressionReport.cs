@@ -55,6 +55,9 @@ public static class Checks
 
     /// <summary>A write-only value (a password, a secret) never appears in a response.</summary>
     public const string WriteOnlyHidden = nameof(WriteOnlyHidden);
+
+    /// <summary>Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles.</summary>
+    public const string WorkflowCriteria = nameof(WorkflowCriteria);
 }
 
 public enum Severity
@@ -95,12 +98,12 @@ public sealed record CaseResult(RegressionCase Case, Exchange Exchange, IReadOnl
         => $"{Case.Name}: {Exchange.Status}{string.Concat(Findings.Select(f => "\n  " + f))}";
 }
 
-public sealed record WorkflowResult(RegressionWorkflow Workflow, IReadOnlyList<Exchange> Exchanges, IReadOnlyList<Finding> Findings, string? Skipped)
+public sealed record WorkflowResult(string Name, IReadOnlyList<Exchange> Exchanges, IReadOnlyList<Finding> Findings, string? Skipped)
 {
     public bool Passed => Findings.All(f => f.Severity != Severity.Failure);
 
     public override string ToString()
-        => $"{Workflow.Name}: {(Skipped ?? string.Join(", ", Exchanges.Select(e => $"{e.Request.Method} {e.Status}")))}{string.Concat(Findings.Select(f => "\n  " + f))}";
+        => $"{Name}: {(Skipped ?? string.Join(", ", Exchanges.Select(e => $"{e.Request.Method} {e.Status}")))}{string.Concat(Findings.Select(f => "\n  " + f))}";
 }
 
 /// <summary>A documented outcome (an operation's status), and whether any request reached it.</summary>
@@ -144,10 +147,10 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
             Difference(mine.Case.Name, mine.Exchange, match.Exchange, ignored, differences);
         }
 
-        var theirFlows = other.Workflows.ToDictionary(w => w.Workflow.Name, StringComparer.Ordinal);
+        var theirFlows = other.Workflows.ToDictionary(w => w.Name, StringComparer.Ordinal);
         foreach (var mine in Workflows)
         {
-            if (!theirFlows.TryGetValue(mine.Workflow.Name, out var match))
+            if (!theirFlows.TryGetValue(mine.Name, out var match))
             {
                 continue;
             }
@@ -156,11 +159,11 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
             {
                 if (i >= mine.Exchanges.Count || i >= match.Exchanges.Count)
                 {
-                    differences.Add($"{mine.Workflow.Name}: {mine.Exchanges.Count} steps here, {match.Exchanges.Count} there");
+                    differences.Add($"{mine.Name}: {mine.Exchanges.Count} steps here, {match.Exchanges.Count} there");
                     break;
                 }
 
-                Difference($"{mine.Workflow.Name}, step {i + 1} ({mine.Exchanges[i].Request})", mine.Exchanges[i], match.Exchanges[i], ignored, differences);
+                Difference($"{mine.Name}, step {i + 1} ({mine.Exchanges[i].Request})", mine.Exchanges[i], match.Exchanges[i], ignored, differences);
             }
         }
 
@@ -255,7 +258,7 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
 
         foreach (var workflow in Workflows)
         {
-            text.AppendLine(CultureInfo.InvariantCulture, $"Workflow {workflow.Workflow.Name}: {workflow.Skipped ?? string.Join(" → ", workflow.Exchanges.Select(e => $"{e.Request.Method} {e.Status}"))}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"Workflow {workflow.Name}: {workflow.Skipped ?? string.Join(" → ", workflow.Exchanges.Select(e => $"{e.Request.Method} {e.Status}"))}");
         }
 
         foreach (var group in Findings.OrderBy(f => f.Severity).GroupBy(f => (f.Severity, f.Check)))
