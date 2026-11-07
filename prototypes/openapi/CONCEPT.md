@@ -1,6 +1,7 @@
 # The concept: the spec as an enforceable contract
 
-How the prototype works today. [VISION.md](VISION.md) sets out where it is going.
+How the prototype works today. [VISION.md](VISION.md) sets out where it is going; [PETSTORE.md](PETSTORE.md) shows it on
+the sample.
 
 Most spec-first tools generate a skeleton once, and the spec drifts from the code from then on. This prototype keeps
 the spec enforceable for the life of the service. The spec fixes every part of the API except the behaviour inside
