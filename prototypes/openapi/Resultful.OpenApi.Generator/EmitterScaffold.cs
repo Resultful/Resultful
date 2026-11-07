@@ -407,8 +407,11 @@ namespace Resultful.OpenApi.Generator
     /// <summary>An operation as the spec defines it, for checking hand-written endpoints against.</summary>
     internal sealed class SpecOperation
     {
-        public SpecOperation(string id, string method, string path, IReadOnlyList<int> statuses, IReadOnlyList<SpecParameter> parameters, string? bodyType)
+        public SpecOperation(string id, string method, string path, IReadOnlyList<int> statuses, IReadOnlyList<SpecParameter> parameters, string? bodyType,
+            IOpenApiSchema? bodySchema, IReadOnlyDictionary<int, IOpenApiSchema?> responseSchemas)
         {
+            BodySchema = bodySchema;
+            ResponseSchemas = responseSchemas;
             Id = id;
             Method = method;
             Path = path;
@@ -430,6 +433,11 @@ namespace Resultful.OpenApi.Generator
 
         /// <summary>The request body's C# type, or null when the operation has no body.</summary>
         public string? BodyType { get; }
+
+        public IOpenApiSchema? BodySchema { get; }
+
+        /// <summary>Each documented status's body schema; null for a response without a body.</summary>
+        public IReadOnlyDictionary<int, IOpenApiSchema?> ResponseSchemas { get; }
     }
 
     /// <summary>A path, query or header parameter: where it comes from, its name, its C# type and whether it's required.</summary>
@@ -466,7 +474,9 @@ namespace Resultful.OpenApi.Generator
                     o.Successes.Concat(o.Errors).Select(r => r.Status).OrderBy(s => s).ToList(),
                     o.Parameters.Select(p => new SpecParameter(
                         p.Attribute.Substring(4), p.Name, p.Type.TrimEnd('?'), !p.Type.EndsWith("?", StringComparison.Ordinal))).ToList(),
-                    o.Body?.Type))
+                    o.Body?.Type,
+                    o.Body?.Schema,
+                    o.Successes.Concat(o.Errors).ToDictionary(r => r.Status, r => r.Schema)))
                 .ToList();
         }
     }

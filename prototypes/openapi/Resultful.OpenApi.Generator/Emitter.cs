@@ -580,9 +580,15 @@ namespace Resultful.OpenApi.Generator
 
         private sealed class Body
         {
-            public Body(string type) => Type = type;
+            public Body(string type, IOpenApiSchema schema)
+            {
+                Type = type;
+                Schema = schema;
+            }
 
             public string Type { get; }
+
+            public IOpenApiSchema Schema { get; }
         }
 
         private sealed class Param
@@ -802,7 +808,7 @@ namespace Resultful.OpenApi.Generator
                     return false;
                 }
 
-                operation.Body = new Body(bodyType);
+                operation.Body = new Body(bodyType, bodySchema);
             }
 
             foreach (var pair in spec.Responses ?? new OpenApiResponses())

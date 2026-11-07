@@ -34,6 +34,8 @@ public sealed class CoverageTests
         """;
 
     private const string AspNet = """
+        global using Contract;
+        namespace Contract { }
         namespace Microsoft.AspNetCore.Mvc
         {
             using System;
@@ -193,9 +195,13 @@ public sealed class CoverageTests
               properties: { text: { type: string } }
         """;
 
+    // Note stands for the type generated from the schema: it's in the generated namespace, so the body is consistent by construction.
     private const string Note = """
-        public sealed class Note { public string? Text { get; set; } }
-        public interface IClock { }
+        namespace Contract
+        {
+            public sealed class Note { public string? Text { get; set; } }
+            public interface IClock { }
+        }
         """;
 
     [Test]
@@ -277,6 +283,175 @@ public sealed class CoverageTests
                 "RAPI020: NotesController.Add (POST /things/{thingId}/notes): the spec has a Note request body, but 'note' binds from the form and query: mark it [FromBody], or add [ApiController]");
     }
 
+    private const string ModelSpec = """
+        openapi: 3.1.0
+        info: { title: T, version: '1' }
+        paths:
+          /pets:
+            get:
+              operationId: listPets
+              responses:
+                '200': { description: ok, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Pet' } } } } }
+            post:
+              operationId: addPet
+              requestBody:
+                content: { application/json: { schema: { $ref: '#/components/schemas/NewPet' } } }
+              responses:
+                '201': { description: added, content: { application/json: { schema: { $ref: '#/components/schemas/Pet' } } } }
+        components:
+          schemas:
+            NewPet:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                tag: { type: [string, 'null'] }
+            Pet:
+              type: object
+              required: [id, name, status, details]
+              properties:
+                id: { type: integer, format: int64 }
+                name: { type: string }
+                status: { $ref: '#/components/schemas/Status' }
+                details: { $ref: '#/components/schemas/Details' }
+            Status:
+              type: string
+              enum: [available, adopted]
+            Details:
+              oneOf: [{ $ref: '#/components/schemas/Dog' }, { $ref: '#/components/schemas/Cat' }]
+              discriminator: { propertyName: kind, mapping: { dog: '#/components/schemas/Dog', cat: '#/components/schemas/Cat' } }
+            Dog:
+              type: object
+              required: [kind, goodBoy]
+              properties: { kind: { type: string }, goodBoy: { type: boolean } }
+            Cat:
+              type: object
+              required: [kind, livesLeft]
+              properties: { kind: { type: string }, livesLeft: { type: integer, format: int32 } }
+        """;
+
+    /// <summary>The same JSON as the schemas, in a given namespace: as the generator writes them, or as a team might by hand.</summary>
+    private static string Models(string ns) => $$"""
+        namespace {{ns}}
+        {
+            using System.Text.Json.Serialization;
+
+            public sealed record NewPet(string Name, string? Tag);
+            public sealed record Pet(long Id, string Name, Status Status, Details Details);
+
+            [JsonConverter(typeof(JsonStringEnumConverter<Status>))]
+            public enum Status { [JsonStringEnumMemberName("available")] Available, [JsonStringEnumMemberName("adopted")] Adopted }
+
+            [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+            [JsonDerivedType(typeof(Dog), "dog")]
+            [JsonDerivedType(typeof(Cat), "cat")]
+            public abstract record Details;
+            public sealed record Dog(bool GoodBoy) : Details;
+            public sealed record Cat(int LivesLeft) : Details;
+        }
+        """;
+
+    private static string PetsController(string ns) => $$"""
+        using System.Collections.Generic;
+        using Microsoft.AspNetCore.Mvc;
+        using {{ns}};
+
+        [ApiController]
+        public sealed class PetsController : ControllerBase
+        {
+            [HttpGet("/pets", Name = "listPets")]
+            [ProducesResponseType<IReadOnlyList<Pet>>(200, "application/json")]
+            public void List() { }
+
+            [HttpPost("/pets", Name = "addPet")]
+            [ProducesResponseType<Pet>(201, "application/json")]
+            public void Add(NewPet pet) { }
+        }
+        """;
+
+    [Test]
+    public void Generated_models_are_consistent_by_construction()
+    {
+        Verify(PetsController("Contract") + Models("Contract"), ModelSpec).Should().BeEmpty();
+    }
+
+    [Test]
+    public void A_hand_written_model_that_matches_the_schema_is_noted_as_not_consistent_by_construction()
+    {
+        Verify(PetsController("Mine") + Models("Mine"), ModelSpec).Should().Equal(
+            "RAPI021: PetsController.Add (POST /pets): the 201 response is Pet, which matches the schema Pet today; use the generated types so it stays consistent by construction",
+            "RAPI021: PetsController.Add (POST /pets): the request body is NewPet, which matches the schema NewPet today; use the generated types so it stays consistent by construction",
+            "RAPI021: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which matches the schema Pet[] today; use the generated types so it stays consistent by construction");
+    }
+
+    [Test]
+    public void Every_difference_between_a_model_and_its_schema_is_reported_at_its_json_path()
+    {
+        var drifted = """
+            namespace Mine
+            {
+                using System.Text.Json.Serialization;
+
+                public sealed class NewPet
+                {
+                    public string? Name { get; set; }                         // the schema requires it
+                    [JsonPropertyName("label")] public string? Tag { get; set; }  // renamed on the wire
+                }
+
+                public sealed record Pet(int Id, string Name, Status Status, Details Details, string Owner);
+
+                public enum Status { Available, Adopted }                    // written as numbers
+
+                [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+                [JsonDerivedType(typeof(Dog), "dog")]
+                [JsonDerivedType(typeof(Fish), "fish")]
+                public abstract record Details;
+                public sealed record Dog(string GoodBoy) : Details;
+                public sealed record Fish(bool Fins) : Details;
+            }
+            """;
+
+        Verify(PetsController("Mine") + drifted, ModelSpec).Should().Equal(
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: details has a derived type for 'fish', which the schema doesn't",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: details has no derived type for 'cat' (Cat)",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: details is discriminated by 'type'; the schema uses 'kind'",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: details(dog).goodBoy is string (string); the schema says boolean",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: id is int (integer/int32); the schema says integer/int64",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: owner (Owner) is not in the schema",
+            "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: status is an enum written as a number; the schema has string values (add [JsonConverter(typeof(JsonStringEnumConverter<Status>))])",
+            "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: label (Tag) is not in the schema",
+            "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) can be null; the schema requires it",
+            "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag is missing",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details has a derived type for 'fish', which the schema doesn't",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details has no derived type for 'cat' (Cat)",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details is discriminated by 'type'; the schema uses 'kind'",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details(dog).goodBoy is string (string); the schema says boolean",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].id is int (integer/int32); the schema says integer/int64",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].owner (Owner) is not in the schema",
+            "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].status is an enum written as a number; the schema has string values (add [JsonConverter(typeof(JsonStringEnumConverter<Status>))])");
+    }
+
+    [Test]
+    public void A_minimal_api_body_is_compared_with_its_schema_too()
+    {
+        Verify("""
+            using Microsoft.AspNetCore.Builder;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                {
+                    app.MapGet("/pets", () => { }).WithName("listPets");
+                    app.MapPost("/pets", (Mine.NewPet pet) => { }).WithName("addPet");
+                }
+            }
+
+            namespace Mine { public sealed record NewPet(string Name, long Tag); }
+            """, ModelSpec).Should().Equal(
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag (Tag) can't be null; the schema makes it optional",
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag is long (integer/int64); the schema says string");
+    }
+
     [Test]
     public void Nothing_is_verified_unless_the_spec_asks_for_it()
     {
@@ -320,6 +495,7 @@ public sealed class CoverageTests
         {
             ["build_metadata.AdditionalFiles.ResultfulOpenApi"] = "true",
             ["build_metadata.AdditionalFiles.ResultfulApiName"] = "T",
+            ["build_metadata.AdditionalFiles.ResultfulNamespace"] = "Contract",
             ["build_metadata.AdditionalFiles.ResultfulParts"] = parts,
         });
 

@@ -467,8 +467,21 @@ PetsController.cs(32,6): error RAPI017: PetsController.CreatePet (POST /pets): '
 PetsController.cs(83,6): error RAPI017: PetsController.DeletePet (DELETE /pets/{petId}): 'hard' binds query value 'hard', which the spec doesn't document
 ```
 
+The models are checked as well. The scaffold uses the generated `Pet` and `NewPet`, so they match the spec by
+construction and nothing is reported. A team that swaps in its own types gets them compared with the schemas, as
+System.Text.Json would write them. A hand-written `PetDto` that matches is noted (`RAPI021`, info), and one that drifts
+is reported at each JSON path where it differs (`RAPI022`):
+
+```
+PetsController.cs(32,6): info RAPI021: PetsController.CreatePet (POST /pets): the 201 response is PetDto, which matches the schema Pet today; use the generated types so it stays consistent by construction
+PetsController.cs(51,6): error RAPI022: PetsController.GetPet (GET /pets/{petId}): the 200 response is NewPet, which differs from the schema Pet: id is missing
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].id is int (integer/int32); the schema says integer/int64
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].details is discriminated by 'type'; the schema uses 'kind'
+PetsController.cs(63,6): error RAPI022: PetsController.UpsertPet (PUT /pets/{petId}): the request body is PetDto, which differs from the schema NewPet: id (Id) is not in the schema
+```
+
 So a team can own and edit every line of the HTTP layer, and the compiler still guarantees it covers the spec, and
-only the spec, down to how each value reaches the handler.
+only the spec, down to how each value reaches the handler and the shape of every model it reads and writes.
 
 Re-running the scaffolder keeps every file that exists unless given `--force`. So after a spec change it only adds
 what is new, and the compiler shows which existing handlers no longer fit the contract.
@@ -499,6 +512,7 @@ What the tests show about the untouched scaffold:
 | write a scenario file with a typo | `PetStoreFake.Check`, when it's loaded |
 | remove, rename or misdeclare a hand-written endpoint | the build (`RAPI010`–`RAPI015`), in projects that opt in to `Verify` |
 | bind a parameter or body from the wrong place, with the wrong type, or as required when it's optional | the build (`RAPI016`–`RAPI020`) |
+| use a model whose JSON differs from the schema, or a hand-written one where the generated one would do | the build (`RAPI022`, and `RAPI021` as info) |
 | scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
 
 ## Where things are

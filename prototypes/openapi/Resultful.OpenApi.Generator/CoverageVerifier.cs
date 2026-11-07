@@ -5,6 +5,7 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.OpenApi;
 
 namespace Resultful.OpenApi.Generator
 {
@@ -12,9 +13,11 @@ namespace Resultful.OpenApi.Generator
     internal sealed class Endpoint : IEquatable<Endpoint>
     {
         public Endpoint(string method, string route, string? name, string display, Location location, bool excluded, ImmutableArray<int>? statuses,
-            ImmutableArray<Binding>? bindings)
+            ImmutableArray<Binding>? bindings, ImmutableArray<(int Status, string Type)>? responseTypes = null, ImmutableArray<TypeShape>? shapes = null)
         {
             Bindings = bindings;
+            ResponseTypes = responseTypes ?? ImmutableArray<(int, string)>.Empty;
+            Shapes = shapes ?? ImmutableArray<TypeShape>.Empty;
             Method = method;
             Route = route;
             Name = name;
@@ -44,8 +47,14 @@ namespace Resultful.OpenApi.Generator
         /// <summary>What the handler binds from the request; null when the handler can't be read.</summary>
         public ImmutableArray<Binding>? Bindings { get; }
 
+        /// <summary>The body type each declared response has, by its full name.</summary>
+        public ImmutableArray<(int Status, string Type)> ResponseTypes { get; }
+
+        /// <summary>The JSON shape of the request body's and responses' types, and of every type they reach.</summary>
+        public ImmutableArray<TypeShape> Shapes { get; }
+
         public bool Equals(Endpoint? other)
-            => other is not null && Method == other.Method && Route == other.Route && Name == other.Name && Display == other.Display
+            => other is not null && ResponseTypes.SequenceEqual(other.ResponseTypes) && Shapes.SequenceEqual(other.Shapes) && Method == other.Method && Route == other.Route && Name == other.Name && Display == other.Display
                && Excluded == other.Excluded && Location.Equals(other.Location)
                && (Statuses?.SequenceEqual(other.Statuses ?? ImmutableArray<int>.Empty) ?? other.Statuses is null)
                && (Bindings?.SequenceEqual(other.Bindings ?? ImmutableArray<Binding>.Empty) ?? other.Bindings is null);
@@ -61,8 +70,9 @@ namespace Resultful.OpenApi.Generator
     /// </summary>
     internal sealed class Binding : IEquatable<Binding>
     {
-        public Binding(string source, string name, string type, bool optional, string parameter)
+        public Binding(string source, string name, string type, bool optional, string parameter, string fullType)
         {
+            FullType = fullType;
             Source = source;
             Name = name;
             Type = type;
@@ -83,8 +93,11 @@ namespace Resultful.OpenApi.Generator
         /// <summary>The C# parameter it binds to.</summary>
         public string Parameter { get; }
 
+        /// <summary>The type's full name, so a body is compared by identity rather than by its simple name.</summary>
+        public string FullType { get; }
+
         public bool Equals(Binding? other)
-            => other is not null && Source == other.Source && Name == other.Name && Type == other.Type && Optional == other.Optional && Parameter == other.Parameter;
+            => other is not null && FullType == other.FullType && Source == other.Source && Name == other.Name && Type == other.Type && Optional == other.Optional && Parameter == other.Parameter;
 
         public override bool Equals(object? obj) => Equals(obj as Binding);
 
@@ -113,13 +126,22 @@ namespace Resultful.OpenApi.Generator
             var type = method.ContainingType;
             var excluded = IsExcluded(method.GetAttributes()) || IsExcluded(type.GetAttributes());
             var classRoute = type.GetAttributes().FirstOrDefault(a => IsMvc(a, "RouteAttribute"))?.ConstructorArguments.FirstOrDefault().Value as string;
-            var statuses = method.GetAttributes().Concat(type.GetAttributes())
+            var produces = method.GetAttributes().Concat(type.GetAttributes())
                 .Where(a => IsMvc(a, "ProducesResponseTypeAttribute") || IsMvc(a, "ProducesResponseTypeAttribute`1"))
-                .Select(a => a.ConstructorArguments.FirstOrDefault(c => c.Type?.SpecialType == SpecialType.System_Int32).Value)
-                .OfType<int>()
-                .Distinct()
-                .OrderBy(s => s)
-                .ToImmutableArray();
+                .Select(a => (Status: a.ConstructorArguments.FirstOrDefault(c => c.Type?.SpecialType == SpecialType.System_Int32).Value as int?,
+                              Type: a.AttributeClass!.TypeArguments.FirstOrDefault()
+                                    ?? a.ConstructorArguments.FirstOrDefault(c => c.Kind == TypedConstantKind.Type).Value as ITypeSymbol))
+                .Where(p => p.Status is not null)
+                .Select(p => (Status: p.Status!.Value, p.Type))
+                .ToList();
+            var statuses = produces.Select(p => p.Status).Distinct().OrderBy(s => s).ToImmutableArray();
+
+            // A success declared without a type is described with the action's own return type, as ApiExplorer does.
+            var returned = ReturnedType(method.ReturnType);
+            var responseTypes = produces
+                .Select(p => (p.Status, Type: p.Type ?? (p.Status is >= 200 and < 300 ? returned : null)))
+                .Where(p => p.Type is not null)
+                .ToList();
             var controller = type.Name.EndsWith("Controller", StringComparison.Ordinal) ? type.Name.Substring(0, type.Name.Length - "Controller".Length) : type.Name;
 
             foreach (var attribute in method.GetAttributes())
@@ -139,9 +161,49 @@ namespace Resultful.OpenApi.Generator
                 var location = (attribute.ApplicationSyntaxReference?.GetSyntax(ct) ?? context.Node).GetLocation();
                 var normalized = Normalize(route);
                 var apiController = IsApiController(type);
+                var bindings = Bindings(method, normalized, complexFromBody: apiController);
                 yield return new Endpoint(verb.ToUpperInvariant(), normalized, name, $"{type.Name}.{method.Name}", location, excluded, statuses,
-                    Bindings(method, normalized, complexFromBody: apiController));
+                    bindings, responseTypes.Select(r => (r.Status, TypeShape.NameOf(r.Type!))).ToImmutableArray(),
+                    Shapes(method, bindings, responseTypes.Select(r => r.Type!)));
             }
+        }
+
+        /// <summary>T, from T, ActionResult&lt;T&gt;, Task&lt;T&gt; or ValueTask&lt;ActionResult&lt;T&gt;&gt;; null for IActionResult and void.</summary>
+        private static ITypeSymbol? ReturnedType(ITypeSymbol type)
+        {
+            if (type is INamedTypeSymbol { IsGenericType: true } named && named.Name is "Task" or "ValueTask")
+            {
+                type = named.TypeArguments[0];
+            }
+            else if (type.Name is "Task" or "ValueTask" || type.SpecialType == SpecialType.System_Void)
+            {
+                return null;
+            }
+
+            if (type is INamedTypeSymbol { Name: "ActionResult", IsGenericType: true } result)
+            {
+                return result.TypeArguments[0];
+            }
+
+            return type.AllInterfaces.Any(i => i.Name is "IActionResult" or "IResult") || type.Name is "IActionResult" or "IResult" ? null : type;
+        }
+
+        /// <summary>The shapes of the body's type and the response types, and of everything they reach.</summary>
+        private static ImmutableArray<TypeShape> Shapes(IMethodSymbol method, ImmutableArray<Binding> bindings, IEnumerable<ITypeSymbol> responses)
+        {
+            var shapes = new Dictionary<string, TypeShape>(StringComparer.Ordinal);
+            var body = bindings.FirstOrDefault(b => b.Source is "Body" or "Model");
+            if (body is not null && method.Parameters.FirstOrDefault(p => p.Name == body.Parameter) is { } parameter)
+            {
+                TypeShape.Collect(parameter.Type, shapes);
+            }
+
+            foreach (var response in responses)
+            {
+                TypeShape.Collect(response, shapes);
+            }
+
+            return shapes.Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToImmutableArray();
         }
 
         private static bool IsApiController(INamedTypeSymbol type)
@@ -197,10 +259,11 @@ namespace Resultful.OpenApi.Generator
                 ? Handler(invocation.ArgumentList.Arguments[handlerIndex].Expression, context.SemanticModel, ct)
                 : null;
             var bindings = handler is null ? (ImmutableArray<Binding>?)null : Bindings(handler, route, complexFromBody: true);
+            var shapes = handler is null ? ImmutableArray<TypeShape>.Empty : Shapes(handler, bindings!.Value, Enumerable.Empty<ITypeSymbol>());
             foreach (var verb in verbs)
             {
                 yield return new Endpoint(verb.ToUpperInvariant(), route, endpointName,
-                    $"{name}(\"{pattern}\")", invocation.GetLocation(), excluded, null, bindings);
+                    $"{name}(\"{pattern}\")", invocation.GetLocation(), excluded, null, bindings, shapes: shapes);
             }
         }
 
@@ -275,7 +338,7 @@ namespace Resultful.OpenApi.Generator
                     continue;
                 }
 
-                bindings.Add(new Binding(source, name, display, optional, parameter.Name));
+                bindings.Add(new Binding(source, name, display, optional, parameter.Name, TypeShape.NameOf(underlying)));
             }
 
             return bindings.ToImmutable();
@@ -370,7 +433,7 @@ namespace Resultful.OpenApi.Generator
 
         // ---------------------------------------------------------------- the check
 
-        private static IEnumerable<Diagnostic> VerifyBindings(SpecOperation operation, Endpoint endpoint, ImmutableArray<Binding> bindings, string where, bool checkRoute)
+        private static IEnumerable<Diagnostic> VerifyBindings(Emitter emitter, SpecOperation operation, Endpoint endpoint, ImmutableArray<Binding> bindings, string where, bool checkRoute)
         {
             var bound = new HashSet<Binding>();
             foreach (var parameter in operation.Parameters.Where(p => checkRoute || p.Source != "Route"))
@@ -410,9 +473,12 @@ namespace Resultful.OpenApi.Generator
                         ? $"the spec has a {TypeName(expected)} request body, but the endpoint binds none"
                         : $"the spec has a {TypeName(expected)} request body, but '{model.Parameter}' binds from the form and query: mark it [FromBody], or add [ApiController]");
                 }
-                else if (body.Type != TypeName(expected))
+                else if (operation.BodySchema is { } schema)
                 {
-                    yield return Diagnostic.Create(Diagnostics.BindingTypeMismatch, endpoint.Location, where, "the request body", body.Type, TypeName(expected));
+                    foreach (var diagnostic in VerifyModel(emitter, schema, body.FullType, endpoint, where, "the request body"))
+                    {
+                        yield return diagnostic;
+                    }
                 }
             }
             else if (body is not null)
@@ -422,8 +488,35 @@ namespace Resultful.OpenApi.Generator
             }
         }
 
-        public static IEnumerable<Diagnostic> Verify(IReadOnlyList<SpecOperation> operations, IReadOnlyList<Endpoint> endpoints, Location specLocation)
+        /// <summary>
+        /// A model is consistent by construction when it is the type generated from its schema. Any other type is compared
+        /// with the schema as System.Text.Json would read and write it: consistent today (RAPI021), or each difference (RAPI022).
+        /// </summary>
+        private static IEnumerable<Diagnostic> VerifyModel(Emitter emitter, IOpenApiSchema schema, string actual, Endpoint endpoint, string where, string what)
         {
+            var shapes = endpoint.Shapes.ToDictionary(s => s.Name, StringComparer.Ordinal);
+            if (emitter.ByConstruction(schema, actual, shapes))
+            {
+                yield break;
+            }
+
+            var differences = emitter.Differences(schema, actual, shapes);
+            if (differences.Count == 0)
+            {
+                yield return Diagnostic.Create(Diagnostics.ModelConsistent, endpoint.Location, where, what, TypeName(actual), Emitter.SchemaName(schema));
+                yield break;
+            }
+
+            foreach (var difference in differences)
+            {
+                yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location, where,
+                    $"{what} is {TypeName(actual)}, which differs from the schema {Emitter.SchemaName(schema)}: {difference}");
+            }
+        }
+
+        public static IEnumerable<Diagnostic> Verify(Emitter emitter, IReadOnlyList<Endpoint> endpoints, Location specLocation)
+        {
+            var operations = emitter.Operations();
             var documented = endpoints.Where(e => !e.Excluded).ToList();
             var matched = new HashSet<Endpoint>();
             foreach (var operation in operations)
@@ -454,7 +547,7 @@ namespace Resultful.OpenApi.Generator
                 var routeNamesMatch = ParameterNames(endpoint.Route).SequenceEqual(ParameterNames(route), StringComparer.Ordinal);
                 if (endpoint.Bindings is { } bindings)
                 {
-                    foreach (var diagnostic in VerifyBindings(operation, endpoint, bindings, where, checkRoute: routeNamesMatch))
+                    foreach (var diagnostic in VerifyBindings(emitter, operation, endpoint, bindings, where, checkRoute: routeNamesMatch))
                     {
                         yield return diagnostic;
                     }
@@ -470,6 +563,26 @@ namespace Resultful.OpenApi.Generator
                     foreach (var status in declared.Except(operation.Statuses))
                     {
                         yield return Diagnostic.Create(Diagnostics.ResponseNotDocumented, endpoint.Location, where, status);
+                    }
+                }
+
+                foreach (var (status, type) in endpoint.ResponseTypes)
+                {
+                    if (!operation.ResponseSchemas.TryGetValue(status, out var schema))
+                    {
+                        continue; // RAPI013 already reports it.
+                    }
+
+                    if (schema is null)
+                    {
+                        yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location, where,
+                            $"the {status} response is {TypeName(type)}, but the spec's {status} response has no body");
+                        continue;
+                    }
+
+                    foreach (var diagnostic in VerifyModel(emitter, schema, type, endpoint, where, $"the {status} response"))
+                    {
+                        yield return diagnostic;
                     }
                 }
             }

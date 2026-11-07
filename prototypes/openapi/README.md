@@ -80,7 +80,8 @@ Each operation's handler signature comes from its responses:
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
   configuration; `"Server,FakeServer"` adds fake hosting (the hub, the control API and `PetStoreFakeServer`); `"Verify"` generates
   nothing and checks the project's hand-written controllers and Map calls against the spec: operations, responses and
-  names (`RAPI010`–`RAPI015`), and parameter and body binding (`RAPI016`–`RAPI020`). The
+  names (`RAPI010`–`RAPI015`), parameter and body binding (`RAPI016`–`RAPI020`), and model shapes against the
+  schemas (`RAPI021`–`RAPI022`; the generated types match by construction). The
   default is `Contract,Server`. Separate parts with commas: the value reaches the generator through an `.editorconfig`,
   where `;` starts a comment.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with

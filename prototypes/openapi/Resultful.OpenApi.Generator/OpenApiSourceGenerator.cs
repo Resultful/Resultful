@@ -92,8 +92,8 @@ namespace Resultful.OpenApi.Generator
                 return; // Generate reports the unreadable spec.
             }
 
-            var operations = new Emitter(read.Document, spec.Namespace, spec.ApiName, location).Operations();
-            foreach (var diagnostic in CoverageVerifier.Verify(operations, endpoints, location))
+            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location);
+            foreach (var diagnostic in CoverageVerifier.Verify(emitter, endpoints, location))
             {
                 context.ReportDiagnostic(diagnostic);
             }
@@ -257,9 +257,19 @@ namespace Resultful.OpenApi.Generator
             "{0}: {1}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ModelConsistent = new(
+            "RAPI021", "Model consistent, but not by construction",
+            "{0}: {1} is {2}, which matches the schema {3} today; use the generated types so it stays consistent by construction",
+            Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ModelDiffers = new(
+            "RAPI022", "Model differs from its schema",
+            "{0}: {1}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
             ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
-                ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch);
+                ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers);
     }
 }
