@@ -48,12 +48,20 @@ The rules, each with what it unlocks:
 | standard behaviour declared where it applies (an `Idempotency-Key` on unsafe creates, `ETag` with `If-Match` on updates) | the behaviour checks in LAYERS.md |
 | invariants (section 2) where the schema can't say it | cross-field, postcondition, lifecycle and metamorphic checks |
 
-**How it ships:**
-- the CLI (`matchmark audit spec.yaml`), with SARIF output so CI and editors can show it
-- an analyzer diagnostic for each finding, in projects that generate the contract
-- the rules exported as a Spectral-compatible ruleset, so teams can keep their existing linter for the static part
+**How it ships** (all implemented; `AuditTests` and the corpus ledger cover them):
+- the CLI, `matchmark audit spec.yaml [--arazzo f] [--overlay f] [--sarif out.sarif] [--spectral out.yaml] [--strict]`.
+  Each finding carries the least change that says what's missing (a `maxLength`, a 400, `readOnly`, a link to the
+  GET by id...); the audit makes it on a copy and generates the suite again, and reports the cases and workflows that
+  appear. An undocumented 400 instead reports how many invalid cases end in a warning. The score is the share of the
+  suite, with every change made, that exists today. `--strict` exits 1 on a warning, for CI
+- SARIF 2.1.0, each result placed in the spec file with its JSON Pointer as a logical location
+- an analyzer diagnostic for each finding (MM024, Info) in projects that generate the contract, with
+  `MatchmarkAudit="true"` on the spec
+- the static rules as a Spectral ruleset (`--spectral`), so teams can keep their linter for the static part
 
-Only Matchmark can measure what each fix is worth, because only it generates the suite.
+The rules apply to what a request carries (parameters, and the schemas request bodies reach), since that is where
+bounds and `additionalProperties` create cases. Only Matchmark can measure what each fix is worth, because only it
+generates the suite.
 
 ## 2. Invariants, in grammars that already exist
 
@@ -120,7 +128,8 @@ invariant scope above, in its overlay.
 1. ✓ **The invariants HTTP already promises, in the engine.** Safe, idempotent, `Location` and `readOnly`/`writeOnly`
    (`SafeChangesNothing`, `IdempotentTwice`, `LocationReadable`, `ReadOnlyIgnored`, `WriteOnlyHidden`). They need no
    new grammar, they work against any API, and each is proven by an injected fault.
-2. **The audit.** Its numbers come from the suite, so it lands once the suite does what the audit promises.
+2. ✓ **The audit,** as above. The engine now also sends an unknown property where `additionalProperties: false`
+   forbids one, so stating it is worth a case.
 3. ✓ **Arazzo criteria as postconditions** (`x-matchmark-ensures`), reusing the engine's runtime expressions: each
    success of the operation is checked (`Postcondition`).
 4. ✓ **IDL `x-dependencies`,** in the engine: every other case is kept to the dependencies (a valid case repaired or

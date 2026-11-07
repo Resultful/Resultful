@@ -132,8 +132,11 @@ namespace Matchmark.Generator
             // PetStoreFakeServer). A contract library takes "Contract", the service "Server", a fake server "Server,FakeServer".
             // Separate parts with commas: the value reaches the generator through an .editorconfig, where ';' starts a comment.
             fileOptions.TryGetValue(MetadataPrefix + "MatchmarkParts", out var parts);
+
+            // MatchmarkAudit="true": what the spec leaves out (matchmark audit's static rules), one MM024 each.
+            var audit = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkAudit", out var audited) && string.Equals(audited, "true", StringComparison.OrdinalIgnoreCase);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
-                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!);
+                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit);
         }
 
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
@@ -185,6 +188,28 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(diagnostic);
             }
 
+            if (spec.Audit)
+            {
+                var documents = new List<string>();
+                foreach (var (_, path, content) in arazzo)
+                {
+                    try
+                    {
+                        documents.Add(SpecJson.Arazzo(content, path));
+                    }
+                    catch (Exception ex) when (ex is InvalidOperationException or SharpYaml.YamlException or System.Text.Json.JsonException)
+                    {
+                        // Reported as MM008 by the Regression part; the audit goes on without it.
+                    }
+                }
+
+                foreach (var finding in Audit.Run(SpecJson.Write(document), documents.ToArray()))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Incomplete, location,
+                        finding.Subject, finding.Message, finding.Rule.Id, finding.Rule.Unlocks, "#" + finding.Location));
+                }
+            }
+
             foreach (var file in files)
             {
                 context.AddSource($"{spec.ApiName}.{file.Key}.g.cs", SourceText.From(file.Value, System.Text.Encoding.UTF8));
@@ -194,8 +219,9 @@ namespace Matchmark.Generator
 
     internal sealed class SpecInput : IEquatable<SpecInput>
     {
-        public SpecInput(string path, string content, string ns, string apiName, string parts)
+        public SpecInput(string path, string content, string ns, string apiName, string parts, bool audit = false)
         {
+            Audit = audit;
             Parts = parts;
             Path = path;
             Content = content;
@@ -207,6 +233,9 @@ namespace Matchmark.Generator
 
         public string Parts { get; }
 
+        /// <summary>Report what the spec leaves out (MM024).</summary>
+        public bool Audit { get; }
+
         public string Content { get; }
 
         public string Namespace { get; }
@@ -217,11 +246,12 @@ namespace Matchmark.Generator
         public IReadOnlyList<(string Text, string Path)> Overlays { get; private set; } = Array.Empty<(string, string)>();
 
         public SpecInput WithOverlays(IReadOnlyList<(string Text, string Path)> overlays)
-            => new(Path, Content, Namespace, ApiName, Parts) { Overlays = overlays };
+            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays };
 
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Overlays.SequenceEqual(other.Overlays);
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit
+               && Overlays.SequenceEqual(other.Overlays);
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);
 
@@ -343,6 +373,11 @@ namespace Matchmark.Generator
             "MM023", "Parameter constraint differs",
             "{0}: {1}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor Incomplete = new(
+            "MM024", "The spec leaves out something the suite would use",
+            "{0} {1} ({2}): saying it unlocks {3}. At {4}; matchmark audit measures what it adds.",
+            Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
 
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
             ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString, RegressionNeedsRuntime, ReaderProblem, UnreadableArazzo, LooselyTyped,
