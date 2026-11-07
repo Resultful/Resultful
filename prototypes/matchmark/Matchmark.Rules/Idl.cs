@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Matchmark.Testing;
+namespace Matchmark.Rules;
 
 /// <summary>
 /// IDL, the Inter-parameter Dependency Language (Martín-López, Segura et al.), as embedded in OpenAPI with

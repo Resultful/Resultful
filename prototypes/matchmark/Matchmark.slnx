@@ -11,4 +11,5 @@
   <Project Path="Matchmark.Cli/Matchmark.Cli.csproj" />
   <Project Path="Matchmark.Testing.Tests/Matchmark.Testing.Tests.csproj" />
   <Project Path="Matchmark.Testing/Matchmark.Testing.csproj" />
+  <Project Path="Matchmark.Rules/Matchmark.Rules.csproj" />
 </Solution>

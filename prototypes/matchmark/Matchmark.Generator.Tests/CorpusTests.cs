@@ -25,6 +25,7 @@ public sealed class CorpusTests
         ("petstore", "Matchmark.Sample.Contract/petstore.yaml", ["Matchmark.Sample.Contract/petstore.arazzo.yaml"], []),
         ("museum", "samples/museum/openapi.yaml", ["samples/museum/arazzo/museum-api.arazzo.yaml", "samples/museum/arazzo/museum-tickets.arazzo.yaml"], []),
         ("orders", "samples/orders/openapi.yaml", ["samples/orders/orders.arazzo.yaml"], ["samples/orders/orders.overlay.yaml"]),
+        ("bookings", "samples/bookings/openapi.yaml", [], ["samples/bookings/bookings.overlay.yaml"]),
     ];
 
     [Test]
@@ -50,13 +51,15 @@ public sealed class CorpusTests
         ledger.Should().Equal(
             "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 79%",
             "museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps; audit 12 warnings, 20 findings, 82%",
-            "orders: generator skips 1; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 3 warnings, 8 findings, 91%");
+            "orders: generator skips 1; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 3 warnings, 8 findings, 91%",
+            "bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%");
     }
 
     /// <summary>What the generator writes for each sample compiles: the Contract and Server parts, against Resultful and ASP.NET Core.</summary>
     [TestCase("petstore")]
     [TestCase("museum")]
     [TestCase("orders")]
+    [TestCase("bookings")]
     public void The_code_generated_for_each_sample_compiles(string name)
     {
         var sample = Samples.Single(s => s.Name == name);

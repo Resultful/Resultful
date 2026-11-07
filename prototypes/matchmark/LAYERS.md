@@ -54,7 +54,7 @@ defines the behaviour precisely enough to generate the other three.
 | **Problems** | [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/problem+json` | content type, schema, a validation problem names the value | generated | ✓ done |
 | **Links** | OpenAPI `links` | the resource is there, reads back as written, is gone after delete | regression only | ✓ done |
 | **Workflows** | Arazzo 1.0 and 1.1 (1.1 adds RFC 9535 JSONPath, JSON Pointer selectors and AsyncAPI steps) | each step's success criteria; outputs passed on; `retry` and `goto` on failure | the fake scripted from a workflow | ✓ run by the engine (`WorkflowCriteria`); ✓ scripts the fake (`Scenario.FromArazzo`); XPath and AsyncAPI steps are gaps |
-| **Idempotency** | an `Idempotency-Key` header parameter ([draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/)); Overlay for the window | same key and body gives the same answer; same key, different body gives 422; a fresh key per case otherwise | a key store; a client that retries with the same key | Orders; the engine **wrongly** sends one sampled key everywhere |
+| **Idempotency** | an `Idempotency-Key` header parameter ([draft-ietf-httpapi-idempotency-key-header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/)); Overlay for the window | same key and body gives the same answer; same key, different body gives 422; a fresh key per case otherwise | a key store; a client that retries with the same key | Orders; a fresh key per case, and the same key when retrying |
 | **Concurrency** | `ETag` response header plus `If-Match` request header ([RFC 9110 §13](https://www.rfc-editor.org/rfc/rfc9110#section-13)); 412, 428 ([RFC 6585](https://www.rfc-editor.org/rfc/rfc6585)) | a stale ETag gives 412; none gives 428; a change gives a new ETag | ETags from a version; the client sends `If-Match` | Orders |
 | **Pagination** | a cursor parameter plus a `next` in the body, or `Link: rel=next` ([RFC 8288](https://www.rfc-editor.org/rfc/rfc8288)); Overlay to say which | walking every page is complete, with no repeats, and ends | the client yields every item | Orders |
 | **Work that finishes later** | `202` with `Location`; `Retry-After` on the status | polling reaches a final state within a bound; never a 5xx while running | the client polls until done | Orders |
@@ -88,6 +88,14 @@ Running the generator and the engine over specs other than the Pet Store found t
   reader (`SpecReader`) uses whatever document the reader builds and reports its objections as warnings (`MM007`); the
   CLI reports errors and exits 2. The Train Travel API now gets 116 regression cases, and the generator's remaining
   warnings are the breadth gaps below.
+
+- **The Bookings sample found three generator gaps** the Pet Store never reached, once its generated server was run
+  against the suite (`GeneratedRulesTests`). Bound query parameters weren't checked against their `minimum` and
+  `maximum` (`roomId=0` was accepted). An optional property that can't be null was written as `null` when absent, and
+  an explicit `null` was accepted. And `additionalProperties: false` wasn't enforced. *Fixed:* endpoints check their
+  parameters' bounds, lengths and patterns; such properties are left out when absent, and a `null` is refused when read
+  (a resolver modifier, `RefuseNulls`, so the OpenAPI document's schemas are untouched); and the model refuses unknown
+  members, naming them.
 
 ## The plan, in order
 

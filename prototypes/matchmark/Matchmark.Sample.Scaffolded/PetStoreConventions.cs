@@ -30,11 +30,13 @@ public static class PetStoreConventions
         {
             options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
             options.SerializerOptions.AllowOutOfOrderMetadataProperties = true;
+            options.SerializerOptions.TypeInfoResolver = global::System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(options.SerializerOptions.TypeInfoResolver ?? new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(), PetStoreValidation.RefuseNulls);
         });
         services.Configure<JsonOptions>(options =>
         {
             options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;
             options.JsonSerializerOptions.AllowOutOfOrderMetadataProperties = true;
+            options.JsonSerializerOptions.TypeInfoResolver = global::System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(options.JsonSerializerOptions.TypeInfoResolver ?? new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(), PetStoreValidation.RefuseNulls);
         });
         services.Configure<ApiBehaviorOptions>(options => options.InvalidModelStateResponseFactory = context =>
         {

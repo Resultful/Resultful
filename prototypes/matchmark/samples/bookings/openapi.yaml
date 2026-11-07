@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info:
+  title: Bookings
+  version: 1.0.0
+  description: >
+    Rooms and desks booked for a time. Written to exercise invariants the schema can't state, declared in
+    bookings.overlay.yaml: a booking ends after it starts and is for a room or a desk (CEL), the filters of a search
+    depend on each other (IDL), and a new booking is booked (a postcondition).
+paths:
+  /bookings:
+    get:
+      operationId: listBookings
+      parameters:
+        - { name: roomId, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 999 } }
+        - { name: deskId, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 999 } }
+        - { name: minMinutes, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 1440 } }
+        - { name: maxMinutes, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 1440 } }
+      responses:
+        '200':
+          description: The bookings that match
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Booking' } }
+        '400':
+          description: The search is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+    post:
+      operationId: createBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewBooking' }
+            example: { startsAt: '2026-03-02T09:00:00Z', endsAt: '2026-03-02T10:30:00Z', roomId: 12, note: Planning }
+      responses:
+        '201':
+          description: Booked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+          links:
+            GetBooking: { operationId: getBooking, parameters: { bookingId: $response.body#/id } }
+            CancelBooking: { operationId: cancelBooking, parameters: { bookingId: $response.body#/id } }
+        '400':
+          description: The booking is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+  /bookings/{bookingId}:
+    parameters:
+      - { name: bookingId, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+    get:
+      operationId: getBooking
+      responses:
+        '200':
+          description: The booking
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '404':
+          description: No such booking
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+    delete:
+      operationId: cancelBooking
+      responses:
+        '204': { description: Cancelled }
+        '404':
+          description: No such booking
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+components:
+  schemas:
+    NewBooking:
+      type: object
+      required: [startsAt, endsAt]
+      additionalProperties: false
+      properties:
+        startsAt: { type: string, format: date-time, example: '2026-03-02T09:00:00Z' }
+        endsAt: { type: string, format: date-time, example: '2026-03-02T10:00:00Z' }
+        roomId: { type: integer, format: int32, minimum: 1, maximum: 999 }
+        deskId: { type: integer, format: int32, minimum: 1, maximum: 999 }
+        note: { type: [string, 'null'], maxLength: 200 }
+    Booking:
+      type: object
+      required: [id, startsAt, endsAt, status]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        roomId: { type: integer, format: int32 }
+        deskId: { type: integer, format: int32 }
+        note: { type: [string, 'null'], maxLength: 200 }
+        status: { type: string, enum: [booked, cancelled] }
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+        errors:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }

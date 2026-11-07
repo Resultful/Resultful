@@ -344,11 +344,13 @@ namespace Matchmark.Generator
             w.Line("{");
             w.Line("    options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;");
             w.Line("    options.SerializerOptions.AllowOutOfOrderMetadataProperties = true;");
+            w.Line($"    options.SerializerOptions.TypeInfoResolver = global::System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(options.SerializerOptions.TypeInfoResolver ?? new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(), {ValidationClass}.RefuseNulls);");
             w.Line("});");
             w.Line("services.Configure<JsonOptions>(options =>");
             w.Line("{");
             w.Line("    options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;");
             w.Line("    options.JsonSerializerOptions.AllowOutOfOrderMetadataProperties = true;");
+            w.Line($"    options.JsonSerializerOptions.TypeInfoResolver = global::System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(options.JsonSerializerOptions.TypeInfoResolver ?? new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(), {ValidationClass}.RefuseNulls);");
             w.Line("});");
             w.Line("services.Configure<ApiBehaviorOptions>(options => options.InvalidModelStateResponseFactory = context =>");
             w.Line("{");

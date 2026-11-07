@@ -3,13 +3,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace Matchmark.Testing;
+namespace Matchmark.Rules;
 
 /// <summary>
 /// The subset of CEL (Common Expression Language) that schema rules need, as Kubernetes uses it in
 /// <c>x-kubernetes-validations</c>: <c>self</c> and <c>oldSelf</c>; literals and lists; <c>! - * / % + - &lt; &lt;= &gt; &gt;= == !=
 /// in &amp;&amp; || ?:</c>; member access and indexing; <c>has(x.f)</c>, <c>size()</c>; the macros <c>all</c>, <c>exists</c>,
-/// <c>exists_one</c>, <c>map</c> and <c>filter</c>; Kubernetes' list functions <c>sum</c>, <c>min</c> and <c>max</c>; and the
+/// <c>exists_one</c>, <c>map</c> and <c>filter</c>; <c>timestamp()</c>; Kubernetes' list functions <c>sum</c>, <c>min</c> and <c>max</c>; and the
 /// string functions <c>contains</c>, <c>startsWith</c>, <c>endsWith</c> and <c>matches</c>. A missing field is an error, as in CEL.
 /// </summary>
 public static class Cel
@@ -334,6 +334,14 @@ public static class Cel
                     var sized = Ternary();
                     Expect(")");
                     return JsonValue.Create(Size(sized));
+                case "timestamp":
+                    // An RFC 3339 string as an instant, written in UTC so that instants compare in order.
+                    Expect("(");
+                    var instant = Ternary();
+                    Expect(")");
+                    return DateTimeOffset.TryParse(Text(instant), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at)
+                        ? JsonValue.Create(at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture))
+                        : throw new CelException($"{Text(instant)} isn't a timestamp");
             }
 
             return variables.TryGetValue(name, out var value) ? value : throw new CelException($"no variable '{name}'");
@@ -388,17 +396,23 @@ public static class Cel
                 return JsonEquals(left, right) == (op == "==");
             }
 
-            var order = SchemaValidator.NumberOf(left) is { } l && SchemaValidator.NumberOf(right) is { } r ? l.CompareTo(r) : string.CompareOrdinal(Text(left), Text(right));
+            var order = NumberOf(left) is { } l && NumberOf(right) is { } r ? l.CompareTo(r) : string.CompareOrdinal(Text(left), Text(right));
             return op switch { "<" => order < 0, "<=" => order <= 0, ">" => order > 0, _ => order >= 0 };
         }
 
         private static bool JsonEquals(JsonNode? a, JsonNode? b)
-            => SchemaValidator.NumberOf(a) is { } x && SchemaValidator.NumberOf(b) is { } y ? x == y : JsonNode.DeepEquals(a, b);
+            => NumberOf(a) is { } x && NumberOf(b) is { } y ? x == y : JsonNode.DeepEquals(a, b);
 
         private static bool Bool(JsonNode? value)
             => value is JsonValue v && v.GetValueKind() is JsonValueKind.True or JsonValueKind.False ? v.GetValueKind() == JsonValueKind.True : throw new CelException("expected true or false");
 
-        private static decimal Number(JsonNode? value) => SchemaValidator.NumberOf(value) ?? throw new CelException($"expected a number, not {value?.ToJsonString() ?? "null"}");
+        private static decimal Number(JsonNode? value) => NumberOf(value) ?? throw new CelException($"expected a number, not {value?.ToJsonString() ?? "null"}");
+
+        private static decimal? NumberOf(JsonNode? node)
+            => node is JsonValue value && value.GetValueKind() == JsonValueKind.Number
+               && decimal.TryParse(value.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+                ? number
+                : null;
 
         private static string Text(JsonNode? value) => value is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : value?.ToJsonString() ?? "null";
 

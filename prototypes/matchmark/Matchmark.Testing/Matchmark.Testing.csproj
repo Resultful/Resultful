@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Matchmark.Rules/Matchmark.Rules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Matchmark.Testing.Tests" />
   </ItemGroup>
 </Project>

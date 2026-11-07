@@ -34,7 +34,8 @@ namespace Matchmark.Generator
                 .Select(static (compilation, _) => (
                     DescribesItself: compilation.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null,
                     HasFakes: compilation.GetTypeByMetadataName("Matchmark.Fakes.Scenario") is not null,
-                    HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null));
+                    HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null,
+                    HasRules: compilation.GetTypeByMetadataName("Matchmark.Rules.Cel") is not null));
 
             // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
             // AdditionalFiles joined to a spec by MatchmarkApiName.
@@ -43,7 +44,7 @@ namespace Matchmark.Generator
 
             context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays), static (spc, pair) =>
                 Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
-                    pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList()));
+                    pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -155,7 +156,7 @@ namespace Matchmark.Generator
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
-            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo)
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
@@ -170,7 +171,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes);
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules);
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
@@ -373,6 +374,11 @@ namespace Matchmark.Generator
             "MM023", "Parameter constraint differs",
             "{0}: {1}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor RulesNotEnforced = new(
+            "MM025", "Invariants declared but not enforced",
+            "The spec declares {0}, which the generated server doesn't enforce: reference Matchmark.Rules to make a broken rule the spec's 400",
+            Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor Incomplete = new(
             "MM024", "The spec leaves out something the suite would use",

@@ -1,0 +1,33 @@
+# What the Bookings schema can't say, as invariants (COMPLETENESS.md, section 2). The regression engine checks them
+# and builds cases from them; a generated server that references Matchmark.Rules enforces them as the spec's 400.
+overlay: 1.1.0
+info:
+  title: Matchmark invariants for the Bookings API
+  version: 1.0.0
+extends: ./openapi.yaml
+actions:
+  - target: $.components.schemas.NewBooking
+    description: One payload, in CEL.
+    update:
+      x-matchmark-rules:
+        - rule: timestamp(self.startsAt) < timestamp(self.endsAt)
+          message: A booking ends after it starts.
+        - rule: "!has(self.roomId) || !has(self.deskId)"
+          message: Book a room or a desk, not both.
+  - target: $.components.schemas.Booking
+    update:
+      x-matchmark-rules:
+        - rule: timestamp(self.startsAt) < timestamp(self.endsAt)
+          message: A booking ends after it starts.
+  - target: $.paths['/bookings'].get
+    description: The search's parameters depend on each other (IDL).
+    update:
+      x-dependencies:
+        - ZeroOrOne(roomId, deskId);
+        - minMinutes <= maxMinutes;
+  - target: $.paths['/bookings'].post
+    description: Request to response, as Arazzo criteria.
+    update:
+      x-matchmark-ensures:
+        - condition: $response.body#/status == 'booked'
+        - condition: $response.body#/startsAt != null

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Matchmark.Rules;
 
 namespace Matchmark.Testing;
 
@@ -40,55 +41,14 @@ internal sealed partial class RegressionRunner
 
         if (!options.Skip.Contains(Checks.SchemaRule))
         {
-            Rules(json, schema, "$", 0, (path, rule, message, error) => Add(findings, Checks.SchemaRule, subject, exchange,
-                error is null
-                    ? $"{path} breaks the rule {rule}{(message is null ? string.Empty : $" ({message})")}: {RegressionReport.Excerpt((Find(json, path) ?? json)?.ToJsonString() ?? "null")}"
-                    : $"{path}: the rule {rule} can't be evaluated: {error}",
-                error is null ? Severity.Failure : Severity.Warning));
-        }
-    }
-
-    /// <summary>Every x-matchmark-rules on the schemas an instance is an instance of, checked: its properties, items and allOf.</summary>
-    private void Rules(JsonNode? value, JsonNode schema, string path, int depth, Action<string, string, string?, string?> broken)
-    {
-        if (depth > 32)
-        {
-            return;
-        }
-
-        var resolved = suite.Spec.Resolve(schema);
-        foreach (var rule in (resolved["x-matchmark-rules"] as JsonArray ?? []).OfType<JsonObject>())
-        {
-            if (rule["rule"]?.GetValue<string>() is { } text && Cel.Check(text, value) is { Holds: false } result)
+            foreach (var (path, rule, message, error) in SchemaRules.Broken(suite.Spec, json, schema))
             {
-                broken(path, text, rule["message"]?.GetValue<string>(), result.Error);
+                Add(findings, Checks.SchemaRule, subject, exchange,
+                    error is null
+                        ? $"{path} breaks the rule {rule}{(message is null ? string.Empty : $" ({message})")}: {RegressionReport.Excerpt((Find(json, path) ?? json)?.ToJsonString() ?? "null")}"
+                        : $"{path}: the rule {rule} can't be evaluated: {error}",
+                    error is null ? Severity.Failure : Severity.Warning);
             }
-        }
-
-        foreach (var part in (resolved["allOf"] as JsonArray ?? []).Where(p => p is not null))
-        {
-            Rules(value, part!, path, depth + 1, broken);
-        }
-
-        switch (value)
-        {
-            case JsonObject obj when resolved["properties"] is JsonObject properties:
-                foreach (var (name, property) in properties)
-                {
-                    if (property is not null && obj.TryGetPropertyValue(name, out var child))
-                    {
-                        Rules(child, property, $"{path}.{name}", depth + 1, broken);
-                    }
-                }
-
-                break;
-            case JsonArray array when resolved["items"] is { } items:
-                for (var i = 0; i < array.Count; i++)
-                {
-                    Rules(array[i], items, $"{path}[{i}]", depth + 1, broken);
-                }
-
-                break;
         }
     }
 
