@@ -23,6 +23,8 @@
     <!-- ProblemDetails and HttpValidationProblemDetails are ASP.NET Core types; see the README's limits. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../../Resultful/Resultful.csproj" />
+    <!-- Referencing the fakes runtime turns on the generated fake and scenario builder. -->
+    <ProjectReference Include="../Resultful.OpenApi.Fakes/Resultful.OpenApi.Fakes.csproj" />
     <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

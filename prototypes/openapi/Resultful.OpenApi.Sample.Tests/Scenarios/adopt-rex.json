@@ -1,0 +1,29 @@
+{
+  "order": "InOrder",
+  "steps": [
+    {
+      "operation": "createPet",
+      "expect": { "body": { "name": "Rex", "details": { "kind": "dog" } } },
+      "status": 201,
+      "body": { "id": 7, "name": "Rex", "status": "available", "details": { "kind": "dog", "goodBoy": true } }
+    },
+    {
+      "operation": "getPet",
+      "expect": { "petId": 7 },
+      "status": 200,
+      "body": { "id": 7, "name": "Rex", "status": "available", "details": { "kind": "dog", "goodBoy": true } },
+      "times": 2
+    },
+    {
+      "operation": "deletePet",
+      "expect": { "petId": 7 },
+      "status": 204
+    },
+    {
+      "operation": "getPet",
+      "expect": { "petId": 7 },
+      "status": 404,
+      "body": { "title": "Not found", "detail": "There is no pet 7." }
+    }
+  ]
+}

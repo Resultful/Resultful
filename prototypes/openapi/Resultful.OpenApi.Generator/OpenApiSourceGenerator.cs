@@ -29,10 +29,13 @@ namespace Resultful.OpenApi.Generator
 
             // The OpenAPI document configuration is only emitted when the app describes itself with
             // Microsoft.AspNetCore.OpenApi; without it the generated code would not compile.
-            var describesItself = context.CompilationProvider
-                .Select(static (compilation, _) => compilation.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null);
+            // Likewise the fake, and fake-server hosting, need the Resultful.OpenApi.Fakes runtime.
+            var references = context.CompilationProvider
+                .Select(static (compilation, _) => (
+                    DescribesItself: compilation.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null,
+                    HasFakes: compilation.GetTypeByMetadataName("Resultful.OpenApi.Fakes.Scenario") is not null));
 
-            context.RegisterSourceOutput(specs.Combine(describesItself), static (spc, pair) => Generate(spc, pair.Left, pair.Right));
+            context.RegisterSourceOutput(specs.Combine(references), static (spc, pair) => Generate(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes));
         }
 
         private static SpecInput? ReadSpec(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
@@ -64,7 +67,7 @@ namespace Resultful.OpenApi.Generator
                 string.IsNullOrWhiteSpace(parts) ? "Contract;Server" : parts!);
         }
 
-        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself)
+        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes)
         {
             var location = Location.Create(spec.Path, default, default);
             var format = spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml";
@@ -92,7 +95,7 @@ namespace Resultful.OpenApi.Generator
                 return;
             }
 
-            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself);
+            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes);
             var parts = spec.Parts.Split(';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),

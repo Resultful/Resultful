@@ -31,7 +31,8 @@ The generated files are written to `obj/generated/` in the Contract and Sample p
 | `Resultful.OpenApi.Generator` | The `IIncrementalGenerator` (netstandard2.0). It reads the spec with Microsoft.OpenApi 3.x, which ships inside the analyzer. |
 | `Resultful.OpenApi.Sample.Contract` | `petstore.yaml` and the generated **Contract** part: types, response unions, `IPetsHandlers`, validation, `ValidatingPetsHandlers` and `PetStoreClient`. What a consumer or a test suite references. |
 | `Resultful.OpenApi.Sample` | The service: the generated **Server** part (endpoints, OpenAPI configuration), `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
-| `Resultful.OpenApi.Sample.Fake` | A fake PetStore server: the generated **Server** part over the generated `PetStoreFake`, in a ten-line `Program.cs`. `dotnet run`, then script it with `PUT /__fake/{operationId}`. |
+| `Resultful.OpenApi.Fakes` | The runtime for generated fakes: `Scenario` (expected calls, in code or JSON), `ScenarioRunner` (order, request expectations, verification), `FakeCall`. Referencing it turns on the generated fake and scenario builder. |
+| `Resultful.OpenApi.Sample.Fake` | A fake PetStore server: the generated **Server** part over the generated fakes, in a ten-line `Program.cs`. `dotnet run`, then script the default fake with `PUT /__fake/{operationId}`, or stand up an isolated fake from a scenario with `POST /__fake/sessions`. |
 | `Resultful.OpenApi.Sample.Tests` | `ContractSuite` (one suite against `IPetsHandlers`, run in-process and over HTTP, with outcome coverage), `ClientConformanceTests` (the client catching a server that breaks the spec), `RegressionSuite` (raw HTTP and JSON), `HandlerTests`, `SpecDriftTests` (the round trip). Every server test starts from a named seed scenario. |
 | `Resultful.OpenApi.Generator.Tests` | The generator on small specs: what it emits, and the diagnostics for what it doesn't support. |
 
@@ -68,8 +69,10 @@ Each operation's handler signature comes from its responses:
   doesn't allow, and records which documented outcomes it received (`Observed`, against
   `PetStoreContract.DocumentedOutcomes`).
 - **The fake** (`PetStoreFake`) implements the handler interfaces with the spec's examples, or samples built to pass the
-  schema. It is scripted with `On{Operation}(...)` or `Respond(operationId, status, json)`, records calls, and with
-  `Map{Api}FakeControl` it can be scripted over HTTP.
+  schema. It is scripted with `On{Operation}(...)`, `Respond(operationId, status, json)` or a scenario of expected
+  calls (`PetStoreScenario`, or JSON), and records calls. `Add{Api}FakeHub`, `Use{Api}FakeHub` and
+  `Map{Api}FakeControl` host it as a fake server with isolated sessions. Generated only when the project references
+  `Resultful.OpenApi.Fakes`.
 - **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
   configuration. The default is both.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with
