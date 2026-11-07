@@ -64,7 +64,7 @@ reads them rather than inventing one.
 |:--|:--|:--|:--|
 | **One payload:** fields of one body | `endsAt > startsAt`; `total == items.map(i, i.quantity * i.unitPrice).sum()` | [CEL](https://cel.dev/), as `x-matchmark-rules`, following Kubernetes' `x-kubernetes-validations` (`rule`, `message`) | Kubernetes validates CRDs (OpenAPI schemas) with CEL rules. JSON Schema's `dependentRequired` and `if`/`then` cover the simpler cases first |
 | **Parameters:** inputs of one request | `OnlyOne(roomId, deskId)`; `IF sort THEN order`; `from <= to` | [IDL](https://github.com/isa-group/IDL), as `x-dependencies` on the operation (its own OpenAPI extension) | IDL and IDLReasoner (Martin-López, Segura et al., University of Seville). The authors report IDL helped find more than 200 bugs in industrial APIs, GitHub, Spotify and YouTube among them |
-| **Request to response:** postconditions | the created order has the lines sent; every result of `?status=paid` is paid; at most `limit` items | Arazzo's [Criterion Object](https://github.com/OAI/Arazzo-Specification/blob/main/versions/1.0.1.md): simple conditions over runtime expressions (`$request.body#/…`, `$response.body#/…`), or JSONPath | Arazzo `successCriteria`. Matchmark's engine already evaluates runtime expressions for links |
+| **Request to response:** postconditions | the created order has the lines sent; every result of `?status=paid` is paid; at most `limit` items | Arazzo's [Criterion Object](https://spec.openapis.org/arazzo/v1.1.0.html): simple conditions over runtime expressions (`$request.body#/…`, `$response.body#/…`), or JSONPath (RFC 9535 by default since Arazzo 1.1) | Arazzo `successCriteria`. Matchmark's engine already evaluates runtime expressions for links |
 | **Across calls:** state and time | GET changes nothing; PUT twice is PUT once; `shipped` only from `paid`; `?limit=2` is a prefix of `?limit=3` | HTTP's own semantics; CEL transition rules with `oldSelf`; metamorphic relations | [RFC 9110 §9.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.2) (safe and idempotent methods); Kubernetes transition rules; *Metamorphic Testing of RESTful Web APIs* (Segura et al., IEEE TSE 2018), which found 11 issues in Spotify and YouTube |
 
 **Some invariants need declaring by no one.** HTTP already promises them, so Matchmark can check them on every API:
@@ -90,7 +90,9 @@ reads them rather than inventing one.
   writing; a subset (comparisons, arithmetic, `all`, `exists`, `map`, `sum`) covers the examples here.
 - **IDL** is the only published grammar for parameter dependencies, with a reasoner and real-world results.
 - **Arazzo criteria** are already in the OpenAPI family, so a workflow's `successCriteria` and an operation's
-  postconditions share one grammar.
+  postconditions share one grammar. Since Arazzo 1.1 that includes standard JSONPath (RFC 9535) and JSON Pointer.
+- **Where they live:** markers in the spec as traits (`x-oai-traits`, as in Overlay 1.2.0's traits example), and the
+  rules themselves in an overlay under a registered `x-matchmark-` namespace, so a third-party spec needn't change.
 
 Considered and not chosen as the main grammar:
 - **JSON Logic** and **JMESPath:** implementable, but nobody uses them on OpenAPI.
@@ -107,7 +109,7 @@ invariant scope above, in its overlay.
 | **Orders** (in the corpus) | idempotency, concurrency, paging, a 202, deprecation; now also a total that must add up, a lifecycle (`pending → paid → shipped`, `cancelled` only from `pending`), and paging and filtering relations |
 | **Bookings** | date ranges (`startsAt < endsAt`); `OnlyOne(roomId, deskId)` (IDL); a 409 for an overlap; time zones; reading back with `If-None-Match` |
 | **Ledger** | conservation: a transfer leaves the total balance unchanged, and a balance never goes negative; money as decimal strings; an Idempotency-Key where a retry must not pay twice; settlement as a 202 |
-| **Catalogue search** | OpenAPI 3.2's `QUERY` method; filters, sorting and paging as metamorphic relations (results are a subset, ordered, and a prefix); facet counts that agree with the results |
+| **Catalogue search** | OpenAPI 3.2's `query` operations (the QUERY method, RFC 10008); filters, sorting and paging as metamorphic relations (results are a subset, ordered, and a prefix); facet counts that agree with the results |
 | **Feature flags** | JSON Merge Patch and JSON Patch; a version that only goes up; `ETag` on every read; `readOnly` and `writeOnly` |
 | **Notifications** | webhooks and callbacks (subscribe, then receive); a signature header; an SSE stream with OpenAPI 3.2's `itemSchema` |
 | **Train Travel** (Bump.sh; licence to confirm) | a third-party spec Matchmark can't read today: the robustness target from LAYERS.md |
