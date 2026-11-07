@@ -1,0 +1,310 @@
+openapi: 3.1.0
+info:
+  title: Orders
+  version: 1.0.0
+  description: >
+    A sample written to exercise behaviour that a plain request and response can't express: retrying a create
+    safely (Idempotency-Key), updating without losing a concurrent change (ETag and If-Match), paging (a cursor),
+    work that finishes later (202 and an operation to poll), rate limits, deprecation, and webhooks. Every behaviour
+    here is declared with standard HTTP in the spec itself; orders.overlay.yaml adds only what the standards can't
+    say, and orders.arazzo.yaml describes the checkout as a workflow.
+tags:
+  - name: orders
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      parameters:
+        - name: cursor
+          in: query
+          description: Where the previous page ended; from that page's next.
+          schema: { type: string, maxLength: 200 }
+        - name: limit
+          in: query
+          schema: { type: integer, format: int32, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: One page of orders
+          headers:
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPage' }
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      operationId: createOrder
+      tags: [orders]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewOrder' }
+      responses:
+        '201':
+          description: Created. Retried with the same key and body, the same order again.
+          headers:
+            Location: { required: true, schema: { type: string, format: uri-reference } }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+          links:
+            GetOrder: { operationId: getOrder, parameters: { orderId: $response.body#/id } }
+            UpdateOrder: { operationId: updateOrder, parameters: { orderId: $response.body#/id, If-Match: $response.header.ETag } }
+            PayOrder: { operationId: payOrder, parameters: { orderId: $response.body#/id } }
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '409':
+          description: A request with this key is still being processed
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '422':
+          description: This key was already used with a different body
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      operationId: getOrder
+      tags: [orders]
+      responses:
+        '200':
+          description: The order
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateOrder
+      tags: [orders]
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: The ETag the change was made against. A stale one is refused, so no change is lost.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/OrderPatch' }
+      responses:
+        '200':
+          description: Updated
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400':
+          $ref: '#/components/responses/Invalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          description: The order changed since that ETag
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '428':
+          description: No If-Match was sent
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+  /orders/{orderId}/payments:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      operationId: payOrder
+      tags: [orders]
+      responses:
+        '202':
+          description: Payment started; poll the operation until it finishes.
+          headers:
+            Location: { required: true, schema: { type: string, format: uri-reference } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operation' }
+          links:
+            GetOperation: { operationId: getOperation, parameters: { operationId: $response.body#/id } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /orders/{orderId}/receipt:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      operationId: getReceipt
+      tags: [orders]
+      deprecated: true
+      description: Superseded by the receipt link in the order. Answers with Deprecation and Sunset until it is removed.
+      responses:
+        '200':
+          description: The receipt, as plain text
+          headers:
+            Deprecation: { required: true, description: 'RFC 9745', schema: { type: string } }
+            Sunset: { required: true, description: 'RFC 8594', schema: { type: string } }
+          content:
+            text/plain:
+              schema: { type: string }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /operations/{operationId}:
+    get:
+      operationId: getOperation
+      tags: [orders]
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: How the operation is going. While running, Retry-After says when to ask again.
+          headers:
+            Retry-After: { schema: { type: integer, minimum: 0 } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operation' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+webhooks:
+  orderShipped:
+    post:
+      operationId: orderShipped
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderEvent' }
+      responses:
+        '204':
+          description: Received
+components:
+  parameters:
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: draft-ietf-httpapi-idempotency-key-header. The same key and body give the same result.
+      schema: { type: string, minLength: 1, maxLength: 255 }
+  headers:
+    ETag:
+      required: true
+      schema: { type: string }
+    RateLimit:
+      description: draft-ietf-httpapi-ratelimit-headers
+      schema: { type: string }
+  responses:
+    Invalid:
+      description: The request failed validation
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+    NotFound:
+      description: No such order or operation
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    TooManyRequests:
+      description: Too many requests; Retry-After says when to try again
+      headers:
+        Retry-After: { required: true, schema: { type: integer, minimum: 0 } }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+  schemas:
+    NewOrder:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: '#/components/schemas/LineItem' }
+        note: { type: [string, 'null'], maxLength: 500 }
+    OrderPatch:
+      type: object
+      properties:
+        note: { type: [string, 'null'], maxLength: 500 }
+    Order:
+      type: object
+      required: [id, status, items, total]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+        total: { type: number, minimum: 0 }
+        note: { type: [string, 'null'] }
+    OrderStatus:
+      type: string
+      enum: [pending, paid, shipped, cancelled]
+    LineItem:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku: { type: string, pattern: '^[A-Z]{3}-[0-9]{3}$', example: TEA-001 }
+        quantity: { type: integer, format: int32, minimum: 1, maximum: 99 }
+    OrderPage:
+      type: object
+      required: [items, next]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+        next:
+          type: [string, 'null']
+          description: The cursor for the next page; null on the last page.
+    Operation:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [running, succeeded, failed] }
+    OrderEvent:
+      type: object
+      required: [orderId, status, at]
+      properties:
+        orderId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        at: { type: string, format: date-time }
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }

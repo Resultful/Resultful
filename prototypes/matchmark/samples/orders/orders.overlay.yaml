@@ -1,0 +1,28 @@
+# OpenAPI Overlay 1.0: what the Orders spec's standard HTTP can't say, kept apart from the published spec.
+# Nothing reads this yet; LAYERS.md describes how Matchmark would. Each behaviour is otherwise inferred from the spec:
+# Idempotency-Key from the header parameter, concurrency from ETag and If-Match, work that finishes later from a 202
+# with Location, deprecation from deprecated plus the Deprecation and Sunset headers.
+overlay: 1.0.0
+info:
+  title: Matchmark behaviours for the Orders API
+  version: 1.0.0
+extends: ./openapi.yaml
+actions:
+  - target: $.paths['/orders'].post
+    description: How long a key is remembered, which the Idempotency-Key header itself can't say.
+    update:
+      x-matchmark-idempotency:
+        window: PT24H
+  - target: $.paths['/orders'].get
+    description: Where the cursor goes and where the next one comes from.
+    update:
+      x-matchmark-pagination:
+        cursor: cursor
+        next: $response.body#/next
+        items: $response.body#/items
+  - target: $.paths['/orders/{orderId}/payments'].post
+    description: When the operation the 202 started has finished.
+    update:
+      x-matchmark-long-running:
+        poll: getOperation
+        done: $response.body#/status != 'running'

@@ -1,0 +1,92 @@
+# Arazzo 1.0.1: the checkout as a workflow. Nothing runs this yet; LAYERS.md describes how Matchmark would, as a
+# regression workflow against a server and as a script for the fake.
+arazzo: 1.0.1
+info:
+  title: Orders checkout
+  version: 1.0.0
+sourceDescriptions:
+  - name: orders
+    url: ./openapi.yaml
+    type: openapi
+workflows:
+  - workflowId: checkout
+    summary: Create an order (retrying safely), change it without losing a concurrent change, pay, and wait.
+    inputs:
+      type: object
+      required: [key]
+      properties:
+        key: { type: string }
+    steps:
+      - stepId: create
+        operationId: createOrder
+        parameters:
+          - { name: Idempotency-Key, in: header, value: $inputs.key }
+        requestBody:
+          contentType: application/json
+          payload: { items: [{ sku: TEA-001, quantity: 2 }] }
+        successCriteria:
+          - condition: $statusCode == 201
+        outputs:
+          orderId: $response.body#/id
+          etag: $response.header.ETag
+      - stepId: create-again
+        description: The same key and body is the same order, not a second one.
+        operationId: createOrder
+        parameters:
+          - { name: Idempotency-Key, in: header, value: $inputs.key }
+        requestBody:
+          contentType: application/json
+          payload: { items: [{ sku: TEA-001, quantity: 2 }] }
+        successCriteria:
+          - condition: $statusCode == 201
+          - condition: $response.body#/id == $steps.create.outputs.orderId
+      - stepId: add-note
+        operationId: updateOrder
+        parameters:
+          - { name: orderId, in: path, value: $steps.create.outputs.orderId }
+          - { name: If-Match, in: header, value: $steps.create.outputs.etag }
+        requestBody:
+          contentType: application/merge-patch+json
+          payload: { note: Leave it at the door }
+        successCriteria:
+          - condition: $statusCode == 200
+      - stepId: stale-change
+        description: The first ETag is stale now, so this change is refused rather than lost.
+        operationId: updateOrder
+        parameters:
+          - { name: orderId, in: path, value: $steps.create.outputs.orderId }
+          - { name: If-Match, in: header, value: $steps.create.outputs.etag }
+        requestBody:
+          contentType: application/merge-patch+json
+          payload: { note: Ring twice }
+        successCriteria:
+          - condition: $statusCode == 412
+      - stepId: pay
+        operationId: payOrder
+        parameters:
+          - { name: orderId, in: path, value: $steps.create.outputs.orderId }
+        successCriteria:
+          - condition: $statusCode == 202
+        outputs:
+          operationId: $response.body#/id
+      - stepId: wait
+        operationId: getOperation
+        parameters:
+          - { name: operationId, in: path, value: $steps.pay.outputs.operationId }
+        successCriteria:
+          - condition: $response.body#/status == 'succeeded'
+        onFailure:
+          - name: still-running
+            type: retry
+            retryAfter: 1
+            retryLimit: 10
+            criteria:
+              - condition: $response.body#/status == 'running'
+      - stepId: paid
+        operationId: getOrder
+        parameters:
+          - { name: orderId, in: path, value: $steps.create.outputs.orderId }
+        successCriteria:
+          - condition: $response.body#/status == 'paid'
+    outputs:
+      orderId: $steps.create.outputs.orderId

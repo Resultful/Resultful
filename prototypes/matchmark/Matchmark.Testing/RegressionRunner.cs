@@ -400,7 +400,7 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
     {
         null => null,
         JsonValueKind.String => value.GetValue<string>(),
-        JsonValueKind.Number => value.GetValue<decimal>().ToString(CultureInfo.InvariantCulture),
+        JsonValueKind.Number => SchemaValidator.NumberOf(value)?.ToString(CultureInfo.InvariantCulture) ?? value.ToJsonString(),
         _ => value.ToJsonString(),
     };
 
