@@ -6,7 +6,7 @@ a round-trip check against the spec decide whether the server is done.
 
 This is a prototype. Nothing here is packed or published, and the `Resultful` package is unchanged.
 
-**[VISION.md](VISION.md)** is where this is going and why. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
+**[VISION.md](VISION.md)** is where this is going and why. **[PETSTORE.md](PETSTORE.md)** walks through the sample end to end. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
 framework that checks any API against its spec, and a generated fake server. This README covers the mechanics.
 
 ```

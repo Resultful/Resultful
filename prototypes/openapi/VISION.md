@@ -1,7 +1,7 @@
 # Vision
 
-Where this project is going, and why. [CONCEPT.md](CONCEPT.md) describes how the prototype works today; the
-[README](README.md) covers the mechanics.
+Where this project is going, and why. [CONCEPT.md](CONCEPT.md) describes how the prototype works today,
+[PETSTORE.md](PETSTORE.md) walks through the sample, and the [README](README.md) covers the mechanics.
 
 ## The problem
 
