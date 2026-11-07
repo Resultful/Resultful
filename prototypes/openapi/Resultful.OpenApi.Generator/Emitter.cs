@@ -36,10 +36,12 @@ namespace Resultful.OpenApi.Generator
         private readonly Dictionary<string, (string Base, string Property, string Value)> _unionMembers = new(StringComparer.Ordinal);
 
         private readonly bool _describesItself;
+        private readonly bool _hasFakes;
 
-        public Emitter(OpenApiDocument document, string ns, string apiName, Location location, bool describesItself = false)
+        public Emitter(OpenApiDocument document, string ns, string apiName, Location location, bool describesItself = false, bool hasFakes = false)
         {
             _describesItself = describesItself;
+            _hasFakes = hasFakes;
             _document = document;
             _namespace = ns;
             _apiName = apiName;
@@ -63,13 +65,19 @@ namespace Resultful.OpenApi.Generator
                 files["Responses"] = EmitResponses(operations);
                 files["Handlers"] = EmitHandlers(operations);
                 files["Client"] = EmitClient(operations);
-                files["Fake"] = EmitFake(operations);
+                if (_hasFakes)
+                {
+                    files["Fake"] = EmitFake(operations);
+                }
             }
 
             if (server)
             {
                 files["Endpoints"] = EmitEndpoints(operations);
-                files["FakeControl"] = EmitFakeControl();
+                if (_hasFakes)
+                {
+                    files["FakeHosting"] = EmitFakeHosting(operations);
+                }
                 if (_describesItself)
                 {
                     files["OpenApi"] = EmitOpenApi();
@@ -1408,24 +1416,23 @@ namespace Resultful.OpenApi.Generator
 
         /// <summary>
         /// A fake implementation of the handler interfaces. Every operation answers with its first documented success,
-        /// using the spec's example or a generated sample, until a test scripts another outcome. It records every call.
-        /// Behind the generated endpoints it is a fake server that needs no code.
+        /// using the spec's example or a generated sample, until scripted: per operation (<c>On{Operation}</c>,
+        /// <c>Respond</c>) or with a scenario of expected calls (<c>UseScenario</c>). Behind the generated endpoints it is
+        /// a fake server that needs no code. Requires Resultful.OpenApi.Fakes.
         /// </summary>
         private string EmitFake(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
             w.Usings("System", "System.Collections.Concurrent", "System.Collections.Generic", "System.Linq", "System.Text.Json",
-                "System.Text.Json.Serialization", "System.Threading", "System.Threading.Tasks", "Resultful");
-
-            w.Line("/// <summary>A call the fake received: the operation and its arguments, in order.</summary>");
-            w.Line("public sealed record FakeCall(string Operation, IReadOnlyList<object?> Arguments);");
-            w.Line();
+                "System.Text.Json.Nodes", "System.Text.Json.Serialization", "System.Threading", "System.Threading.Tasks",
+                "Resultful", "Resultful.OpenApi.Fakes");
 
             var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
             var name = _apiName + "Fake";
             w.Line("/// <summary>");
             w.Line($"/// A fake <c>{_apiName}</c>. Each operation answers with its first documented success (the spec's example, or a");
-            w.Line("/// sample built from the schema) until scripted with <c>On{Operation}</c> or <see cref=\"Respond\"/>. Calls are recorded.");
+            w.Line("/// sample built to pass the schema) until scripted with <c>On{Operation}</c>, <see cref=\"Respond\"/> or");
+            w.Line("/// <see cref=\"UseScenario\"/>. Only documented outcomes, with bodies that pass the schema, can be scripted.");
             w.Line("/// </summary>");
             w.Open($"public sealed class {name} : {interfaces}");
             w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)");
@@ -1434,10 +1441,27 @@ namespace Resultful.OpenApi.Generator
             w.Line("    AllowOutOfOrderMetadataProperties = true,");
             w.Line("};");
             w.Line();
-            w.Line("private readonly ConcurrentQueue<FakeCall> _calls = new();");
+            w.Line("/// <summary>Each operation's parameters, by name; <c>body</c> is the request body. What a scenario may expect.</summary>");
+            w.Line("public static readonly IReadOnlyDictionary<string, string[]> Parameters = new Dictionary<string, string[]>");
+            w.Line("{");
             foreach (var operation in operations)
             {
-                w.Line($"private {Responder(operation)} _{Naming.Camel(operation.Id).TrimStart('@')} = null!;");
+                var names = operation.Parameters.Select(p => p.Name).ToList();
+                if (operation.Body is not null)
+                {
+                    names.Add("body");
+                }
+
+                w.Line($"    [{Naming.Literal(operation.Id)}] = [{string.Join(", ", names.Select(Naming.Literal))}],");
+            }
+
+            w.Line("};");
+            w.Line();
+            w.Line("private readonly ConcurrentQueue<FakeCall> _calls = new();");
+            w.Line("private ScenarioRunner? _scenario;");
+            foreach (var operation in operations)
+            {
+                w.Line($"private {Responder(operation)} {Field(operation)} = null!;");
             }
 
             w.Line();
@@ -1446,32 +1470,92 @@ namespace Resultful.OpenApi.Generator
             w.Line("/// <summary>Every call so far, oldest first.</summary>");
             w.Line("public IReadOnlyList<FakeCall> Calls => _calls.ToList();");
             w.Line();
-            w.Line("/// <summary>Forgets the calls and returns every operation to its default answer.</summary>");
+            w.Line("/// <summary>Forgets the calls and any scenario, and returns every operation to its default answer.</summary>");
             w.Open("public void Reset()");
             w.Line("_calls.Clear();");
+            w.Line("_scenario = null;");
             foreach (var operation in operations)
             {
                 w.Line($"Respond({Naming.Literal(operation.Id)}, {operation.Successes[0].Status.Invariant()});");
             }
 
             w.Close();
+            w.Line();
+            w.Line("/// <summary>Answers calls from this scenario from now on, and checks each call against it. Throws if the scenario breaks the spec.</summary>");
+            w.Open($"public {name} UseScenario(Scenario scenario)");
+            w.Line("var problems = Check(scenario);");
+            w.Open("if (problems.Count > 0)");
+            w.Line("throw new ArgumentException(\"The scenario breaks the spec:\\n\" + string.Join(\"\\n\", problems), nameof(scenario));");
+            w.Close();
+            w.Line();
+            w.Line("_scenario = new ScenarioRunner(scenario);");
+            w.Line("return this;");
+            w.Close();
+            w.Line();
+            w.Line("/// <summary>Whether the scenario's steps were all called, in order if it requires that, and nothing else was.</summary>");
+            w.Line("public ScenarioReport Verify() => _scenario?.Verify() ?? new ScenarioReport(true, [], Calls);");
+            w.Line();
+            w.Line("/// <summary>Everything in <paramref name=\"scenario\"/> the spec doesn't allow: unknown operations or parameters, undocumented statuses, bodies that break the schema.</summary>");
+            w.Open("public static IReadOnlyList<string> Check(Scenario scenario)");
+            w.Line("var problems = new List<string>();");
+            w.Open("for (var i = 0; i < scenario.Steps.Count; i++)");
+            w.Line("var step = scenario.Steps[i];");
+            w.Line("var where = $\"step {i + 1} ({step.Operation} → {step.Status})\";");
+            w.Open("if (!Parameters.TryGetValue(step.Operation, out var parameters))");
+            w.Line("problems.Add($\"{where}: the spec has no operation '{step.Operation}'\");");
+            w.Line("continue;");
+            w.Close();
+            w.Line();
+            w.Open("if (step.Times < 1)");
+            w.Line("problems.Add($\"{where}: times must be at least 1\");");
+            w.Close();
+            w.Line();
+            w.Open("foreach (var key in step.Expect?.Select(e => e.Key) ?? [])");
+            w.Open("if (!parameters.Contains(key))");
+            w.Line("problems.Add($\"{where}: '{key}' is not a parameter; expected one of {string.Join(\", \", parameters)}\");");
+            w.Close();
+            w.Close();
+            w.Line();
+            w.Open("try");
+            w.Open("if (!TryAnswer(step.Operation, step.Status, step.Body?.ToJsonString(), out _))");
+            w.Line("problems.Add($\"{where}: the spec documents no {step.Status} response for '{step.Operation}'\");");
+            w.Close();
+            w.Close();
+            w.Open("catch (Exception e) when (e is ArgumentException or JsonException)");
+            w.Line("problems.Add($\"{where}: {e.Message}\");");
+            w.Close();
+            w.Close();
+            w.Line();
+            w.Line("return problems;");
+            w.Close();
 
             foreach (var operation in operations)
             {
-                var field = "_" + Naming.Camel(operation.Id).TrimStart('@');
+                var field = Field(operation);
                 var args = operation.Parameters.Select(p => $"{p.Type} {p.Identifier}").ToList();
                 var names = operation.Parameters.Select(p => p.Identifier).ToList();
                 var types = operation.Parameters.Select(p => p.Type).ToList();
+                var recorded = operation.Parameters.Select(p => $"[{Naming.Literal(p.Name)}] = {p.Identifier}").ToList();
                 if (operation.Body is not null)
                 {
                     args.Add($"{operation.Body.Type} body");
                     names.Add("body");
                     types.Add(operation.Body.Type);
+                    recorded.Add("[\"body\"] = body");
                 }
 
                 w.Line();
                 w.Open($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
-                w.Line($"_calls.Enqueue(new FakeCall({Naming.Literal(operation.Id)}, new object?[] {{ {string.Join(", ", names)} }}));");
+                w.Line($"var call = new FakeCall({Naming.Literal(operation.Id)}, new Dictionary<string, object?> {{ {string.Join(", ", recorded)} }});");
+                w.Line("_calls.Enqueue(call);");
+                w.Open("if (_scenario is { } scenario)");
+                w.Line("var (status, json) = scenario.Next(call, Arguments(call));");
+                w.Line($"var answer = Answer({Naming.Literal(operation.Id)}, status, json);");
+                w.Line(operation.HandlerResultType is { } r
+                    ? $"return Task.FromResult(({r})answer!);"
+                    : "return Task.CompletedTask;");
+                w.Close();
+                w.Line();
                 w.Line($"return {field}({string.Join(", ", names.Append("cancellationToken"))});");
                 w.Close();
                 w.Line();
@@ -1497,33 +1581,23 @@ namespace Resultful.OpenApi.Generator
             w.Line("/// <summary>");
             w.Line("/// Answers every later call to <paramref name=\"operation\"/> (its operationId) with the documented response for");
             w.Line("/// <paramref name=\"status\"/>: <paramref name=\"json\"/> as its body, or the default sample. False if the spec");
-            w.Line("/// documents no such response.");
+            w.Line("/// documents no such response; throws if the body breaks the schema.");
             w.Line("/// </summary>");
             w.Open("public bool Respond(string operation, int status, string? json = null)");
-            w.Open("switch ((operation, status))");
+            w.Open("if (!TryAnswer(operation, status, json, out _))");
+            w.Line("return false;");
+            w.Close();
+            w.Line();
+            w.Open("switch (operation)");
             foreach (var operation in operations)
             {
-                var field = "_" + Naming.Camel(operation.Id).TrimStart('@');
                 var discards = string.Join(", ", Enumerable.Repeat("_", operation.Parameters.Count + (operation.Body is null ? 0 : 1) + 1));
                 var lambdaArgs = discards == "_" ? "_" : $"({discards})";
-                foreach (var response in operation.Successes.Concat(operation.Errors))
-                {
-                    w.Line($"case ({Naming.Literal(operation.Id)}, {response.Status.Invariant()}):");
-                    w.Line("{");
-                    string? value = null;
-                    if (response.BodyType is not null)
-                    {
-                        w.Line($"    var body = json ?? {Naming.Literal(response.SampleJson ?? "null")};");
-                        value = $"Body<{response.BodyType}>(body)";
-                    }
-
-                    var outcome = Outcome(operation, response, value);
-                    w.Line(operation.HandlerResultType is { } result
-                        ? $"    {field} = {lambdaArgs} => Task.FromResult<{result}>({outcome});"
-                        : $"    {field} = {lambdaArgs} => Task.CompletedTask;");
-                    w.Line("    return true;");
-                    w.Line("}");
-                }
+                w.Line($"case {Naming.Literal(operation.Id)}:");
+                w.Line(operation.HandlerResultType is { } result
+                    ? $"    {Field(operation)} = {lambdaArgs} => Task.FromResult(({result})Answer(operation, status, json)!);"
+                    : $"    {Field(operation)} = {lambdaArgs} => Task.CompletedTask;");
+                w.Line("    return true;");
             }
 
             w.Line("default:");
@@ -1531,11 +1605,129 @@ namespace Resultful.OpenApi.Generator
             w.Close();
             w.Close();
             w.Line();
-            w.Line("private static T Body<T>(string json)");
-            w.Line("    => JsonSerializer.Deserialize<T>(json, Json) ?? throw new ArgumentException(\"The body is null.\", nameof(json));");
+            w.Line("private static object? Answer(string operation, int status, string? json)");
+            w.Line("    => TryAnswer(operation, status, json, out var answer) ? answer : throw new ArgumentException($\"The spec documents no {status} response for '{operation}'.\");");
+            w.Line();
+            w.Line("/// <summary>The handler's return value for a documented response, built fresh; null for a plain Task.</summary>");
+            w.Open("private static bool TryAnswer(string operation, int status, string? json, out object? answer)");
+            w.Open("switch ((operation, status))");
+            foreach (var operation in operations)
+            {
+                foreach (var response in operation.Successes.Concat(operation.Errors))
+                {
+                    w.Line($"case ({Naming.Literal(operation.Id)}, {response.Status.Invariant()}):");
+                    string? value = null;
+                    if (response.BodyType is not null)
+                    {
+                        var validate = response.SchemaName is null
+                            ? "null"
+                            : response.IsList ? $"items => ValidateEach(items, {ValidationClass}.Validate)" : $"{ValidationClass}.Validate";
+                        value = $"Body<{response.BodyType}>(json ?? {Naming.Literal(response.SampleJson ?? "null")}, {validate})";
+                    }
+
+                    var outcome = Outcome(operation, response, value);
+                    w.Line(outcome.Length == 0 ? "    answer = null;" : $"    answer = {outcome};");
+                    w.Line("    return true;");
+                }
+            }
+
+            w.Line("default:");
+            w.Line("    answer = null;");
+            w.Line("    return false;");
             w.Close();
+            w.Close();
+            w.Line();
+            w.Open("private static T Body<T>(string json, Func<T, Dictionary<string, string[]>?>? validate)");
+            w.Line("var value = JsonSerializer.Deserialize<T>(json, Json) ?? throw new ArgumentException(\"The body is null.\");");
+            w.Open("if (validate?.Invoke(value) is { } errors)");
+            w.Line("throw new ArgumentException(\"The body breaks the schema: \" + string.Join(\"; \", errors.Select(e => $\"{e.Key}: {string.Join(\" \", e.Value)}\")));");
+            w.Close();
+            w.Line();
+            w.Line("return value;");
+            w.Close();
+            w.Line();
+            w.Open("private static Dictionary<string, string[]>? ValidateEach<T>(IReadOnlyList<T> items, Func<T, Dictionary<string, string[]>?> validate)");
+            w.Line("var errors = items.Select((item, index) => (index, errors: validate(item)))");
+            w.Line("    .Where(e => e.errors is not null)");
+            w.Line("    .SelectMany(e => e.errors!.Select(x => (key: $\"[{e.index}].{x.Key}\", x.Value)))");
+            w.Line("    .ToDictionary(e => e.key, e => e.Value);");
+            w.Line("return errors.Count == 0 ? null : errors;");
+            w.Close();
+            w.Line();
+            w.Open("private static JsonObject Arguments(FakeCall call)");
+            w.Line("var json = new JsonObject();");
+            w.Open("foreach (var (key, value) in call.Arguments)");
+            w.Line("json[key] = value is null ? null : JsonSerializer.SerializeToNode(value, value.GetType(), Json);");
+            w.Close();
+            w.Line();
+            w.Line("return json;");
+            w.Close();
+            w.Close();
+            w.Line();
+
+            EmitScenarioBuilder(w, operations, name);
             return w.ToString();
         }
+
+        /// <summary>A typed way to write a scenario: one method per operation, checked against the spec on Build.</summary>
+        private void EmitScenarioBuilder(CodeWriter w, List<Operation> operations, string fake)
+        {
+            var name = _apiName + "Scenario";
+            w.Line($"/// <summary>Builds a <see cref=\"Scenario\"/> for <see cref=\"{fake}\"/> in code: each method adds one expected call.</summary>");
+            w.Open($"public sealed class {name}");
+            w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { NumberHandling = JsonNumberHandling.Strict };");
+            w.Line("private readonly List<ScenarioStep> _steps = [];");
+            w.Line("private readonly ScenarioOrder _order;");
+            w.Line();
+            w.Line($"private {name}(ScenarioOrder order) => _order = order;");
+            w.Line();
+            w.Line("/// <summary>Calls must come in the order the steps are added.</summary>");
+            w.Line($"public static {name} InOrder() => new(ScenarioOrder.InOrder);");
+            w.Line();
+            w.Line("/// <summary>Calls may come in any order.</summary>");
+            w.Line($"public static {name} AnyOrder() => new(ScenarioOrder.AnyOrder);");
+            foreach (var operation in operations)
+            {
+                var parameters = operation.Parameters.Select(p => p.Name).ToList();
+                if (operation.Body is not null)
+                {
+                    parameters.Add("body");
+                }
+
+                var statuses = string.Join(", ", operation.Successes.Concat(operation.Errors).Select(r => r.Status.Invariant()));
+                w.Line();
+                w.Line("/// <summary>");
+                w.Line($"/// Expects <c>{operation.Method} {operation.Path}</c>. <paramref name=\"expect\"/> is a subset of its arguments");
+                w.Line($"/// ({(parameters.Count == 0 ? "none" : string.Join(", ", parameters))}); <paramref name=\"status\"/> is one of {statuses};");
+                w.Line("/// <paramref name=\"body\"/> replaces the spec's example.");
+                w.Line("/// </summary>");
+                w.Line($"public {name} {operation.Name}(object? expect = null, int status = {operation.Successes[0].Status.Invariant()}, object? body = null, int times = 1)");
+                w.Line($"    => Add({Naming.Literal(operation.Id)}, expect, status, body, times);");
+            }
+
+            w.Line();
+            w.Line("/// <summary>The scenario, checked against the spec. Throws listing every problem.</summary>");
+            w.Open("public Scenario Build()");
+            w.Line("var scenario = new Scenario { Order = _order, Steps = _steps.ToList() };");
+            w.Line($"var problems = {fake}.Check(scenario);");
+            w.Line("return problems.Count == 0 ? scenario : throw new ArgumentException(\"The scenario breaks the spec:\\n\" + string.Join(\"\\n\", problems));");
+            w.Close();
+            w.Line();
+            w.Open($"private {name} Add(string operation, object? expect, int status, object? body, int times)");
+            w.Line("_steps.Add(new ScenarioStep");
+            w.Line("{");
+            w.Line("    Operation = operation,");
+            w.Line("    Expect = expect is null ? null : JsonSerializer.SerializeToNode(expect, expect.GetType(), Json)!.AsObject(),");
+            w.Line("    Status = status,");
+            w.Line("    Body = body is null ? null : JsonSerializer.SerializeToNode(body, body.GetType(), Json),");
+            w.Line("    Times = times,");
+            w.Line("});");
+            w.Line("return this;");
+            w.Close();
+            w.Close();
+        }
+
+        private static string Field(Operation operation) => "_" + Naming.Camel(operation.Id).TrimStart('@');
 
         private static string Responder(Operation operation)
         {
@@ -1550,31 +1742,149 @@ namespace Resultful.OpenApi.Generator
             return $"Func<{string.Join(", ", types)}>";
         }
 
-        /// <summary>HTTP endpoints for scripting the fake from any language: hidden from the OpenAPI document.</summary>
-        private string EmitFakeControl()
+        /// <summary>
+        /// Hosting for fake servers: a hub of isolated fakes. The default fake answers at the root; each session, started
+        /// with a scenario over HTTP, answers at <c>/sessions/{id}/</c>. Control endpoints are left out of the OpenAPI document.
+        /// </summary>
+        private string EmitFakeHosting(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Text.Json", "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Routing");
+            w.Usings("System", "System.Collections.Concurrent", "System.Linq", "System.Text.Json", "Microsoft.AspNetCore.Builder",
+                "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Routing", "Microsoft.Extensions.DependencyInjection", "Resultful.OpenApi.Fakes");
+            var fake = _apiName + "Fake";
+            var hub = _apiName + "FakeHub";
+
             w.Line("/// <summary>A scripted answer: a documented status and, optionally, its body.</summary>");
             w.Line("public sealed record FakeResponse(int Status, JsonElement? Body);");
             w.Line();
-            w.Open($"public static class {_apiName}FakeControl");
+            w.Line($"/// <summary>The fakes a fake server hosts: one default, and one per session.</summary>");
+            w.Open($"public sealed class {hub}");
+            w.Line($"private readonly ConcurrentDictionary<string, {fake}> _sessions = new();");
+            w.Line();
+            w.Line($"public {fake} Default {{ get; }} = new();");
+            w.Line();
+            w.Open($"public (string Id, {fake} Fake) Start(Scenario? scenario)");
+            w.Line($"var fake = new {fake}();");
+            w.Open("if (scenario is not null)");
+            w.Line("fake.UseScenario(scenario);");
+            w.Close();
+            w.Line();
+            w.Line("var id = Guid.NewGuid().ToString(\"N\")[..12];");
+            w.Line("_sessions[id] = fake;");
+            w.Line("return (id, fake);");
+            w.Close();
+            w.Line();
+            w.Line($"public {fake}? Find(string id) => _sessions.TryGetValue(id, out var fake) ? fake : null;");
+            w.Line();
+            w.Line("public bool End(string id) => _sessions.TryRemove(id, out _);");
+            w.Close();
+            w.Line();
+
+            var interfaces = operations.Select(o => HandlerInterface(o.Tag)).Distinct().ToList();
+            w.Open($"public static class {_apiName}FakeHosting");
+            w.Line("private const string SessionKey = \"Resultful.OpenApi.Fakes.Session\";");
+            w.Line();
+            w.Line("/// <summary>Registers the hub and answers each request from its session's fake, or the default one.</summary>");
+            w.Open($"public static IServiceCollection Add{_apiName}FakeHub(this IServiceCollection services)");
+            w.Line($"var hub = new {hub}();");
+            w.Line("services.AddSingleton(hub);");
+            w.Line("services.AddSingleton(hub.Default);");
+            w.Line("services.AddHttpContextAccessor();");
+            foreach (var iface in interfaces)
+            {
+                w.Line($"services.AddScoped<{iface}>(sp => sp.GetRequiredService<IHttpContextAccessor>().HttpContext?.Items[SessionKey] as {fake} ?? hub.Default);");
+            }
+
+            w.Line("return services;");
+            w.Close();
+            w.Line();
             w.Line("/// <summary>");
-            w.Line($"/// Maps <c>PUT {{prefix}}/{{operationId}}</c> (body: <c>{{\"status\": 404, \"body\": {{...}}}}</c>), <c>GET {{prefix}}/calls</c> and");
-            w.Line("/// <c>DELETE {prefix}</c> (reset), for scripting the fake over HTTP. They are left out of the OpenAPI document.");
+            w.Line("/// Serves each session's fake under <c>{sessions}/{id}/</c>, and turns a call its scenario didn't expect into a");
+            w.Line("/// 500 problem titled \"Fake expectation failed\". Adds routing after itself, so call it before mapping endpoints.");
             w.Line("/// </summary>");
-            w.Open($"public static IEndpointRouteBuilder Map{_apiName}FakeControl(this IEndpointRouteBuilder app, {_apiName}Fake fake, string prefix = \"/__fake\")");
+            w.Open($"public static IApplicationBuilder Use{_apiName}FakeHub(this IApplicationBuilder app, string sessions = \"/sessions\")");
+            w.Line($"var hub = app.ApplicationServices.GetRequiredService<{hub}>();");
+            w.Line("app.Use(async (context, next) =>");
+            w.Line("{");
+            w.Line("    if (context.Request.Path.StartsWithSegments(sessions, out var rest) && rest.HasValue)");
+            w.Line("    {");
+            w.Line("        var parts = rest.Value!.Split('/', 3);");
+            w.Line("        if (hub.Find(parts[1]) is not { } fake)");
+            w.Line("        {");
+            w.Line("            await Results.Problem($\"There is no fake session '{parts[1]}'.\", statusCode: 404).ExecuteAsync(context);");
+            w.Line("            return;");
+            w.Line("        }");
+            w.Line();
+            w.Line("        context.Items[SessionKey] = fake;");
+            w.Line("        context.Request.PathBase = context.Request.PathBase.Add($\"{sessions}/{parts[1]}\");");
+            w.Line("        context.Request.Path = \"/\" + (parts.Length > 2 ? parts[2] : string.Empty);");
+            w.Line("    }");
+            w.Line();
+            w.Line("    try");
+            w.Line("    {");
+            w.Line("        await next(context);");
+            w.Line("    }");
+            w.Line("    catch (FakeExpectationException e) when (!context.Response.HasStarted)");
+            w.Line("    {");
+            w.Line("        await Results.Problem(e.Message, title: \"Fake expectation failed\", statusCode: 500).ExecuteAsync(context);");
+            w.Line("    }");
+            w.Line("});");
+            w.Line("app.UseRouting();");
+            w.Line("return app;");
+            w.Close();
+            w.Line();
+            w.Line("/// <summary>");
+            w.Line("/// The control API, under <c>{prefix}</c>, left out of the OpenAPI document:");
+            w.Line("/// <c>PUT /{operationId}</c> scripts the default fake (<c>{\"status\": 404, \"body\": {...}}</c>), <c>GET /calls</c> lists");
+            w.Line("/// its calls, <c>DELETE /</c> resets it; <c>POST /sessions</c> with a scenario (or nothing) stands up an isolated fake");
+            w.Line("/// and returns its base URL, <c>GET /sessions/{id}</c> verifies it, <c>DELETE /sessions/{id}</c> ends it.");
+            w.Line("/// </summary>");
+            w.Open($"public static IEndpointRouteBuilder Map{_apiName}FakeControl(this IEndpointRouteBuilder app, string prefix = \"/__fake\", string sessions = \"/sessions\")");
+            w.Line($"var hub = app.ServiceProvider.GetRequiredService<{hub}>();");
             w.Line("var group = app.MapGroup(prefix).ExcludeFromDescription();");
             w.Line("group.MapPut(\"/{operation}\", (string operation, FakeResponse response) =>");
-            w.Line("    fake.Respond(operation, response.Status, response.Body?.GetRawText())");
-            w.Line("        ? Results.NoContent()");
-            w.Line("        : Results.Problem($\"The spec documents no {response.Status} response for '{operation}'.\", statusCode: 404));");
-            w.Line("group.MapGet(\"/calls\", () => Results.Ok(fake.Calls));");
+            w.Line("{");
+            w.Line("    try");
+            w.Line("    {");
+            w.Line("        return hub.Default.Respond(operation, response.Status, response.Body?.GetRawText())");
+            w.Line("            ? Results.NoContent()");
+            w.Line("            : Results.Problem($\"The spec documents no {response.Status} response for '{operation}'.\", statusCode: 404);");
+            w.Line("    }");
+            w.Line("    catch (ArgumentException e)");
+            w.Line("    {");
+            w.Line("        return Results.Problem(e.Message, statusCode: 400);");
+            w.Line("    }");
+            w.Line("});");
+            w.Line("group.MapGet(\"/calls\", () => Results.Ok(hub.Default.Calls));");
             w.Line("group.MapDelete(\"/\", () =>");
             w.Line("{");
-            w.Line("    fake.Reset();");
+            w.Line("    hub.Default.Reset();");
             w.Line("    return Results.NoContent();");
             w.Line("});");
+            w.Line("group.MapPost(\"/sessions\", async (HttpRequest request) =>");
+            w.Line("{");
+            w.Line("    var text = await new System.IO.StreamReader(request.Body).ReadToEndAsync();");
+            w.Line("    Scenario? scenario;");
+            w.Line("    try");
+            w.Line("    {");
+            w.Line("        scenario = string.IsNullOrWhiteSpace(text) ? null : Scenario.FromJson(text);");
+            w.Line("    }");
+            w.Line("    catch (JsonException e)");
+            w.Line("    {");
+            w.Line("        return Results.Problem(\"The scenario is not valid JSON: \" + e.Message, statusCode: 400);");
+            w.Line("    }");
+            w.Line();
+            w.Line($"    var problems = scenario is null ? [] : {fake}.Check(scenario);");
+            w.Line("    if (problems.Count > 0)");
+            w.Line("    {");
+            w.Line("        return Results.Problem(string.Join(\"\\n\", problems), title: \"The scenario breaks the spec\", statusCode: 400);");
+            w.Line("    }");
+            w.Line();
+            w.Line("    var (id, _) = hub.Start(scenario);");
+            w.Line("    return Results.Created($\"{prefix}/sessions/{id}\", new { id, baseUrl = $\"{sessions}/{id}/\" });");
+            w.Line("});");
+            w.Line("group.MapGet(\"/sessions/{id}\", (string id) => hub.Find(id) is { } fake ? Results.Ok(fake.Verify()) : Results.NotFound());");
+            w.Line("group.MapDelete(\"/sessions/{id}\", (string id) => hub.End(id) ? Results.NoContent() : Results.NotFound());");
             w.Line("return app;");
             w.Close();
             w.Close();

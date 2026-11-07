@@ -1,0 +1,9 @@
+{
+  "steps": [
+    { "operation": "adoptPet", "status": 200 },
+    { "operation": "getPet", "status": 500 },
+    { "operation": "getPet", "expect": { "id": 7 }, "status": 200 },
+    { "operation": "getPet", "status": 200, "body": { "id": 1, "name": "", "status": "available", "details": { "kind": "cat", "livesLeft": 12 } } },
+    { "operation": "listPets", "status": 200, "times": 0 }
+  ]
+}

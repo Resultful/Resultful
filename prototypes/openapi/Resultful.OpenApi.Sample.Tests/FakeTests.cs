@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using PetStore.Api;
 using PetStore.Fake;
+using Resultful.OpenApi.Fakes;
 
 namespace Resultful.OpenApi.Sample.Tests;
 
@@ -58,7 +59,8 @@ public sealed class FakeTests
         fake.Respond("deletePet", 404).Should().BeTrue();
 
         await fake.DeletePet(3, default);
-        fake.Calls.Should().BeEquivalentTo([new FakeCall("deletePet", [3L])]);
+        fake.Calls.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new FakeCall("deletePet", new Dictionary<string, object?> { ["petId"] = 3L }));
 
         fake.Reset();
         fake.Calls.Should().BeEmpty();

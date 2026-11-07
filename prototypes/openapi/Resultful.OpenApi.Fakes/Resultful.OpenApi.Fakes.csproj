@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The runtime half of the generated fakes: scenarios (expected calls, in order or not, with the answers to give) and
+    the engine that runs and verifies them. Generic over any API; the generator writes the per-API typed parts.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

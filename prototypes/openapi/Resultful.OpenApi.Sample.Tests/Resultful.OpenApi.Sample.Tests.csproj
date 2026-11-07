@@ -20,5 +20,6 @@
 
   <ItemGroup>
     <None Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Scenarios/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -128,12 +128,63 @@ Default answers come from the spec:
 If a required string has a pattern the generated sample doesn't match, the generator asks for an example (`RAPI005`)
 rather than serve an invalid body.
 
+#### Scenarios: expected calls, in order or not
+
+To check how a consumer uses the API, give the fake a scenario: the calls it expects, what each request must contain,
+and the documented answer to give. A scenario can be written two ways, both producing the same model (`Scenario` in
+`Resultful.OpenApi.Fakes`):
+
+```cs
+// In code: a generated, typed builder with one method per operation.
+var fake = new PetStoreFake().UseScenario(PetStoreScenario.InOrder()
+    .CreatePet(expect: new { body = new { name = "Rex" } }, status: 201)
+    .GetPet(expect: new { petId = 7 }, times: 2)
+    .DeletePet(expect: new { petId = 7 })
+    .Build());
+```
+
+```json
+// Declaratively: the same steps in JSON (Scenarios/adopt-rex.json).
+{ "order": "InOrder", "steps": [
+  { "operation": "createPet", "expect": { "body": { "name": "Rex" } }, "status": 201 },
+  { "operation": "getPet", "expect": { "petId": 7 }, "status": 200, "times": 2 } ] }
+```
+
+How a scenario runs:
+- **Expectations are subsets.** A step's `expect` matches a request if every property it gives matches the request's
+  arguments, with the body under `body`. A mismatch names the field:
+  `body.details.kind expected "cat", got "dog"`.
+- **Order.** `InOrder` requires each call to match the next step. `AnyOrder` accepts any step with calls left, and
+  `times` counts calls per step. An out-of-order call names both steps: `getPet was called out of order: step 2
+  (getPet → 200) comes after step 1 (createPet → 201)`.
+- **Failing calls.** A call the scenario doesn't expect throws `FakeExpectationException` in-process; over HTTP it
+  becomes a `500` problem titled "Fake expectation failed". Either way it is recorded.
+- **Verification.** `Verify()` reports every failure, plus every step not called as many times as it should have been.
+
+A scenario is checked against the spec before it runs. `PetStoreFake.Check` lists everything wrong at once: unknown
+operations, undocumented statuses, `expect` keys that aren't parameters, answer bodies that break the schema, and
+`times` below 1. A typo in a declarative file fails on load, not halfway through a test.
+
+#### An API that stands up APIs
+
+The fake server is also a hub of isolated fakes, so many tests can share one fake-server process (`/__fake` is left
+out of the OpenAPI document):
+- `POST /__fake/sessions` with a scenario (or none) stands up a fresh fake API and returns its base URL,
+  `/sessions/{id}/`. A scenario that breaks the spec is refused with every problem listed.
+- Calls under that base URL go to that session's fake only. The default fake at the root, and other sessions, are
+  unaffected.
+- `GET /__fake/sessions/{id}` returns the verification report (passed, failures, calls), and
+  `DELETE /__fake/sessions/{id}` ends the session.
+
+A consumer in any language can therefore post a scenario, point its client at the base URL, run its test and read
+the report. A .NET consumer passes the base URL to `PetStoreClient`, which also checks every answer against the spec.
+
 What makes it trustworthy, not just cheap:
 - **Same edges as the real service.** It runs the real service's generated endpoints, so a consumer sees the same
   request validation, the same `problem+json` errors and the same OpenAPI document. `FakeTests` checks the document
   with the round-trip comparer.
-- **Only documented outcomes.** Scripting a status the spec doesn't document is refused, in-process (`Respond` returns
-  false) and over HTTP (404 with a reason).
+- **Only documented outcomes, with valid bodies.** Scripting a status the spec doesn't document is refused,
+  in-process (`Respond` returns false) and over HTTP (404 with a reason). So is a scripted body that breaks the schema.
 - **Every outcome it can give is checked.** `FakeTests` scripts each of the 12 documented outcomes in turn and reads
   each through the conformance-checking client. Breaking the sample builder on purpose fails it at the exact field.
 - **Tests carry over.** A consumer's tests written against `IPetsHandlers` with the fake run unchanged against
@@ -149,6 +200,7 @@ What makes it trustworthy, not just cheap:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
+| Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |
 | Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |
 | Black-box regression suite | anything visible over HTTP, written without the generated types | `RegressionSuite` |
 

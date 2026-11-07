@@ -54,6 +54,11 @@ consumers actually use, not against the whole spec.
   requests, writes problems as `problem+json` and publishes the same OpenAPI document.
 - **Scripted per test.** Any documented outcome can be scripted in-process with typed functions, or over HTTP from any
   language. An undocumented one can't be scripted, so a consumer can't test against behaviour the API will never have.
+- **Asserts how it is used.** A scenario, written in code or declared in a file, says which calls to expect, in what
+  order, and what each request must contain. The fake fails the first wrong call and reports everything that went
+  differently.
+- **One server, many isolated fakes.** Posting a scenario to the fake server stands up a fresh fake API at its own base
+  URL, so parallel tests, in any language, share one cheap process.
 - **Available from day one.** It exists as soon as the spec does, so consumers build against it while the service is
   still being written.
 
@@ -107,6 +112,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ Contract and server generated as separate parts.
 - ✓ A generated fake: in-process, or as a runnable server scripted over HTTP. Every documented outcome it can produce
   is checked against the spec.
+- ✓ Scenarios of expected calls, in order or not, written in code or JSON and checked against the spec; a fake server
+  that stands up an isolated fake API per scenario.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
