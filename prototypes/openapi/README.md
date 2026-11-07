@@ -6,6 +6,9 @@ a round-trip check against the spec decide whether the server is done.
 
 This is a prototype. Nothing here is packed or published, and the `Resultful` package is unchanged.
 
+**[CONCEPT.md](CONCEPT.md)** sets out the idea and its two uses: as the workflow for spec-first services, and as a
+testing framework that checks any API against its spec. This README covers the mechanics.
+
 ```
 petstore.yaml ──[Resultful.OpenApi.Generator]──▶ DTOs, response unions, IPetsHandlers, validation, MapPetStore()
      ▲                                                         │
@@ -21,13 +24,14 @@ cd prototypes/openapi
 dotnet test Resultful.OpenApi.slnx
 ```
 
-The generated files are written to `Resultful.OpenApi.Sample/obj/generated/` so you can read them.
+The generated files are written to `obj/generated/` in the Contract and Sample projects, so you can read them.
 
 | Project | What it is |
 |---|---|
 | `Resultful.OpenApi.Generator` | The `IIncrementalGenerator` (netstandard2.0). It reads the spec with Microsoft.OpenApi 3.x, which ships inside the analyzer. |
-| `Resultful.OpenApi.Sample` | `petstore.yaml`, `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
-| `Resultful.OpenApi.Sample.Tests` | `RegressionSuite` (HTTP only, through `WebApplicationFactory`), `HandlerTests` (no HTTP), `SpecDriftTests` (the round trip). Every test starts from a named seed scenario. |
+| `Resultful.OpenApi.Sample.Contract` | `petstore.yaml` and the generated **Contract** part: types, response unions, `IPetsHandlers`, validation, `ValidatingPetsHandlers` and `PetStoreClient`. What a consumer or a test suite references. |
+| `Resultful.OpenApi.Sample` | The service: the generated **Server** part (endpoints, OpenAPI configuration), `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
+| `Resultful.OpenApi.Sample.Tests` | `ContractSuite` (one suite against `IPetsHandlers`, run in-process and over HTTP, with outcome coverage), `ClientConformanceTests` (the client catching a server that breaks the spec), `RegressionSuite` (raw HTTP and JSON), `HandlerTests`, `SpecDriftTests` (the round trip). Every server test starts from a named seed scenario. |
 | `Resultful.OpenApi.Generator.Tests` | The generator on small specs: what it emits, and the diagnostics for what it doesn't support. |
 
 ## What the spec becomes
@@ -55,8 +59,15 @@ Each operation's handler signature comes from its responses:
   can't be forgotten.
 - **Request validation** is generated from the schema's `required`, `minLength`, `maxLength`, `pattern`, `minimum` and
   `maximum`, recursing into `$ref`s and oneOf members. It runs before the handler and returns
-  `ValidationProblem` (400). A 400 whose body is `HttpValidationProblemDetails` belongs to the generated endpoint and
-  is not part of the handler's error union. Any other 400 is a normal handler error.
+  `ValidationProblem` (400). A documented 400 whose body is `HttpValidationProblemDetails` is also a case of the
+  handler's error union (`CreatePetBadRequest`), so handlers can return domain validation failures in the same shape.
+  `ValidatingPetsHandlers` applies the same validation in front of any implementation of the interface.
+- **The client** (`PetStoreClient`) implements the handler interfaces over HTTP and returns the same types. It checks
+  every response's status, content type and schema, throwing `ContractViolationException` for anything the spec
+  doesn't allow, and records which documented outcomes it received (`Observed`, against
+  `PetStoreContract.DocumentedOutcomes`).
+- **Parts.** `ResultfulParts="Contract"` generates what callers need; `"Server"` generates the endpoints and OpenAPI
+  configuration. The default is both.
 - **Schemas** become `record`s with `required` init properties. String enums become enums with
   `JsonStringEnumMemberName`. A discriminated `oneOf` becomes an abstract record with `[JsonPolymorphic]`.
   `ProblemDetails` and `HttpValidationProblemDetails` map to the framework types.

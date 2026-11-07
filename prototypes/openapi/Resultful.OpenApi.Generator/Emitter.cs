@@ -50,23 +50,28 @@ namespace Resultful.OpenApi.Generator
 
         private string ValidationClass => _apiName + "Validation";
 
-        public Dictionary<string, string> Emit()
+        public Dictionary<string, string> Emit(bool contract = true, bool server = true)
         {
             CollectSchemas();
             var operations = CollectOperations();
+            var files = new Dictionary<string, string>();
 
-            var files = new Dictionary<string, string>
+            if (contract)
             {
-                ["Models"] = EmitModels(),
-                ["Validation"] = EmitValidation(operations),
-                ["Responses"] = EmitResponses(operations),
-                ["Handlers"] = EmitHandlers(operations),
-                ["Endpoints"] = EmitEndpoints(operations),
-            };
+                files["Models"] = EmitModels();
+                files["Validation"] = EmitValidation(operations);
+                files["Responses"] = EmitResponses(operations);
+                files["Handlers"] = EmitHandlers(operations);
+                files["Client"] = EmitClient(operations);
+            }
 
-            if (_describesItself)
+            if (server)
             {
-                files["OpenApi"] = EmitOpenApi();
+                files["Endpoints"] = EmitEndpoints(operations);
+                if (_describesItself)
+                {
+                    files["OpenApi"] = EmitOpenApi();
+                }
             }
 
             return files;
@@ -418,10 +423,13 @@ namespace Resultful.OpenApi.Generator
             var w = new CodeWriter(_namespace);
             w.Usings("System.Collections.Generic", "System.Text.RegularExpressions");
 
-            w.Line("/// <summary>Request validation generated from the schema constraints (required, minLength, maxLength, pattern, minimum, maximum).</summary>");
-            w.Open($"internal static class {ValidationClass}");
+            w.Line("/// <summary>");
+            w.Line("/// Validation generated from the schema constraints (required, minLength, maxLength, pattern, minimum, maximum).");
+            w.Line("/// The endpoints run it on request bodies; the client runs it on response bodies.");
+            w.Line("/// </summary>");
+            w.Open($"public static class {ValidationClass}");
 
-            foreach (var bodyType in operations.Where(o => o.Body is not null).Select(o => o.Body!.Type).Distinct())
+            foreach (var bodyType in _schemas.Where(s => !IsEnum(s.Value)).Select(s => Naming.Pascal(s.Key)))
             {
                 w.Line($"/// <summary>Returns the errors keyed by JSON path, or <c>null</c> when <paramref name=\"value\"/> is valid.</summary>");
                 w.Open($"public static Dictionary<string, string[]>? Validate({bodyType} value)");
@@ -587,15 +595,29 @@ namespace Resultful.OpenApi.Generator
 
         private sealed class Response
         {
-            public Response(int status, string? bodyType)
+            public Response(int status, string? bodyType, string? mediaType = null, bool isValidation = false, string? schemaName = null)
             {
                 Status = status;
                 BodyType = bodyType;
+                MediaType = mediaType;
+                IsValidation = isValidation;
+                SchemaName = schemaName;
             }
 
             public int Status { get; }
 
             public string? BodyType { get; }
+
+            /// <summary>The documented content type of the body, which the client checks.</summary>
+            public string? MediaType { get; }
+
+            /// <summary>A 400 with HttpValidationProblemDetails on an operation with a body: written as ValidationProblem.</summary>
+            public bool IsValidation { get; }
+
+            /// <summary>The generated schema the body is, or holds a list of, for response validation; null for framework types.</summary>
+            public string? SchemaName { get; set; }
+
+            public bool IsList { get; set; }
 
             public string CaseName => Naming.StatusNames[Status];
 
@@ -608,12 +630,14 @@ namespace Resultful.OpenApi.Generator
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
             public string ResultType => Status == 401
                 ? "UnauthorizedHttpResult"
+                : IsValidation ? "ValidationProblem"
                 : IsProblem ? "ProblemHttpResult"
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
 
             /// <summary>The TypedResults call that produces it, given the body expression.</summary>
             public string Factory(string body) => (Status, BodyType is null) switch
             {
+                _ when IsValidation => $"TypedResults.ValidationProblem({body}.Errors, {body}.Detail, {body}.Instance, {body}.Title, {body}.Type)",
                 _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
                 (201 or 202, false) => $"TypedResults.{CaseName}((string?)null, {body})",
                 (_, false) => $"TypedResults.{CaseName}({body})",
@@ -649,7 +673,10 @@ namespace Resultful.OpenApi.Generator
 
             public List<Response> Errors { get; } = new();
 
-            /// <summary>A 400 whose body is HttpValidationProblemDetails: owned by the generated boundary, not the handler.</summary>
+            /// <summary>
+            /// A 400 whose body is HttpValidationProblemDetails. The generated boundary returns it when the body breaks the
+            /// schema; it is also a case of the error union, so handlers can return domain validation failures the same way.
+            /// </summary>
             public bool ValidationDocumented { get; set; }
 
             public bool SuccessIsUnion => Successes.Count > 1;
@@ -766,23 +793,29 @@ namespace Resultful.OpenApi.Generator
                     return false;
                 }
 
-                string? bodyType = null;
-                if (JsonSchema(pair.Value.Content) is { } responseSchema)
+                string? bodyType = null, mediaType = null, schemaName = null;
+                var isValidation = false;
+                var isList = false;
+                if (JsonMedia(pair.Value.Content) is { } media)
                 {
-                    if (operation.Body is not null && status == 400 && RefId(responseSchema) == ValidationSchema)
-                    {
-                        operation.ValidationDocumented = true;
-                        continue;
-                    }
+                    mediaType = media.Key;
+                    var responseSchema = media.Value.Schema!;
+                    isValidation = operation.Body is not null && status == 400 && RefId(responseSchema) == ValidationSchema;
+                    operation.ValidationDocumented |= isValidation;
 
                     bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'");
                     if (bodyType is null)
                     {
                         return false;
                     }
+
+                    var target = responseSchema.Items is { } items && Has(responseSchema, JsonSchemaType.Array) ? items : responseSchema;
+                    isList = !ReferenceEquals(target, responseSchema);
+                    schemaName = RefId(target) is { } id && _schemas.TryGetValue(id, out var s) && !IsEnum(s) ? Naming.Pascal(id) : null;
                 }
 
-                (status is >= 200 and < 300 ? operation.Successes : operation.Errors).Add(new Response(status, bodyType));
+                (status is >= 200 and < 300 ? operation.Successes : operation.Errors)
+                    .Add(new Response(status, bodyType, mediaType, isValidation, schemaName) { IsList = isList });
             }
 
             if (operation.Successes.Count == 0)
@@ -806,6 +839,9 @@ namespace Resultful.OpenApi.Generator
         }
 
         private static IOpenApiSchema? JsonSchema(IDictionary<string, IOpenApiMediaType>? content)
+            => JsonMedia(content)?.Value.Schema;
+
+        private static KeyValuePair<string, IOpenApiMediaType>? JsonMedia(IDictionary<string, IOpenApiMediaType>? content)
         {
             if (content is null)
             {
@@ -815,9 +851,10 @@ namespace Resultful.OpenApi.Generator
             foreach (var pair in content)
             {
                 if (pair.Key.StartsWith("application/", StringComparison.OrdinalIgnoreCase)
-                    && pair.Key.EndsWith("json", StringComparison.OrdinalIgnoreCase))
+                    && pair.Key.EndsWith("json", StringComparison.OrdinalIgnoreCase)
+                    && pair.Value.Schema is not null)
                 {
-                    return pair.Value.Schema;
+                    return pair;
                 }
             }
 
@@ -906,12 +943,328 @@ namespace Resultful.OpenApi.Generator
                 w.TrimBlankLine();
                 w.Close();
                 w.Line();
+                EmitValidatingHandlers(w, group.Key, group.ToList());
             }
 
             return w.ToString();
         }
 
         private static string HandlerInterface(string tag) => $"I{Naming.Pascal(tag)}Handlers";
+
+        /// <summary>
+        /// A decorator applying the spec's request validation in front of any implementation of a handler interface, so an
+        /// in-process implementation answers an invalid body the way the generated endpoint does. Operations that document
+        /// no validation response pass straight through.
+        /// </summary>
+        private void EmitValidatingHandlers(CodeWriter w, string tag, List<Operation> operations)
+        {
+            var name = $"Validating{Naming.Pascal(tag)}Handlers";
+            var iface = HandlerInterface(tag);
+            w.Line($"/// <summary>Applies the spec's request validation in front of any <see cref=\"{iface}\"/>, as the generated endpoints do.</summary>");
+            w.Open($"public sealed class {name} : {iface}");
+            w.Line($"private readonly {iface} _inner;");
+            w.Line();
+            w.Line($"public {name}({iface} inner) => _inner = inner;");
+            foreach (var operation in operations)
+            {
+                var args = operation.Parameters.Select(p => $"{p.Type} {p.Identifier}").ToList();
+                var call = operation.Parameters.Select(p => p.Identifier).ToList();
+                if (operation.Body is not null)
+                {
+                    args.Add($"{operation.Body.Type} body");
+                    call.Add("body");
+                }
+
+                args.Add("CancellationToken cancellationToken");
+                call.Add("cancellationToken");
+                var forward = $"_inner.{operation.Name}({string.Join(", ", call)})";
+                var validation = operation.Errors.FirstOrDefault(e => e.IsValidation);
+
+                w.Line();
+                if (validation is null)
+                {
+                    w.Line($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args)})");
+                    w.Line($"    => {forward};");
+                    continue;
+                }
+
+                var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+                var problem = $"new {validation.BodyType}(errors) {{ Title = \"One or more validation errors occurred.\", Status = 400 }}";
+                var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
+                var failed = hasValue
+                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
+                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
+                w.Line($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args)})");
+                w.Line($"    => {ValidationClass}.Validate(body) is {{ }} errors");
+                w.Line($"        ? Task.FromResult({failed})");
+                w.Line($"        : {forward};");
+            }
+
+            w.Close();
+            w.Line();
+        }
+
+        // ---------------------------------------------------------------- client
+
+        /// <summary>
+        /// An HTTP client that implements the same handler interfaces as the server, so code (and tests) written against
+        /// the contract runs in-process or over HTTP unchanged. Every response is checked against the spec: an
+        /// undocumented status, the wrong content type or a body that breaks the schema throws ContractViolationException.
+        /// </summary>
+        private string EmitClient(List<Operation> operations)
+        {
+            var w = new CodeWriter(_namespace);
+            w.Usings(
+                "System",
+                "System.Collections.Concurrent",
+                "System.Collections.Generic",
+                "System.Globalization",
+                "System.Linq",
+                "System.Net.Http",
+                "System.Net.Http.Json",
+                "System.Text.Json",
+                "System.Text.Json.Serialization",
+                "System.Threading",
+                "System.Threading.Tasks",
+                "Resultful");
+
+            w.Line($"/// <summary>Every outcome the spec documents for <c>{_apiName}</c>: each operation with each of its response statuses.</summary>");
+            w.Open($"public static class {_apiName}Contract");
+            w.Line("public static readonly IReadOnlyList<(string Operation, int Status)> DocumentedOutcomes =");
+            w.Line("[");
+            foreach (var operation in operations)
+            {
+                foreach (var response in operation.Successes.Concat(operation.Errors))
+                {
+                    w.Line($"    ({Naming.Literal(operation.Id)}, {response.Status.Invariant()}),");
+                }
+            }
+
+            w.Line("];");
+            w.Close();
+            w.Line();
+
+            w.Line("/// <summary>A response the spec does not allow: an undocumented status, the wrong content type, or a body that breaks the schema.</summary>");
+            w.Open("public sealed class ContractViolationException : Exception");
+            w.Line("public ContractViolationException(string operation, int status, string message, Exception? inner = null)");
+            w.Open("    : base($\"{operation} returned {status}: {message}\", inner)");
+            w.Line("Operation = operation;");
+            w.Line("Status = status;");
+            w.Close();
+            w.Line();
+            w.Line("public string Operation { get; }");
+            w.Line();
+            w.Line("public int Status { get; }");
+            w.Close();
+            w.Line();
+
+            var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
+            w.Line($"/// <summary>Calls <c>{_apiName}</c> over HTTP through the same interfaces its handlers implement. Relative to the HttpClient's BaseAddress.</summary>");
+            w.Open($"public sealed partial class {_apiName}Client : {interfaces}");
+            w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)");
+            w.Line("{");
+            w.Line("    NumberHandling = JsonNumberHandling.Strict,");
+            w.Line("    AllowOutOfOrderMetadataProperties = true,");
+            w.Line("};");
+            w.Line();
+            w.Line("private readonly HttpClient _http;");
+            w.Line("private readonly ConcurrentDictionary<(string Operation, int Status), byte> _observed = new();");
+            w.Line();
+            w.Line($"public {_apiName}Client(HttpClient http) => _http = http;");
+            w.Line();
+            w.Line("/// <summary>The documented outcomes this client has received, for measuring which ones a test suite reaches.</summary>");
+            w.Line("public IReadOnlyCollection<(string Operation, int Status)> Observed => _observed.Keys.ToList();");
+
+            foreach (var operation in operations)
+            {
+                w.Line();
+                EmitClientMethod(w, operation);
+            }
+
+            w.Line();
+            w.Line("private static string Text(object value) => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;");
+            w.Line();
+            w.Line("private static string Segment(object value) => Uri.EscapeDataString(Text(value));");
+            w.Line();
+            w.Open("private static ContractViolationException Undocumented(string operation, HttpResponseMessage response)");
+            w.Line("return new(operation, (int)response.StatusCode, \"the spec does not document this status\");");
+            w.Close();
+            w.Line();
+            w.Open("private static Dictionary<string, string[]>? ValidateEach<T>(IReadOnlyList<T> items, Func<T, Dictionary<string, string[]>?> validate)");
+            w.Line("var errors = items.Select((item, index) => (index, errors: validate(item)))");
+            w.Line("    .Where(e => e.errors is not null)");
+            w.Line("    .SelectMany(e => e.errors!.Select(x => (key: $\"[{e.index}].{x.Key}\", x.Value)))");
+            w.Line("    .ToDictionary(e => e.key, e => e.Value);");
+            w.Line("return errors.Count == 0 ? null : errors;");
+            w.Close();
+            w.Line();
+            w.Open("private async Task<T> Read<T>(HttpResponseMessage response, string operation, string mediaType, Func<T, Dictionary<string, string[]>?>? validate, CancellationToken cancellationToken)");
+            w.Line("var status = (int)response.StatusCode;");
+            w.Line("_observed.TryAdd((operation, status), 0);");
+            w.Line("var actual = response.Content.Headers.ContentType?.MediaType;");
+            w.Open("if (!string.Equals(actual, mediaType, StringComparison.OrdinalIgnoreCase))");
+            w.Line("throw new ContractViolationException(operation, status, $\"the content type is '{actual}', the spec says '{mediaType}'\");");
+            w.Close();
+            w.Line();
+            w.Line("T? value;");
+            w.Open("try");
+            w.Line("value = await response.Content.ReadFromJsonAsync<T>(Json, cancellationToken).ConfigureAwait(false);");
+            w.Close();
+            w.Open("catch (JsonException e)");
+            w.Line("throw new ContractViolationException(operation, status, \"the body does not match the schema: \" + e.Message, e);");
+            w.Close();
+            w.Line();
+            w.Open("if (value is null)");
+            w.Line("throw new ContractViolationException(operation, status, \"the body is null\");");
+            w.Close();
+            w.Line();
+            w.Open("if (validate?.Invoke(value) is { } errors)");
+            w.Line("throw new ContractViolationException(operation, status, \"the body breaks the schema: \"");
+            w.Line("    + string.Join(\"; \", errors.Select(e => $\"{e.Key}: {string.Join(\" \", e.Value)}\")));");
+            w.Close();
+            w.Line();
+            w.Line("return value;");
+            w.Close();
+            w.Line();
+            w.Open("private void Observe(string operation, HttpResponseMessage response)");
+            w.Line("_observed.TryAdd((operation, (int)response.StatusCode), 0);");
+            w.Close();
+            w.Close();
+            return w.ToString();
+        }
+
+        private void EmitClientMethod(CodeWriter w, Operation operation)
+        {
+            var args = operation.Parameters.Select(p => $"{p.Type} {p.Identifier}").ToList();
+            if (operation.Body is not null)
+            {
+                args.Add($"{operation.Body.Type} body");
+            }
+
+            args.Add("CancellationToken cancellationToken");
+            w.Line($"/// <summary><c>{operation.Method} {operation.Path}</c></summary>");
+            w.Open($"public async {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args)})");
+
+            // The path, relative so a BaseAddress with a path prefix works: "/pets/{petId}" -> "pets/" + Segment(petId)
+            var pieces = new List<string>();
+            var path = operation.Path.TrimStart('/');
+            var index = 0;
+            while (index < path.Length)
+            {
+                var open = path.IndexOf('{', index);
+                if (open < 0)
+                {
+                    pieces.Add(Naming.Literal(path.Substring(index)));
+                    break;
+                }
+
+                if (open > index)
+                {
+                    pieces.Add(Naming.Literal(path.Substring(index, open - index)));
+                }
+
+                var close = path.IndexOf('}', open);
+                var name = path.Substring(open + 1, close - open - 1);
+                var parameter = operation.Parameters.First(p => p.Name == name);
+                pieces.Add($"Segment({parameter.Identifier})");
+                index = close + 1;
+            }
+
+            w.Line($"var __uri = {(pieces.Count == 0 ? "\"\"" : string.Join(" + ", pieces))};");
+            var query = operation.Parameters.Where(p => p.Attribute == "FromQuery").ToList();
+            if (query.Count > 0)
+            {
+                w.Line("var __query = new List<string>();");
+                foreach (var p in query)
+                {
+                    w.Line(p.Type.EndsWith("?", StringComparison.Ordinal)
+                        ? $"if ({p.Identifier} is {{ }} __{p.Identifier.TrimStart('@')}) __query.Add({Naming.Literal(p.Name + "=")} + Segment(__{p.Identifier.TrimStart('@')}));"
+                        : $"__query.Add({Naming.Literal(p.Name + "=")} + Segment({p.Identifier}));");
+                }
+
+                w.Line("if (__query.Count > 0) __uri += \"?\" + string.Join(\"&\", __query);");
+            }
+
+            w.Line($"using var __request = new HttpRequestMessage(new HttpMethod({Naming.Literal(operation.Method)}), __uri);");
+            foreach (var p in operation.Parameters.Where(p => p.Attribute == "FromHeader"))
+            {
+                w.Line($"if ((object?){p.Identifier} is {{ }} __h_{p.Identifier.TrimStart('@')}) __request.Headers.TryAddWithoutValidation({Naming.Literal(p.Name)}, Text(__h_{p.Identifier.TrimStart('@')}));");
+            }
+
+            if (operation.Body is not null)
+            {
+                w.Line("__request.Content = JsonContent.Create(body, options: Json);");
+            }
+
+            w.Line("using var __response = await _http.SendAsync(__request, cancellationToken).ConfigureAwait(false);");
+            w.Open("switch ((int)__response.StatusCode)");
+
+            var hasErrors = operation.Errors.Count > 0;
+            var successHasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+            foreach (var response in operation.Successes)
+            {
+                var value = ClientRead(operation, response);
+                string result;
+                if (operation.SuccessIsUnion)
+                {
+                    var union = $"{operation.SuccessType}.{response.CaseName}({value ?? string.Empty})";
+                    result = hasErrors ? $"global::Resultful.Result.Ok<{operation.SuccessType}, {operation.ErrorType}>({union})" : union;
+                }
+                else if (successHasValue)
+                {
+                    result = hasErrors ? $"global::Resultful.Result.Ok<{response.BodyType}, {operation.ErrorType}>({value})" : value!;
+                }
+                else
+                {
+                    result = hasErrors ? $"global::Resultful.Result.Ok<{operation.ErrorType}>()" : string.Empty;
+                }
+
+                EmitCase(w, operation, response, result, value is null);
+            }
+
+            foreach (var response in operation.Errors)
+            {
+                var value = ClientRead(operation, response);
+                var error = $"{operation.ErrorType}.{response.CaseName}({value ?? string.Empty})";
+                var result = successHasValue
+                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
+                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
+                EmitCase(w, operation, response, result, value is null);
+            }
+
+            w.Line("default:");
+            w.Line($"    throw Undocumented({Naming.Literal(operation.Id)}, __response);");
+            w.Close();
+            w.Close();
+        }
+
+        private static void EmitCase(CodeWriter w, Operation operation, Response response, string result, bool observeHere)
+        {
+            w.Line($"case {response.Status.Invariant()}:");
+            if (observeHere)
+            {
+                // No body to read (and so nothing else records the outcome).
+                w.Line($"    Observe({Naming.Literal(operation.Id)}, __response);");
+            }
+
+            w.Line(result.Length == 0 ? "    return;" : $"    return {result};");
+        }
+
+        /// <summary>The expression reading this response's body, checked against the spec; null when it has none.</summary>
+        private string? ClientRead(Operation operation, Response response)
+        {
+            if (response.BodyType is null)
+            {
+                return null;
+            }
+
+            var validate = response.SchemaName is null
+                ? "null"
+                : response.IsList
+                    ? $"items => ValidateEach(items, {ValidationClass}.Validate)"
+                    : $"{ValidationClass}.Validate";
+            return $"await Read<{response.BodyType}>(__response, {Naming.Literal(operation.Id)}, {Naming.Literal(response.MediaType!)}, {validate}, cancellationToken).ConfigureAwait(false)";
+        }
 
         // ---------------------------------------------------------------- endpoints
 
@@ -1017,7 +1370,7 @@ namespace Resultful.OpenApi.Generator
 
             w.Close(braces: true, suffix: ")");
             w.Line($"    .WithName({Naming.Literal(operation.Id)})");
-            foreach (var problem in operation.Errors.Where(e => e.IsProblem))
+            foreach (var problem in operation.Errors.Where(e => e.IsProblem && !e.IsValidation))
             {
                 // ProblemHttpResult carries no response metadata of its own; document each status from the spec.
                 w.Line($"    .Produces<{problem.BodyType}>({problem.Status.Invariant()}, \"application/problem+json\")");

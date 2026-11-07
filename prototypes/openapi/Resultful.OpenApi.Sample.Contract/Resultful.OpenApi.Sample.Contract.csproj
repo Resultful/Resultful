@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The contract: everything the spec defines that a caller needs too. Types, response unions, the handler interfaces,
+    validation, and PetStoreClient, which implements the handler interfaces over HTTP. The service and any consumer or
+    test suite reference this; only the service generates endpoints.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore</RootNamespace>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Contract" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ProblemDetails and HttpValidationProblemDetails are ASP.NET Core types; see the README's limits. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../Resultful/Resultful.csproj" />
+    <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
