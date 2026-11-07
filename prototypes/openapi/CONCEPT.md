@@ -147,7 +147,7 @@ attribute wins. Otherwise:
 |:--|:--|
 | `RAPI016` | a spec parameter (path, query or header) isn't bound; the message gives the parameter to add |
 | `RAPI017` | the endpoint binds a route, query or header value the spec doesn't document |
-| `RAPI018` | a parameter or the body is bound with a different type from the spec (`int` for an `int64` id) |
+| `RAPI018` | a parameter is bound with a different type from the spec (`int` for an `int64` id) |
 | `RAPI019` | an optional parameter is bound as a non-nullable value with no default. A Minimal API then answers 400 when it's left out, and MVC silently binds `0` |
 | `RAPI020` | the spec's body isn't bound, or one is bound that the spec doesn't have. It also catches the classic MVC mistake: without `[ApiController]`, a complex parameter binds from the form and query, not the body |
 
@@ -160,6 +160,43 @@ PetsController.cs(32,6): error RAPI020: PetsController.CreatePet (POST /pets): t
 PetsController.cs(32,6): error RAPI017: PetsController.CreatePet (POST /pets): 'body' binds query value 'body', which the spec doesn't document
 PetsController.cs(83,6): error RAPI017: PetsController.DeletePet (DELETE /pets/{petId}): 'hard' binds query value 'hard', which the spec doesn't document
 ```
+
+And it checks that the models match the spec. The endpoint side reads the body parameter's type and each declared
+response type (`[ProducesResponseType<T>]`, `(typeof(T), status)`, or `ActionResult<T>` for a success declared without
+a type). Types are compared by full identity, not by simple name:
+- **The generated type is consistent by construction.** `Pet` from the Contract part is the spec's `Pet`, so there is
+  nothing to compare. So is a framework type the spec maps to, or one derived from it (`ValidationProblemDetails` for
+  `HttpValidationProblemDetails`). This is the design intent: models come from the spec, so they can't disagree with it.
+- **Any other type is compared with the schema,** as System.Text.Json (web defaults) would read and write it:
+  - property names: camelCase or `[JsonPropertyName]`, skipping `[JsonIgnore]`
+  - JSON type and format (`int` is `integer/int32`, which isn't the spec's `int64`)
+  - nullability against `required` and `null` in the type
+  - missing and extra properties
+  - string enums (values from `[JsonStringEnumMemberName]`; an enum without a string converter is written as a number)
+  - discriminated unions (`[JsonPolymorphic]` property, `[JsonDerivedType]` values, then each member)
+  - arrays, and everything reachable, recursively
+
+| Diagnostic | Meaning |
+|:--|:--|
+| `RAPI021` (info) | a hand-written type matches the schema today. It is consistent, but not by construction, so the next spec change can silently break it |
+| `RAPI022` | a type differs from its schema; one diagnostic per difference, at its JSON path |
+
+Returning a hand-written `PetDto`, `NewPet` where the spec says `Pet`, a drifted `List<DriftedPet>`, and a body on a
+204 gives (abridged):
+
+```
+PetsController.cs(32,6): info RAPI021: PetsController.CreatePet (POST /pets): the 201 response is PetDto, which matches the schema Pet today; use the generated types so it stays consistent by construction
+PetsController.cs(51,6): error RAPI022: PetsController.GetPet (GET /pets/{petId}): the 200 response is NewPet, which differs from the schema Pet: id is missing
+PetsController.cs(51,6): error RAPI022: PetsController.GetPet (GET /pets/{petId}): the 200 response is NewPet, which differs from the schema Pet: status is missing
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].id is int (integer/int32); the schema says integer/int64
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].status is an enum written as a number; the schema has string values (add [JsonConverter(typeof(JsonStringEnumConverter<PlainStatus>))])
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].details is discriminated by 'type'; the schema uses 'kind'
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].details has no derived type for 'cat' (Cat)
+PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the 200 response is List<DriftedPet>, which differs from the schema Pet[]: [].owner (Owner) is not in the schema
+PetsController.cs(83,6): error RAPI022: PetsController.DeletePet (DELETE /pets/{petId}): the 204 response is Pet, but the spec's 204 response has no body
+```
+
+Minimal API bodies are compared the same way. Minimal API responses are not, for the same reason as their statuses.
 
 
 The scaffolded Pet Store opts in, so its clean build is itself the proof that every operation is covered. Breaking its
@@ -175,7 +212,8 @@ PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{pet
 ```
 
 This is the round-trip test's guarantee moved from test time to compile time, for owned code. The round-trip test still
-runs, and still catches what attributes can't show, such as content types and schema shapes.
+runs, and still catches what attributes and types can't show, such as content types and schema constraints
+(`maxLength`, `pattern`).
 
 The round-trip test earned its keep again here. MVC's JSON input also accepts `application/*+json`, so the controllers
 advertised a request content type the spec doesn't document. The scaffolded conventions now remove it, so the server

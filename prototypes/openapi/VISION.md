@@ -74,7 +74,8 @@ consumers actually use, not against the whole spec.
 - **And owned code stays honest.** The generator checks hand-written controllers and Map calls against the spec at
   compile time: a missing operation, an undocumented endpoint, a response or name that differs, or a parameter or body
   bound from the wrong place, with the wrong type or as required when it's optional, is a build error at the line
-  that's wrong.
+  that's wrong. Models are consistent by construction: the generated types *are* the schemas. A hand-written model is
+  compared with its schema as JSON, and each difference is reported at its path.
 
 The three uses share one engine. Most teams will start with testing or the fake, because neither asks anything of
 the service, and move to spec-first services for new work.
@@ -131,7 +132,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ A fluent fake server for .NET tests: typed `Given` rules and `Should()` assertions, on a real port.
 - ✓ Scaffolding the server as owned ASP.NET source (controllers or Minimal API) with a reference implementation, checked
   against the spec before anyone edits it.
-- ✓ Compile-time verification that hand-written endpoints cover the spec, and nothing else.
+- ✓ Compile-time verification that hand-written endpoints cover the spec, and nothing else: routes, names, responses,
+  parameter binding, and model shapes.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.
