@@ -57,7 +57,11 @@ namespace Resultful.OpenApi.Generator
                 apiName = Naming.Pascal(fileName);
             }
 
-            return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!);
+            // Contract: types, unions, handler interfaces, validation and the client. Server: endpoints and the OpenAPI
+            // configuration. A contract library takes "Contract", the service that implements it "Server".
+            fileOptions.TryGetValue(MetadataPrefix + "ResultfulParts", out var parts);
+            return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
+                string.IsNullOrWhiteSpace(parts) ? "Contract;Server" : parts!);
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself)
@@ -89,7 +93,10 @@ namespace Resultful.OpenApi.Generator
             }
 
             var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself);
-            var files = emitter.Emit();
+            var parts = spec.Parts.Split(';').Select(p => p.Trim()).ToList();
+            var files = emitter.Emit(
+                contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
+                server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase));
 
             foreach (var diagnostic in emitter.Diagnostics)
             {
@@ -105,8 +112,9 @@ namespace Resultful.OpenApi.Generator
 
     internal sealed class SpecInput : IEquatable<SpecInput>
     {
-        public SpecInput(string path, string content, string ns, string apiName)
+        public SpecInput(string path, string content, string ns, string apiName, string parts)
         {
+            Parts = parts;
             Path = path;
             Content = content;
             Namespace = ns;
@@ -114,6 +122,8 @@ namespace Resultful.OpenApi.Generator
         }
 
         public string Path { get; }
+
+        public string Parts { get; }
 
         public string Content { get; }
 
@@ -123,11 +133,11 @@ namespace Resultful.OpenApi.Generator
 
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName;
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts;
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);
 
-        public override int GetHashCode() => (Path, Content, Namespace, ApiName).GetHashCode();
+        public override int GetHashCode() => (Path, Content, Namespace, ApiName, Parts).GetHashCode();
     }
 
     internal static class Diagnostics

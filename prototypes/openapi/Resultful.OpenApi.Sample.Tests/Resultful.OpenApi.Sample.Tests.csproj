@@ -18,6 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../Resultful.OpenApi.Sample/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Resultful.OpenApi.Sample.Contract/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
