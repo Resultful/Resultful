@@ -18,8 +18,11 @@ public sealed class RegressionOptions
     /// <summary>Inputs for Arazzo workflows, by workflowId. Inputs not given are sampled from the workflow's inputs schema.</summary>
     public IDictionary<string, JsonObject> WorkflowInputs { get; } = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
 
-    /// <summary>The longest an Arazzo retry waits, whatever retryAfter or Retry-After say.</summary>
+    /// <summary>The longest any wait lasts (an Arazzo retry, a 429's Retry-After, a poll), whatever the API says.</summary>
     public TimeSpan MaxRetryWait { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How many times work accepted with 202 is polled before it counts as never finishing.</summary>
+    public int MaxPolls { get; set; } = 20;
 
     /// <summary>Properties that change from call to call, so reading back what was written ignores them.</summary>
     public ISet<string> Volatile { get; } = new HashSet<string>(StringComparer.Ordinal) { "traceId" };
@@ -49,6 +52,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             foreach (var workflow in suite.Arazzo)
             {
                 workflows.Add(await RunArazzoAsync(workflow, cancellationToken).ConfigureAwait(false));
+            }
+
+            foreach (var paged in suite.Spec.Operations.Where(o => Paging(o) is not null))
+            {
+                workflows.Add(await PagesAsync(paged, cancellationToken).ConfigureAwait(false));
             }
         }
 
@@ -108,12 +116,14 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             }
         }
 
+        await BehavioursAsync(@case, exchange, findings, cancellationToken).ConfigureAwait(false);
+
         if (success && exchange.Headers.TryGetValue("Location", out var location) && !options.Skip.Contains(Checks.LocationReadable))
         {
             await LocationAsync(@case.Name, exchange, location, findings, cancellationToken).ConfigureAwait(false);
         }
 
-        return new CaseResult(@case, exchange, findings);
+        return new CaseResult(@case, exchange, Noticed(findings));
     }
 
     // ---------------------------------------------------------------- what HTTP itself promises
@@ -148,6 +158,12 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
 
     private static string? Difference(List<(string Probe, int Status, JsonNode? Body)> before, List<(string Probe, int Status, JsonNode? Body)> after)
     {
+        // A probe that was rate limited or failed says nothing about whether anything changed.
+        if (before.Concat(after).Any(p => p.Status is 429 or >= 500))
+        {
+            return null;
+        }
+
         foreach (var (b, a) in before.Zip(after))
         {
             if (b.Status != a.Status)
@@ -246,6 +262,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             return;
         }
 
+        if (exchange.Status is >= 200 and < 300 && operation.Deprecated && !options.Skip.Contains(Checks.DeprecationAnnounced))
+        {
+            Deprecation(exchange, subject, findings);
+        }
+
         if (operation.Response(exchange.Status) is not { } response)
         {
             Add(findings, Checks.StatusDocumented, subject, exchange,
@@ -327,6 +348,16 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var exchanges = new List<Exchange>();
         // The start request again, with fresh unique values: the case of the same name may already have created its resource.
         var startRequest = workflow.Start.Request;
+        if (workflow.Start.Operation.Idempotent)
+        {
+            // A new attempt, so a new Idempotency-Key: the case may have used its key already.
+            startRequest = startRequest with
+            {
+                Headers = startRequest.Headers.Select(h => string.Equals(h.Key, "Idempotency-Key", StringComparison.OrdinalIgnoreCase)
+                    ? new KeyValuePair<string, string>(h.Key, $"workflow-key-{suite.Workflows.ToList().IndexOf(workflow)}") : h).ToList(),
+            };
+        }
+
         if (workflow.Start.Operation.Body is { } startBody && startRequest.Body is { } sent && JsonNode.Parse(sent) is { } json)
         {
             startRequest = startRequest with { Body = suite.Samples.Unique(json, startBody.Schema, 20_000 + suite.Workflows.ToList().IndexOf(workflow))?.ToJsonString() };
@@ -349,7 +380,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var reads = links.Where(l => l.Operation?.Method == "GET").ToList();
         var writes = links.Where(l => l.Operation?.Method is "PUT" or "PATCH" or "POST").ToList();
         var deletes = links.Where(l => l.Operation?.Method == "DELETE").ToList();
-        var current = start;
+        Exchange? current = start;
 
         async Task<Exchange> Follow((SpecLink Link, SpecOperation? Operation) link, string step)
         {
@@ -368,6 +399,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
                 {
                     Add(findings, Checks.ResourceAvailable, $"{workflow.Name}: {read.Link.Name} after {after}", exchange,
                         $"following {read.Link.Name} gave {exchange.Status}, not the resource: {RegressionReport.Excerpt(exchange.Body)}");
+                }
+                else if (current is null)
+                {
+                    // The last write didn't return the resource (a payment returns an operation): read it, don't compare.
+                    current = SameSchema(start, exchange) ? exchange : null;
                 }
                 else if (SameSchema(current, exchange) && !JsonNode.DeepEquals(Volatile(current.Json()), Volatile(exchange.Json())))
                 {
@@ -388,9 +424,15 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
                 continue;
             }
 
-            if (SameSchema(start, exchange))
+            current = SameSchema(start, exchange) ? exchange : null;
+            if (write.Operation!.Conditional)
             {
-                current = exchange;
+                await ConditionalAsync(write.Operation, exchange, $"{workflow.Name}: {write.Link.Name}", findings, exchanges, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (exchange.Status == 202)
+            {
+                await PollAsync(exchange, write.Operation, $"{workflow.Name}: {write.Link.Name}", findings, exchanges, cancellationToken).ConfigureAwait(false);
             }
 
             await ReadBack(write.Link.Name).ConfigureAwait(false);
@@ -416,7 +458,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             }
         }
 
-        return new WorkflowResult(workflow.Name, exchanges, findings, null);
+        return new WorkflowResult(workflow.Name, exchanges, Noticed(findings), null);
     }
 
     private JsonNode? Volatile(JsonNode? node) => RegressionReport.Strip(node, options.Volatile);
@@ -531,7 +573,30 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
 
     // ---------------------------------------------------------------- HTTP
 
+    /// <summary>Sends a request; a 429 that says when to try again is waited out (capped) and retried, up to three times.</summary>
     private async Task<Exchange> SendAsync(RegressionRequest request, CancellationToken cancellationToken)
+    {
+        var exchange = await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
+        for (var attempt = 0; attempt < 3 && exchange.Status == 429 && RetryAfter(exchange) is { } wait; attempt++)
+        {
+            await Task.Delay(wait < options.MaxRetryWait ? wait : options.MaxRetryWait, cancellationToken).ConfigureAwait(false);
+            exchange = await SendOnceAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        return exchange;
+    }
+
+    /// <summary>What a send noticed on its own (a 429 without Retry-After), for whichever case or workflow it belonged to.</summary>
+    private readonly List<Finding> _noticed = [];
+
+    private List<Finding> Noticed(List<Finding> findings)
+    {
+        findings.AddRange(_noticed);
+        _noticed.Clear();
+        return findings;
+    }
+
+    private async Task<Exchange> SendOnceAsync(RegressionRequest request, CancellationToken cancellationToken)
     {
         using var message = request.ToMessage();
         using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
@@ -539,7 +604,13 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var headers = response.Headers.Concat(response.Content.Headers)
             .GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
-        return new Exchange(request, (int)response.StatusCode, response.Content.Headers.ContentType?.ToString(), body, headers);
+        var exchange = new Exchange(request, (int)response.StatusCode, response.Content.Headers.ContentType?.ToString(), body, headers);
+        if (exchange.Status == 429 && RetryAfter(exchange) is null)
+        {
+            Add(_noticed, Checks.RetryAfterGiven, request.ToString(), exchange, "a 429 without Retry-After leaves a client guessing when to try again");
+        }
+
+        return exchange;
     }
 
     private void Add(List<Finding> findings, string check, string subject, Exchange exchange, string message, Severity severity = Severity.Failure)

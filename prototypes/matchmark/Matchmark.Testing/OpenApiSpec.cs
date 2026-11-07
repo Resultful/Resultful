@@ -72,7 +72,10 @@ public sealed class OpenApiSpec
                 var own = Parameters(operation["parameters"]);
                 var parameters = own.Concat(shared.Where(s => own.All(o => o.Name != s.Name || o.In != s.In))).ToList();
                 var id = operation["operationId"]?.GetValue<string>() ?? $"{method.ToUpperInvariant()} {path}";
-                yield return new SpecOperation(id, method.ToUpperInvariant(), path, parameters, Body(operation["requestBody"]), Responses(operation["responses"]));
+                yield return new SpecOperation(id, method.ToUpperInvariant(), path, parameters, Body(operation["requestBody"]), Responses(operation["responses"]))
+                {
+                    Deprecated = operation["deprecated"]?.GetValueKind() == System.Text.Json.JsonValueKind.True,
+                };
             }
         }
     }
@@ -144,6 +147,15 @@ public sealed class OpenApiSpec
 public sealed record SpecOperation(
     string Id, string Method, string Path, IReadOnlyList<SpecParameter> Parameters, SpecBody? Body, IReadOnlyDictionary<string, SpecResponse> Responses)
 {
+    /// <summary>Marked <c>deprecated: true</c>: its responses must announce it (RFC 9745).</summary>
+    public bool Deprecated { get; init; }
+
+    /// <summary>Takes an <c>Idempotency-Key</c> header (draft-ietf-httpapi-idempotency-key-header): retries with the same key are safe.</summary>
+    public bool Idempotent => Parameters.Any(p => p.In == "header" && string.Equals(p.Name, "Idempotency-Key", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Takes an <c>If-Match</c> header: a change against a stale ETag must be refused (RFC 9110 §13.1.1).</summary>
+    public bool Conditional => Parameters.Any(p => p.In == "header" && string.Equals(p.Name, "If-Match", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>The documented response for a status: exact, then its range (2XX), then default.</summary>
     public SpecResponse? Response(int status)
         => Responses.GetValueOrDefault(status.ToString(System.Globalization.CultureInfo.InvariantCulture))

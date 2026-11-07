@@ -41,7 +41,7 @@ public sealed class CorpusTests
         ledger.Should().Equal(
             "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps",
             "museum: generator skips 29; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps",
-            "orders: generator skips 3; suite 89 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps");
+            "orders: generator skips 3; suite 85 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps");
     }
 
     private static string ThisDirectory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;

@@ -56,6 +56,30 @@ public static class Checks
     /// <summary>A write-only value (a password, a secret) never appears in a response.</summary>
     public const string WriteOnlyHidden = nameof(WriteOnlyHidden);
 
+    /// <summary>Sending the same Idempotency-Key and body again gives the same answer, and creates nothing new.</summary>
+    public const string IdempotentReplay = nameof(IdempotentReplay);
+
+    /// <summary>An Idempotency-Key reused with a different body is refused (the draft says 422), never applied.</summary>
+    public const string IdempotencyKeyReuse = nameof(IdempotencyKeyReuse);
+
+    /// <summary>A successful conditional change gives a new ETag.</summary>
+    public const string ETagChanges = nameof(ETagChanges);
+
+    /// <summary>A change sent with a stale If-Match is refused with 412, so no concurrent change is lost.</summary>
+    public const string StaleIfMatchRefused = nameof(StaleIfMatchRefused);
+
+    /// <summary>Walking a paged list's cursors repeats nothing, ends, and finds what one big page holds.</summary>
+    public const string PagesComplete = nameof(PagesComplete);
+
+    /// <summary>Work accepted with 202 reaches a final state when polled.</summary>
+    public const string OperationCompletes = nameof(OperationCompletes);
+
+    /// <summary>A 429 says when to try again (Retry-After).</summary>
+    public const string RetryAfterGiven = nameof(RetryAfterGiven);
+
+    /// <summary>A deprecated operation announces it with a Deprecation header (RFC 9745), and its Sunset isn't earlier.</summary>
+    public const string DeprecationAnnounced = nameof(DeprecationAnnounced);
+
     /// <summary>Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles.</summary>
     public const string WorkflowCriteria = nameof(WorkflowCriteria);
 }

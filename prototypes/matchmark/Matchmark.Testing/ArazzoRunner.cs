@@ -20,7 +20,7 @@ internal sealed partial class RegressionRunner
 
         var context = new ArazzoContext(Inputs(workflow));
         await RunStepsAsync(workflow, context, findings, exchanges, 0, cancellationToken).ConfigureAwait(false);
-        return new WorkflowResult(workflow.Name, exchanges, findings, null);
+        return new WorkflowResult(workflow.Name, exchanges, Noticed(findings), null);
     }
 
     /// <summary>The workflow's inputs: those given in the options, the rest sampled from its inputs schema, free text made unique.</summary>
