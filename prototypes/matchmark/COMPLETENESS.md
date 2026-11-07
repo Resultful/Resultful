@@ -117,8 +117,9 @@ invariant scope above, in its overlay.
 
 ## Order of work
 
-1. **The invariants HTTP already promises, in the engine.** Safe, idempotent, `Location` and `readOnly`/`writeOnly`.
-   They need no new grammar, they work against any API, and each is proven by an injected fault.
+1. ✓ **The invariants HTTP already promises, in the engine.** Safe, idempotent, `Location` and `readOnly`/`writeOnly`
+   (`SafeChangesNothing`, `IdempotentTwice`, `LocationReadable`, `ReadOnlyIgnored`, `WriteOnlyHidden`). They need no
+   new grammar, they work against any API, and each is proven by an injected fault.
 2. **The audit.** Its numbers come from the suite, so it lands once the suite does what the audit promises.
 3. **Arazzo criteria as postconditions** (`x-matchmark-ensures`), reusing the engine's runtime expressions.
 4. **IDL `x-dependencies`.** Valid and invalid cases in the engine first, then generated validation.

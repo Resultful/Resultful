@@ -138,15 +138,20 @@ public sealed class SpecRegressionTests
 
     // ---------------------------------------------------------------- faults
 
-    public sealed record Fault(string Description, Func<HttpRequestMessage, HttpResponseMessage?, Task<HttpResponseMessage?>> Apply)
+    /// <param name="Also">A request the faulty server also makes, on its own, after answering this one.</param>
+    public sealed record Fault(
+        string Description,
+        Func<HttpRequestMessage, HttpResponseMessage?, Task<HttpResponseMessage?>> Apply,
+        Func<HttpRequestMessage, HttpResponseMessage, HttpRequestMessage?>? Also = null)
     {
         public override string ToString() => Description;
     }
 
     private static IEnumerable<TestCaseData> Faults()
     {
-        static TestCaseData Case(string check, string description, Func<HttpRequestMessage, HttpResponseMessage?, Task<HttpResponseMessage?>> apply)
-            => new TestCaseData(check, new Fault(description, apply)).SetArgDisplayNames(check);
+        static TestCaseData Case(string check, string description, Func<HttpRequestMessage, HttpResponseMessage?, Task<HttpResponseMessage?>> apply,
+            Func<HttpRequestMessage, HttpResponseMessage, HttpRequestMessage?>? also = null)
+            => new TestCaseData(check, new Fault(description, apply, also)).SetArgDisplayNames(check);
 
         yield return Case(Checks.NotAServerError, "fails with 500 where it should say 404",
             (_, r) => Task.FromResult(r?.StatusCode == HttpStatusCode.NotFound ? Problem(500) : r));
@@ -172,6 +177,28 @@ public sealed class SpecRegressionTests
                 : r);
         yield return Case(Checks.DeletedIsGone, "says it deleted a pet, but didn't",
             (q, r) => Task.FromResult(q.Method == HttpMethod.Delete ? new HttpResponseMessage(HttpStatusCode.NoContent) : r));
+        yield return Case(Checks.SafeChangesNothing, "deletes a pet whenever it is read",
+            (_, r) => Task.FromResult(r),
+            (q, r) => q.Method == HttpMethod.Get && r.StatusCode == HttpStatusCode.OK && q.RequestUri!.AbsolutePath.StartsWith("/pets/", StringComparison.Ordinal)
+                ? new HttpRequestMessage(HttpMethod.Delete, q.RequestUri)
+                : null);
+
+        var puts = new HashSet<string>(StringComparer.Ordinal);
+        yield return Case(Checks.IdempotentTwice, "renames a pet when the same PUT comes again",
+            async (q, r) =>
+            {
+                if (r is null && q.Method == HttpMethod.Put && q.Content is { } content)
+                {
+                    var body = await content.ReadAsStringAsync();
+                    if (!puts.Add($"{q.RequestUri} {body}") && JsonNode.Parse(body) is JsonObject pet)
+                    {
+                        pet["name"] = $"{pet["name"]}x";
+                        q.Content = new StringContent(pet.ToJsonString(), Encoding.UTF8, "application/json");
+                    }
+                }
+
+                return r;
+            });
     }
 
     private const string Rex = """{"id":1,"name":"Rex","status":"available","details":{"kind":"dog","goodBoy":true}}""";
@@ -204,6 +231,11 @@ public sealed class SpecRegressionTests
             }
 
             var response = await base.SendAsync(request, cancellationToken);
+            if (fault.Also?.Invoke(request, response) is { } also)
+            {
+                (await base.SendAsync(also, cancellationToken)).Dispose();
+            }
+
             return await fault.Apply(request, response) ?? response;
         }
     }

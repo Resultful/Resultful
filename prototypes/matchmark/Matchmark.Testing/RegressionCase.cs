@@ -17,6 +17,9 @@ public enum CaseKind
 
     /// <summary>A request that breaks exactly one constraint: must be rejected with a 4xx.</summary>
     Invalid,
+
+    /// <summary>A valid request that also sends the read-only values: the server must ignore them, or refuse it.</summary>
+    ReadOnlySent,
 }
 
 /// <summary>An HTTP request, independent of any client: it can be sent, printed or turned into a curl command.</summary>
@@ -86,6 +89,10 @@ public sealed record RegressionRequest(
 /// </summary>
 public sealed record RegressionCase(string Name, SpecOperation Operation, CaseKind Kind, RegressionRequest Request, string? Location = null)
 {
+    /// <summary>For a <see cref="CaseKind.ReadOnlySent"/> case, each read-only property and the value sent for it.</summary>
+    public IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonNode> ReadOnlySent { get; init; } =
+        new Dictionary<string, System.Text.Json.Nodes.JsonNode>();
+
     public override string ToString() => Name;
 }
 

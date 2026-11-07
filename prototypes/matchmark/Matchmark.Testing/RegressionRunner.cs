@@ -53,11 +53,16 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
 
     public async Task<CaseResult> RunCaseAsync(RegressionCase @case, CancellationToken cancellationToken)
     {
+        var method = @case.Operation.Method;
+        var safe = method is "GET" or "HEAD" or "QUERY";
+        var before = safe && !options.Skip.Contains(Checks.SafeChangesNothing) ? await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false) : null;
+
         var exchange = await SendAsync(@case.Request, cancellationToken).ConfigureAwait(false);
         var findings = new List<Finding>();
         var valid = @case.Kind != CaseKind.Invalid;
-        Response(@case.Operation, exchange, valid, @case.Name, findings);
-        if (valid && Rejections.Contains(exchange.Status))
+        var success = exchange.Status is >= 200 and < 300;
+        Response(@case.Operation, exchange, valid && (@case.Kind != CaseKind.ReadOnlySent || success), @case.Name, findings);
+        if (valid && @case.Kind != CaseKind.ReadOnlySent && Rejections.Contains(exchange.Status))
         {
             Add(findings, Checks.ValidAccepted, @case.Name, exchange, $"a valid request was rejected with {exchange.Status}: {RegressionReport.Excerpt(exchange.Body)}");
         }
@@ -67,7 +72,111 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
             Rejected(@case, exchange, findings);
         }
 
+        if (before is not null && Difference(before, await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false)) is { } changed)
+        {
+            Add(findings, Checks.SafeChangesNothing, @case.Name, exchange, $"a {method}, which must change nothing, changed {changed}");
+        }
+
+        if (success && @case.Kind is CaseKind.ReadOnlySent && exchange.Json() is JsonObject stored)
+        {
+            foreach (var (name, sent) in @case.ReadOnlySent.Where(s => JsonNode.DeepEquals(stored[s.Key], s.Value)))
+            {
+                Add(findings, Checks.ReadOnlyIgnored, @case.Name, exchange, $"'{name}' is read-only, but the {sent.ToJsonString()} sent came back: the server stored it");
+            }
+        }
+
+        if (success && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && method is "PUT" or "DELETE"
+            && !options.Skip.Contains(Checks.IdempotentTwice))
+        {
+            var once = await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false);
+            var again = await SendAsync(@case.Request, cancellationToken).ConfigureAwait(false);
+            Response(@case.Operation, again, requestValid: true, $"{@case.Name}, sent again", findings);
+            if (Difference(once, await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false)) is { } effect)
+            {
+                Add(findings, Checks.IdempotentTwice, @case.Name, again, $"a second identical {method}, which must have the effect of one, changed {effect}");
+            }
+        }
+
+        if (success && exchange.Headers.TryGetValue("Location", out var location) && !options.Skip.Contains(Checks.LocationReadable))
+        {
+            await LocationAsync(@case.Name, exchange, location, findings, cancellationToken).ConfigureAwait(false);
+        }
+
         return new CaseResult(@case, exchange, findings);
+    }
+
+    // ---------------------------------------------------------------- what HTTP itself promises
+
+    /// <summary>
+    /// What the API shows, for checking that a request changed it or didn't: every collection the spec can read without
+    /// parameters, and the resource at <paramref name="at"/>'s path when the spec can read it.
+    /// </summary>
+    private async Task<List<(string Probe, int Status, JsonNode? Body)>> SnapshotAsync(RegressionRequest at, CancellationToken cancellationToken)
+    {
+        _probes ??= suite.Spec.Operations
+            .Where(o => o.Method == "GET" && !o.Path.Contains('{', StringComparison.Ordinal) && o.Parameters.All(p => !p.Required) && o.Body is null)
+            .Select(o => new RegressionRequest("GET", o.Path, [], [], null, null))
+            .ToList();
+        var probes = _probes.ToList();
+        if (Template(at.Path, "GET") is not null && !probes.Any(p => p.Path == at.Path))
+        {
+            probes.Add(new RegressionRequest("GET", at.Path, [], [], null, null));
+        }
+
+        var snapshot = new List<(string, int, JsonNode?)>();
+        foreach (var probe in probes)
+        {
+            var seen = await SendAsync(probe, cancellationToken).ConfigureAwait(false);
+            snapshot.Add(($"GET /{probe.Target}", seen.Status, RegressionReport.Strip(seen.Json(), options.Volatile)));
+        }
+
+        return snapshot;
+    }
+
+    private List<RegressionRequest>? _probes;
+
+    private static string? Difference(List<(string Probe, int Status, JsonNode? Body)> before, List<(string Probe, int Status, JsonNode? Body)> after)
+    {
+        foreach (var (b, a) in before.Zip(after))
+        {
+            if (b.Status != a.Status)
+            {
+                return $"{b.Probe} from {b.Status} to {a.Status}";
+            }
+
+            if (!JsonNode.DeepEquals(b.Body, a.Body))
+            {
+                return $"{b.Probe} at {RegressionReport.FirstDifference(b.Body, a.Body, string.Empty) ?? "the body"}";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The path template of the operation that answers <paramref name="method"/> on a concrete path.</summary>
+    private string? Template(string path, string method)
+        => suite.Spec.Operations.FirstOrDefault(o => o.Method == method && System.Text.RegularExpressions.Regex.IsMatch(path,
+            "^" + System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Escape(o.Path), @"\\\{[^}]+}", "[^/]+") + "$"))?.Path;
+
+    private async Task LocationAsync(string subject, Exchange exchange, string location, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var baseAddress = client.BaseAddress ?? new Uri("http://localhost/");
+        if (!Uri.TryCreate(baseAddress, location, out var target) || !baseAddress.IsBaseOf(target))
+        {
+            return; // somewhere else: not this API's to check
+        }
+
+        var path = "/" + baseAddress.MakeRelativeUri(target).OriginalString.Split('?')[0];
+        if (Template(path, "GET") is null)
+        {
+            return;
+        }
+
+        var read = await SendAsync(new RegressionRequest("GET", path, [], [], null, null), cancellationToken).ConfigureAwait(false);
+        if (read.Status is < 200 or >= 300)
+        {
+            Add(findings, Checks.LocationReadable, subject, exchange, $"the Location {location} gave {read.Status} when read");
+        }
     }
 
     private void Rejected(RegressionCase @case, Exchange exchange, List<Finding> findings)
@@ -171,9 +280,14 @@ internal sealed class RegressionRunner(RegressionSuite suite, HttpClient client,
                 return;
             }
 
-            foreach (var error in suite.Validator.Validate(json, schema).Take(10))
+            foreach (var error in suite.Validator.Validate(json, schema, direction: Direction.Response).Take(10))
             {
                 Add(findings, Checks.BodyConforms, subject, exchange, $"the {exchange.Status} body breaks its schema: {error}");
+            }
+
+            foreach (var leak in suite.Validator.WriteOnlyLeaks(json, schema))
+            {
+                Add(findings, Checks.WriteOnlyHidden, subject, exchange, $"{leak} is write-only, so it must never be in a response, but the {exchange.Status} has it");
             }
         }
     }

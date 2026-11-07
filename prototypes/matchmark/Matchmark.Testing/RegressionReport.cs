@@ -40,6 +40,21 @@ public static class Checks
 
     /// <summary>After a successful delete, reading the resource gives 404 or 410.</summary>
     public const string DeletedIsGone = nameof(DeletedIsGone);
+
+    /// <summary>A safe request (GET, HEAD, QUERY) changes nothing: what the API shows is the same before and after (RFC 9110 §9.2.1).</summary>
+    public const string SafeChangesNothing = nameof(SafeChangesNothing);
+
+    /// <summary>An idempotent request (PUT, DELETE) twice has the same effect as once (RFC 9110 §9.2.2).</summary>
+    public const string IdempotentTwice = nameof(IdempotentTwice);
+
+    /// <summary>A success's Location header can be read, when the spec has an operation that reads it.</summary>
+    public const string LocationReadable = nameof(LocationReadable);
+
+    /// <summary>A read-only value sent in a request is ignored or refused, never stored.</summary>
+    public const string ReadOnlyIgnored = nameof(ReadOnlyIgnored);
+
+    /// <summary>A write-only value (a password, a secret) never appears in a response.</summary>
+    public const string WriteOnlyHidden = nameof(WriteOnlyHidden);
 }
 
 public enum Severity
