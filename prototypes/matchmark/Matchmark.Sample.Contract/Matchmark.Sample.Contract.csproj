@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The contract: everything the spec defines that a caller needs too. Types, response unions, the handler interfaces,
+    validation, and PetStoreClient, which implements the handler interfaces over HTTP. The service and any consumer or
+    test suite reference this; only the service generates endpoints.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore</RootNamespace>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Contract" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ProblemDetails and HttpValidationProblemDetails are ASP.NET Core types; see the README's limits. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../Resultful/Resultful.csproj" />
+    <!-- Referencing the fakes runtime turns on the generated fake and scenario builder. -->
+    <ProjectReference Include="../Matchmark.Fakes/Matchmark.Fakes.csproj" />
+    <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

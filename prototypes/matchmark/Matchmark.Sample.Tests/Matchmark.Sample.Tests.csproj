@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Sample/Matchmark.Sample.csproj" />
+    <ProjectReference Include="../Matchmark.Sample.Fake/Matchmark.Sample.Fake.csproj" />
+    <ProjectReference Include="../Matchmark.Sample.Scaffolded/Matchmark.Sample.Scaffolded.csproj" />
+    <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+    <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Regression: the suite generated from the spec (PetStoreRegression), rebuilt whenever the spec changes. -->
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Regression" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Reads the input spec for the drift check; matches the Microsoft.OpenApi that ASP.NET Core 10 uses. -->
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" VersionOverride="2.12.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="AwesomeAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../Matchmark.Sample.Contract/petstore.yaml" Link="petstore.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Scenarios/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
