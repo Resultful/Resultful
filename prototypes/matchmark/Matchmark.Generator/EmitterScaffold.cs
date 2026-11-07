@@ -240,7 +240,7 @@ namespace Matchmark.Generator
                 }
 
                 w.Open($"public async Task<IActionResult> {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
-                if (operation.Body is not null)
+                if (operation.Body is { Validated: true })
                 {
                     w.Open($"if ({ValidationClass}.Validate(body) is {{ }} errors)");
                     w.Line("return ValidationProblem(modelStateDictionary: Invalid(errors));");

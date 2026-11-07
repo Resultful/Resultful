@@ -192,14 +192,25 @@ and expected the wrong way round and almost none of its assertions chain.
 
 The generator reports these as `MM002` warnings and skips them; it never emits code that doesn't compile:
 
-- inline object schemas (use a component `$ref`)
-- `allOf`
-- `oneOf` without a discriminator
 - form and multipart bodies
 - cookie parameters
 - `default` responses
-- status codes outside the table in `Naming.StatusNames`
-- more than six responses on one operation (`Results<...>` takes at most six)
+- webhooks (reported, not generated)
+
+Supported since the corpus showed they were needed:
+- **Inline objects** get generated types named from where they are (`GetThingOkBody`, `GetThingOkBodyOwner`,
+  `CreatePetRequest`).
+- **`allOf`** is flattened into one record.
+- **Primitive and array component schemas** (`EventId: { type: string, format: uuid }`) are aliases: a `$ref` to one is
+  its C# type.
+- **Any status:** those without a `TypedResults` factory go out with `TypedResults.Json(…, statusCode)` or
+  `StatusCode(…)`, declared with `.Produces`.
+- **More than six responses:** the endpoint returns `IResult` and declares each one.
+- **Free-form JSON** (no type, or an object with no properties) is `JsonElement`. So is a `oneOf` or `anyOf` without a
+  discriminator, with `MM009`, because nothing can check its shape.
+
+`CorpusTests` compile the Contract and Server parts generated for every sample with no errors. Bump.sh's Train Travel
+API (not vendored) compiles too.
 
 A generator package would also need a `.props` file declaring the `CompilerVisibleItemMetadata`; the sample declares
 it by hand.

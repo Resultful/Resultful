@@ -6,6 +6,8 @@
   <ItemGroup>
     <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" />
     <ProjectReference Include="../Matchmark.Cli/Matchmark.Cli.csproj" />
+    <!-- CorpusTests compile the generated contracts, which use Resultful's result types. -->
+    <ProjectReference Include="../../../Resultful/Resultful.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -42,12 +42,13 @@ public sealed class GeneratorTests
     }
 
     [Test]
-    public void An_inline_object_schema_is_reported_as_unsupported()
+    public void Inline_objects_allOf_aliases_and_any_status_are_generated()
     {
-        var (diagnostics, _) = Run(Header + """
+        var (diagnostics, sources) = Run(Header + """
 
             paths:
-              /things:
+              /things/{id}:
+                parameters: [{ name: id, in: path, required: true, schema: { $ref: '#/components/schemas/ThingId' } }]
                 get:
                   operationId: getThing
                   responses:
@@ -57,11 +58,35 @@ public sealed class GeneratorTests
                         application/json:
                           schema:
                             type: object
-                            properties: { a: { type: string } }
-            """);
+                            required: [id, tags]
+                            properties:
+                              id: { $ref: '#/components/schemas/ThingId' }
+                              tags: { $ref: '#/components/schemas/Tags' }
+                              owner: { type: object, properties: { name: { type: string } } }
+                    '412': { description: stale, content: { application/json: { schema: { $ref: '#/components/schemas/Stamped' } } } }
+                    '429': { description: slow down }
+            components:
+              schemas:
+                ThingId: { type: string, format: uuid }
+                Tags: { type: array, items: { type: string, maxLength: 10 } }
+                Base: { type: object, required: [at], properties: { at: { type: string, format: date-time } } }
+                Stamped:
+                  allOf:
+                    - $ref: '#/components/schemas/Base'
+                    - type: object
+                      properties: { by: { type: string } }
+            """, parts: "Contract,Server");
 
-        diagnostics.Should().ContainSingle(d => d.Id == "MM002" && d.GetMessage().Contains("inline object"));
+        diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Should().BeEmpty();
+        var models = sources["T.Models.g.cs"];
+        models.Should().Contain("public sealed record GetThingOkBody").And.Contain("public required global::System.Guid Id")
+            .And.Contain("IReadOnlyList<string> Tags").And.Contain("public sealed record GetThingOkBodyOwner")
+            .And.Contain("public sealed record Stamped").And.Contain("global::System.DateTimeOffset At")
+            .And.NotContain("record ThingId").And.NotContain("record Tags");
+        sources["T.Endpoints.g.cs"].Should().Contain("TypedResults.Json(").And.Contain("TypedResults.StatusCode(429)")
+            .And.Contain(".Produces<Stamped>(412, \"application/json\")").And.Contain(".Produces(429)");
     }
+
 
     [Test]
     public void A_request_body_without_a_documented_validation_response_is_a_warning()
