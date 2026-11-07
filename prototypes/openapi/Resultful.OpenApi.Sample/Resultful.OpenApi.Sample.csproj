@@ -20,5 +20,6 @@
     <ProjectReference Include="../../../Resultful/Resultful.csproj" />
     <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 </Project>

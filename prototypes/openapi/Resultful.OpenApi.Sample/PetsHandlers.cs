@@ -11,36 +11,36 @@ namespace PetStore;
 public sealed class PetsHandlers(PetRepository repository) : IPetsHandlers
 {
     public Task<IReadOnlyList<Pet>> ListPets(int? limit, CancellationToken cancellationToken)
-        => Task.FromResult(repository.List(limit ?? 100));
+        => repository.List(limit ?? 100, cancellationToken);
 
     public Task<Result<Pet, CreatePetError>> CreatePet(NewPet body, CancellationToken cancellationToken)
-        => Task.FromResult(
-            UniqueName(body.Name)
-                .Map(_ => repository.Add(body))
-                .MapError(CreatePetError.Conflict));
+        => UniqueName(body.Name, exceptId: null, cancellationToken)
+            .MapAsync(_ => repository.Add(body, cancellationToken))
+            .MapError(CreatePetError.Conflict);
 
     public Task<Result<Pet, GetPetError>> GetPet(long petId, CancellationToken cancellationToken)
-        => Task.FromResult(
-            repository.Find(petId)
-                .Match<Result<Pet, GetPetError>>(
-                    pet => pet,
-                    _ => GetPetError.NotFound(NotFound(petId))));
+        => repository.Find(petId, cancellationToken)
+            .Match<Pet, Result<Pet, GetPetError>>(
+                pet => pet,
+                _ => GetPetError.NotFound(NotFound(petId)));
 
-    public Task<UpsertPetSuccess> UpsertPet(long petId, NewPet body, CancellationToken cancellationToken)
-        => Task.FromResult(
-            repository.Find(petId)
-                .Match(
-                    _ => UpsertPetSuccess.Ok(repository.Save(petId, body)),
-                    _ => UpsertPetSuccess.Created(repository.Save(petId, body))));
+    public Task<Result<UpsertPetSuccess, UpsertPetError>> UpsertPet(long petId, NewPet body, CancellationToken cancellationToken)
+        => UniqueName(body.Name, exceptId: petId, cancellationToken)
+            .MapError(UpsertPetError.Conflict)
+            .MapAsync(async _ =>
+            {
+                var existed = (await repository.Find(petId, cancellationToken)).Match(_ => true, _ => false);
+                var saved = await repository.Save(petId, body, cancellationToken);
+                return existed ? UpsertPetSuccess.Ok(saved) : UpsertPetSuccess.Created(saved);
+            });
 
-    public Task<VoidResult<DeletePetError>> DeletePet(long petId, CancellationToken cancellationToken)
-        => Task.FromResult<VoidResult<DeletePetError>>(
-            repository.Remove(petId)
-                ? Unit.Value
-                : DeletePetError.NotFound(NotFound(petId)));
+    public async Task<VoidResult<DeletePetError>> DeletePet(long petId, CancellationToken cancellationToken)
+        => await repository.Remove(petId, cancellationToken)
+            ? Unit.Value
+            : DeletePetError.NotFound(NotFound(petId));
 
-    private Result<string, ProblemDetails> UniqueName(string name)
-        => repository.NameTaken(name)
+    private async Task<Result<string, ProblemDetails>> UniqueName(string name, long? exceptId, CancellationToken cancellationToken)
+        => await repository.NameTaken(name, exceptId, cancellationToken)
             ? new ProblemDetails { Title = "Name taken", Status = 409, Detail = $"A pet called '{name}' already exists." }
             : name;
 

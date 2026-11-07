@@ -112,6 +112,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/HttpValidationProblemDetails'
+        '409':
+          description: Another pet already has that name
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
     delete:
       operationId: deletePet
       tags: [pets]

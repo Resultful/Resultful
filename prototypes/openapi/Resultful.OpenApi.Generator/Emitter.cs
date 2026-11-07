@@ -494,14 +494,22 @@ namespace Resultful.OpenApi.Generator
 
             public string CaseName => Naming.StatusNames[Status];
 
+            /// <summary>
+            /// A ProblemDetails body. TypedResults.NotFound(problem) and friends write it as application/json, so it
+            /// goes out through TypedResults.Problem, which writes application/problem+json.
+            /// </summary>
+            public bool IsProblem => BodyType is { } type && WellKnownSchemas.ContainsValue(type);
+
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
             public string ResultType => Status == 401
                 ? "UnauthorizedHttpResult"
+                : IsProblem ? "ProblemHttpResult"
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
 
             /// <summary>The TypedResults call that produces it, given the body expression.</summary>
             public string Factory(string body) => (Status, BodyType is null) switch
             {
+                _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
                 (201 or 202, false) => $"TypedResults.{CaseName}((string?)null, {body})",
                 (_, false) => $"TypedResults.{CaseName}({body})",
                 _ => $"TypedResults.{CaseName}()",
@@ -564,7 +572,9 @@ namespace Resultful.OpenApi.Generator
                     }
 
                     types.AddRange(Errors.Select(r => r.ResultType));
-                    return types;
+
+                    // Every problem response is one ProblemHttpResult; its status comes from the body.
+                    return types.Distinct().ToList();
                 }
             }
 
@@ -832,6 +842,12 @@ namespace Resultful.OpenApi.Generator
 
             w.Line("return app;");
             w.Close();
+            w.Line();
+            w.Line("/// <summary>Writes a problem as application/problem+json with the status the spec gives it, whatever the handler set.</summary>");
+            w.Open("private static ProblemHttpResult Problem(ProblemDetails problem, int status)");
+            w.Line("problem.Status = status;");
+            w.Line("return TypedResults.Problem(problem);");
+            w.Close();
             w.Close();
             return w.ToString();
         }
@@ -896,9 +912,9 @@ namespace Resultful.OpenApi.Generator
 
             w.Close(braces: true, suffix: ")");
             w.Line($"    .WithName({Naming.Literal(operation.Id)})");
-            foreach (var problem in operation.Errors.Where(e => e.BodyType is { } t && WellKnownSchemas.ContainsValue(t)))
+            foreach (var problem in operation.Errors.Where(e => e.IsProblem))
             {
-                // TypedResults document every body as application/json; ProblemDetails is written as problem+json.
+                // ProblemHttpResult carries no response metadata of its own; document each status from the spec.
                 w.Line($"    .Produces<{problem.BodyType}>({problem.Status.Invariant()}, \"application/problem+json\")");
             }
 

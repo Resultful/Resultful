@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
-using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
+using FluentCheck;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Reader;
 using NUnit.Framework;
@@ -20,7 +19,7 @@ public sealed class SpecDriftTests
     {
         var spec = await LoadSpec();
         JsonNode served;
-        await using (var factory = new WebApplicationFactory<Program>())
+        await using (var factory = new PetStoreApp())
         {
             using var client = factory.CreateClient();
             served = JsonNode.Parse(await client.GetStringAsync("/openapi/v1.json"))!;
@@ -29,7 +28,7 @@ public sealed class SpecDriftTests
         var differences = new SpecComparer(spec, served).Compare();
 
         // One line per difference, so a failure lists all of them.
-        string.Join("\n", differences).Should().BeEmpty("the generated server should be described exactly as the spec describes it");
+        string.Join("\n", differences).Should().Be(string.Empty);
     }
 
     /// <summary>Reads the YAML spec and writes it as OpenAPI 3.1 JSON, so both sides are compared in one form.</summary>
