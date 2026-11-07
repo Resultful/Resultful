@@ -5,7 +5,8 @@ over time: a create that can be retried safely, an update that refuses to overwr
 comes in pages, work that finishes later, limits, deprecation, events. Other specifications and HTTP standards
 describe that behaviour. This document is how Matchmark takes them on. [VISION.md](VISION.md) says why,
 [GAPS.md](GAPS.md) where the prototype falls short, and [samples/](samples/README.md) is the corpus each layer is proven
-against.
+against. [COMPLETENESS.md](COMPLETENESS.md) covers the other half: encouraging a spec complete enough to test, and
+stating the invariants a schema can't.
 
 ## The rule: standard first, annotate only the remainder
 
