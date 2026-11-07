@@ -1844,6 +1844,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 w.Open("if (_scenario is { } scenario)");
                 w.Line("var (status, json) = scenario.Next(call, Arguments(call));");
                 w.Line($"var answer = Answer({Naming.Literal(operation.Id)}, status, json);");
+                w.Line($"scenario.Answered(json ?? SampleJson({Naming.Literal(operation.Id)}, status));");
                 w.Line(operation.HandlerResultType is { } r
                     ? $"return Task.FromResult(({r})answer!);"
                     : "return Task.CompletedTask;");
@@ -1914,6 +1915,19 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line("    return false;");
             w.Close();
             w.Close();
+            w.Line();
+            w.Line("/// <summary>The body the fake answers with when a scenario gives none: the spec's example, or a sample.</summary>");
+            w.Open("internal static string? SampleJson(string operation, int status) => (operation, status) switch");
+            foreach (var operation in operations)
+            {
+                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => r.BodyType is not null && r.SampleJson is not null))
+                {
+                    w.Line($"({Naming.Literal(operation.Id)}, {response.Status.Invariant()}) => {Naming.Literal(response.SampleJson!)},");
+                }
+            }
+
+            w.Line("_ => null,");
+            w.Close(suffix: ";");
             w.Line();
             w.Line("internal static object? Answer(string operation, int status, string? json)");
             w.Line("    => TryAnswer(operation, status, json, out var answer) ? answer : throw new ArgumentException($\"The spec documents no {status} response for '{operation}'.\");");

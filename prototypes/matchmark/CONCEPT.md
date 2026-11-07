@@ -531,6 +531,20 @@ A scenario is checked against the spec before it runs. `PetStoreFake.Check` list
 operations, undocumented statuses, `expect` keys that aren't parameters, answer bodies that break the schema, and
 `times` below 1. A typo in a declarative file fails on load, not halfway through a test.
 
+**From an Arazzo workflow.** The workflow the regression suite runs against the service can script the fake a consumer
+is tested against, so both sides are held to one document:
+
+```csharp
+var fake = new PetStoreFake().UseScenario(
+    Scenario.FromArazzo(PetStoreRegression.Workflows.Single(), "register-and-rename", new JsonObject { ["name"] = "Rex" }));
+```
+
+Its straight path becomes in-order steps: each step's operation, expecting the parameters and body it sends, answered
+with the status its `$statusCode` criterion names. `$inputs` values are filled in from the inputs given. A
+`$steps.register.outputs.petId` is whatever the fake answered that step with: the generated fake reports each answer's
+body to the runner (`ScenarioRunner.Answered`). A client that reads another pet than it created fails at that step. A
+nested workflow becomes its own steps. A step chosen by `goto` can't be scripted, so a workflow that branches is refused.
+
 #### An API that stands up APIs
 
 The fake server is also a hub of isolated fakes, so many tests can share one fake-server process (`/__fake` is left
@@ -569,7 +583,7 @@ What makes it trustworthy, not just cheap:
 | Coverage verification | hand-written endpoints missing an operation, adding one, declaring different responses or names, or wiring parameters and bodies differently from the spec; at compile time | `CoverageTests`, and the scaffolded Pet Store's own build |
 | Scaffold fidelity | scaffolded controllers describing or answering differently from the spec | `ScaffoldedServerTests`, `ScaffoldTests` |
 | Fluent fake assertions | a consumer making calls it shouldn't, too often, or in the wrong order | `FluentFakeServerTests` |
-| Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |
+| Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP; `ArazzoScenarioTests`, scripted from the Arazzo workflow |
 | Fake conformance | a fake answering with something the real API never could | `FakeTests.Every_documented_outcome_of_the_fake_server_conforms_to_the_spec` |
 | Black-box regression suite | anything visible over HTTP, written without the generated types | `RegressionSuite` |
 | Generated regression suite | a response, status, content type, body or header the spec doesn't allow; a valid request rejected or an invalid one accepted; a rejection that doesn't say what was wrong; a resource that can't be read back as written, or survives its delete | `SpecRegressionTests`, one injected fault per check; `RegressCommandTests` against a hand-written API |

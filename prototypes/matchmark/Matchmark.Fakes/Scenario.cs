@@ -36,6 +36,13 @@ public sealed class Scenario
         => JsonSerializer.Deserialize<Scenario>(json, Json) ?? throw new ArgumentException("The scenario is empty.", nameof(json));
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
+
+    /// <summary>
+    /// The calls an Arazzo workflow makes, in order, as a scenario: what a consumer following the workflow must send,
+    /// answered as the workflow expects. See <see cref="ArazzoScenario"/>.
+    /// </summary>
+    public static Scenario FromArazzo(string arazzoJson, string workflowId, JsonObject? inputs = null)
+        => ArazzoScenario.Build(arazzoJson, workflowId, inputs);
 }
 
 /// <summary>One expected call: which operation, what the request must contain, and the documented response to give.</summary>
@@ -58,6 +65,12 @@ public sealed class ScenarioStep
 
     /// <summary>How many calls this step answers.</summary>
     public int Times { get; init; } = 1;
+
+    /// <summary>A name later steps refer to (<c>$steps.{id}.outputs.{name}</c> in <see cref="Expect"/>).</summary>
+    public string? Id { get; init; }
+
+    /// <summary>Values taken from the answer, by name: a JSON Pointer into the body, as <c>$response.body#/id</c>.</summary>
+    public Dictionary<string, string>? Outputs { get; init; }
 
     public override string ToString() => $"{Operation} → {Status}" + (Expect is null ? string.Empty : $" expecting {Expect.ToJsonString()}");
 }
