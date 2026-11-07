@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using FluentCheck;
+using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -37,7 +37,7 @@ public sealed class GeneratorTests
                     '204': { description: none }
             """);
 
-        diagnostics.Select(d => d.Id).Should().BeInExactOrder(["RAPI003"]);
+        diagnostics.Select(d => d.Id).Should().Equal("RAPI003");
         sources["T.Endpoints.g.cs"].Should().NotContain("MapMethods");
     }
 
@@ -85,7 +85,7 @@ public sealed class GeneratorTests
                   properties: { name: { type: string, minLength: 2 } }
             """);
 
-        diagnostics.Select(d => d.Id).Should().BeInExactOrder(["RAPI004"]);
+        diagnostics.Select(d => d.Id).Should().Equal("RAPI004");
         sources["T.Endpoints.g.cs"].Should().Contain("Results<NoContent, ValidationProblem>");
     }
 

@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using FluentCheck;
+using AwesomeAssertions;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Reader;
 using NUnit.Framework;
@@ -28,7 +28,7 @@ public sealed class SpecDriftTests
         var differences = new SpecComparer(spec, served).Compare();
 
         // One line per difference, so a failure lists all of them.
-        string.Join("\n", differences).Should().Be(string.Empty);
+        string.Join("\n", differences).Should().BeEmpty();
     }
 
     /// <summary>Reads the YAML spec and writes it as OpenAPI 3.1 JSON, so both sides are compared in one form.</summary>
