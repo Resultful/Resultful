@@ -60,11 +60,13 @@ namespace Resultful.OpenApi.Generator
                 apiName = Naming.Pascal(fileName);
             }
 
-            // Contract: types, unions, handler interfaces, validation and the client. Server: endpoints and the OpenAPI
-            // configuration. A contract library takes "Contract", the service that implements it "Server".
+            // Contract: types, unions, handler interfaces, validation, the client and (with Resultful.OpenApi.Fakes) the fake.
+            // Server: endpoints and the OpenAPI configuration. FakeServer: hosting the fake as a server (hub, control API,
+            // PetStoreFakeServer). A contract library takes "Contract", the service "Server", a fake server "Server,FakeServer".
+            // Separate parts with commas: the value reaches the generator through an .editorconfig, where ';' starts a comment.
             fileOptions.TryGetValue(MetadataPrefix + "ResultfulParts", out var parts);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
-                string.IsNullOrWhiteSpace(parts) ? "Contract;Server" : parts!);
+                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!);
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes)
@@ -96,10 +98,11 @@ namespace Resultful.OpenApi.Generator
             }
 
             var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes);
-            var parts = spec.Parts.Split(';').Select(p => p.Trim()).ToList();
+            var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
-                server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase));
+                server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase),
+                fakeServer: parts.Contains("FakeServer", StringComparer.OrdinalIgnoreCase));
 
             foreach (var diagnostic in emitter.Diagnostics)
             {

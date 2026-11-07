@@ -57,6 +57,9 @@ consumers actually use, not against the whole spec.
 - **Asserts how it is used.** A scenario, written in code or declared in a file, says which calls to expect, in what
   order, and what each request must contain. The fake fails the first wrong call and reports everything that went
   differently.
+- **Fluent, in .NET.** `server.Given.GetPet(petId: 7).Returns.NotFound()` and
+  `server.Should().HaveReceived.GetPet(petId: 7).Once()`, against a real server on a real port, typed from the spec,
+  with messages that say what was received.
 - **One server, many isolated fakes.** Posting a scenario to the fake server stands up a fresh fake API at its own base
   URL, so parallel tests, in any language, share one cheap process.
 - **Available from day one.** It exists as soon as the spec does, so consumers build against it while the service is
@@ -114,6 +117,7 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
   is checked against the spec.
 - ✓ Scenarios of expected calls, in order or not, written in code or JSON and checked against the spec; a fake server
   that stands up an isolated fake API per scenario.
+- ✓ A fluent fake server for .NET tests: typed `Given` rules and `Should()` assertions, on a real port.
 
 **1. Usable by someone else.**
 - A NuGet package that declares its build settings itself.

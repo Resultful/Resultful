@@ -169,12 +169,34 @@ public sealed class GeneratorTests
             .And.Contain("public static OpenApiOptions AddTSchemas(this OpenApiOptions options)");
     }
 
-    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null)
+    [TestCase(null, new[] { "Client", "Endpoints", "Fake", "Handlers", "Models", "Responses", "Validation" })]
+    [TestCase("Contract", new[] { "Client", "Fake", "Handlers", "Models", "Responses", "Validation" })]
+    [TestCase("Server", new[] { "Endpoints" })]
+    [TestCase("Server,FakeServer", new[] { "Endpoints", "FakeHosting" })]
+    [TestCase("Server;FakeServer", new[] { "Endpoints", "FakeHosting" })]
+    public void Each_project_generates_only_its_parts(string? parts, string[] files)
+    {
+        const string spec = Header + """
+
+            paths:
+              /things:
+                get:
+                  operationId: listThings
+                  responses:
+                    '204': { description: none }
+            """;
+
+        var sources = Run(spec, "namespace Resultful.OpenApi.Fakes { public sealed class Scenario { } }", parts).Sources;
+
+        sources.Keys.Select(k => k.Split('.')[1]).Order().Should().Equal(files);
+    }
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null, string? parts = null)
     {
         var driver = CSharpGeneratorDriver.Create(
             [new OpenApiSourceGenerator().AsSourceGenerator()],
             [new Spec("/specs/t.yaml", yaml)],
-            optionsProvider: new Options());
+            optionsProvider: new Options(parts));
 
         var compilation = CSharpCompilation.Create("Test", code is null ? [] : [CSharpSyntaxTree.ParseText(code)]);
         var result = driver.RunGenerators(compilation).GetRunResult();
@@ -189,19 +211,20 @@ public sealed class GeneratorTests
         public override SourceText GetText(CancellationToken cancellationToken = default) => SourceText.From(text);
     }
 
-    private sealed class Options : AnalyzerConfigOptionsProvider
+    private sealed class Options(string? parts) : AnalyzerConfigOptionsProvider
     {
-        private static readonly AnalyzerConfigOptions Marked = new Values(new()
+        private readonly AnalyzerConfigOptions _marked = new Values(new Dictionary<string, string>
         {
             ["build_metadata.AdditionalFiles.ResultfulOpenApi"] = "true",
             ["build_metadata.AdditionalFiles.ResultfulApiName"] = "T",
+            ["build_metadata.AdditionalFiles.ResultfulParts"] = parts ?? string.Empty,
         });
 
         public override AnalyzerConfigOptions GlobalOptions { get; } = new Values([]);
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
 
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => Marked;
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => _marked;
 
         private sealed class Values(Dictionary<string, string> values) : AnalyzerConfigOptions
         {

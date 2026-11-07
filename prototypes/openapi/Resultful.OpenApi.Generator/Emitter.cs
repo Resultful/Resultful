@@ -52,7 +52,7 @@ namespace Resultful.OpenApi.Generator
 
         private string ValidationClass => _apiName + "Validation";
 
-        public Dictionary<string, string> Emit(bool contract = true, bool server = true)
+        public Dictionary<string, string> Emit(bool contract = true, bool server = true, bool fakeServer = false)
         {
             CollectSchemas();
             var operations = CollectOperations();
@@ -74,14 +74,15 @@ namespace Resultful.OpenApi.Generator
             if (server)
             {
                 files["Endpoints"] = EmitEndpoints(operations);
-                if (_hasFakes)
-                {
-                    files["FakeHosting"] = EmitFakeHosting(operations);
-                }
                 if (_describesItself)
                 {
                     files["OpenApi"] = EmitOpenApi();
                 }
+            }
+
+            if (fakeServer && _hasFakes)
+            {
+                files["FakeHosting"] = EmitFakeHosting(operations);
             }
 
             return files;
@@ -1458,22 +1459,36 @@ namespace Resultful.OpenApi.Generator
             w.Line("};");
             w.Line();
             w.Line("private readonly ConcurrentQueue<FakeCall> _calls = new();");
+            w.Line("private readonly FakeCallLog _log;");
             w.Line("private ScenarioRunner? _scenario;");
+            w.Line();
+            w.Line("/// <summary>The rules set up with <see cref=\"Given\"/>.</summary>");
+            w.Line("internal readonly FakeRuleSet Rules = new();");
             foreach (var operation in operations)
             {
                 w.Line($"private {Responder(operation)} {Field(operation)} = null!;");
             }
 
             w.Line();
-            w.Line($"public {name}() => Reset();");
+            w.Open($"public {name}()");
+            w.Line("_log = new FakeCallLog(() => Calls);");
+            w.Line("Reset();");
+            w.Close();
+            w.Line();
+            w.Line($"/// <summary>Sets up answers, fluently: <c>Given.GetPet(petId: 7).Returns.NotFound()</c>.</summary>");
+            w.Line($"public {_apiName}FakeGiven Given => new(this);");
+            w.Line();
+            w.Line($"/// <summary>Asserts on the calls received, fluently: <c>Should().HaveReceived.GetPet(petId: 7).Once()</c>.</summary>");
+            w.Line($"public {_apiName}FakeAssertions Should() => new(this, _log);");
             w.Line();
             w.Line("/// <summary>Every call so far, oldest first.</summary>");
             w.Line("public IReadOnlyList<FakeCall> Calls => _calls.ToList();");
             w.Line();
-            w.Line("/// <summary>Forgets the calls and any scenario, and returns every operation to its default answer.</summary>");
+            w.Line("/// <summary>Forgets the calls, rules and any scenario, and returns every operation to its default answer.</summary>");
             w.Open("public void Reset()");
             w.Line("_calls.Clear();");
             w.Line("_scenario = null;");
+            w.Line("Rules.Clear();");
             foreach (var operation in operations)
             {
                 w.Line($"Respond({Naming.Literal(operation.Id)}, {operation.Successes[0].Status.Invariant()});");
@@ -1556,6 +1571,23 @@ namespace Resultful.OpenApi.Generator
                     : "return Task.CompletedTask;");
                 w.Close();
                 w.Line();
+                w.Open("if (Rules.Find(call) is { } rule)");
+                if (operation.HandlerResultType is { } rr)
+                {
+                    w.Line($"return Task.FromResult(({rr})rule.Next()!);");
+                }
+                else
+                {
+                    w.Line("rule.Next();");
+                    w.Line("return Task.CompletedTask;");
+                }
+
+                w.Close();
+                w.Line();
+                w.Open("if (Rules.NothingElse)");
+                w.Line("throw new FakeExpectationException($\"{FakeCallMatcher.Describe(call)} matched no Given, and the fake was told to expect nothing else\");");
+                w.Close();
+                w.Line();
                 w.Line($"return {field}({string.Join(", ", names.Append("cancellationToken"))});");
                 w.Close();
                 w.Line();
@@ -1605,11 +1637,11 @@ namespace Resultful.OpenApi.Generator
             w.Close();
             w.Close();
             w.Line();
-            w.Line("private static object? Answer(string operation, int status, string? json)");
+            w.Line("internal static object? Answer(string operation, int status, string? json)");
             w.Line("    => TryAnswer(operation, status, json, out var answer) ? answer : throw new ArgumentException($\"The spec documents no {status} response for '{operation}'.\");");
             w.Line();
             w.Line("/// <summary>The handler's return value for a documented response, built fresh; null for a plain Task.</summary>");
-            w.Open("private static bool TryAnswer(string operation, int status, string? json, out object? answer)");
+            w.Open("internal static bool TryAnswer(string operation, int status, string? json, out object? answer)");
             w.Open("switch ((operation, status))");
             foreach (var operation in operations)
             {
@@ -1654,6 +1686,8 @@ namespace Resultful.OpenApi.Generator
             w.Line("return errors.Count == 0 ? null : errors;");
             w.Close();
             w.Line();
+            w.Line("internal static string? Serialize(object? body) => body is null ? null : JsonSerializer.Serialize(body, body.GetType(), Json);");
+            w.Line();
             w.Open("private static JsonObject Arguments(FakeCall call)");
             w.Line("var json = new JsonObject();");
             w.Open("foreach (var (key, value) in call.Arguments)");
@@ -1666,6 +1700,8 @@ namespace Resultful.OpenApi.Generator
             w.Line();
 
             EmitScenarioBuilder(w, operations, name);
+            w.Line();
+            EmitFluentFake(w, operations, name);
             return w.ToString();
         }
 
@@ -1727,7 +1763,245 @@ namespace Resultful.OpenApi.Generator
             w.Close();
         }
 
+        /// <summary>
+        /// The fluent API over the fake, one typed method per operation: matchers (by argument equality or a predicate),
+        /// Given rules whose Returns methods are named after the spec's responses, and HaveReceived assertions.
+        /// </summary>
+        private void EmitFluentFake(CodeWriter w, List<Operation> operations, string fake)
+        {
+            var calls = _apiName + "Calls";
+            var given = _apiName + "FakeGiven";
+            var received = _apiName + "Received";
+            var assertions = _apiName + "FakeAssertions";
+
+            // Matchers.
+            w.Line($"/// <summary>Describes calls to <c>{_apiName}</c>: by argument equality (null matches anything) or by a predicate.</summary>");
+            w.Open($"public sealed class {calls}");
+            foreach (var operation in operations)
+            {
+                var args = Arguments(operation);
+                var id = Naming.Literal(operation.Id);
+                w.Line();
+                w.Line($"/// <summary><c>{operation.Id}</c> with these arguments; leave one out (or null) to match any value.</summary>");
+                w.Line($"public FakeCallMatcher {operation.Name}({string.Join(", ", args.Select(a => $"{Optional(a.Type)} {a.Identifier} = null"))})");
+                var describe = args.Count == 0
+                    ? "System.Array.Empty<(string, object?)>()"
+                    : $"new (string, object?)[] {{ {string.Join(", ", args.Select(a => $"({Naming.Literal(a.Name)}, {a.Identifier})"))} }}.Where(a => a.Item2 is not null)";
+                var test = args.Count == 0
+                    ? "_ => true"
+                    : "call => " + string.Join(" && ", args.Select(a => $"({a.Identifier} is null || Equals(call.Arguments[{Naming.Literal(a.Name)}], {a.Identifier}))"));
+                w.Line($"    => new({id}, FakeCallMatcher.Describe({id}, {describe}), {test});");
+                if (args.Count > 0)
+                {
+                    var func = $"Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}>";
+                    var cast = string.Join(", ", args.Select(a => $"({a.Type})call.Arguments[{Naming.Literal(a.Name)}]!"));
+                    w.Line();
+                    w.Line($"/// <summary><c>{operation.Id}</c> whose arguments ({string.Join(", ", args.Select(a => a.Name))}) satisfy <paramref name=\"where\"/>.</summary>");
+                    w.Line($"public FakeCallMatcher {operation.Name}({func} where)");
+                    w.Line($"    => new({id}, {Naming.Literal(operation.Id + "(where …)")}, call => where({cast}));");
+                }
+            }
+
+            w.Close();
+            w.Line();
+
+            // Given.
+            w.Line($"/// <summary>Sets up how the fake answers. The latest matching rule wins.</summary>");
+            w.Open($"public sealed class {given}");
+            w.Line($"private readonly {fake} _fake;");
+            w.Line();
+            w.Line($"internal {given}({fake} fake) => _fake = fake;");
+            w.Line();
+            w.Line("/// <summary>From now on, a call no rule matches fails instead of getting the default answer.</summary>");
+            w.Line("public void NothingElse() => _fake.Rules.NothingElse = true;");
+            foreach (var operation in operations)
+            {
+                var args = Arguments(operation);
+                var rule = operation.Name + "Rule";
+                w.Line();
+                w.Line($"public {rule} {operation.Name}({string.Join(", ", args.Select(a => $"{Optional(a.Type)} {a.Identifier} = null"))})");
+                w.Line($"    => new(_fake.Rules.Add(new {calls}().{operation.Name}({string.Join(", ", args.Select(a => a.Identifier))})));");
+                if (args.Count > 0)
+                {
+                    w.Line();
+                    w.Line($"public {rule} {operation.Name}(Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}> where)");
+                    w.Line($"    => new(_fake.Rules.Add(new {calls}().{operation.Name}(where)));");
+                }
+            }
+
+            w.Close();
+            w.Line();
+
+            // Per operation: the rule and its answers, named after the spec's responses.
+            foreach (var operation in operations)
+            {
+                var rule = operation.Name + "Rule";
+                var answers = operation.Name + "Answers";
+                w.Line($"/// <summary>A <c>Given</c> for <c>{operation.Id}</c>. <c>Returns</c> its first answer; <c>Then</c> the next.</summary>");
+                w.Open($"public sealed class {rule}");
+                w.Line("private readonly FakeRule _rule;");
+                w.Line();
+                w.Line($"internal {rule}(FakeRule rule) => _rule = rule;");
+                w.Line();
+                w.Line($"public {answers} Returns => new(_rule, this);");
+                w.Line();
+                w.Line($"public {answers} Then => new(_rule, this);");
+                w.Close();
+                w.Line();
+                w.Line($"/// <summary>The documented answers to <c>{operation.Id}</c>. Without a body, the spec's example or a valid sample is used.</summary>");
+                w.Open($"public sealed class {answers}");
+                w.Line("private readonly FakeRule _rule;");
+                w.Line($"private readonly {rule} _owner;");
+                w.Line();
+                w.Line($"internal {answers}(FakeRule rule, {rule} owner) => (_rule, _owner) = (rule, owner);");
+                foreach (var response in operation.Successes.Concat(operation.Errors))
+                {
+                    w.Line();
+                    w.Line($"/// <summary>{response.Status.Invariant()} {response.CaseName}. Throws now if <paramref name=\"body\"/> breaks the schema.</summary>");
+                    var parameter = response.BodyType is null ? string.Empty : $"{Optional(response.BodyType)} body = null";
+                    w.Open($"public {rule} {response.CaseName}({parameter})");
+                    w.Line(response.BodyType is null ? "string? json = null;" : $"var json = {fake}.Serialize(body);");
+                    w.Line($"_ = {fake}.Answer({Naming.Literal(operation.Id)}, {response.Status.Invariant()}, json);");
+                    w.Line($"_rule.Add(() => {fake}.Answer({Naming.Literal(operation.Id)}, {response.Status.Invariant()}, json));");
+                    w.Line("return _owner;");
+                    w.Close();
+                }
+
+                w.Close();
+                w.Line();
+            }
+
+            // HaveReceived.
+            w.Line("/// <summary>What the fake should have received: pick the call, then how many times.</summary>");
+            w.Open($"public sealed class {received}");
+            w.Line("private readonly FakeCallLog _log;");
+            w.Line();
+            w.Line($"internal {received}(FakeCallLog log) => _log = log;");
+            foreach (var operation in operations)
+            {
+                var args = Arguments(operation);
+                w.Line();
+                w.Line($"public FakeCallAssertion {operation.Name}({string.Join(", ", args.Select(a => $"{Optional(a.Type)} {a.Identifier} = null"))})");
+                w.Line($"    => new(_log, new {calls}().{operation.Name}({string.Join(", ", args.Select(a => a.Identifier))}));");
+                if (args.Count > 0)
+                {
+                    w.Line();
+                    w.Line($"public FakeCallAssertion {operation.Name}(Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}> where)");
+                    w.Line($"    => new(_log, new {calls}().{operation.Name}(where));");
+                }
+            }
+
+            w.Close();
+            w.Line();
+
+            w.Line("/// <summary>Assertions on what the fake received, in the style of AwesomeAssertions. Each throws FakeAssertionException.</summary>");
+            w.Open($"public sealed class {assertions}");
+            w.Line($"private readonly {fake} _fake;");
+            w.Line("private readonly FakeCallLog _log;");
+            w.Line();
+            w.Line($"internal {assertions}({fake} fake, FakeCallLog log) => (_fake, _log) = (fake, log);");
+            w.Line();
+            w.Line("/// <summary>A call, then how many times: <c>HaveReceived.GetPet(petId: 7).Twice()</c>.</summary>");
+            w.Line($"public {received} HaveReceived => new(_log);");
+            w.Line();
+            w.Line("/// <summary>Calls matching each of these, in this order; other calls may come between.</summary>");
+            w.Line($"public void HaveReceivedInOrder(params Func<{calls}, FakeCallMatcher>[] calls)");
+            w.Line($"    => _log.HaveReceivedInOrder(calls.Select(c => c(new {calls}())).ToList());");
+            w.Line();
+            w.Line("/// <summary>Every call has been asserted on by an earlier HaveReceived or HaveReceivedInOrder.</summary>");
+            w.Line("public void HaveReceivedNoOtherCalls() => _log.HaveReceivedNoOtherCalls();");
+            w.Line();
+            w.Line("/// <summary>The scenario given to UseScenario was followed: every step called as written, nothing unexpected.</summary>");
+            w.Open("public void HaveMetItsScenario()");
+            w.Line("var report = _fake.Verify();");
+            w.Open("if (!report.Passed)");
+            w.Line("throw new FakeAssertionException(\"Expected the fake to have met its scenario, but:\" + string.Concat(report.Failures.Select(f => \"\\n  - \" + f)));");
+            w.Close();
+            w.Close();
+            w.Close();
+        }
+
+        private static List<Param> Arguments(Operation operation)
+        {
+            var args = operation.Parameters.ToList();
+            if (operation.Body is not null)
+            {
+                args.Add(new Param("body", "body", operation.Body.Type, "FromBody"));
+            }
+
+            return args;
+        }
+
+        /// <summary>The type as an optional parameter: nullable, so null can mean "not given".</summary>
+        private static string Optional(string type) => type.EndsWith("?", StringComparison.Ordinal) ? type : type + "?";
+
         private static string Field(Operation operation) => "_" + Naming.Camel(operation.Id).TrimStart('@');
+
+        /// <summary>A real fake server for a test: Kestrel on a free port, the generated endpoints, a fluent fake behind them.</summary>
+        private void EmitFakeServer(CodeWriter w, string fake, string hub)
+        {
+            var server = _apiName + "FakeServer";
+            w.Line("/// <summary>");
+            w.Line($"/// A real <c>{_apiName}</c> server for tests, on a free port: the generated endpoints (validation, problem+json, the");
+            w.Line("/// OpenAPI document) over a fake set up fluently. <c>await using var server = await StartAsync();</c>");
+            w.Line("/// </summary>");
+            w.Open($"public sealed class {server} : IAsyncDisposable");
+            w.Line("private readonly WebApplication _app;");
+            w.Line();
+            w.Line($"private {server}(WebApplication app, {fake} fake, Uri baseAddress) => (_app, Fake, BaseAddress) = (app, fake, baseAddress);");
+            w.Line();
+            w.Line("/// <summary>The fake answering at the server's root.</summary>");
+            w.Line($"public {fake} Fake {{ get; }}");
+            w.Line();
+            w.Line("/// <summary>Where the server listens, ending in a slash.</summary>");
+            w.Line("public Uri BaseAddress { get; }");
+            w.Line();
+            w.Line($"public {_apiName}FakeGiven Given => Fake.Given;");
+            w.Line();
+            w.Line($"public {_apiName}FakeAssertions Should() => Fake.Should();");
+            w.Line();
+            w.Line("public HttpClient CreateHttpClient() => new() { BaseAddress = BaseAddress };");
+            w.Line();
+            w.Line($"/// <summary>A typed client for the server, which checks every answer against the spec.</summary>");
+            w.Line($"public {_apiName}Client CreateClient() => new(CreateHttpClient());");
+            w.Line();
+            w.Line("/// <summary>Starts the server on <paramref name=\"port\"/>, or a free port when 0.</summary>");
+            w.Open($"public static async Task<{server}> StartAsync(int port = 0, CancellationToken cancellationToken = default)");
+            w.Line("var builder = WebApplication.CreateSlimBuilder();");
+            w.Line("builder.WebHost.UseUrls($\"http://127.0.0.1:{port}\");");
+            w.Line("builder.Logging.ClearProviders();");
+            w.Line($"builder.Services.Add{_apiName}();");
+            w.Line("builder.Services.AddProblemDetails();");
+            w.Line($"builder.Services.Add{_apiName}FakeHub();");
+            if (_describesItself)
+            {
+                w.Line($"builder.Services.AddOpenApi(options => options.Add{_apiName}Schemas());");
+            }
+
+            w.Line();
+            w.Line("var app = builder.Build();");
+            w.Line($"app.Use{_apiName}FakeHub();");
+            if (_describesItself)
+            {
+                w.Line("app.MapOpenApi();");
+            }
+
+            w.Line($"app.Map{_apiName}();");
+            w.Line($"app.Map{_apiName}FakeControl();");
+            w.Line("await app.StartAsync(cancellationToken).ConfigureAwait(false);");
+            w.Line();
+            w.Line("var address = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()");
+            w.Line("    .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()!.Addresses.First();");
+            w.Line($"return new(app, app.Services.GetRequiredService<{hub}>().Default, new Uri(address.TrimEnd('/') + \"/\"));");
+            w.Close();
+            w.Line();
+            w.Open("public async ValueTask DisposeAsync()");
+            w.Line("await _app.StopAsync().ConfigureAwait(false);");
+            w.Line("await _app.DisposeAsync().ConfigureAwait(false);");
+            w.Close();
+            w.Close();
+            w.Line();
+        }
 
         private static string Responder(Operation operation)
         {
@@ -1749,8 +2023,9 @@ namespace Resultful.OpenApi.Generator
         private string EmitFakeHosting(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System", "System.Collections.Concurrent", "System.Linq", "System.Text.Json", "Microsoft.AspNetCore.Builder",
-                "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Routing", "Microsoft.Extensions.DependencyInjection", "Resultful.OpenApi.Fakes");
+            w.Usings("System", "System.Collections.Concurrent", "System.Linq", "System.Net.Http", "System.Text.Json", "System.Threading",
+                "System.Threading.Tasks", "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Hosting", "Microsoft.AspNetCore.Http",
+                "Microsoft.AspNetCore.Routing", "Microsoft.Extensions.DependencyInjection", "Microsoft.Extensions.Logging", "Resultful.OpenApi.Fakes");
             var fake = _apiName + "Fake";
             var hub = _apiName + "FakeHub";
 
@@ -1781,6 +2056,7 @@ namespace Resultful.OpenApi.Generator
             w.Line();
 
             var interfaces = operations.Select(o => HandlerInterface(o.Tag)).Distinct().ToList();
+            EmitFakeServer(w, fake, hub);
             w.Open($"public static class {_apiName}FakeHosting");
             w.Line("private const string SessionKey = \"Resultful.OpenApi.Fakes.Session\";");
             w.Line();
