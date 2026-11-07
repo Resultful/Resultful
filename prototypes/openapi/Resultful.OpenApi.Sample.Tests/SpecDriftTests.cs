@@ -54,21 +54,6 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
 {
     private readonly List<string> _differences = [];
 
-    /// <summary>oneOf member schema → its oneOf base schema, from the spec.</summary>
-    private readonly Dictionary<string, string> _unionMembers = UnionMembers(spec);
-
-    /// <summary>
-    /// How ASP.NET Core 10 represents things differently from the spec. Each is a fact about its OpenAPI document,
-    /// not a difference in the API, and each is undone here by name so that nothing else is hidden:
-    /// </summary>
-    internal static readonly string[] KnownDifferences =
-    [
-        "ASP.NET Core names a oneOf member '{Base}{Member}' (PetDetailsDog), not by its own schema name",
-        "ASP.NET Core writes a discriminated oneOf as anyOf",
-        "ASP.NET Core writes the discriminator on each member as a single-value enum, and leaves it out of 'required'",
-        "ASP.NET Core leaves 'type: string' off string enums",
-    ];
-
     public List<string> Compare()
     {
         CompareOperations();
@@ -117,15 +102,14 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
 
         foreach (var (name, schema) in expected)
         {
-            var servedName = ServedName(name);
-            if (actual[servedName] is not { } servedSchema)
+            if (actual[name] is not { } servedSchema)
             {
                 _differences.Add($"schema {name}: in the spec, not served");
                 continue;
             }
 
-            matched.Add(servedName);
-            CompareSchema($"schema {name}", schema!, servedSchema, _unionMembers.TryGetValue(name, out var union) ? Discriminator(union) : null);
+            matched.Add(name);
+            CompareSchema($"schema {name}", schema!, servedSchema);
         }
 
         foreach (var extra in actual.Select(s => s.Key).Except(matched))
@@ -134,31 +118,23 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
         }
     }
 
-    private void CompareSchema(string path, JsonNode e, JsonNode a, string? discriminator)
+    /// <summary>Every schema is compared the same way; nothing about ASP.NET Core's own representation is excused.</summary>
+    private void CompareSchema(string path, JsonNode e, JsonNode a)
     {
-        if (e["oneOf"] is JsonArray oneOf)
-        {
-            Same($"{path} oneOf", Refs(oneOf), Refs(a["oneOf"] as JsonArray ?? a["anyOf"] as JsonArray));
-            Same($"{path} discriminator", e["discriminator"]?["propertyName"]?.ToString(), a["discriminator"]?["propertyName"]?.ToString());
-            Same($"{path} discriminator mapping", Mapping(e), Mapping(a));
-            return;
-        }
-
-        if (e["enum"] is JsonArray values)
-        {
-            Same($"{path} enum", Join(values), Join(a["enum"] as JsonArray));
-            return;
-        }
-
-        Same($"{path} type", Types(e), Types(a) ?? (discriminator is null ? null : Types(e)));
-        Same($"{path} required", Join(e["required"] as JsonArray, except: discriminator), Join(a["required"] as JsonArray, except: discriminator));
+        Same($"{path} oneOf", Refs(e["oneOf"] as JsonArray), Refs(a["oneOf"] as JsonArray));
+        Same($"{path} anyOf", Refs(e["anyOf"] as JsonArray), Refs(a["anyOf"] as JsonArray));
+        Same($"{path} discriminator", e["discriminator"]?["propertyName"]?.ToString(), a["discriminator"]?["propertyName"]?.ToString());
+        Same($"{path} discriminator mapping", Mapping(e), Mapping(a));
+        Same($"{path} enum", Join(e["enum"] as JsonArray), Join(a["enum"] as JsonArray));
+        Same($"{path} type", Types(e), Types(a));
+        Same($"{path} required", Join(e["required"] as JsonArray), Join(a["required"] as JsonArray));
 
         var eProps = e["properties"]?.AsObject() ?? [];
         var aProps = a["properties"]?.AsObject() ?? [];
         Same($"{path} properties", Keys(eProps), Keys(aProps));
         foreach (var (name, property) in eProps)
         {
-            if (name == discriminator || aProps[name] is not { } servedProperty)
+            if (aProps[name] is not { } servedProperty)
             {
                 continue;
             }
@@ -167,6 +143,7 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
             Same($"{p} $ref", Ref(property!), Ref(servedProperty));
             Same($"{p} type", Types(property!), Types(servedProperty));
             Same($"{p} items", Ref(property!["items"]) ?? Types(property["items"]), Ref(servedProperty["items"]) ?? Types(servedProperty["items"]));
+            Same($"{p} enum", Join(property["enum"] as JsonArray), Join(servedProperty["enum"] as JsonArray));
             foreach (var keyword in new[] { "format", "minLength", "maxLength", "pattern", "minimum", "maximum" })
             {
                 Same($"{p} {keyword}", property[keyword]?.ToJsonString(), servedProperty[keyword]?.ToJsonString());
@@ -174,24 +151,6 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
         }
     }
 
-    private string ServedName(string name)
-        => _unionMembers.TryGetValue(name, out var union) ? union + name : name;
-
-    private string? Discriminator(string union) => spec["components"]!["schemas"]![union]!["discriminator"]!["propertyName"]!.GetValue<string>();
-
-    private static Dictionary<string, string> UnionMembers(JsonNode document)
-    {
-        var members = new Dictionary<string, string>();
-        foreach (var (name, schema) in document["components"]?["schemas"]?.AsObject() ?? [])
-        {
-            foreach (var member in schema!["oneOf"] as JsonArray ?? [])
-            {
-                members[RefName(member!["$ref"]!.GetValue<string>())] = name;
-            }
-        }
-
-        return members;
-    }
 
     private static Dictionary<string, JsonNode> Operations(JsonNode document)
     {
@@ -229,17 +188,13 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
 
     private static string RefName(string reference) => reference[(reference.LastIndexOf('/') + 1)..];
 
-    private string? Refs(JsonArray? members)
-        => members is null ? null : string.Join(", ", members.Select(m => Unserve(Ref(m)!)).Order());
+    private static string? Refs(JsonArray? members)
+        => members is null ? null : string.Join(", ", members.Select(m => Ref(m) ?? Types(m)).Order());
 
-    private string? Mapping(JsonNode schema)
+    private static string? Mapping(JsonNode schema)
         => schema["discriminator"]?["mapping"] is JsonObject mapping
-            ? string.Join(", ", mapping.Select(m => $"{m.Key}={Unserve(RefName(m.Value!.GetValue<string>()))}").Order())
+            ? string.Join(", ", mapping.Select(m => $"{m.Key}={RefName(m.Value!.GetValue<string>())}").Order())
             : null;
-
-    /// <summary>The spec's name for a served schema name.</summary>
-    private string Unserve(string servedName)
-        => _unionMembers.FirstOrDefault(m => m.Value + m.Key == servedName).Key ?? servedName;
 
     private static string? Types(JsonNode? schema)
         => schema?["type"] switch
@@ -251,8 +206,8 @@ internal sealed class SpecComparer(JsonNode spec, JsonNode served)
 
     private static string Keys(JsonObject value) => string.Join(", ", value.Select(p => p.Key).Order());
 
-    private static string? Join(JsonArray? values, string? except = null)
-        => values is null ? null : string.Join(", ", values.Select(v => v!.ToString()).Where(v => v != except).Order());
+    private static string? Join(JsonArray? values)
+        => values is null ? null : string.Join(", ", values.Select(v => v!.ToString()).Order());
 
     private void Same(string what, string? expected, string? actual)
     {

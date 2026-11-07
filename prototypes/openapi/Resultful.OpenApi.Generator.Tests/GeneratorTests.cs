@@ -119,14 +119,40 @@ public sealed class GeneratorTests
         sources["T.Endpoints.g.cs"].Should().Contain("Results<Ok<Thing>, NotFound, Conflict>");
     }
 
-    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml)
+    [Test]
+    public void The_OpenAPI_document_configuration_is_only_emitted_for_apps_that_use_Microsoft_AspNetCore_OpenApi()
+    {
+        const string spec = Header + """
+
+            paths: {}
+            components:
+              schemas:
+                Status: { type: string, enum: [on, off] }
+                Details:
+                  oneOf: [{ $ref: '#/components/schemas/A' }, { $ref: '#/components/schemas/B' }]
+                  discriminator: { propertyName: kind }
+                A: { type: object, properties: { kind: { type: string }, a: { type: integer } } }
+                B: { type: object, properties: { kind: { type: string }, b: { type: integer } } }
+            """;
+
+        Run(spec).Sources.Keys.Should().NotContain("T.OpenApi.g.cs");
+
+        var withOpenApi = Run(spec, "namespace Microsoft.AspNetCore.OpenApi { public sealed class OpenApiOptions { } }").Sources;
+        withOpenApi["T.OpenApi.g.cs"].Should()
+            .Contain("(\"Details\", \"kind\", [(\"A\", \"A\"), (\"B\", \"B\")])")
+            .And.Contain("StringEnums = [\"Status\"]")
+            .And.Contain("public static OpenApiOptions AddTSchemas(this OpenApiOptions options)");
+    }
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Sources) Run(string yaml, string? code = null)
     {
         var driver = CSharpGeneratorDriver.Create(
             [new OpenApiSourceGenerator().AsSourceGenerator()],
             [new Spec("/specs/t.yaml", yaml)],
             optionsProvider: new Options());
 
-        var result = driver.RunGenerators(CSharpCompilation.Create("Test")).GetRunResult();
+        var compilation = CSharpCompilation.Create("Test", code is null ? [] : [CSharpSyntaxTree.ParseText(code)]);
+        var result = driver.RunGenerators(compilation).GetRunResult();
         return (result.Diagnostics, result.Results.SelectMany(r => r.GeneratedSources)
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString()));
     }
