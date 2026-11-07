@@ -191,6 +191,11 @@ webhooks:
       responses:
         '204':
           description: Received
+        '400':
+          description: The event breaks its schema
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
 components:
   parameters:
     OrderId:

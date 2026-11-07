@@ -10,13 +10,14 @@ namespace Matchmark.Cli;
 public static class Regress
 {
     public const string Usage = """
-        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows]
+        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
 
           Generates a regression suite from the spec (examples, valid requests, boundary values, one invalid request per
           constraint, and workflows from its links) and runs it against the API at <base url>, checking every response.
           --arazzo        an Arazzo document whose workflows run too (repeat for more)
           --overlay       an OpenAPI Overlay applied to the spec first (repeat for more, applied in order)
           --no-workflows  don't follow links or run workflows (for a target that keeps no state, such as a fake)
+          --webhooks      <base url> is a receiver of the spec's webhooks (each at /{name}): test it instead of the API
         """;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -45,7 +46,15 @@ public static class Regress
                 }
             }
 
-            suite = RegressionSuite.FromJson(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems, overlays), [.. arazzo]);
+            var json = SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems, overlays);
+            if (args.Contains("--webhooks"))
+            {
+                suite = RegressionSuite.ForWebhooks(json) ?? throw new InvalidOperationException($"{args[0]} declares no webhooks.");
+            }
+            else
+            {
+                suite = RegressionSuite.FromJson(json, [.. arazzo]);
+            }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or SharpYaml.YamlException or System.Text.Json.JsonException)
         {

@@ -43,15 +43,16 @@ public sealed class CorpusTests
             var runnable = suite.Arazzo.Count(w => suite.ArazzoGaps(w).Count == 0);
             var audit = AuditCommand.Measure(json, arazzo);
             return $"{sample.Name}: generator skips {warnings.Distinct().Count()}; suite {suite.Cases.Count} cases, {suite.Workflows.Count} workflows from links, "
-                   + $"{runnable} of {suite.Arazzo.Count} Arazzo workflows runnable, {suite.Gaps.Count} gaps; "
+                   + $"{runnable} of {suite.Arazzo.Count} Arazzo workflows runnable, {suite.Gaps.Count} gaps"
+                   + (RegressionSuite.ForWebhooks(json) is { } webhooks ? $", {webhooks.Cases.Count} webhook cases; " : "; ")
                    + $"audit {audit.Findings.Count(f => f.Finding.Rule.Level == "warning")} warnings, {audit.Findings.Count} findings, {audit.Score * 100:0}%";
         }).ToList();
 
         File.WriteAllLines(Path.Combine(TestContext.CurrentContext.WorkDirectory, "corpus-ledger.txt"), ledger);
         ledger.Should().Equal(
             "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 79%",
-            "museum: generator skips 4; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps; audit 12 warnings, 20 findings, 82%",
-            "orders: generator skips 1; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 3 warnings, 8 findings, 91%",
+            "museum: generator skips 3; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps, 28 webhook cases; audit 12 warnings, 20 findings, 82%",
+            "orders: generator skips 0; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps, 19 webhook cases; audit 3 warnings, 8 findings, 91%",
             "bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%");
     }
 
