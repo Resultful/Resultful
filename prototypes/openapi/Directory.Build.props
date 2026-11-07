@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <!-- Prototype: nothing here is packed or published. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <!-- Sentence-style test names; NUnit disposes fixtures' fields in TearDown. -->
+    <NoWarn>$(NoWarn);CA1707;CA1001;CA2007;CA2234</NoWarn>
+  </PropertyGroup>
+</Project>

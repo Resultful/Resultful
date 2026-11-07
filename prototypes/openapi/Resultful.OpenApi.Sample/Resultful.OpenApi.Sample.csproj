@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore</RootNamespace>
+    <!-- Show what the generator wrote under obj/generated. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The spec is the source of truth: the API's types, handler contracts and endpoints come from it. -->
+    <AdditionalFiles Include="petstore.yaml" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" />
+    <!-- A packaged generator would ship these in a .props file. -->
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Resultful/Resultful.csproj" />
+    <ProjectReference Include="../Resultful.OpenApi.Generator/Resultful.OpenApi.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+</Project>
