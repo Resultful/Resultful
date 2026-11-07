@@ -27,7 +27,12 @@ namespace Resultful.OpenApi.Generator
                 .Where(static spec => spec is not null)
                 .Select(static (spec, _) => spec!);
 
-            context.RegisterSourceOutput(specs, static (spc, spec) => Generate(spc, spec));
+            // The OpenAPI document configuration is only emitted when the app describes itself with
+            // Microsoft.AspNetCore.OpenApi; without it the generated code would not compile.
+            var describesItself = context.CompilationProvider
+                .Select(static (compilation, _) => compilation.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null);
+
+            context.RegisterSourceOutput(specs.Combine(describesItself), static (spc, pair) => Generate(spc, pair.Left, pair.Right));
         }
 
         private static SpecInput? ReadSpec(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
@@ -55,7 +60,7 @@ namespace Resultful.OpenApi.Generator
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!);
         }
 
-        private static void Generate(SourceProductionContext context, SpecInput spec)
+        private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself)
         {
             var location = Location.Create(spec.Path, default, default);
             var format = spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml";
@@ -83,7 +88,7 @@ namespace Resultful.OpenApi.Generator
                 return;
             }
 
-            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location);
+            var emitter = new Emitter(read.Document, spec.Namespace, spec.ApiName, location, describesItself);
             var files = emitter.Emit();
 
             foreach (var diagnostic in emitter.Diagnostics)

@@ -85,19 +85,13 @@ The schema comes from `EnsureCreated`; a real service would use migrations, and 
 
 ## Assertions
 
-The tests use [FluentCheck](https://www.nuget.org/packages/FluentCheck) 0.1.0 (MIT) rather than FluentAssertions,
-which needs a commercial licence from v8. Its `Should()` API mostly matches FluentAssertions, and its failure messages
-quote the asserted expression (`Expected response.StatusCode to be ...`). The differences that mattered here:
+The tests use [AwesomeAssertions](https://awesomeassertions.org) 9.6, the Apache-2.0 fork of FluentAssertions, which
+needs a commercial licence from v8. One setting matters: AwesomeAssertions compares a member by its declared type by
+default, so a difference inside a oneOf member such as `PetDetails` passes `BeEquivalentTo` silently.
+`AssertionSetup.cs` switches the test assembly to runtime member types.
 
-- `BeOfType<T>()`, `ContainSingle()` and most collection assertions return `void`, so they can't be chained, and
-  `BeOfType` doesn't hand back the typed subject. The tests' `Case<T>` helper asserts and then casts.
-- String collections use `BeInExactOrder([...])` rather than `Equal(...)`. It fails on a prefix and on a different
-  order, which I checked.
-- Nullable numbers have no `Be`, so the tests compare `(x ?? 0)`.
-- There is no `because` argument on `Be`.
-
-It is a single 0.1.0 release that targets only .NET 10, so it is worth checking how actively it's maintained before
-moving Resultful's own tests to it. Those still use FluentAssertions 7.2, which is under the older free licence.
+The first version of this prototype used FluentCheck 0.1.0. It was dropped because its deep comparisons report actual
+and expected the wrong way round and almost none of its assertions chain.
 
 ## What the prototype found
 
@@ -114,10 +108,16 @@ moving Resultful's own tests to it. Those still use FluentAssertions 7.2, which 
      writes `application/problem+json`, with the status forced to the one in the spec, and each status is documented
      with `.Produces<ProblemDetails>(status, "application/problem+json")`. Fixing only the document had hidden the
      wire bug; the regression suite's content-type check found it.
-   - Polymorphism is written differently: members are named `PetDetailsDog`, the union is written as `anyOf`, and the
-     discriminator is a single-value enum. That is ASP.NET Core's representation, not an API difference.
-     `SpecComparer.KnownDifferences` names each one and undoes it, and hides nothing else. Fixing it would take an
-     OpenAPI schema transformer.
+   - Polymorphism was written differently. ASP.NET Core names oneOf members `{Union}{Member}` (`PetDetailsDog`),
+     writes the union as `anyOf` with a `type` and `required` of its own, writes the discriminator as a single-value
+     enum left out of `required`, and leaves `type: string` off string enums. The generator now emits
+     `AddPetStoreSchemas()` for `OpenApiOptions` (only when the app references Microsoft.AspNetCore.OpenApi). It names
+     schemas after their types and rewrites each spec union, its members and string enums into the spec's form,
+     driven by the spec's own unions and enums. The drift test now compares every schema strictly, with no excused
+     differences. Without the transformer it reports all ten differences.
+
+     One part of that is by construction, not checked: the transformer writes each member's discriminator as a
+     required string from the spec, rather than reading it from the code.
 
    Checked by breaking it on purpose: an extra hand-written endpoint fails the test (`GET /health: served, not in the
    spec`), and so does a wrong generated constraint (`Pet.name maxLength: spec has '50', served '51'`).
@@ -143,7 +143,9 @@ moving Resultful's own tests to it. Those still use FluentAssertions 7.2, which 
      holding `null`.
 7. **The published test helpers are stale.** FluentAssertions.Resultful 0.0.6-beta01 is built on FluentAssertions 5.6
    and Resultful 0.2.0-beta04. FluentAssertions.OneOf 0.0.5 is built on OneOf 1.0 and doesn't understand `OneOfBase`.
-   Either way, a Resultful assertion package would now need building on another library, such as FluentCheck.
+   Resultful/FluentAssertions.Resultful is being renamed to `Resultful.AwesomeAssertions`, with the FluentAssertions 7
+   packages kept as a legacy build (Resultful/FluentAssertions.Resultful#7). `OneOfBase` support, which the generated
+   unions here need, is Resultful/FluentAssertions.Resultful#2.
 
 ## Not supported yet
 
@@ -163,9 +165,9 @@ it by hand.
 
 ## Next steps, if this goes further
 
-- An OpenAPI schema transformer, so polymorphism round-trips without known differences.
 - A Schemathesis run against the sample in CI, adding property-based coverage on top of the hand-written suite.
 - Trying the generator on a large real spec, to find the next unsupported constructs.
 - Deciding whether a success union belongs in Resultful itself.
-- A Resultful assertion package for FluentCheck (or whichever library wins), in place of FluentAssertions.Resultful.
+- Use `Resultful.AwesomeAssertions.OneOf` in these tests in place of the `Case<T>` helper, once it supports
+  `OneOfBase` (Resultful/FluentAssertions.Resultful#2).
 - Migrations in place of `EnsureCreated`, with the seed scenarios kept as they are.
