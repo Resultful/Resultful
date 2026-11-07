@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    A fake PetStore server with no hand-written behaviour: the generated endpoints over the generated PetStoreFake.
+    It validates requests and describes itself exactly as the real service does, answers with the spec's examples, and
+    is scripted per test, in-process or over HTTP. Run it: dotnet run (listens on http://localhost:5080).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PetStore.Fake</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Server,FakeServer" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Sample.Contract/Matchmark.Sample.Contract.csproj" />
+    <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+</Project>

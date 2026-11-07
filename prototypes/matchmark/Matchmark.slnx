@@ -1,0 +1,14 @@
+<Solution>
+  <Project Path="../../Resultful/Resultful.csproj" />
+  <Project Path="Matchmark.Fakes/Matchmark.Fakes.csproj" />
+  <Project Path="Matchmark.Generator.Tests/Matchmark.Generator.Tests.csproj" />
+  <Project Path="Matchmark.Generator/Matchmark.Generator.csproj" />
+  <Project Path="Matchmark.Sample.Contract/Matchmark.Sample.Contract.csproj" />
+  <Project Path="Matchmark.Sample.Fake/Matchmark.Sample.Fake.csproj" />
+  <Project Path="Matchmark.Sample.Scaffolded/Matchmark.Sample.Scaffolded.csproj" />
+  <Project Path="Matchmark.Sample.Tests/Matchmark.Sample.Tests.csproj" />
+  <Project Path="Matchmark.Sample/Matchmark.Sample.csproj" />
+  <Project Path="Matchmark.Cli/Matchmark.Cli.csproj" />
+  <Project Path="Matchmark.Testing.Tests/Matchmark.Testing.Tests.csproj" />
+  <Project Path="Matchmark.Testing/Matchmark.Testing.csproj" />
+</Solution>
