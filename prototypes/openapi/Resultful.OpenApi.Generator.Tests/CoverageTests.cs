@@ -56,6 +56,28 @@ public sealed class CoverageTests
             public sealed class FromBodyAttribute : Attribute { }
             public sealed class FromServicesAttribute : Attribute { }
             public class ControllerBase { }
+            public class ProblemDetails { public string? Title { get; set; } }
+        }
+
+        namespace Microsoft.AspNetCore.Http
+        {
+            public interface IResult { }
+            public class HttpValidationProblemDetails : Microsoft.AspNetCore.Mvc.ProblemDetails { }
+        }
+
+        namespace Microsoft.AspNetCore.Http.HttpResults
+        {
+            public sealed class Ok<T> : IResult { }
+            public sealed class Created<T> : IResult { }
+            public sealed class NotFound : IResult { }
+            public sealed class NoContent : IResult { }
+            public sealed class ProblemHttpResult : IResult { }
+            public sealed class ValidationProblem : IResult { public HttpValidationProblemDetails ProblemDetails { get; } = new(); }
+            public sealed class Results<T1, T2> : IResult where T1 : IResult where T2 : IResult
+            {
+                public static implicit operator Results<T1, T2>(T1 result) => new();
+                public static implicit operator Results<T1, T2>(T2 result) => new();
+            }
         }
 
         namespace Microsoft.AspNetCore.Builder
@@ -73,6 +95,11 @@ public sealed class CoverageTests
                 public static Endpoint WithName(this Endpoint endpoint, string name) => endpoint;
                 public static Endpoint ExcludeFromDescription(this Endpoint endpoint) => endpoint;
                 public static App ExcludeFromDescription(this App app) => app;
+                public static Endpoint Produces(this Endpoint endpoint, int statusCode, Type? responseType = null, string? contentType = null) => endpoint;
+                public static Endpoint Produces<T>(this Endpoint endpoint, int statusCode = 200, string? contentType = null) => endpoint;
+                public static Endpoint ProducesProblem(this Endpoint endpoint, int statusCode, string? contentType = null) => endpoint;
+                public static Endpoint ProducesValidationProblem(this Endpoint endpoint, int statusCode = 400, string? contentType = null) => endpoint;
+                public static App ProducesProblem(this App app, int statusCode, string? contentType = null) => app;
             }
         }
         """;
@@ -128,8 +155,8 @@ public sealed class CoverageTests
         diagnostics.Should().Equal(
             "RAPI010: The spec's operation 'deleteThing' (DELETE /things/{thingId}) has no endpoint: add a controller action or Map call for it",
             "RAPI011: ThingsController.Health (GET /health) is not in the spec: document it, or leave it out of the OpenAPI description ([ApiExplorerSettings(IgnoreApi = true)] or ExcludeFromDescription())",
-            "RAPI012: ThingsController.Get (GET /things/{thingId}): the spec documents a 404 response, but the action declares no [ProducesResponseType] for it",
-            "RAPI013: ThingsController.Get (GET /things/{thingId}): the action declares a 410 response, which the spec does not document",
+            "RAPI012: ThingsController.Get (GET /things/{thingId}): the spec documents a 404 response, but the endpoint declares none; declare it with [ProducesResponseType]",
+            "RAPI013: ThingsController.Get (GET /things/{thingId}): the endpoint declares a 410 response, which the spec does not document",
             "RAPI014: ThingsController.Get (GET /things/{thingId}) is named 'fetchThing'; name it 'getThing', the spec's operationId, which the OpenAPI description uses",
             "RAPI015: ThingsController.Get (GET /things/{thingId}): the route parameter is '{id}', the spec calls it '{thingId}'");
     }
@@ -139,14 +166,15 @@ public sealed class CoverageTests
     {
         Verify("""
             using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http.HttpResults;
 
             public static class Api
             {
                 public static void Map(App app)
                 {
                     var things = app.MapGroup("/things");
-                    things.MapGet("/{thingId}", (int thingId) => "x").WithName("getThing");
-                    app.MapMethods("/things/{thingId}", new[] { "DELETE" }, Delete).WithName("deleteThing");
+                    things.MapGet("/{thingId}", Results<Ok<string>, NotFound> (int thingId) => new Ok<string>()).WithName("getThing");
+                    app.MapMethods("/things/{thingId}", new[] { "DELETE" }, Delete).WithName("deleteThing").Produces(204);
                     app.MapGet("/health", () => "ok").ExcludeFromDescription();
                     var admin = app.MapGroup("/admin").ExcludeFromDescription();
                     admin.MapGet("/stats", () => 1);
@@ -170,6 +198,7 @@ public sealed class CoverageTests
             """).Should().Equal(
                 "RAPI010: The spec's operation 'deleteThing' (DELETE /things/{thingId}) has no endpoint: add a controller action or Map call for it",
                 "RAPI011: MapGet(\"/version\") (GET /version) is not in the spec: document it, or leave it out of the OpenAPI description ([ApiExplorerSettings(IgnoreApi = true)] or ExcludeFromDescription())",
+                "RAPI012: MapGet(\"/things/{thingId}\") (GET /things/{thingId}): the spec documents a 404 response, but the endpoint declares none; declare it with a typed result or .Produces call",
                 "RAPI014: MapGet(\"/things/{thingId}\") (GET /things/{thingId}) is named 'none'; name it 'getThing', the spec's operationId, which the OpenAPI description uses");
     }
 
@@ -235,7 +264,7 @@ public sealed class CoverageTests
             public static class Api
             {
                 public static void Map(App app)
-                    => app.MapPost("/things/{thingId:long}/notes", Add).WithName("addNote");
+                    => app.MapPost("/things/{thingId:long}/notes", Add).WithName("addNote").Produces(204);
 
                 private static void Add(long thingId, [FromHeader(Name = "X-Request-Id")] Guid requestId, Note note, IClock clock, int limit = 10) { }
             }
@@ -304,8 +333,8 @@ public sealed class CoverageTests
               type: object
               required: [name]
               properties:
-                name: { type: string }
-                tag: { type: [string, 'null'] }
+                name: { type: string, minLength: 1, maxLength: 50 }
+                tag: { type: [string, 'null'], pattern: '^[a-z-]+$' }
             Pet:
               type: object
               required: [id, name, status, details]
@@ -327,16 +356,17 @@ public sealed class CoverageTests
             Cat:
               type: object
               required: [kind, livesLeft]
-              properties: { kind: { type: string }, livesLeft: { type: integer, format: int32 } }
+              properties: { kind: { type: string }, livesLeft: { type: integer, format: int32, minimum: 0, maximum: 9 } }
         """;
 
     /// <summary>The same JSON as the schemas, in a given namespace: as the generator writes them, or as a team might by hand.</summary>
     private static string Models(string ns) => $$"""
         namespace {{ns}}
         {
+            using System.ComponentModel.DataAnnotations;
             using System.Text.Json.Serialization;
 
-            public sealed record NewPet(string Name, string? Tag);
+            public sealed record NewPet([property: MinLength(1), MaxLength(50)] string Name, [property: RegularExpression("^[a-z-]+$")] string? Tag);
             public sealed record Pet(long Id, string Name, Status Status, Details Details);
 
             [JsonConverter(typeof(JsonStringEnumConverter<Status>))]
@@ -347,7 +377,7 @@ public sealed class CoverageTests
             [JsonDerivedType(typeof(Cat), "cat")]
             public abstract record Details;
             public sealed record Dog(bool GoodBoy) : Details;
-            public sealed record Cat(int LivesLeft) : Details;
+            public sealed record Cat([property: Range(0, 9)] int LivesLeft) : Details;
         }
         """;
 
@@ -421,6 +451,8 @@ public sealed class CoverageTests
             "RAPI022: PetsController.Add (POST /pets): the 201 response is Pet, which differs from the schema Pet: status is an enum written as a number; the schema has string values (add [JsonConverter(typeof(JsonStringEnumConverter<Status>))])",
             "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: label (Tag) is not in the schema",
             "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) can be null; the schema requires it",
+            "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) doesn't declare the schema's maxLength 50; add [MaxLength(50)]",
+            "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) doesn't declare the schema's minLength 1; add [MinLength(1)]",
             "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag is missing",
             "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details has a derived type for 'fish', which the schema doesn't",
             "RAPI022: PetsController.List (GET /pets): the 200 response is IReadOnlyList<Pet>, which differs from the schema Pet[]: [].details has no derived type for 'cat' (Cat)",
@@ -441,15 +473,189 @@ public sealed class CoverageTests
             {
                 public static void Map(App app)
                 {
-                    app.MapGet("/pets", () => { }).WithName("listPets");
-                    app.MapPost("/pets", (Mine.NewPet pet) => { }).WithName("addPet");
+                    app.MapGet("/pets", () => new Contract.Pet[0]).WithName("listPets");
+                    app.MapPost("/pets", (Mine.NewPet pet) => { }).WithName("addPet").Produces<Contract.Pet>(201);
                 }
             }
 
-            namespace Mine { public sealed record NewPet(string Name, long Tag); }
-            """, ModelSpec).Should().Equal(
+            namespace Mine { public sealed record NewPet([property: System.ComponentModel.DataAnnotations.Length(1, 50)] string Name, long Tag); }
+            """ + Models("Contract"), ModelSpec).Should().Equal(
                 "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag (Tag) can't be null; the schema makes it optional",
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag (Tag) doesn't declare the schema's pattern ^[a-z-]+$; add [RegularExpression(\"^[a-z-]+$\")]",
                 "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag is long (integer/int64); the schema says string");
+    }
+
+    [Test]
+    public void Minimal_API_responses_come_from_typed_results_and_produces_calls()
+    {
+        // Each style of declaring the same responses passes: a Results<...> return type, a single typed result plus
+        // .Produces, and .ProducesProblem on the group.
+        Verify("""
+            using System.Threading.Tasks;
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http.HttpResults;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                {
+                    var things = app.MapGroup("/things");
+                    things.MapGet("/{thingId}", async Task<Ok<string>> (int thingId) => { await Task.Yield(); return new Ok<string>(); })
+                        .WithName("getThing").Produces(404);
+                    app.MapDelete("/things/{thingId}", NoContent (int thingId) => new NoContent()).WithName("deleteThing");
+                }
+            }
+            """).Should().BeEmpty();
+
+        // A plain value is a 200 of that value; a typed result's own response counts; an undeclared one doesn't.
+        Verify("""
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http.HttpResults;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                {
+                    app.MapGet("/things/{thingId}", (int thingId) => 42).WithName("getThing");
+                    app.MapDelete("/things/{thingId}", Results<NoContent, ProblemHttpResult> (int thingId) => new NoContent())
+                        .WithName("deleteThing").ProducesProblem(409);
+                }
+            }
+            """).Should().Equal(
+                "RAPI012: MapGet(\"/things/{thingId}\") (GET /things/{thingId}): the spec documents a 404 response, but the endpoint declares none; declare it with a typed result or .Produces call",
+                "RAPI013: MapDelete(\"/things/{thingId}\") (DELETE /things/{thingId}): the endpoint declares a 409 response, which the spec does not document",
+                "RAPI022: MapGet(\"/things/{thingId}\") (GET /things/{thingId}): the 200 response is int, which differs from the schema string: the type is int (integer/int32); the schema says string");
+    }
+
+    [Test]
+    public void Minimal_API_response_models_are_compared_with_their_schemas()
+    {
+        Verify("""
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http.HttpResults;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                {
+                    app.MapGet("/pets", Ok<Contract.Pet[]> () => new Ok<Contract.Pet[]>()).WithName("listPets");
+                    app.MapPost("/pets", Results<Created<Mine.Pet>, ValidationProblem> (Contract.NewPet pet) => new Created<Mine.Pet>()).WithName("addPet");
+                }
+            }
+
+            namespace Mine { public sealed record Pet(long Id, string Name); }
+            """ + Models("Contract"), ModelSpec).Should().Equal(
+                "RAPI013: MapPost(\"/pets\") (POST /pets): the endpoint declares a 400 response, which the spec does not document",
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the 201 response is Pet, which differs from the schema Pet: details is missing",
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the 201 response is Pet, which differs from the schema Pet: status is missing");
+    }
+
+    [Test]
+    public void Constraints_are_compared_as_the_served_document_would_carry_them()
+    {
+        var drifted = """
+            namespace Mine
+            {
+                using System.ComponentModel.DataAnnotations;
+                using System.Text.Json.Serialization;
+
+                public sealed class NewPet
+                {
+                    [StringLength(100, MinimumLength = 1)] public string Name { get; set; } = "";   // 100, not 50
+                    public string? Tag { get; set; }                                                  // no pattern
+                    [Range(1, 5)] public int Age { get; set; }                                        // not in the schema at all
+                }
+            }
+            """;
+
+        Verify("""
+            using Microsoft.AspNetCore.Mvc;
+
+            [ApiController]
+            public sealed class PetsController : ControllerBase
+            {
+                [HttpGet("/pets", Name = "listPets")]
+                [ProducesResponseType<System.Collections.Generic.IReadOnlyList<Contract.Pet>>(200, "application/json")]
+                public void List() { }
+
+                [HttpPost("/pets", Name = "addPet")]
+                [ProducesResponseType<Contract.Pet>(201, "application/json")]
+                public void Add(Mine.NewPet pet) { }
+            }
+            """ + drifted + Models("Contract"), ModelSpec).Should().Equal(
+                "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: age (Age) is not in the schema",
+                "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) declares maxLength 100; the schema says 50",
+                "RAPI022: PetsController.Add (POST /pets): the request body is NewPet, which differs from the schema NewPet: tag (Tag) doesn't declare the schema's pattern ^[a-z-]+$; add [RegularExpression(\"^[a-z-]+$\")]");
+    }
+
+    [Test]
+    public void An_annotation_on_a_record_parameter_is_reported_as_misplaced()
+    {
+        // On a positional record's parameter, a DataAnnotation applies to the parameter: the property doesn't have it, so
+        // ASP.NET Core's OpenAPI document doesn't carry it.
+        Verify("""
+            using Microsoft.AspNetCore.Builder;
+            using System.ComponentModel.DataAnnotations;
+
+            public static class Api
+            {
+                public static void Map(App app)
+                {
+                    app.MapGet("/pets", () => new Contract.Pet[0]).WithName("listPets");
+                    app.MapPost("/pets", (Mine.NewPet pet) => { }).WithName("addPet").Produces<Contract.Pet>(201);
+                }
+            }
+
+            namespace Mine { public sealed record NewPet([MaxLength(50)] string Name, [property: RegularExpression("^[a-z-]+$")] string? Tag); }
+            """ + Models("Contract"), ModelSpec).Should().Equal(
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) declares maxLength on the record's parameter, which the OpenAPI document doesn't see; target the property: [property: MaxLength(50)]",
+                "RAPI022: MapPost(\"/pets\") (POST /pets): the request body is NewPet, which differs from the schema NewPet: name (Name) doesn't declare the schema's minLength 1; add [MinLength(1)]");
+    }
+
+    [Test]
+    public void Parameter_constraints_are_compared_too()
+    {
+        const string spec = """
+            openapi: 3.1.0
+            info: { title: T, version: '1' }
+            paths:
+              /things:
+                get:
+                  operationId: listThings
+                  parameters:
+                    - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+                    - { name: q, in: query, schema: { type: string, maxLength: 20 } }
+                  responses:
+                    '204': { description: ok }
+            """;
+
+        Verify("""
+            using System.ComponentModel.DataAnnotations;
+            using Microsoft.AspNetCore.Mvc;
+
+            public sealed class ThingsController : ControllerBase
+            {
+                [HttpGet("/things", Name = "listThings")]
+                [ProducesResponseType(204)]
+                public void List([Range(1, 100)] int? limit, [MaxLength(20)] string? q) { }
+            }
+            """, spec).Should().BeEmpty();
+
+        Verify("""
+            using System.ComponentModel.DataAnnotations;
+            using Microsoft.AspNetCore.Mvc;
+
+            public sealed class ThingsController : ControllerBase
+            {
+                [HttpGet("/things", Name = "listThings")]
+                [ProducesResponseType(204)]
+                public void List([Range(0, 1000)] int? limit, [MinLength(2)] string? q) { }
+            }
+            """, spec).Should().Equal(
+                "RAPI023: ThingsController.List (GET /things): 'limit' declares maximum 1000; the schema says 100",
+                "RAPI023: ThingsController.List (GET /things): 'limit' declares minimum 0; the schema says 1",
+                "RAPI023: ThingsController.List (GET /things): 'q' declares minLength 2, which the schema doesn't have",
+                "RAPI023: ThingsController.List (GET /things): 'q' doesn't declare the schema's maxLength 20; add [MaxLength(20)]");
     }
 
     [Test]

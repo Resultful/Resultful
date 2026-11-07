@@ -36,6 +36,9 @@ namespace Resultful.OpenApi.Generator
 
         public string Display { get; }
 
+        /// <summary>A Minimal API Map call, whose responses come from its return type and .Produces calls.</summary>
+        public bool IsMap => Display.StartsWith("Map", StringComparison.Ordinal);
+
         public Location Location { get; }
 
         /// <summary>Left out of the OpenAPI description on purpose, so not part of the spec.</summary>
@@ -70,8 +73,10 @@ namespace Resultful.OpenApi.Generator
     /// </summary>
     internal sealed class Binding : IEquatable<Binding>
     {
-        public Binding(string source, string name, string type, bool optional, string parameter, string fullType)
+        public Binding(string source, string name, string type, bool optional, string parameter, string fullType,
+            ImmutableArray<(string Keyword, string Value)> constraints)
         {
+            Constraints = constraints;
             FullType = fullType;
             Source = source;
             Name = name;
@@ -96,8 +101,11 @@ namespace Resultful.OpenApi.Generator
         /// <summary>The type's full name, so a body is compared by identity rather than by its simple name.</summary>
         public string FullType { get; }
 
+        /// <summary>The parameter's DataAnnotations, as schema keywords.</summary>
+        public ImmutableArray<(string Keyword, string Value)> Constraints { get; }
+
         public bool Equals(Binding? other)
-            => other is not null && FullType == other.FullType && Source == other.Source && Name == other.Name && Type == other.Type && Optional == other.Optional && Parameter == other.Parameter;
+            => other is not null && FullType == other.FullType && Constraints.SequenceEqual(other.Constraints) && Source == other.Source && Name == other.Name && Type == other.Type && Optional == other.Optional && Parameter == other.Parameter;
 
         public override bool Equals(object? obj) => Equals(obj as Binding);
 
@@ -185,7 +193,11 @@ namespace Resultful.OpenApi.Generator
                 return result.TypeArguments[0];
             }
 
-            return type.AllInterfaces.Any(i => i.Name is "IActionResult" or "IResult") || type.Name is "IActionResult" or "IResult" ? null : type;
+            // ApiExplorer describes an object return type as unknown, like IActionResult.
+            return type.SpecialType == SpecialType.System_Object
+                   || type.AllInterfaces.Any(i => i.Name is "IActionResult" or "IResult") || type.Name is "IActionResult" or "IResult"
+                ? null
+                : type;
         }
 
         /// <summary>The shapes of the body's type and the response types, and of everything they reach.</summary>
@@ -249,7 +261,7 @@ namespace Resultful.OpenApi.Generator
                 ? (invocation.ArgumentList.Arguments.Count > 1 ? Strings(invocation.ArgumentList.Arguments[1].Expression) : Enumerable.Empty<string>())
                 : new[] { name.Substring(3).ToUpperInvariant() };
 
-            var (prefix, groupExcluded) = Group(member.Expression, context.SemanticModel, ct);
+            var (prefix, groupExcluded, groupCalls) = Group(member.Expression, context.SemanticModel, ct);
             var chain = Chain(invocation).ToList();
             var excluded = groupExcluded || chain.Any(c => c.Name == "ExcludeFromDescription");
             var endpointName = chain.Where(c => c.Name == "WithName").Select(c => c.Argument).FirstOrDefault();
@@ -259,12 +271,138 @@ namespace Resultful.OpenApi.Generator
                 ? Handler(invocation.ArgumentList.Arguments[handlerIndex].Expression, context.SemanticModel, ct)
                 : null;
             var bindings = handler is null ? (ImmutableArray<Binding>?)null : Bindings(handler, route, complexFromBody: true);
-            var shapes = handler is null ? ImmutableArray<TypeShape>.Empty : Shapes(handler, bindings!.Value, Enumerable.Empty<ITypeSymbol>());
+
+            // Responses, as ApiExplorer describes them: the metadata of the handler's typed results, then .Produces calls on
+            // the endpoint and its group. With neither, a handler returning T is a 200 of T, and any other a plain 200.
+            ImmutableArray<int>? statuses = null;
+            var responseTypes = new List<(int Status, ITypeSymbol? Type)>();
+            if (handler is not null)
+            {
+                responseTypes.AddRange(ResultResponses(handler.ReturnType, out var returned));
+                responseTypes.AddRange(groupCalls.Concat(chain.Select(c => c.Call))
+                    .Select(c => Produces(c, context.SemanticModel, ct))
+                    .Where(p => p is not null)
+                    .Select(p => p!.Value));
+                if (responseTypes.Count == 0)
+                {
+                    responseTypes.Add((200, returned));
+                }
+
+                statuses = responseTypes.Select(r => r.Status).Distinct().OrderBy(s => s).ToImmutableArray();
+            }
+
+            var typed = responseTypes.Where(r => r.Type is not null).ToList();
+            var shapes = handler is null ? ImmutableArray<TypeShape>.Empty : Shapes(handler, bindings!.Value, typed.Select(r => r.Type!));
             foreach (var verb in verbs)
             {
                 yield return new Endpoint(verb.ToUpperInvariant(), route, endpointName,
-                    $"{name}(\"{pattern}\")", invocation.GetLocation(), excluded, null, bindings, shapes: shapes);
+                    $"{name}(\"{pattern}\")", invocation.GetLocation(), excluded, statuses, bindings,
+                    typed.Select(r => (r.Status, TypeShape.NameOf(r.Type!))).Distinct().ToImmutableArray(), shapes);
             }
+        }
+
+        /// <summary>The status each typed result in Microsoft.AspNetCore.Http.HttpResults declares, as its metadata does.</summary>
+        private static readonly Dictionary<string, int> TypedResultStatuses = new(StringComparer.Ordinal)
+        {
+            ["Ok"] = 200, ["Created"] = 201, ["CreatedAtRoute"] = 201, ["Accepted"] = 202, ["AcceptedAtRoute"] = 202, ["NoContent"] = 204,
+            ["BadRequest"] = 400, ["UnauthorizedHttpResult"] = 401, ["NotFound"] = 404, ["Conflict"] = 409,
+            ["UnprocessableEntity"] = 422, ["InternalServerError"] = 500, ["ValidationProblem"] = 400,
+        };
+
+        /// <summary>
+        /// The responses a handler's return type declares: each case of Results&lt;...&gt;, or a single typed result.
+        /// <paramref name="returned"/> is the type a handler returning a plain value (not an IResult) writes as its 200.
+        /// </summary>
+        private static IEnumerable<(int Status, ITypeSymbol? Type)> ResultResponses(ITypeSymbol type, out ITypeSymbol? returned)
+        {
+            returned = null;
+            if (type is INamedTypeSymbol { IsGenericType: true, Name: "Task" or "ValueTask" } awaited)
+            {
+                type = awaited.TypeArguments[0];
+            }
+            else if (type.Name is "Task" or "ValueTask" || type.SpecialType == SpecialType.System_Void)
+            {
+                return Enumerable.Empty<(int, ITypeSymbol?)>();
+            }
+
+            if (type is INamedTypeSymbol { Name: "Results" } results && IsHttpResults(results))
+            {
+                return results.TypeArguments.SelectMany(t => TypedResult(t)).ToList();
+            }
+
+            if (type is INamedTypeSymbol named && IsHttpResults(named))
+            {
+                return TypedResult(named).ToList();
+            }
+
+            if (type.SpecialType != SpecialType.System_Object && type.Name is not ("IResult" or "IActionResult") && !type.AllInterfaces.Any(i => i.Name == "IResult"))
+            {
+                returned = type;
+            }
+
+            return Enumerable.Empty<(int, ITypeSymbol?)>();
+        }
+
+        private static IEnumerable<(int Status, ITypeSymbol? Type)> TypedResult(ITypeSymbol type)
+        {
+            if (type is not INamedTypeSymbol named || !TypedResultStatuses.TryGetValue(named.Name, out var status))
+            {
+                yield break; // ProblemHttpResult, JsonHttpResult and the like declare no response of their own.
+            }
+
+            if (named.Name == "ValidationProblem")
+            {
+                yield return (status, ValidationProblemType(named));
+                yield break;
+            }
+
+            yield return (status, named.TypeArguments.Length == 1 ? named.TypeArguments[0] : null);
+        }
+
+        private static ITypeSymbol? ValidationProblemType(INamedTypeSymbol validationProblem)
+            => validationProblem.GetMembers("ProblemDetails").OfType<IPropertySymbol>().FirstOrDefault()?.Type;
+
+        private static bool IsHttpResults(INamedTypeSymbol type) => type.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Http.HttpResults";
+
+        /// <summary>The response a .Produces, .ProducesProblem or .ProducesValidationProblem call declares.</summary>
+        private static (int Status, ITypeSymbol? Type)? Produces(InvocationExpressionSyntax call, SemanticModel model, System.Threading.CancellationToken ct)
+        {
+            if (model.GetSymbolInfo(call, ct).Symbol is not IMethodSymbol method
+                || method.Name is not ("Produces" or "ProducesProblem" or "ProducesValidationProblem"))
+            {
+                return null;
+            }
+
+            int? status = null;
+            ITypeSymbol? type = method.TypeArguments.FirstOrDefault();
+            foreach (var argument in call.ArgumentList.Arguments)
+            {
+                var parameter = argument.NameColon is { } colon
+                    ? method.Parameters.FirstOrDefault(p => p.Name == colon.Name.Identifier.ValueText)
+                    : method.Parameters.ElementAtOrDefault(call.ArgumentList.Arguments.IndexOf(argument) + (method.IsExtensionMethod && method.ReducedFrom is null ? 1 : 0));
+                if (parameter?.Name == "statusCode" && model.GetConstantValue(argument.Expression, ct).Value is int value)
+                {
+                    status = value;
+                }
+                else if (parameter?.Name == "responseType" && argument.Expression is TypeOfExpressionSyntax typeOf)
+                {
+                    type = model.GetTypeInfo(typeOf.Type, ct).Type;
+                }
+            }
+
+            var parameters = method.ReducedFrom?.Parameters ?? method.Parameters;
+            status ??= parameters.FirstOrDefault(p => p.Name == "statusCode") is { HasExplicitDefaultValue: true, ExplicitDefaultValue: int fallback } ? fallback : null;
+            if (status is null)
+            {
+                return null;
+            }
+
+            return method.Name switch
+            {
+                "ProducesProblem" => (status.Value, model.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Mvc.ProblemDetails")),
+                "ProducesValidationProblem" => (status.Value, model.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Http.HttpValidationProblemDetails")),
+                _ => (status.Value, type),
+            };
         }
 
         /// <summary>The method a Map call's handler is: a lambda, or a method group.</summary>
@@ -338,7 +476,8 @@ namespace Resultful.OpenApi.Generator
                     continue;
                 }
 
-                bindings.Add(new Binding(source, name, display, optional, parameter.Name, TypeShape.NameOf(underlying)));
+                bindings.Add(new Binding(source, name, display, optional, parameter.Name, TypeShape.NameOf(underlying),
+                    Constraints.Of(parameter.GetAttributes(), IsCollection(underlying) && underlying.SpecialType != SpecialType.System_String)));
             }
 
             return bindings.ToImmutable();
@@ -356,18 +495,18 @@ namespace Resultful.OpenApi.Generator
             => System.Text.RegularExpressions.Regex.Replace(type.Replace("global::", string.Empty), @"\b(?:[A-Za-z_]\w*\.)+", string.Empty);
 
         /// <summary>The calls chained after a Map call: <c>.WithName("x").ExcludeFromDescription()</c>.</summary>
-        private static IEnumerable<(string Name, string? Argument)> Chain(InvocationExpressionSyntax invocation)
+        private static IEnumerable<(string Name, string? Argument, InvocationExpressionSyntax Call)> Chain(InvocationExpressionSyntax invocation)
         {
             SyntaxNode current = invocation;
             while (current.Parent is MemberAccessExpressionSyntax access && access.Parent is InvocationExpressionSyntax next)
             {
-                yield return (access.Name.Identifier.ValueText, next.ArgumentList.Arguments.Count > 0 ? Literal(next.ArgumentList.Arguments[0].Expression) : null);
+                yield return (access.Name.Identifier.ValueText, next.ArgumentList.Arguments.Count > 0 ? Literal(next.ArgumentList.Arguments[0].Expression) : null, next);
                 current = next;
             }
         }
 
-        /// <summary>The route prefix (and exclusion) of the group a Map call is made on, when it can be read from source.</summary>
-        private static (string? Prefix, bool Excluded) Group(ExpressionSyntax receiver, SemanticModel model, System.Threading.CancellationToken ct)
+        /// <summary>The route prefix, exclusion and calls of the group a Map call is made on, when it can be read from source.</summary>
+        private static (string? Prefix, bool Excluded, List<InvocationExpressionSyntax> Calls) Group(ExpressionSyntax receiver, SemanticModel model, System.Threading.CancellationToken ct)
         {
             if (receiver is IdentifierNameSyntax identifier
                 && model.GetSymbolInfo(identifier, ct).Symbol is ILocalSymbol local
@@ -378,10 +517,12 @@ namespace Resultful.OpenApi.Generator
 
             string? prefix = null;
             var excluded = false;
+            var calls = new List<InvocationExpressionSyntax>();
             foreach (var node in receiver.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (node.Expression is MemberAccessExpressionSyntax access)
                 {
+                    calls.Add(node);
                     if (access.Name.Identifier.ValueText == "MapGroup" && node.ArgumentList.Arguments.Count > 0)
                     {
                         prefix = Literal(node.ArgumentList.Arguments[0].Expression) ?? prefix;
@@ -391,7 +532,7 @@ namespace Resultful.OpenApi.Generator
                 }
             }
 
-            return (prefix, excluded);
+            return (prefix, excluded, calls);
         }
 
         private static string? Literal(ExpressionSyntax expression)
@@ -450,6 +591,11 @@ namespace Resultful.OpenApi.Generator
                 if (binding.Type != TypeName(parameter.Type))
                 {
                     yield return Diagnostic.Create(Diagnostics.BindingTypeMismatch, endpoint.Location, where, $"'{parameter.Name}'", binding.Type, TypeName(parameter.Type));
+                }
+
+                foreach (var difference in Constraints.Differences($"'{parameter.Name}'", parameter.Constraints, binding.Constraints))
+                {
+                    yield return Diagnostic.Create(Diagnostics.ParameterConstraintDiffers, endpoint.Location, where, difference);
                 }
 
                 if (!parameter.Required && !binding.Optional)
@@ -557,7 +703,8 @@ namespace Resultful.OpenApi.Generator
                 {
                     foreach (var status in operation.Statuses.Except(declared))
                     {
-                        yield return Diagnostic.Create(Diagnostics.ResponseNotDeclared, endpoint.Location, where, status);
+                        yield return Diagnostic.Create(Diagnostics.ResponseNotDeclared, endpoint.Location, where, status,
+                            endpoint.IsMap ? "a typed result or .Produces call" : "[ProducesResponseType]");
                     }
 
                     foreach (var status in declared.Except(operation.Statuses))

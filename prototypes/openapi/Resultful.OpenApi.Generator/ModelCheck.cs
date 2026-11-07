@@ -32,7 +32,9 @@ namespace Resultful.OpenApi.Generator
                     && ByConstruction(items, element, shapes);
             }
 
-            return true;
+            // A primitive isn't generated: it is consistent when it is the primitive the schema says.
+            return Canonical(schema) is not { } primitive
+                   || (shapes.TryGetValue(actual, out var p) && p.Kind == "Primitive" && p.Primitive == primitive);
         }
 
         public List<string> Differences(IOpenApiSchema schema, string actual, IReadOnlyDictionary<string, TypeShape> shapes)
@@ -185,6 +187,11 @@ namespace Resultful.OpenApi.Generator
                 }
 
                 Compare(property.Value, actual.Type, shapes, name, differences, visited);
+                if (RefId(property.Value) is null)
+                {
+                    differences.AddRange(Constraints.Differences($"{name} ({actual.Clr})", Constraints.Of(property.Value), actual.Constraints, actual.Misplaced));
+                }
+
                 var required = target.Required?.Contains(property.Key) == true;
                 var nullable = !required || Has(property.Value, JsonSchemaType.Null);
                 if (nullable != actual.Nullable)
@@ -211,7 +218,7 @@ namespace Resultful.OpenApi.Generator
                 case JsonSchemaType.Integer:
                     return schema.Format == "int64" ? "integer/int64" : "integer/int32";
                 case JsonSchemaType.Number:
-                    return schema.Format is "float" or "decimal" ? $"number/{schema.Format}" : "number/double";
+                    return schema.Format == "float" ? "number/float" : "number/double";
                 case JsonSchemaType.Boolean:
                     return "boolean";
                 default:

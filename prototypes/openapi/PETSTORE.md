@@ -450,8 +450,8 @@ once does:
 ```
 petstore.yaml(1,1): error RAPI010: The spec's operation 'deletePet' (DELETE /pets/{petId}) has no endpoint: add a controller action or Map call for it
 PetsController.cs(82,6): error RAPI011: PetsController.Health (GET /health) is not in the spec: document it, or leave it out of the OpenAPI description (...)
-PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the action declares no [ProducesResponseType] for it
-PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the action declares a 410 response, which the spec does not document
+PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the endpoint declares none; declare it with [ProducesResponseType]
+PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the endpoint declares a 410 response, which the spec does not document
 PetsController.cs(51,6): error RAPI014: PetsController.GetPet (GET /pets/{petId}) is named 'fetchPet'; name it 'getPet', the spec's operationId, which the OpenAPI description uses
 PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{petId}): the route parameter is '{id}', the spec calls it '{petId}'
 ```
@@ -494,7 +494,7 @@ What the tests show about the untouched scaffold:
 - **`ScaffoldTests`:**
   - the scaffolder reproduces the committed files byte for byte
   - it keeps files that exist unless forced
-  - its Minimal API style builds in a fresh project
+  - its Minimal API style builds in a fresh project, with `Verify` on and warnings as errors
 
 ## What tells you what
 
@@ -512,7 +512,8 @@ What the tests show about the untouched scaffold:
 | write a scenario file with a typo | `PetStoreFake.Check`, when it's loaded |
 | remove, rename or misdeclare a hand-written endpoint | the build (`RAPI010`–`RAPI015`), in projects that opt in to `Verify` |
 | bind a parameter or body from the wrong place, with the wrong type, or as required when it's optional | the build (`RAPI016`–`RAPI020`) |
-| use a model whose JSON differs from the schema, or a hand-written one where the generated one would do | the build (`RAPI022`, and `RAPI021` as info) |
+| use a model whose JSON or constraints differ from the schema, or a hand-written one where the generated one would do | the build (`RAPI022`, and `RAPI021` as info) |
+| constrain a parameter differently from the spec (`[Range]`, `[MaxLength]`) | the build (`RAPI023`) |
 | scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
 
 ## Where things are

@@ -214,12 +214,12 @@ namespace Resultful.OpenApi.Generator
 
         public static readonly DiagnosticDescriptor ResponseNotDeclared = new(
             "RAPI012", "Documented response not declared",
-            "{0}: the spec documents a {1} response, but the action declares no [ProducesResponseType] for it",
+            "{0}: the spec documents a {1} response, but the endpoint declares none; declare it with {2}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor ResponseNotDocumented = new(
             "RAPI013", "Declared response not documented",
-            "{0}: the action declares a {1} response, which the spec does not document",
+            "{0}: the endpoint declares a {1} response, which the spec does not document",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor OperationNameMismatch = new(
@@ -267,9 +267,14 @@ namespace Resultful.OpenApi.Generator
             "{0}: {1}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ParameterConstraintDiffers = new(
+            "RAPI023", "Parameter constraint differs",
+            "{0}: {1}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
             ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString,
                 OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch,
-                ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers);
+                ParameterNotBound, ParameterNotDocumented, BindingTypeMismatch, OptionalParameterRequired, BodyMismatch, ModelConsistent, ModelDiffers, ParameterConstraintDiffers);
     }
 }

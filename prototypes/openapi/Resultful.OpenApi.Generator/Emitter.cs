@@ -593,8 +593,9 @@ namespace Resultful.OpenApi.Generator
 
         private sealed class Param
         {
-            public Param(string name, string identifier, string type, string attribute)
+            public Param(string name, string identifier, string type, string attribute, IOpenApiSchema? schema = null)
             {
+                Schema = schema;
                 Name = name;
                 Identifier = identifier;
                 Type = type;
@@ -608,6 +609,8 @@ namespace Resultful.OpenApi.Generator
             public string Type { get; }
 
             public string Attribute { get; }
+
+            public IOpenApiSchema? Schema { get; }
         }
 
         private sealed class Response
@@ -797,7 +800,7 @@ namespace Resultful.OpenApi.Generator
                 }
 
                 var nullable = !parameter.Required ? "?" : string.Empty;
-                operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute));
+                operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute, parameter.Schema));
             }
 
             if (spec.RequestBody is { } requestBody)
