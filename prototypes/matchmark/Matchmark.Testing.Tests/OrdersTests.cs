@@ -21,13 +21,15 @@ public sealed class OrdersTests
     private static readonly string Samples = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "orders"));
 
     private static RegressionSuite Suite() => RegressionSuite.FromJson(
-        SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml"),
+        SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml", out _,
+            [(File.ReadAllText(Path.Combine(Samples, "orders.overlay.yaml")), "orders.overlay.yaml")]),
         SpecJson.Arazzo(File.ReadAllText(Path.Combine(Samples, "orders.arazzo.yaml")), "orders.arazzo.yaml"));
 
     private static readonly string[] Behaviour =
     [
         Checks.IdempotentReplay, Checks.IdempotencyKeyReuse, Checks.ETagChanges, Checks.StaleIfMatchRefused, Checks.PagesComplete,
         Checks.OperationCompletes, Checks.RetryAfterGiven, Checks.DeprecationAnnounced, Checks.WorkflowCriteria,
+        Checks.Postcondition, Checks.SchemaRule, Checks.TransitionRule, Checks.RelationHolds, Checks.InvalidRejected,
     ];
 
     [Test]
@@ -39,6 +41,7 @@ public sealed class OrdersTests
         report.Workflows.Select(w => $"{w.Name}: {w.Skipped ?? "ran"}").Should().Contain([
             "Orders checkout: checkout: ran",
             "paging listOrders: ran",
+            "prefix listOrders by limit: ran",
             "createOrder 201, then getOrder, updateOrder, payOrder: ran",
         ]);
         report.Workflows.Single(w => w.Name == "Orders checkout: checkout").Exchanges.Select(e => $"{e.Request.Method} {e.Status}").Should().Equal(
@@ -54,6 +57,11 @@ public sealed class OrdersTests
     [TestCase("never finishes a payment", Checks.OperationCompletes)]
     [TestCase("limits requests without saying when to retry", Checks.RetryAfterGiven)]
     [TestCase("forgets to announce the deprecation", Checks.DeprecationAnnounced)]
+    [TestCase("creates orders already paid", Checks.Postcondition)]
+    [TestCase("miscounts the total", Checks.SchemaRule)]
+    [TestCase("ships an order it hasn't been paid for", Checks.TransitionRule)]
+    [TestCase("orders a bigger page differently", Checks.RelationHolds)]
+    [TestCase("accepts a cursor without a limit", Checks.InvalidRejected)]
     public async Task Each_behaviour_catches_its_regression(string fault, string check)
     {
         var report = await Run(fault);
@@ -115,20 +123,28 @@ public sealed class OrdersTests
         private HttpResponseMessage List(HttpRequestMessage request)
         {
             var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            if (query["cursor"] is not null && query["limit"] is null && fault != "accepts a cursor without a limit")
+            {
+                return Invalid("limit", "Required with a cursor.");
+            }
+
             var limit = 20;
             if (query["limit"] is { } l && (!int.TryParse(l, out limit) || limit is < 1 or > 100))
             {
                 return Invalid("limit", "1 to 100.");
             }
 
+            // A cursor this API didn't give starts from the beginning (as some APIs do), so a request breaking only the
+            // dependency between cursor and limit is wrong in that way alone.
             var start = 0;
-            if (query["cursor"] is { } c && (!c.StartsWith('c') || !int.TryParse(c[1..], out start) || start > _orders.Count))
+            if (query["cursor"] is { } c && (c.Length > 200 || c.StartsWith('c') && (!int.TryParse(c[1..], out start) || start > _orders.Count)))
             {
                 return Invalid("cursor", "Not a cursor this API gave.");
             }
 
             var end = Math.Min(start + limit, _orders.Count);
-            var page = new JsonArray(_orders.Skip(start).Take(end - start).Select(o => (JsonNode)View(o)).ToArray());
+            var orders = fault == "orders a bigger page differently" && limit == 3 ? _orders.AsEnumerable().Reverse().ToList() : _orders;
+            var page = new JsonArray(orders.Skip(start).Take(end - start).Select(o => (JsonNode)View(o)).ToArray());
             var nextStart = fault == "repeats a page" ? start : end;
             var next = end < _orders.Count && !(fault == "loses the last page" && end + limit >= _orders.Count) ? $"c{nextStart}" : null;
             var response = Json(HttpStatusCode.OK, new JsonObject { ["items"] = page, ["next"] = next });
@@ -160,9 +176,15 @@ public sealed class OrdersTests
             var items = order["items"]!.AsArray();
             var record = (Id: Guid.NewGuid(), Order: new JsonObject
             {
-                ["status"] = "pending",
-                ["items"] = items.DeepClone(),
-                ["total"] = items.Sum(i => i!["quantity"]!.GetValue<int>() * 2.5m),
+                ["status"] = fault == "creates orders already paid" ? "paid" : "pending",
+                ["items"] = new JsonArray(items.Select(i => (JsonNode)new JsonObject
+                {
+                    ["sku"] = i!["sku"]!.DeepClone(),
+                    ["quantity"] = i["quantity"]!.DeepClone(),
+                    ["unitPrice"] = i["unitPrice"]?.DeepClone() ?? 2.5m,
+                }).ToArray()),
+                ["total"] = items.Sum(i => i!["quantity"]!.GetValue<int>() * (i["unitPrice"]?.GetValue<decimal>() ?? 2.5m))
+                            + (fault == "miscounts the total" ? 1 : 0),
                 ["note"] = order["note"]?.DeepClone(),
             }, Version: 1);
             _orders.Add(record);
@@ -229,7 +251,7 @@ public sealed class OrdersTests
             if (done)
             {
                 var index = _orders.FindIndex(o => o.Id == state.Order);
-                _orders[index].Order["status"] = "paid";
+                _orders[index].Order["status"] = fault == "ships an order it hasn't been paid for" ? "shipped" : "paid";
                 _orders[index] = _orders[index] with { Version = _orders[index].Version + 1 };
             }
 
@@ -314,6 +336,12 @@ public sealed class OrdersTests
                     || !decimal.TryParse(quantity.ToJsonString(), System.Globalization.CultureInfo.InvariantCulture, out var q) || q % 1 != 0 || q is < 1 or > 99)
                 {
                     return Invalid($"items[{i}].quantity", "A whole number from 1 to 99.");
+                }
+
+                if (line.ContainsKey("unitPrice") && (line["unitPrice"] is not JsonValue price || price.GetValueKind() != JsonValueKind.Number
+                    || !decimal.TryParse(price.ToJsonString(), System.Globalization.CultureInfo.InvariantCulture, out var p) || p < 0))
+                {
+                    return Invalid($"items[{i}].unitPrice", "A price of 0 or more.");
                 }
             }
 

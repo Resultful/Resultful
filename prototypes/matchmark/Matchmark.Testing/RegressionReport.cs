@@ -80,6 +80,18 @@ public static class Checks
     /// <summary>A deprecated operation announces it with a Deprecation header (RFC 9745), and its Sunset isn't earlier.</summary>
     public const string DeprecationAnnounced = nameof(DeprecationAnnounced);
 
+    /// <summary>An operation's x-matchmark-ensures (Arazzo criteria over the request and response) hold on each success.</summary>
+    public const string Postcondition = nameof(Postcondition);
+
+    /// <summary>Every x-matchmark-rules (CEL over self) on a schema holds for each instance of it in a response.</summary>
+    public const string SchemaRule = nameof(SchemaRule);
+
+    /// <summary>Every x-matchmark-transitions (CEL over self and oldSelf) holds between two readings of a resource.</summary>
+    public const string TransitionRule = nameof(TransitionRule);
+
+    /// <summary>A metamorphic relation holds: the first n results are the start of the first n + 1 (prefix).</summary>
+    public const string RelationHolds = nameof(RelationHolds);
+
     /// <summary>Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles.</summary>
     public const string WorkflowCriteria = nameof(WorkflowCriteria);
 }

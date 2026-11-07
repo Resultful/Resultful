@@ -106,8 +106,11 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    that proves them. Then the generated client, the fake and the server, one behaviour at a time, starting with
    idempotency and concurrency on Orders. This is the semantic model of VISION.md's stage 2, with behaviour as traits on
    operations.
-4. **Overlays at build time.** The spec plus its overlays becomes the effective document that the generator and engine
-   read. This is how behaviour attaches to an API you don't own, which the twins in GAPS.md need.
+4. ✓ **Overlays at build time.** The spec plus its overlays becomes the effective document that the generator and engine
+   read. This is how behaviour attaches to an API you don't own, which the twins in GAPS.md need. Overlay 1.0 to 1.2:
+   `update` (objects merged, arrays appended), `remove`, and `copy`; targets are JSONPath with filters. An overlay is a
+   `MatchmarkOverlay="true"` item next to the spec, or `--overlay` to `scaffold` and `regress`. The invariants it carries
+   (COMPLETENESS.md) are checked by the engine.
 5. **OpenAPI 3.2 and events.** `QUERY`, streamed items and webhooks, then AsyncAPI. This waits on a reader that
    understands 3.2.
 

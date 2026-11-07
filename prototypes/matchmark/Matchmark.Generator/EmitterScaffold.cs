@@ -447,8 +447,14 @@ private sealed class MissingDiscriminator : IExceptionFilter
         public static IReadOnlyDictionary<string, string> Scaffold(
             string specText, string specName, string contractNamespace, string projectNamespace, string apiName, bool controllers,
             out IReadOnlyList<string> warnings)
+            => Scaffold(specText, specName, contractNamespace, projectNamespace, apiName, controllers, Array.Empty<(string, string)>(), out warnings);
+
+        /// <summary>The same, with overlays applied to the spec first.</summary>
+        public static IReadOnlyDictionary<string, string> Scaffold(
+            string specText, string specName, string contractNamespace, string projectNamespace, string apiName, bool controllers,
+            IEnumerable<(string Text, string Path)> overlays, out IReadOnlyList<string> warnings)
         {
-            var document = SpecReader.Read(specText, specName, out var problems)
+            var document = SpecReader.Read(specText, specName, out var problems, overlays)
                 ?? throw new InvalidOperationException($"{specName} could not be read: {string.Join("; ", problems)}");
             var emitter = new Emitter(document, projectNamespace, apiName, Microsoft.CodeAnalysis.Location.None, describesItself: true);
             var files = emitter.Scaffold(contractNamespace, specName, controllers);

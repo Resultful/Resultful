@@ -36,17 +36,14 @@ namespace Matchmark.Generator
                     HasFakes: compilation.GetTypeByMetadataName("Matchmark.Fakes.Scenario") is not null,
                     HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null));
 
-            // Arazzo documents for the Regression part: AdditionalFiles marked MatchmarkArazzo, joined to a spec by MatchmarkApiName.
-            var arazzo = context.AdditionalTextsProvider
-                .Combine(context.AnalyzerConfigOptionsProvider)
-                .Select(static (pair, ct) => ReadArazzo(pair.Left, pair.Right, ct))
-                .Where(static a => a is not null)
-                .Select(static (a, _) => a!.Value)
-                .Collect();
+            // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
+            // AdditionalFiles joined to a spec by MatchmarkApiName.
+            var arazzo = Companions(context, "MatchmarkArazzo");
+            var overlays = Companions(context, "MatchmarkOverlay");
 
-            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo), static (spc, pair) =>
-                Generate(spc, pair.Left.Left, pair.Left.Right.DescribesItself, pair.Left.Right.HasFakes, pair.Left.Right.HasRegression,
-                    pair.Right.Where(a => a.ApiName == pair.Left.Left.ApiName).ToList()));
+            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays), static (spc, pair) =>
+                Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
+                    pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList()));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -57,7 +54,9 @@ namespace Matchmark.Generator
                 .SelectMany(static (endpoints, _) => endpoints);
             var endpoints = actions.Collect().Combine(maps.Collect())
                 .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
-            var verified = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)));
+            var verified = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)))
+                .Combine(overlays)
+                .Select(static (pair, _) => With(pair.Left, pair.Right));
             context.RegisterSourceOutput(verified.Combine(endpoints), static (spc, pair) => Verify(spc, pair.Left, pair.Right));
         }
 
@@ -82,10 +81,22 @@ namespace Matchmark.Generator
             return json;
         }
 
-        private static (string ApiName, string Path, string Content)? ReadArazzo(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
+        private static IncrementalValueProvider<ImmutableArray<(string ApiName, string Path, string Content)>> Companions(IncrementalGeneratorInitializationContext context, string flag)
+            => context.AdditionalTextsProvider
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Select((pair, ct) => ReadCompanion(pair.Left, pair.Right, flag, ct))
+                .Where(static a => a is not null)
+                .Select(static (a, _) => a!.Value)
+                .Collect();
+
+        /// <summary>The spec with its overlays (those for its API name), applied when it's read.</summary>
+        private static SpecInput With(SpecInput spec, ImmutableArray<(string ApiName, string Path, string Content)> overlays)
+            => spec.WithOverlays(overlays.Where(o => o.ApiName == spec.ApiName).Select(o => (o.Content, o.Path)).ToList());
+
+        private static (string ApiName, string Path, string Content)? ReadCompanion(AdditionalText text, AnalyzerConfigOptionsProvider options, string flag, System.Threading.CancellationToken ct)
         {
             var fileOptions = options.GetOptions(text);
-            if (!fileOptions.TryGetValue(MetadataPrefix + "MatchmarkArazzo", out var enabled) || !string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)
+            if (!fileOptions.TryGetValue(MetadataPrefix + flag, out var enabled) || !string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)
                 || !fileOptions.TryGetValue(MetadataPrefix + "MatchmarkApiName", out var apiName) || string.IsNullOrWhiteSpace(apiName))
             {
                 return null;
@@ -128,7 +139,7 @@ namespace Matchmark.Generator
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
         {
             var location = Location.Create(spec.Path, default, default);
-            if (SpecReader.Read(spec.Content, spec.Path, out _) is not { } document)
+            if (SpecReader.Read(spec.Content, spec.Path, out _, spec.Overlays) is not { } document)
             {
                 return; // Generate reports the unreadable spec, and what the reader objected to.
             }
@@ -144,7 +155,7 @@ namespace Matchmark.Generator
             IReadOnlyList<(string ApiName, string Path, string Content)> arazzo)
         {
             var location = Location.Create(spec.Path, default, default);
-            var document = SpecReader.Read(spec.Content, spec.Path, out var problems);
+            var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
             if (document is null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidSpec, location, spec.Path, string.Join("; ", problems)));
@@ -202,9 +213,15 @@ namespace Matchmark.Generator
 
         public string ApiName { get; }
 
+        /// <summary>Overlays (text and path) applied to the spec before it's read.</summary>
+        public IReadOnlyList<(string Text, string Path)> Overlays { get; private set; } = Array.Empty<(string, string)>();
+
+        public SpecInput WithOverlays(IReadOnlyList<(string Text, string Path)> overlays)
+            => new(Path, Content, Namespace, ApiName, Parts) { Overlays = overlays };
+
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts;
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Overlays.SequenceEqual(other.Overlays);
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);
 

@@ -334,13 +334,18 @@ failure comes with the request as a `curl` command.
 | `OperationCompletes` | work accepted with 202, polled at its `Location` or link, didn't reach a final state |
 | `RetryAfterGiven` | a 429 had no `Retry-After` (with one, the engine waits, capped, and retries) |
 | `DeprecationAnnounced` | a `deprecated` operation's response had no `Deprecation` header (RFC 9745), or its `Sunset` was earlier |
+| `Postcondition` | a success broke the operation's `x-matchmark-ensures` (Arazzo criteria over `$request` and `$response`) |
+| `SchemaRule` | an instance of a schema in a response broke one of its `x-matchmark-rules` (CEL over `self`) |
+| `TransitionRule` | two readings of a resource broke its schema's `x-matchmark-transitions` (CEL over `self` and `oldSelf`) |
+| `RelationHolds` | asking for n then n + 1 results (`x-matchmark-relations` prefix, or a paged list's limit), the first weren't the start of the second |
 
 The report also measures **outcome coverage:** which documented operation-and-status pairs any request reached. Against
 the Pet Store service it reaches all 12, conflicts and missing pets included.
 
 `SafeChangesNothing` to `WriteOnlyHidden` need nothing declared, and `IdempotentReplay` to `DeprecationAnnounced` are
 inferred from standard HTTP the spec already uses (an `Idempotency-Key` or `If-Match` header, a cursor, a 202, a 429,
-`deprecated`). `OrdersTests` proves each against an Orders API in memory, right and then wrong in one way at a time: HTTP and JSON Schema already promise them, so they hold any API to them.
+`deprecated`). `Postcondition` to `RelationHolds` read the invariants an overlay declares (COMPLETENESS.md), and
+`x-dependencies` adds a case per dependency, checked by `InvalidRejected`. `OrdersTests` proves each against an Orders API in memory, right and then wrong in one way at a time: HTTP and JSON Schema already promise them, so they hold any API to them.
 
 **Arazzo workflows** run too. An Arazzo document given with the spec (`MatchmarkArazzo="true"` on its
 `AdditionalFiles` item, joined by `MatchmarkApiName`, or `--arazzo` on the command line) adds its workflows to the

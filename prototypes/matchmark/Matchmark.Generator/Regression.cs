@@ -12,9 +12,9 @@ namespace Matchmark.Generator
     {
         public static string Normalize(string text, string path) => Normalize(text, path, out _);
 
-        /// <summary>The spec as OpenAPI 3.1 JSON, with what the reader objected to (and left out).</summary>
-        public static string Normalize(string text, string path, out IReadOnlyList<string> problems)
-            => Write(SpecReader.Read(text, path, out problems)
+        /// <summary>The spec, with any overlays applied, as OpenAPI 3.1 JSON, with what the reader objected to (and left out).</summary>
+        public static string Normalize(string text, string path, out IReadOnlyList<string> problems, IEnumerable<(string Text, string Path)>? overlays = null)
+            => Write(SpecReader.Read(text, path, out problems, overlays)
                 ?? throw new InvalidOperationException($"{path} could not be read: {string.Join("; ", problems)}"));
 
         /// <summary>An Arazzo document (YAML or JSON) as JSON, for the regression engine.</summary>
