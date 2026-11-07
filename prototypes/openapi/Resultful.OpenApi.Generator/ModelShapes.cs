@@ -9,8 +9,11 @@ namespace Resultful.OpenApi.Generator
     /// <summary>One JSON property of a type, as System.Text.Json (web defaults) would read and write it.</summary>
     internal sealed class ShapeProperty : IEquatable<ShapeProperty>
     {
-        public ShapeProperty(string json, string clr, string type, bool nullable, bool required)
+        public ShapeProperty(string json, string clr, string type, bool nullable, bool required, ImmutableArray<(string Keyword, string Value)> constraints,
+            ImmutableArray<(string Keyword, string Value)> misplaced)
         {
+            Constraints = constraints;
+            Misplaced = misplaced;
             Json = json;
             Clr = clr;
             Type = type;
@@ -30,8 +33,18 @@ namespace Resultful.OpenApi.Generator
         /// <summary>Declared <c>required</c>, or [JsonRequired].</summary>
         public bool Required { get; }
 
+        /// <summary>Its DataAnnotations, as schema keywords.</summary>
+        public ImmutableArray<(string Keyword, string Value)> Constraints { get; }
+
+        /// <summary>
+        /// DataAnnotations on the positional record parameter the property comes from. They apply to the parameter, not
+        /// the property, so ASP.NET Core's OpenAPI document doesn't carry them; <c>[property: ...]</c> fixes it.
+        /// </summary>
+        public ImmutableArray<(string Keyword, string Value)> Misplaced { get; }
+
         public bool Equals(ShapeProperty? other)
-            => other is not null && Json == other.Json && Clr == other.Clr && Type == other.Type && Nullable == other.Nullable && Required == other.Required;
+            => other is not null && Json == other.Json && Clr == other.Clr && Type == other.Type && Nullable == other.Nullable && Required == other.Required
+               && Constraints.SequenceEqual(other.Constraints) && Misplaced.SequenceEqual(other.Misplaced);
 
         public override bool Equals(object? obj) => Equals(obj as ShapeProperty);
 
@@ -161,7 +174,10 @@ namespace Resultful.OpenApi.Generator
                     var json = property.GetAttributes().FirstOrDefault(a => a.AttributeClass?.Name == "JsonPropertyNameAttribute")?.ConstructorArguments.FirstOrDefault().Value as string
                         ?? char.ToLowerInvariant(property.Name[0]) + property.Name.Substring(1);
                     var required = property.IsRequired || property.GetAttributes().Any(a => a.AttributeClass?.Name == "JsonRequiredAttribute");
-                    properties.Add(new ShapeProperty(json, property.Name, NameOf(property.Type), IsNullable(property.Type), required));
+                    var array = ElementOf(Underlying(property.Type)) is not null;
+                    properties.Add(new ShapeProperty(json, property.Name, NameOf(property.Type), IsNullable(property.Type), required,
+                        Generator.Constraints.Of(property.GetAttributes(), array),
+                        PositionalParameter(property) is { } parameter ? Generator.Constraints.Of(parameter.GetAttributes(), array) : ImmutableArray<(string, string)>.Empty));
                     Collect(property.Type, into, depth + 1);
                 }
             }
@@ -183,6 +199,12 @@ namespace Resultful.OpenApi.Generator
                 Collect(d.Type!, into, depth + 1);
             }
         }
+
+        /// <summary>The primary constructor parameter a positional record's property is declared by, if it is one.</summary>
+        private static IParameterSymbol? PositionalParameter(IPropertySymbol property)
+            => property.DeclaringSyntaxReferences.Any(r => r.GetSyntax().IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.Parameter))
+                ? property.ContainingType.InstanceConstructors.SelectMany(c => c.Parameters).FirstOrDefault(p => p.Name == property.Name)
+                : null;
 
         private static bool HasStringEnumConverter(INamedTypeSymbol type)
             => type.GetAttributes().Any(a => a.AttributeClass?.Name == "JsonConverterAttribute"
@@ -214,7 +236,7 @@ namespace Resultful.OpenApi.Generator
             SpecialType.System_Int64 or SpecialType.System_UInt32 => "integer/int64",
             SpecialType.System_Double => "number/double",
             SpecialType.System_Single => "number/float",
-            SpecialType.System_Decimal => "number/decimal",
+            SpecialType.System_Decimal => "number/double", // ASP.NET Core's OpenAPI document describes decimal as a double
             SpecialType.System_DateTime => "string/date-time",
             _ => type.ToDisplayString() switch
             {

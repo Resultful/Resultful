@@ -67,7 +67,7 @@ public sealed class ScaffoldTests
 
     [Test]
     [Category("Slow")]
-    public async Task The_minimal_API_style_builds()
+    public async Task The_minimal_API_style_builds_and_verifies_against_the_spec()
     {
         var directory = Directory.CreateTempSubdirectory("scaffold-minimal-").FullName;
         try
@@ -77,10 +77,20 @@ public sealed class ScaffoldTests
                   <PropertyGroup>
                     <TargetFramework>net10.0</TargetFramework>
                     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+                    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
                   </PropertyGroup>
                   <ItemGroup>
                     <ProjectReference Include="{Path.Combine(Root, "Resultful.OpenApi.Sample.Contract", "Resultful.OpenApi.Sample.Contract.csproj")}" />
                     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
+                  </ItemGroup>
+                  <!-- Verify, with warnings as errors: the scaffolded Map calls, their responses and models must match the spec. -->
+                  <ItemGroup>
+                    <ProjectReference Include="{Path.Combine(Root, "Resultful.OpenApi.Generator", "Resultful.OpenApi.Generator.csproj")}" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+                    <AdditionalFiles Include="{Path.Combine(Root, "Resultful.OpenApi.Sample.Contract", "petstore.yaml")}" ResultfulOpenApi="true" ResultfulNamespace="PetStore.Api" ResultfulApiName="PetStore" ResultfulParts="Verify" />
+                    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulOpenApi" />
+                    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulNamespace" />
+                    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulApiName" />
+                    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ResultfulParts" />
                   </ItemGroup>
                 </Project>
                 """);

@@ -443,8 +443,9 @@ namespace Resultful.OpenApi.Generator
     /// <summary>A path, query or header parameter: where it comes from, its name, its C# type and whether it's required.</summary>
     internal sealed class SpecParameter
     {
-        public SpecParameter(string source, string name, string type, bool required)
+        public SpecParameter(string source, string name, string type, bool required, IReadOnlyList<(string Keyword, string Value)> constraints)
         {
+            Constraints = constraints;
             Source = source;
             Name = name;
             Type = type;
@@ -459,6 +460,9 @@ namespace Resultful.OpenApi.Generator
         public string Type { get; }
 
         public bool Required { get; }
+
+        /// <summary>The schema's validation keywords (minLength, maximum, pattern...), normalised as Constraints.Of reads them.</summary>
+        public IReadOnlyList<(string Keyword, string Value)> Constraints { get; }
     }
 
     internal sealed partial class Emitter
@@ -473,7 +477,8 @@ namespace Resultful.OpenApi.Generator
                     o.Path,
                     o.Successes.Concat(o.Errors).Select(r => r.Status).OrderBy(s => s).ToList(),
                     o.Parameters.Select(p => new SpecParameter(
-                        p.Attribute.Substring(4), p.Name, p.Type.TrimEnd('?'), !p.Type.EndsWith("?", StringComparison.Ordinal))).ToList(),
+                        p.Attribute.Substring(4), p.Name, p.Type.TrimEnd('?'), !p.Type.EndsWith("?", StringComparison.Ordinal),
+                        p.Schema is null ? Array.Empty<(string, string)>() : Constraints.Of(p.Schema))).ToList(),
                     o.Body?.Type,
                     o.Body?.Schema,
                     o.Successes.Concat(o.Errors).ToDictionary(r => r.Status, r => r.Schema)))

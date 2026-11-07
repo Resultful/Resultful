@@ -107,7 +107,8 @@ The untouched output is committed as `Resultful.OpenApi.Sample.Scaffolded`, and 
 - **Conforms before anyone edits it.** `ScaffoldedServerTests` checks the scaffolded controllers' OpenAPI document
   against the spec with no excused differences, sends every operation's reference answer through the
   conformance-checking client, and checks request validation.
-- **Minimal API style builds.** A slow test scaffolds that style into a fresh project and runs `dotnet build`.
+- **Minimal API style builds and verifies.** A slow test scaffolds that style into a fresh project and runs
+  `dotnet build` with `Verify` on and warnings as errors, so its Map calls, responses and models must match the spec.
 
 #### Verified at compile time
 
@@ -119,8 +120,8 @@ the spec's operations. Nothing is generated; it only reports:
 |:--|:--|
 | `RAPI010` | an operation in the spec has no endpoint |
 | `RAPI011` | an endpoint is not in the spec and not left out of the OpenAPI description |
-| `RAPI012` | the spec documents a response the action doesn't declare (`[ProducesResponseType]`) |
-| `RAPI013` | the action declares a response the spec doesn't document |
+| `RAPI012` | the spec documents a response the endpoint doesn't declare |
+| `RAPI013` | the endpoint declares a response the spec doesn't document |
 | `RAPI014` | the endpoint's name isn't the spec's `operationId` |
 | `RAPI015` | a route parameter is named differently from the spec |
 
@@ -132,8 +133,16 @@ What it understands:
   in the spec or out of the OpenAPI description.
 
 They are ordinary warnings: with warnings as errors, a gap fails the build, and `.editorconfig` can set each one's
-severity. Responses are checked for controllers. For Minimal API endpoints the route, name and parameters are checked,
-but not the responses, since those come from return types, not attributes.
+severity.
+
+Responses are read the way ASP.NET Core's API explorer reads them, so what the verifier sees is what the OpenAPI
+document will say:
+- **Controllers:** `[ProducesResponseType]`, with or without a type. A success declared without a type takes the
+  action's return type (`ActionResult<T>`, `T`), and an `object` or `IActionResult` return type is unknown.
+- **Minimal API:** the metadata of the handler's typed results (each case of `Results<Ok<Pet>, NotFound>`,
+  `ValidationProblem` as a 400 of `HttpValidationProblemDetails`), then `.Produces<T>()`, `.ProducesProblem()` and
+  `.ProducesValidationProblem()` on the call or its group. With none of these, a handler returning `T` is a 200 of `T`,
+  and any other is a plain 200. `ProblemHttpResult` declares nothing, so problems need `.Produces` or `.ProducesProblem`.
 
 It also checks that every parameter is wired up, using ASP.NET Core's own binding rules. An explicit `[From*]`
 attribute wins. Otherwise:
@@ -196,7 +205,19 @@ PetsController.cs(23,6): error RAPI022: PetsController.ListPets (GET /pets): the
 PetsController.cs(83,6): error RAPI022: PetsController.DeletePet (DELETE /pets/{petId}): the 204 response is Pet, but the spec's 204 response has no body
 ```
 
-Minimal API bodies are compared the same way. Minimal API responses are not, for the same reason as their statuses.
+Minimal API bodies and responses are compared the same way.
+
+Constraints are compared too, again as the served document would carry them. ASP.NET Core writes DataAnnotations into
+its OpenAPI document, so a hand-written model's `[MinLength]`, `[MaxLength]`, `[Length]`, `[StringLength]`, `[Range]`
+and `[RegularExpression]` are read as `minLength`, `maxLength`, `minItems`, `maxItems`, `minimum`, `maximum`,
+`exclusiveMinimum`, `exclusiveMaximum` and `pattern`, and each must match the schema. That mapping was checked against
+ASP.NET Core 10's own output, which also showed a trap: on a positional record, `[MaxLength(50)] string Name` applies to
+the constructor parameter, not the property, so the document doesn't carry it. The verifier says so and gives the fix,
+`[property: MaxLength(50)]`. The generated models carry their annotations, so they are consistent by construction here too.
+
+| Diagnostic | Meaning |
+|:--|:--|
+| `RAPI023` | a bound parameter's constraints differ from its schema's (`[Range(0, 1000)] int? limit` where the spec says `minimum: 1, maximum: 100`) |
 
 
 The scaffolded Pet Store opts in, so its clean build is itself the proof that every operation is covered. Breaking its
@@ -205,15 +226,14 @@ controller five ways at once gives:
 ```
 petstore.yaml(1,1): error RAPI010: The spec's operation 'deletePet' (DELETE /pets/{petId}) has no endpoint: add a controller action or Map call for it
 PetsController.cs(82,6): error RAPI011: PetsController.Health (GET /health) is not in the spec: document it, or leave it out of the OpenAPI description (...)
-PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the action declares no [ProducesResponseType] for it
-PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the action declares a 410 response, which the spec does not document
+PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the endpoint declares none; declare it with [ProducesResponseType]
+PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the endpoint declares a 410 response, which the spec does not document
 PetsController.cs(51,6): error RAPI014: PetsController.GetPet (GET /pets/{petId}) is named 'fetchPet'; name it 'getPet', the spec's operationId, which the OpenAPI description uses
 PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{petId}): the route parameter is '{id}', the spec calls it '{petId}'
 ```
 
 This is the round-trip test's guarantee moved from test time to compile time, for owned code. The round-trip test still
-runs, and still catches what attributes and types can't show, such as content types and schema constraints
-(`maxLength`, `pattern`).
+runs, and still catches what attributes and types can't show, such as content types.
 
 The round-trip test earned its keep again here. MVC's JSON input also accepts `application/*+json`, so the controllers
 advertised a request content type the spec doesn't document. The scaffolded conventions now remove it, so the server
