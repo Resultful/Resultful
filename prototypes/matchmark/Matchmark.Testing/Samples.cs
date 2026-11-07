@@ -20,7 +20,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
     public bool TrySample(JsonNode schemaNode, bool full, out JsonNode? value)
     {
         value = Build(schemaNode, full, 0, string.Empty, _ => 0, out var ok);
-        return ok && validator.IsValid(value, schemaNode);
+        return ok && validator.IsValid(value, schemaNode, Direction.Request);
     }
 
     /// <summary>
@@ -32,7 +32,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
         var unions = new List<(string Path, int Members, List<string> Labels)>();
         var first = Build(schemaNode, true, 0, string.Empty, path => 0, out var ok, unions);
         var samples = new List<(string, JsonNode?)>();
-        if (!ok || !validator.IsValid(first, schemaNode))
+        if (!ok || !validator.IsValid(first, schemaNode, Direction.Request))
         {
             return samples;
         }
@@ -44,7 +44,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             {
                 var choice = k;
                 var value = Build(schemaNode, true, 0, string.Empty, p => p == path ? choice : 0, out var memberOk);
-                if (memberOk && validator.IsValid(value, schemaNode))
+                if (memberOk && validator.IsValid(value, schemaNode, Direction.Request))
                 {
                     samples.Add(($" ({labels[k]})", value));
                 }
@@ -61,7 +61,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
         var schema = spec.Resolve(schemaNode);
         foreach (var candidate in new[] { schema["example"], (schema["examples"] as JsonArray)?.FirstOrDefault(), schema["default"], schema["const"] })
         {
-            if (candidate is not null && validator.IsValid(candidate, schema))
+            if (candidate is not null && validator.IsValid(candidate, schema, Direction.Request))
             {
                 return candidate.DeepClone();
             }
@@ -141,7 +141,8 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                 var required = (schema["required"] as JsonArray ?? []).Select(r => r!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
                 foreach (var (name, property) in schema["properties"]?.AsObject() ?? [])
                 {
-                    if (!required.Contains(name) && !full)
+                    // Read-only values are the server's to set; a request doesn't send them (the suite's read-only case does, on purpose).
+                    if (!required.Contains(name) && !full || validator.Flag(property!, "readOnly"))
                     {
                         continue;
                     }
@@ -215,11 +216,11 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
 
     /// <summary>Valid copies of <paramref name="root"/> with one value moved to each bound its schema has.</summary>
     public IEnumerable<Variant> Boundaries(JsonNode? root, JsonNode schema)
-        => Walk(root, schema, string.Empty, Bounds).Where(v => validator.IsValid(v.Value, schema)).DistinctBy(v => v.Value?.ToJsonString());
+        => Walk(root, schema, string.Empty, Bounds).Where(v => validator.IsValid(v.Value, schema, Direction.Request)).DistinctBy(v => v.Value?.ToJsonString());
 
     /// <summary>Copies of <paramref name="root"/> that each break exactly one constraint, and so must be rejected.</summary>
     public IEnumerable<Variant> Violations(JsonNode? root, JsonNode schema)
-        => Walk(root, schema, string.Empty, Breaks).Where(v => !validator.IsValid(v.Value, schema)).DistinctBy(v => v.Value?.ToJsonString());
+        => Walk(root, schema, string.Empty, Breaks).Where(v => !validator.IsValid(v.Value, schema, Direction.Request)).DistinctBy(v => v.Value?.ToJsonString());
 
     private delegate IEnumerable<(string Description, JsonNode? Value)> Leaf(JsonNode? value, JsonObject schema);
 
@@ -501,7 +502,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             }
 
             var property = spec.Resolve(propertySchema);
-            if (property["enum"] is not null || property["format"] is not null)
+            if (property["enum"] is not null || property["format"] is not null || property["readOnly"]?.GetValueKind() == JsonValueKind.True)
             {
                 continue;
             }
@@ -510,13 +511,13 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             var max = SchemaValidator.Count(property, "maxLength") ?? int.MaxValue;
             var candidate = (original.Length + suffix.Length > max ? original[..Math.Max(0, max - suffix.Length)] : original) + suffix;
             copy[name] = candidate;
-            if (!validator.IsValid(copy[name], property))
+            if (!validator.IsValid(copy[name], property, Direction.Request))
             {
                 copy[name] = original;
             }
         }
 
-        return validator.IsValid(copy, schema) ? copy : obj.DeepClone();
+        return validator.IsValid(copy, schema, Direction.Request) ? copy : obj.DeepClone();
     }
 
     private static string Letters(int n)

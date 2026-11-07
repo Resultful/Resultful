@@ -113,10 +113,10 @@ public sealed class RegressionSuite
                 }
 
                 (minimal, full) = (built.Node, alternatives[0].Value);
-                example = body.Example is { } e && _suite.Validator.IsValid(e, body.Schema) ? e : null;
+                example = body.Example is { } e && _suite.Validator.IsValid(e, body.Schema, Direction.Request) ? e : null;
                 if (body.Example is not null && example is null)
                 {
-                    Gaps.Add($"{operation}: the request body's example doesn't match its schema: {string.Join("; ", _suite.Validator.Validate(body.Example, body.Schema))}");
+                    Gaps.Add($"{operation}: the request body's example doesn't match its schema: {string.Join("; ", _suite.Validator.Validate(body.Example, body.Schema, direction: Direction.Request))}");
                 }
             }
 
@@ -137,6 +137,20 @@ public sealed class RegressionSuite
             // The same request again, byte for byte: whatever it means (a conflict, the same answer), it must be documented.
             var again = Cases[^1];
             Cases.Add(again with { Name = Unique($"{operation.Id}: valid, the same request again") });
+
+            // Read-only values sent anyway: the server sets them, so it must ignore them or refuse the request.
+            if (operation.Body is { } readOnlyBody && full is JsonObject fullObject
+                && ReadOnlySentinels(readOnlyBody.Schema) is { Count: > 0 } sentinels)
+            {
+                var sent = (JsonObject)fullObject.DeepClone();
+                foreach (var (name, value) in sentinels)
+                {
+                    sent[name] = value.DeepClone();
+                }
+
+                Add(operation, CaseKind.ReadOnlySent, $"valid, with read-only {string.Join(", ", sentinels.Keys)} sent", required, sent, "body");
+                Cases[^1] = Cases[^1] with { ReadOnlySent = sentinels };
+            }
 
             // Every other member of every union in the body.
             foreach (var (label, value) in alternatives.Skip(1))
@@ -207,6 +221,39 @@ public sealed class RegressionSuite
             }
         }
 
+        /// <summary>
+        /// A value for each top-level <c>readOnly</c> property, distinctive enough that seeing it in the response means the
+        /// server stored what it should have set itself.
+        /// </summary>
+        private Dictionary<string, JsonNode> ReadOnlySentinels(JsonNode schemaNode)
+        {
+            var sentinels = new Dictionary<string, JsonNode>(StringComparer.Ordinal);
+            foreach (var (name, property) in _suite.Spec.Resolve(schemaNode)["properties"]?.AsObject() ?? [])
+            {
+                if (property is null || !_suite.Validator.Flag(property, "readOnly"))
+                {
+                    continue;
+                }
+
+                var resolved = _suite.Spec.Resolve(property);
+                var types = SchemaValidator.Types(resolved);
+                JsonNode? value = resolved["format"]?.GetValue<string>() switch
+                {
+                    "uuid" => JsonValue.Create("00000000-0000-4000-8000-00000000beef"),
+                    "date-time" => JsonValue.Create("1999-12-31T23:59:59Z"),
+                    _ when types.Contains("integer") || types.Contains("number") => JsonValue.Create(987654321m),
+                    _ when types.Contains("string") => JsonValue.Create("read-only-sent"),
+                    _ => null,
+                };
+                if (value is not null)
+                {
+                    sentinels[name] = value;
+                }
+            }
+
+            return sentinels;
+        }
+
         /// <summary>A valid identifier no resource is likely to have: the largest integer allowed, an all-f uuid, a long name.</summary>
         /// <remarks>Each operation gets its own, so one that creates (an upsert) doesn't make another's exist.</remarks>
         private JsonNode? Unused(JsonNode schemaNode, int n)
@@ -223,7 +270,7 @@ public sealed class RegressionSuite
 
         private (JsonNode? Node, bool _)? Value(JsonNode? example, JsonNode schema, bool full)
         {
-            if (example is not null && _suite.Validator.IsValid(example, schema))
+            if (example is not null && _suite.Validator.IsValid(example, schema, Direction.Request))
             {
                 return (example.DeepClone(), true);
             }

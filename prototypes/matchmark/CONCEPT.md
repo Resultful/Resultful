@@ -320,15 +320,23 @@ failure comes with the request as a `curl` command.
 | `ResourceAvailable` | following a link from a success fails |
 | `ReadAfterWrite` | reading back what was just written differs from what the write returned |
 | `DeletedIsGone` | after a successful delete, reading it back isn't 404 or 410 |
+| `SafeChangesNothing` | a `GET`, `HEAD` or `QUERY` changed what the API shows: every parameterless collection, and the resource at the request's own path, are read before and after ([RFC 9110 §9.2.1](https://www.rfc-editor.org/rfc/rfc9110#section-9.2.1)) |
+| `IdempotentTwice` | a valid `PUT` or `DELETE` sent again changed what the API shows. The effect is compared, not the answer, so a second `DELETE`'s 404 is fine ([§9.2.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2)) |
+| `LocationReadable` | a success's `Location` can't be read, where the spec has an operation that reads it |
+| `ReadOnlyIgnored` | a `readOnly` value sent anyway (a case of its own; valid cases never send one) was stored |
+| `WriteOnlyHidden` | a `writeOnly` value (a password, a secret) came back in a response |
 
 The report also measures **outcome coverage:** which documented operation-and-status pairs any request reached. Against
 the Pet Store service it reaches all 12, conflicts and missing pets included.
 
+The last five need nothing declared: HTTP and JSON Schema already promise them, so they hold any API to them.
+
 **Every check is checked.** `SpecRegressionTests` puts a fault injector in front of the real service, one fault per
 check: a 404 turned into a 500, or into a 410; JSON sent as `text/plain`; a pet without its status; a valid pet
 rejected; an invalid one accepted; errors that name the wrong thing; a pet lost as soon as it's created, or read back
-renamed; a delete that doesn't happen. Each fault fails the check it guards. `EngineTests` covers the required header,
-which the Pet Store's spec doesn't declare.
+renamed; a delete that doesn't happen; a read that deletes; a second identical `PUT` that renames. Each fault fails
+the check it guards. `EngineTests` covers what the Pet Store's spec doesn't declare (a required header, `readOnly`,
+`writeOnly`, `Location`) against a small Widgets API with one fault at a time.
 
 **Where it runs:**
 - **Against the service, the untouched scaffold and the fake server.** All three pass. Stateless targets (the

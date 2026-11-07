@@ -12,18 +12,48 @@ namespace Matchmark.Testing;
 /// allOf, anyOf and oneOf (by discriminator when there is one). Every violation is reported at its path:
 /// <c>details.livesLeft</c>, <c>[0].id</c>; the body itself is the empty path.
 /// </summary>
+/// <summary>Which way a value travels, for <c>readOnly</c> and <c>writeOnly</c>.</summary>
+public enum Direction
+{
+    Any,
+    Request,
+    Response,
+}
+
 public sealed class SchemaValidator(OpenApiSpec spec)
 {
     private static readonly ConcurrentDictionary<string, Regex> Patterns = new(StringComparer.Ordinal);
 
-    public List<string> Validate(JsonNode? value, JsonNode schema, string path = "")
+    /// <param name="direction">
+    /// Which way the value travels. In a request, a required <c>readOnly</c> property isn't required (OpenAPI: the server
+    /// sets it); in a response, a required <c>writeOnly</c> one isn't.
+    /// </param>
+    public List<string> Validate(JsonNode? value, JsonNode schema, string path = "", Direction direction = Direction.Any)
     {
-        var errors = new List<string>();
+        var errors = new Context(direction, null);
         Check(value, schema, path, errors, 0);
         return errors;
     }
 
-    public bool IsValid(JsonNode? value, JsonNode schema) => Validate(value, schema).Count == 0;
+    public bool IsValid(JsonNode? value, JsonNode schema, Direction direction = Direction.Any) => Validate(value, schema, direction: direction).Count == 0;
+
+    /// <summary>The paths of <c>writeOnly</c> properties present in a response: a password or secret sent back.</summary>
+    public List<string> WriteOnlyLeaks(JsonNode? value, JsonNode schema)
+    {
+        var context = new Context(Direction.Response, []);
+        Check(value, schema, string.Empty, context, 0);
+        return context.Leaks!;
+    }
+
+    /// <summary>The errors of one validation, and which way the value travels.</summary>
+    private sealed class Context(Direction direction, List<string>? leaks) : List<string>
+    {
+        public Direction Direction { get; } = direction;
+
+        public List<string>? Leaks { get; } = leaks;
+    }
+
+    private static Direction DirectionOf(List<string> errors) => (errors as Context)?.Direction ?? Direction.Any;
 
     private void Check(JsonNode? value, JsonNode schemaNode, string path, List<string> errors, int depth)
     {
@@ -43,7 +73,7 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             }
         }
 
-        if (schema["anyOf"] is JsonArray any && !any.Any(m => Validate(value, m!, path).Count == 0))
+        if (schema["anyOf"] is JsonArray any && !any.Any(m => Validate(value, m!, path, DirectionOf(errors)).Count == 0))
         {
             errors.Add($"{at} matches none of anyOf");
         }
@@ -122,7 +152,7 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             return;
         }
 
-        var matches = members.Count(m => Validate(value, m!, path).Count == 0);
+        var matches = members.Count(m => Validate(value, m!, path, DirectionOf(errors)).Count == 0);
         if (matches != 1)
         {
             errors.Add($"{at} matches {matches} of oneOf; it must match exactly one");
@@ -234,20 +264,28 @@ public sealed class SchemaValidator(OpenApiSpec spec)
 
     private void CheckObject(JsonObject obj, JsonObject schema, string path, List<string> errors, int depth)
     {
+        var direction = DirectionOf(errors);
+        var properties = schema["properties"]?.AsObject();
         foreach (var required in schema["required"] as JsonArray ?? [])
         {
             var name = required!.GetValue<string>();
-            if (!obj.ContainsKey(name))
+            var exempt = properties?[name] is { } p
+                         && (direction == Direction.Request && Flag(p, "readOnly") || direction == Direction.Response && Flag(p, "writeOnly"));
+            if (!obj.ContainsKey(name) && !exempt)
             {
                 errors.Add($"{Join(path, name)} is missing; the schema requires it");
             }
         }
 
-        var properties = schema["properties"]?.AsObject();
         foreach (var (name, value) in obj)
         {
             if (properties?[name] is { } property)
             {
+                if (direction == Direction.Response && Flag(property, "writeOnly"))
+                {
+                    (errors as Context)?.Leaks?.Add(Join(path, name));
+                }
+
                 Check(value, property, Join(path, name), errors, depth + 1);
             }
             else if (schema["additionalProperties"] is { } additional)
@@ -263,6 +301,10 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             }
         }
     }
+
+    /// <summary><c>readOnly</c> or <c>writeOnly</c> on a property's schema, or on what it refers to.</summary>
+    public bool Flag(JsonNode schema, string keyword)
+        => schema[keyword]?.GetValueKind() == JsonValueKind.True || spec.Resolve(schema)[keyword]?.GetValueKind() == JsonValueKind.True;
 
     /// <summary>The schema's types (3.1 arrays, or 3.0 nullable), checked against the value.</summary>
     private static bool TypeMatches(JsonNode? value, JsonObject schema, out string expected)
