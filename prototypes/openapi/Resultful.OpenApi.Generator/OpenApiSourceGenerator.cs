@@ -36,6 +36,18 @@ namespace Resultful.OpenApi.Generator
                     HasFakes: compilation.GetTypeByMetadataName("Resultful.OpenApi.Fakes.Scenario") is not null));
 
             context.RegisterSourceOutput(specs.Combine(references), static (spc, pair) => Generate(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes));
+
+            // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
+            var actions = context.SyntaxProvider
+                .CreateSyntaxProvider(static (node, _) => CoverageVerifier.IsCandidateAction(node), static (ctx, ct) => CoverageVerifier.ReadAction(ctx, ct).ToImmutableArray())
+                .SelectMany(static (endpoints, _) => endpoints);
+            var maps = context.SyntaxProvider
+                .CreateSyntaxProvider(static (node, _) => CoverageVerifier.IsCandidateMap(node), static (ctx, ct) => CoverageVerifier.ReadMap(ctx, ct).ToImmutableArray())
+                .SelectMany(static (endpoints, _) => endpoints);
+            var endpoints = actions.Collect().Combine(maps.Collect())
+                .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
+            var verified = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)));
+            context.RegisterSourceOutput(verified.Combine(endpoints), static (spc, pair) => Verify(spc, pair.Left, pair.Right));
         }
 
         private static SpecInput? ReadSpec(AdditionalText text, AnalyzerConfigOptionsProvider options, System.Threading.CancellationToken ct)
@@ -67,6 +79,24 @@ namespace Resultful.OpenApi.Generator
             fileOptions.TryGetValue(MetadataPrefix + "ResultfulParts", out var parts);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
                 string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!);
+        }
+
+        private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
+        {
+            var location = Location.Create(spec.Path, default, default);
+            var settings = new OpenApiReaderSettings();
+            settings.AddYamlReader();
+            var read = Microsoft.OpenApi.OpenApiDocument.Parse(spec.Content, spec.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "yaml", settings);
+            if (read.Document is null || read.Diagnostic?.Errors.Count > 0)
+            {
+                return; // Generate reports the unreadable spec.
+            }
+
+            var operations = new Emitter(read.Document, spec.Namespace, spec.ApiName, location).Operations();
+            foreach (var diagnostic in CoverageVerifier.Verify(operations, endpoints, location))
+            {
+                context.ReportDiagnostic(diagnostic);
+            }
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes)
@@ -172,7 +202,38 @@ namespace Resultful.OpenApi.Generator
             "{0} has a pattern the generated sample does not match; give it an example so the fake can answer with a valid body",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor OperationNotImplemented = new(
+            "RAPI010", "Operation not implemented",
+            "The spec's operation '{0}' ({1} {2}) has no endpoint: add a controller action or Map call for it",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor EndpointNotInSpec = new(
+            "RAPI011", "Endpoint not in the spec",
+            "{0} ({1} {2}) is not in the spec: document it, or leave it out of the OpenAPI description ([ApiExplorerSettings(IgnoreApi = true)] or ExcludeFromDescription())",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ResponseNotDeclared = new(
+            "RAPI012", "Documented response not declared",
+            "{0}: the spec documents a {1} response, but the action declares no [ProducesResponseType] for it",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ResponseNotDocumented = new(
+            "RAPI013", "Declared response not documented",
+            "{0}: the action declares a {1} response, which the spec does not document",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor OperationNameMismatch = new(
+            "RAPI014", "Endpoint name is not the operationId",
+            "{0} is named '{1}'; name it '{2}', the spec's operationId, which the OpenAPI description uses",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor RouteParameterMismatch = new(
+            "RAPI015", "Route parameter named differently",
+            "{0}: the route parameter is '{{{1}}}', the spec calls it '{{{2}}}'",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
         public static readonly ImmutableArray<DiagnosticDescriptor> All =
-            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString);
+            ImmutableArray.Create(InvalidSpec, Unsupported, MissingOperationId, UndocumentedValidation, UnsampleableString,
+                OperationNotImplemented, EndpointNotInSpec, ResponseNotDeclared, ResponseNotDocumented, OperationNameMismatch, RouteParameterMismatch);
     }
 }

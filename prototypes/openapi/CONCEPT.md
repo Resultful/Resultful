@@ -109,6 +109,47 @@ The untouched output is committed as `Resultful.OpenApi.Sample.Scaffolded`, and 
   conformance-checking client, and checks request validation.
 - **Minimal API style builds.** A slow test scaffolds that style into a fresh project and runs `dotnet build`.
 
+#### Verified at compile time
+
+Owned code can drift from the spec, so the generator checks it. Add the spec with `ResultfulParts="Verify"` to a
+project with hand-written endpoints, and the build compares every controller action and Minimal API `Map` call against
+the spec's operations. Nothing is generated; it only reports:
+
+| Diagnostic | Meaning |
+|:--|:--|
+| `RAPI010` | an operation in the spec has no endpoint |
+| `RAPI011` | an endpoint is not in the spec and not left out of the OpenAPI description |
+| `RAPI012` | the spec documents a response the action doesn't declare (`[ProducesResponseType]`) |
+| `RAPI013` | the action declares a response the spec doesn't document |
+| `RAPI014` | the endpoint's name isn't the spec's `operationId` |
+| `RAPI015` | a route parameter is named differently from the spec |
+
+What it understands:
+- **Routes:** controller `[Route]` prefixes, `[controller]` and `[action]` tokens, route constraints, and literal
+  `MapGroup` prefixes.
+- **Exclusions:** an endpoint marked `[ApiExplorerSettings(IgnoreApi = true)]`, `[NonAction]` or
+  `.ExcludeFromDescription()` (on the call or its group) is skipped on purpose. The rule is that an endpoint is either
+  in the spec or out of the OpenAPI description.
+
+They are ordinary warnings: with warnings as errors, a gap fails the build, and `.editorconfig` can set each one's
+severity. Responses are checked for controllers; for Minimal API endpoints only the route and name are, since their
+responses come from return types, not attributes.
+
+The scaffolded Pet Store opts in, so its clean build is itself the proof that every operation is covered. Breaking its
+controller five ways at once gives:
+
+```
+petstore.yaml(1,1): error RAPI010: The spec's operation 'deletePet' (DELETE /pets/{petId}) has no endpoint: add a controller action or Map call for it
+PetsController.cs(82,6): error RAPI011: PetsController.Health (GET /health) is not in the spec: document it, or leave it out of the OpenAPI description (...)
+PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the action declares no [ProducesResponseType] for it
+PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the action declares a 410 response, which the spec does not document
+PetsController.cs(51,6): error RAPI014: PetsController.GetPet (GET /pets/{petId}) is named 'fetchPet'; name it 'getPet', the spec's operationId, which the OpenAPI description uses
+PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{petId}): the route parameter is '{id}', the spec calls it '{petId}'
+```
+
+This is the round-trip test's guarantee moved from test time to compile time, for owned code. The round-trip test still
+runs, and still catches what attributes can't show, such as content types and schema shapes.
+
 The round-trip test earned its keep again here. MVC's JSON input also accepts `application/*+json`, so the controllers
 advertised a request content type the spec doesn't document. The scaffolded conventions now remove it, so the server
 accepts exactly what the spec documents. The test that builds the Minimal API style also found generated code relying
@@ -317,6 +358,7 @@ What makes it trustworthy, not just cheap:
 | Response conformance (client) | a server sending something the spec doesn't allow | `ClientConformanceTests` |
 | Contract suite on two targets | behaviour that differs between the handlers and the running service | `ContractSuite`, 10 tests × 2 targets |
 | Outcome coverage | documented behaviour no test reaches | `ContractSuite.Every_documented_outcome_was_reached` |
+| Coverage verification | hand-written endpoints missing an operation, adding one, or declaring different responses, names or route parameters; at compile time | `CoverageTests`, and the scaffolded Pet Store's own build |
 | Scaffold fidelity | scaffolded controllers describing or answering differently from the spec | `ScaffoldedServerTests`, `ScaffoldTests` |
 | Fluent fake assertions | a consumer making calls it shouldn't, too often, or in the wrong order | `FluentFakeServerTests` |
 | Scenario expectations | a consumer calling the API in the wrong order, or with the wrong request | `ScenarioTests`, in-process and over HTTP |

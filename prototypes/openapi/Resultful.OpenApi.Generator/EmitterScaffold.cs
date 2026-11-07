@@ -401,3 +401,45 @@ namespace Resultful.OpenApi.Generator
         }
     }
 }
+
+namespace Resultful.OpenApi.Generator
+{
+    /// <summary>An operation as the spec defines it, for checking hand-written endpoints against.</summary>
+    internal sealed class SpecOperation
+    {
+        public SpecOperation(string id, string method, string path, IReadOnlyList<int> statuses, IReadOnlyList<string> pathParameters)
+        {
+            Id = id;
+            Method = method;
+            Path = path;
+            Statuses = statuses;
+            PathParameters = pathParameters;
+        }
+
+        public string Id { get; }
+
+        public string Method { get; }
+
+        public string Path { get; }
+
+        public IReadOnlyList<int> Statuses { get; }
+
+        public IReadOnlyList<string> PathParameters { get; }
+    }
+
+    internal sealed partial class Emitter
+    {
+        public IReadOnlyList<SpecOperation> Operations()
+        {
+            CollectSchemas();
+            return CollectOperations()
+                .Select(o => new SpecOperation(
+                    o.Id,
+                    o.Method,
+                    o.Path,
+                    o.Successes.Concat(o.Errors).Select(r => r.Status).OrderBy(s => s).ToList(),
+                    o.Parameters.Where(p => p.Attribute == "FromRoute").Select(p => p.Name).ToList()))
+                .ToList();
+        }
+    }
+}

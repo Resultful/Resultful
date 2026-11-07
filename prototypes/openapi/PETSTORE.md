@@ -9,7 +9,7 @@ run; long ones are abridged, marked with `...`.
 
 ```bash
 cd prototypes/openapi
-dotnet test Resultful.OpenApi.slnx                           # 97 tests: generator and sample
+dotnet test Resultful.OpenApi.slnx                           # 101 tests: generator and sample
 dotnet run --project Resultful.OpenApi.Sample                # the real service (SQLite, Demo seed)
 dotnet run --project Resultful.OpenApi.Sample.Fake           # the fake server, http://localhost:5080
 ```
@@ -443,6 +443,22 @@ TODO, so the service runs and conforms before anyone writes a line:
 Pet answer = new Pet { Id = 1, Name = "Rex", Tag = "good-dog", Status = PetStatus.Available, Details = new Dog { GoodBoy = true } };
 ```
 
+The scaffolded project also opts in to compile-time verification (`ResultfulParts="Verify"` on the spec). From now
+on, its build checks the hand-written controllers against the spec. This is what breaking the controller five ways at
+once does:
+
+```
+petstore.yaml(1,1): error RAPI010: The spec's operation 'deletePet' (DELETE /pets/{petId}) has no endpoint: add a controller action or Map call for it
+PetsController.cs(82,6): error RAPI011: PetsController.Health (GET /health) is not in the spec: document it, or leave it out of the OpenAPI description (...)
+PetsController.cs(51,6): error RAPI012: PetsController.GetPet (GET /pets/{petId}): the spec documents a 404 response, but the action declares no [ProducesResponseType] for it
+PetsController.cs(51,6): error RAPI013: PetsController.GetPet (GET /pets/{petId}): the action declares a 410 response, which the spec does not document
+PetsController.cs(51,6): error RAPI014: PetsController.GetPet (GET /pets/{petId}) is named 'fetchPet'; name it 'getPet', the spec's operationId, which the OpenAPI description uses
+PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{petId}): the route parameter is '{id}', the spec calls it '{petId}'
+```
+
+So a team can own and edit every line of the HTTP layer, and the compiler still guarantees it covers the spec, and
+only the spec.
+
 Re-running the scaffolder keeps every file that exists unless given `--force`. So after a spec change it only adds
 what is new, and the compiler shows which existing handlers no longer fit the contract.
 
@@ -470,6 +486,7 @@ What the tests show about the untouched scaffold:
 | make the fake answer something the API never would | refused when scripted; `FakeTests` checks every outcome it can give |
 | call the fake in the wrong order or with the wrong request | the scenario, or `Should().HaveReceivedInOrder(...)` |
 | write a scenario file with a typo | `PetStoreFake.Check`, when it's loaded |
+| remove, rename or misdeclare a hand-written endpoint | the build (`RAPI010`–`RAPI015`), in projects that opt in to `Verify` |
 | scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
 
 ## Where things are
