@@ -15,6 +15,8 @@ public sealed class ScenarioRunner(Scenario scenario)
     private readonly int[] _used = new int[scenario.Steps.Count];
     private readonly List<string> _failures = [];
     private readonly List<FakeCall> _calls = [];
+    private readonly Dictionary<string, JsonObject> _outputs = new(StringComparer.Ordinal);
+    private int _last = -1;
 
     public Scenario Scenario { get; } = scenario;
 
@@ -29,8 +31,41 @@ public sealed class ScenarioRunner(Scenario scenario)
             _calls.Add(call);
             var index = Scenario.Order == ScenarioOrder.InOrder ? NextInOrder(call, arguments) : NextAnyOrder(call, arguments);
             _used[index]++;
+            _last = index;
             var step = Scenario.Steps[index];
             return (step.Status, step.Body?.ToJsonString());
+        }
+    }
+
+    /// <summary>The body the fake answered the last call with, for the step's outputs that later steps expect.</summary>
+    public void Answered(string? body)
+    {
+        lock (_gate)
+        {
+            if (_last < 0 || Scenario.Steps[_last] is not { Id: { } id, Outputs: { Count: > 0 } outputs })
+            {
+                return;
+            }
+
+            JsonNode? json;
+            try
+            {
+                json = body is null ? null : JsonNode.Parse(body);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                json = null;
+            }
+
+            var values = new JsonObject();
+            foreach (var (name, expression) in outputs)
+            {
+                values[name] = expression.StartsWith("$response.body", StringComparison.Ordinal)
+                    ? Pointer(json, expression.IndexOf('#', StringComparison.Ordinal) is var hash and >= 0 ? expression[(hash + 1)..] : string.Empty)?.DeepClone()
+                    : null;
+            }
+
+            _outputs[id] = values;
         }
     }
 
@@ -63,7 +98,7 @@ public sealed class ScenarioRunner(Scenario scenario)
         var step = Scenario.Steps[current];
         if (step.Operation == call.Operation)
         {
-            return Mismatch(step.Expect, arguments, "") is { } why
+            return Mismatch(Resolve(step.Expect), arguments, "") is { } why
                 ? throw Fail($"step {current + 1} ({step}): {why}")
                 : current;
         }
@@ -86,7 +121,7 @@ public sealed class ScenarioRunner(Scenario scenario)
                 continue;
             }
 
-            if (Mismatch(step.Expect, arguments, "") is not { } why)
+            if (Mismatch(Resolve(step.Expect), arguments, "") is not { } why)
             {
                 return i;
             }
@@ -95,6 +130,70 @@ public sealed class ScenarioRunner(Scenario scenario)
         }
 
         throw Fail(closest ?? $"{call.Operation} was not expected, or has no calls left");
+    }
+
+    /// <summary>
+    /// The expectation with each <c>$steps.{id}.outputs.{name}</c> replaced by what that step answered; inside a string,
+    /// <c>{$steps…}</c> is interpolated. One whose step hasn't answered becomes null, which matches anything.
+    /// </summary>
+    private JsonNode? Resolve(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                var copy = new JsonObject();
+                foreach (var (key, value) in obj)
+                {
+                    copy[key] = Resolve(value);
+                }
+
+                return copy;
+            case JsonArray array:
+                return new JsonArray(array.Select(Resolve).ToArray());
+            case JsonValue value when value.GetValueKind() == System.Text.Json.JsonValueKind.String:
+                var text = value.GetValue<string>();
+                if (text.StartsWith("$steps.", StringComparison.Ordinal))
+                {
+                    return Output(text)?.DeepClone();
+                }
+
+                if (!text.Contains("{$steps.", StringComparison.Ordinal))
+                {
+                    return value.DeepClone();
+                }
+
+                var unresolved = false;
+                var interpolated = System.Text.RegularExpressions.Regex.Replace(text, @"\{(\$steps\.[^}]+)\}", m =>
+                {
+                    var output = Output(m.Groups[1].Value);
+                    unresolved |= output is null;
+                    return output is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String ? v.GetValue<string>() : output?.ToJsonString() ?? string.Empty;
+                });
+                return unresolved ? null : JsonValue.Create(interpolated);
+            default:
+                return node?.DeepClone();
+        }
+    }
+
+    private JsonNode? Output(string expression)
+    {
+        var parts = expression.Split('.');
+        return parts.Length == 4 && parts[2] == "outputs" && _outputs.TryGetValue(parts[1], out var outputs) ? outputs[parts[3]] : null;
+    }
+
+    private static JsonNode? Pointer(JsonNode? node, string pointer)
+    {
+        foreach (var part in pointer.Split('/').Skip(1).Select(p => p.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal)))
+        {
+            node = node switch
+            {
+                JsonObject o => o[part],
+                JsonArray a when int.TryParse(part, System.Globalization.CultureInfo.InvariantCulture, out var i) && i < a.Count => a[i],
+                _ => null,
+            };
+        }
+
+        return node;
     }
 
     private int FirstUnfinished()
