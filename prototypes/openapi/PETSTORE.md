@@ -9,7 +9,7 @@ run; long ones are abridged, marked with `...`.
 
 ```bash
 cd prototypes/openapi
-dotnet test Resultful.OpenApi.slnx                           # 101 tests: generator and sample
+dotnet test Resultful.OpenApi.slnx                           # 104 tests: generator and sample
 dotnet run --project Resultful.OpenApi.Sample                # the real service (SQLite, Demo seed)
 dotnet run --project Resultful.OpenApi.Sample.Fake           # the fake server, http://localhost:5080
 ```
@@ -456,8 +456,19 @@ PetsController.cs(51,6): error RAPI014: PetsController.GetPet (GET /pets/{petId}
 PetsController.cs(63,6): error RAPI015: PetsController.UpsertPet (PUT /pets/{petId}): the route parameter is '{id}', the spec calls it '{petId}'
 ```
 
+It checks the wiring too, using ASP.NET Core's own binding rules. Binding `limit` as a non-nullable `int`,
+`petId` as `int` rather than `long`, the body from the query, and an undocumented `hard` flag gives:
+
+```
+PetsController.cs(23,6): error RAPI019: PetsController.ListPets (GET /pets): 'limit' is optional in the spec, but binding it as a non-nullable int with no default makes it required; make it int? or give it a default
+PetsController.cs(51,6): error RAPI018: PetsController.GetPet (GET /pets/{petId}): 'petId' is bound as int; the spec says long
+PetsController.cs(32,6): error RAPI020: PetsController.CreatePet (POST /pets): the spec has a NewPet request body, but the endpoint binds none
+PetsController.cs(32,6): error RAPI017: PetsController.CreatePet (POST /pets): 'body' binds query value 'body', which the spec doesn't document
+PetsController.cs(83,6): error RAPI017: PetsController.DeletePet (DELETE /pets/{petId}): 'hard' binds query value 'hard', which the spec doesn't document
+```
+
 So a team can own and edit every line of the HTTP layer, and the compiler still guarantees it covers the spec, and
-only the spec.
+only the spec, down to how each value reaches the handler.
 
 Re-running the scaffolder keeps every file that exists unless given `--force`. So after a spec change it only adds
 what is new, and the compiler shows which existing handlers no longer fit the contract.
@@ -487,6 +498,7 @@ What the tests show about the untouched scaffold:
 | call the fake in the wrong order or with the wrong request | the scenario, or `Should().HaveReceivedInOrder(...)` |
 | write a scenario file with a typo | `PetStoreFake.Check`, when it's loaded |
 | remove, rename or misdeclare a hand-written endpoint | the build (`RAPI010`–`RAPI015`), in projects that opt in to `Verify` |
+| bind a parameter or body from the wrong place, with the wrong type, or as required when it's optional | the build (`RAPI016`–`RAPI020`) |
 | scaffold a server whose shape drifts from the spec | `ScaffoldedServerTests` (the round trip, on controllers) |
 
 ## Where things are
