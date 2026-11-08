@@ -52,7 +52,7 @@ own OpenAPI document reads them. Each is reported at the line that's wrong.
 | MM022 | Warning | Model differs from its schema | A hand-written model differs from its schema, at a named path, constraints included. |
 | MM023 | Warning | Parameter constraint differs | A parameter's validation attributes differ from the spec's bounds, length or pattern. |
 
-## Proposed
+## Planned
 
 | Id | Severity | Title | When |
 |:--|:--|:--|:--|

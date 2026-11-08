@@ -44,7 +44,7 @@ the same generated endpoints.
 | Route | Example | Status |
 |:--|:--|:--|
 | **By host** (Q35) | `http://test1.localhost:8080/pets` | **Built** |
-| By header | `X-Matchmark-Session: test1` on any host | **Built** ([question 6](../QUESTIONS.md)); what the .NET helper uses |
+| By header | `X-Matchmark-Session: test1` on any host | **Built** (Q53); what the .NET helper uses |
 | By path prefix | `http://localhost:8080/sessions/test1/pets` | **Built** |
 
 **Host routing** reads the `Host` header, not DNS. The first label of the host is the session id when the host is
@@ -108,7 +108,7 @@ scheme takes, so the application's real auth path is exercised:
 | `http` `bearer`, `oauth2`, `openIdConnect` | `Authorization: Bearer <token>` |
 | `http` `basic` | `Authorization: Basic <base64 of test1:<token>>` |
 | `apiKey` in a header, query or cookie | the named header, query parameter or cookie |
-| none | no token; the host alone picks the copy ([question 5](../QUESTIONS.md)) |
+| none | no token; the host alone picks the copy (Q53) |
 
 On an operation the spec secures:
 - no token, or one that isn't valid, is `401`, as the spec documents it;
@@ -172,7 +172,7 @@ Give the host its pathways with `--arazzo` (`matchmark host`), or as `new Sessio
   refused as the spec says (400, 415, 422), or a secured call without the session's token (401). Scripted answers
   don't count. Calls a scenario didn't expect will count too, once session scenarios are built.
 - **The provider's half** passes when the real service passes the same pathways. It comes from a recorded run
-  ([question 7](../QUESTIONS.md)): `matchmark regress <spec> <url> --arazzo <pathways> --save provider.json` records
+  (Q53): `matchmark regress <spec> <url> --arazzo <pathways> --save provider.json` records
   each workflow's result, and `matchmark host … --provider provider.json` (or `SessionHost.Provider`) uses it. A
   pathway the record doesn't include counts as not passed.
 - **`complete`** is true only when both halves pass. **`reasons`** says why not, one line each.
@@ -227,12 +227,13 @@ var host = new SessionHost(spec, pathways)
   report lists `name-taken` and the steps after it as missing.
 
 The start and end hooks run in the host's process, so the service is in-process here (`WebApplicationFactory`). A
-service in another process needs an HTTP hook to create and discard a session's data ([question 14](../QUESTIONS.md)).
+service in another process needs an HTTP hook to create and discard a session's data; in-process hooks are decided (Q53),
+and an HTTP form is **Planned** for when a service needs it.
 
 ## Ending a session
 
 `DELETE /__fake/sessions/{id}`: `204` when it ended, `404` when there was none. A session nobody ends is removed after
-30 minutes without a request ([question 4](../QUESTIONS.md); `SessionHost.Idle`). **Built.**
+30 minutes without a request (Q53; `SessionHost.Idle`). **Built.**
 
 ## Events
 

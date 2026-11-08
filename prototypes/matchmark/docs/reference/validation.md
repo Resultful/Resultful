@@ -1,6 +1,7 @@
 # Validation on .NET's validation layer
 
-**Proposed** (decision P2, [decisions](../decisions.md#proposed)). Nothing on this page is built yet. It specifies how
+**Planned** (decision Q45, [decisions](../decisions.md#second-round)): adopted now, with the spike as its first
+implementation step. Nothing on this page is built yet. It specifies how
 Matchmark's per-object checks move onto .NET's own validation layer (`Microsoft.Extensions.Validation`, .NET 10), so a
 generated service validates the way any .NET service does, and Matchmark stops maintaining a validator of its own.
 Invariants across a collection, such as uniqueness, are not model validation: see [invariants](invariants.md#common-rules).
@@ -121,7 +122,8 @@ A contract-only package (`MatchmarkProblems="Owned"`) takes the package as its o
 
 ## The spike
 
-What has to hold before Matchmark's own validator is retired, in the Pet Store and the Bookings sample:
+The first implementation step (Q45). What has to hold before Matchmark's own validator is retired, in the Pet Store and
+the Bookings sample:
 
 1. A contract compiled in its own project, with generated attributes and a generated resolver, is validated by
    `AddValidation()` in the service project.
@@ -130,8 +132,10 @@ What has to hold before Matchmark's own validator is retired, in the Pet Store a
 3. The round-trip check still finds no differences, now that models carry attributes.
 4. The generated client refuses the same bad requests before sending.
 
-If 1 fails, the fallback is to keep Matchmark's validator behind the same keys, and generate attributes for the OpenAPI
-document and hand-written code only. Either way the result is recorded in [decisions](../decisions.md).
+If 1 fails, Matchmark's resolver covers what .NET's generator can't see, as designed ([question 2](../QUESTIONS.md)). If
+the layer can't keep the error keys or the checks, the fallback is to keep Matchmark's validator behind the same keys and
+generate attributes for the OpenAPI document and hand-written code only. Either way the result is recorded in
+[decisions](../decisions.md).
 
 ## Done when
 

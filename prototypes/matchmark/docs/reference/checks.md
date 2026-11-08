@@ -67,7 +67,7 @@ These run when the spec, or an overlay on it, declares the behaviour ([extension
 | `WorkflowCriteria` | Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles. |
 | `MessageConforms` | A message in a workflow, sent by it or received from the API, conforms to its AsyncAPI message. |
 
-## Proposed
+## Planned
 
 From the [invariants across a collection](invariants.md), each proven by an injected fault before it counts:
 

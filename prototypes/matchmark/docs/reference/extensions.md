@@ -15,7 +15,7 @@ a spec you don't own needn't change ([LAYERS.md](../LAYERS.md)).
 All are **Built**. Without `Matchmark.Rules` referenced, the generator reports declared rules as not enforced
 (`MM025`).
 
-**Proposed:** a fifth scope, invariants across a whole collection ([invariants](invariants.md)):
+**Planned** (Q44): a fifth scope, invariants across a whole collection ([invariants](invariants.md)):
 
 | Extension | On | Says |
 |:--|:--|:--|

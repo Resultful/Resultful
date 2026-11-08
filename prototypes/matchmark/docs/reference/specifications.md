@@ -48,7 +48,7 @@ could take it and dropped once upstream releases it (Q33).
 
 - The AsyncAPI SDK reads v2 and v3 but doesn't convert between them, and the official converter is a JavaScript
   package. AsyncAPI 2.x is forward-ported by `AsyncApiUpgrade`, Matchmark's C# port of the official guide *Migrating to
-  v3*, section by section ([question 11](../QUESTIONS.md)).
+  v3*, section by section, kept inside Matchmark (Q52).
 - The BinkyLabs libraries are pre-release, so they are pinned to exact versions.
 - If a BinkyLabs library proves insufficient, Matchmark gets a reader of its own for that format (Q31).
 - Matchmark's own readers are retired only when their replacement passes the same tests: the corpus ledger and the

@@ -58,5 +58,6 @@ AsyncAPI follows the same path (Q21):
 
 ## The trial
 
-The whole spine (verify, sessions, flip) is tried end to end on one real ASP.NET Core service with a frontend (Q15).
-**Planned:** the service isn't named yet ([question 3](../QUESTIONS.md)).
+The whole spine (verify, sessions, flip) is tried end to end on one real ASP.NET Core service with a frontend (Q15). Until
+one is chosen, the Pet Store sample stands in (Q50); it has no frontend, so its sessions step is exercised by tests
+(`SessionCopyTests`). **Planned.**

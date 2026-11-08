@@ -88,11 +88,20 @@ Q26's MSW part).
 | Q10 | One model behind every output, built before any new output. | Without it each output repeats the generator's decisions and drifts. |
 | Q27 | The roadmap is ordered: own home, the model, verify (alongside the model), hosted sessions, flip, later layers. | It follows verify, test, flip, and puts the model first. |
 
-## Proposed
+## Second round
 
-Proposed on 8 November 2026, after the review. Not decided until confirmed; then each moves into the tables above.
+Decided on 8 November 2026, after the build that followed the review. Questions from [QUESTIONS.md](QUESTIONS.md) and
+proposals P1 and P2, answered.
 
-| # | Proposal | Why |
+| # | Decision | Why |
 |:--|:--|:--|
-| P1 | A fifth scope of invariant, across a whole collection, declared as traits from a fixed vocabulary (unique, references, derived, conserved, scoped, limit, order), each built once and used by the twin, the suite, the audit, the generator and the fidelity loop ([invariants](reference/invariants.md)). If a behaviour is a property of data visible through the API, declare it; otherwise it is owned code or a service session. | Most of what twins get wrong is in this scope (the Pet Store's unique name, the Ledger's derived balance and transfers), and declarations are written once for every API, reviewable, and test the real service too. |
-| P2 | Per-object checks move onto .NET's validation layer: attributes on generated models, `IValidatableObject` for CEL rules, a generated `IValidatableInfoResolver`, and `AddValidation()`; Matchmark's own validator is retired once a spike proves it ([validation](reference/validation.md)). Collection invariants stay out of model validation. | One pipeline .NET teams know, attributes the OpenAPI document reads, and a smaller emitter. A generated resolver works around source generators not seeing each other's output. |
+| Q44 | **Invariants across a collection are adopted** (was P1): a fifth scope, declared as traits from a fixed vocabulary, each built once and used by the twin, the suite, the audit, the generator and the fidelity loop, in the documented order, `unique` first ([invariants](reference/invariants.md)). | Most of what twins get wrong is in this scope, and a declaration is written once for every API and tests the real service too. |
+| Q45 | **Per-object validation moves onto .NET's validation layer now** (was P2): attributes on generated models, `IValidatableObject` for CEL rules, a generated `IValidatableInfoResolver` and `AddValidation()`; the spike is the first implementation step, not a gate ([validation](reference/validation.md)). | One pipeline .NET teams know, attributes the OpenAPI document reads, and a smaller emitter. |
+| Q46 | Unique keys and references reach a service's storage as generated metadata (`{Api}Invariants`) and a helper in Matchmark.Conformance (`ApplyMatchmarkUnique<TEntity>(keys, map)`); the generator doesn't write EF Core configuration. | The stored entity and the API model are different types, so the field-to-property mapping is the service's. |
+| Q47 | The `scoped` trait gets a second principal from `matchmark regress --principal <header>`, given twice, for a real API, and from `POST /__fake/sessions/{id}/principals` in hosted sessions. | A real API's credentials are the team's to give; a session can mint its own. |
+| Q48 | Matchmark's own repository is `rtkelly-labs/matchmark`, alongside Lake.NET and Oxbow; packages keep the `Matchmark.*` ids. | |
+| Q49 | It is MIT licensed. | The same as Resultful and most of the .NET OpenAPI ecosystem. |
+| Q50 | The Pet Store sample stands in as the first trial of the whole spine until a real service is chosen. It has no frontend, so its sessions step is exercised by tests. | The spine can be proven end to end now. |
+| Q51 | Full support is measured against the examples folders of each specification's own repositories (`OAI/OpenAPI-Specification`, `OAI/learn.openapis.org`, `asyncapi/spec`, and the Arazzo and Overlay repositories) at pinned commits, fetched in CI, not committed. | The authors' own examples, and the way the large specs are already measured. |
+| Q52 | AsyncAPI 2.x stays converted by Matchmark's own C# port of the official migration guide (`AsyncApiUpgrade`), kept inside Matchmark; it isn't proposed upstream. | It keeps Matchmark .NET-only, with no Node.js wherever 2.x is read. |
+| Q53 | The hosted-session behaviours built on assumptions stand: sessions end after 30 minutes idle; a spec with no security scheme gets no token; the `X-Matchmark-Session` header and the `/sessions/{id}/` prefix also route; the provider's half comes from `regress --save`; `matchmark host` serves sessions; a secured call without the token is an invalid call; pathway criteria that refer to inputs or other steps are left out of coverage; service-session hooks run in the host's process; service sessions forward over HTTP. | Confirmed as built. |
