@@ -266,3 +266,45 @@ public sealed class ConservedTraitTests
 
     private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 }
+
+/// <summary>The scoped trait in the generator: MM027 for a scope declared wrongly, MM028 for a read with no status for it.</summary>
+[TestFixture]
+public sealed class ScopedTraitTests
+{
+    private static readonly string Sessions = Path.GetFullPath(Path.Combine(Directory(), "..", "samples", "sessions", "openapi.yaml"));
+
+    [TestCase("{ by: principal }", null, null)]
+    [TestCase("{ by: tenant }", "MM027", "an unknown by tenant")]
+    [TestCase("{ by: principal, visible: everyone }", "MM027", "an unknown visible everyone")]
+    public void A_scope_is_checked(string scoped, string? id, string? wrong)
+    {
+        var diagnostics = Build(scoped);
+        if (id is null)
+        {
+            diagnostics.Should().NotContain(d => d.GetMessage(null).Contains("scope", StringComparison.Ordinal) && (d.Id == "MM027" || d.Id == "MM028"));
+        }
+        else
+        {
+            diagnostics.Should().Contain(d => d.Id == id && d.GetMessage(null).Contains(wrong!, StringComparison.Ordinal));
+        }
+    }
+
+    [Test]
+    public void A_read_with_no_status_for_the_scope_is_reported()
+        => Build("{ by: principal }", withoutNotFound: true).Should().Contain(d => d.Id == "MM028" && d.GetMessage(null).Contains("Pet's scope", StringComparison.Ordinal));
+
+    private static IReadOnlyList<Microsoft.CodeAnalysis.Diagnostic> Build(string scoped, bool withoutNotFound = false)
+    {
+        var text = File.ReadAllText(Sessions).Replace("    Pet:\n      type: object\n", $"    Pet:\n      type: object\n      x-matchmark-scoped: {scoped}\n", StringComparison.Ordinal);
+        if (withoutNotFound)
+        {
+            text = text.Replace("        '404':\n          description: No such pet\n", string.Empty, StringComparison.Ordinal);
+        }
+
+        var spec = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"scoped-{Math.Abs((scoped + withoutNotFound).GetHashCode(StringComparison.Ordinal))}.yaml");
+        File.WriteAllText(spec, text);
+        return GeneratedServer.Build("Shelter", spec, [], string.Empty, withRules: false).Diagnostics;
+    }
+
+    private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
+}

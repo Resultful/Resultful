@@ -56,7 +56,12 @@ public sealed class MatchmarkSession : IAsyncDisposable
             client.DefaultRequestHeaders.TryAddWithoutValidation(token["name"]!.GetValue<string>(), token["value"]!.GetValue<string>());
         }
 
-        return new MatchmarkSession(control, prefix, id, client, started["baseUrl"]?.GetValue<string>());
+        return new MatchmarkSession(control, prefix, id, client, started["baseUrl"]?.GetValue<string>())
+        {
+            Credential = started["token"] is JsonObject own && own["in"]?.GetValue<string>() == "header"
+                ? new KeyValuePair<string, string>(own["name"]!.GetValue<string>(), own["value"]!.GetValue<string>())
+                : null,
+        };
     }
 
     /// <summary>Scripts the copy's answers for an operation: only a status the spec documents for it.</summary>
@@ -68,6 +73,25 @@ public sealed class MatchmarkSession : IAsyncDisposable
             throw new InvalidOperationException($"{operationId} couldn't be scripted: {await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)}");
         }
     }
+
+    /// <summary>
+    /// Mints another principal for this session (Q47), for testing the scoped trait: its credential, as the header to send
+    /// it in. Requests with it reach this session's copy as someone else.
+    /// </summary>
+    public async Task<KeyValuePair<string, string>> AddPrincipalAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await _control.PostAsync($"{_prefix}/sessions/{Id}/principals", null, cancellationToken).ConfigureAwait(false);
+        var minted = await response.Content.ReadFromJsonAsync<JsonObject>(Json, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode || minted?["token"] is not JsonObject token || token["in"]?.GetValue<string>() != "header")
+        {
+            throw new InvalidOperationException($"No principal could be minted for session '{Id}': {(int)response.StatusCode} {minted?["title"]}");
+        }
+
+        return new KeyValuePair<string, string>(token["name"]!.GetValue<string>(), token["value"]!.GetValue<string>());
+    }
+
+    /// <summary>The session's own credential, as the header it's sent in; null when the spec declares no security scheme.</summary>
+    public KeyValuePair<string, string>? Credential { get; private init; }
 
     /// <summary>The session's report: the consumer's half and the provider's, and whether the run is complete.</summary>
     public async Task<SessionReport> ReportAsync(CancellationToken cancellationToken = default)

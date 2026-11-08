@@ -41,7 +41,7 @@ check that is checkable.
 
 ```
 matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
-                  [--random <n>] [--seed <n>] [--save <file>]
+                  [--random <n>] [--seed <n>] [--save <file>] [--principal <header>]...
 ```
 
 Generates the regression suite from the spec and runs it against the API at `<base url>`, checking every response
@@ -57,6 +57,7 @@ constraint, workflows from its `links`, and the Arazzo workflows given. Exits `1
 | `--random <n>` | Also send `n` random valid requests per operation, shrinking each failure to the smallest request that still fails. |
 | `--seed <n>` | The seed for `--random`, to repeat a run. Default `1`. |
 | `--save <file>` | Write each workflow's result as JSON: the provider's half of hosted sessions' reports (`matchmark host --provider`). |
+| `--principal <header>` | A credential, `"Authorization: Bearer abc"`. The first is sent with every request; a second is another principal, which mustn't see what the first creates ([scoped](invariants.md#scoped), Q47). Repeatable. |
 
 **An AsyncAPI 3 document** in place of the spec tests a consumer of its messages. `<base url>` is then a bridge that
 hands each `POST /{operationId}` to the consumer as a message (the body its payload, the headers its headers) and

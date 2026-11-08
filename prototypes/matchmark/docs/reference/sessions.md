@@ -117,6 +117,11 @@ On an operation the spec secures:
 
 Operations the spec leaves unsecured (`security: []`) answer without a token, routed by host alone.
 
+**A second principal (Q47).** `POST /__fake/sessions/{id}/principals` mints another token in the same scheme, answered
+`201 {"token": {"in", "name", "value"}}` (`MatchmarkSession.AddPrincipalAsync()` in .NET). The session accepts it as
+well as its own; another session doesn't. The twin treats it as someone else, so a test can check a resource declared
+[scoped](invariants.md#scoped) is kept from other users. With no security scheme there's nothing to mint: `409`.
+
 ## Scripting and expectations
 
 | Endpoint | Does | Status |
@@ -124,6 +129,7 @@ Operations the spec leaves unsecured (`security: []`) answer without a token, ro
 | `PUT /__fake/{operationId}` | Scripts the default copy's next answers for an operation. | **Built** |
 | `PUT /__fake/sessions/{id}/given/{operationId}` | Scripts a session's answers: `{ "status": 409, "body": {…}, "times": 1 }`, or without `times` until replaced. Only documented outcomes; anything else is a `400` problem. | **Built** |
 | `GET /__fake/calls` | The default copy's calls. | **Built** |
+| `POST /__fake/sessions/{id}/principals` | Mints a second principal for the session ([the session token](#the-session-token)). | **Built** |
 | `GET /__fake/sessions/{id}/calls` | A session's calls, in order: operation, method, path, status, and whether a script answered. | **Built** |
 | `DELETE /__fake/` | Resets the default copy. | **Built** |
 

@@ -345,7 +345,26 @@ public sealed class SpecTwin : HttpMessageHandler
         };
         // The scope a create lands in: the parent's path values, and the credential that sent it.
         var scope = (Parent: string.Join('/', values.Where(v => v.Key != idName).OrderBy(v => v.Key, StringComparer.Ordinal).Select(v => v.Value)),
-            Principal: headers.GetValueOrDefault("Authorization") ?? string.Empty);
+            Principal: Traits.Principal(_spec, headers, query));
+
+        // A scope (x-matchmark-scoped): another principal's resource is as if it weren't there, and lists leave it out.
+        var scoped = Traits.ScopedOf(_spec, Traits.CollectionSchema(_spec, collection));
+        if (scoped is not null && item && id is not null && found is not null && !Owns(store, id, scope.Principal))
+        {
+            var status = Traits.Status(operation, Traits.ScopedStatuses, scoped.Declared);
+            return status == 404 ? NotFound(operation) : Refuse(operation, status, string.Empty, "That resource belongs to another principal.");
+        }
+
+        if (scoped is not null && operation.Method == "GET" && !item)
+        {
+            var visible = new Collection();
+            foreach (var (key, value) in store.Items.Where(i => Owns(store, i.Key, scope.Principal)))
+            {
+                visible.Items[key] = value;
+            }
+
+            store = visible;
+        }
 
         // A limit (x-matchmark-limit): a create past it is refused.
         if (candidate is not null && (operation.Method == "POST" || found is null) && Traits.LimitOf(_spec, Traits.ResourceSchema(operation)) is { } limit)
@@ -650,6 +669,10 @@ public sealed class SpecTwin : HttpMessageHandler
     }
 
     /// <summary>An invariant broken: the status, keyed by field when that status is a validation problem.</summary>
+    /// <summary>Whether a principal owns a resource: it created it, or nobody did (seeded).</summary>
+    private static bool Owns(Collection store, string id, string principal)
+        => !store.Scopes.TryGetValue(id, out var scope) || scope.Principal == principal;
+
     private static Reply Refuse(SpecOperation operation, int status, string field, string message)
     {
         var response = operation.Response(status);

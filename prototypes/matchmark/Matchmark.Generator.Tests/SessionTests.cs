@@ -101,6 +101,38 @@ public sealed class SessionTests
         (await one.Client.PostAsJsonAsync("pets", new { name = "Rex" })).StatusCode.Should().Be(HttpStatusCode.Created, "its own token is accepted");
     }
 
+    /// <summary>A second principal minted for a session (Q47): accepted by that session only, and someone else to the twin.</summary>
+    [Test]
+    public async Task A_session_mints_a_second_principal_that_the_scoped_trait_keeps_apart()
+    {
+        var scoped = JsonNode.Parse(Spec)!;
+        scoped["components"]!["schemas"]!["Pet"]!["x-matchmark-scoped"] = new JsonObject { ["by"] = "principal" };
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.UseMatchmarkSessions(new SessionHost(scoped.ToJsonString(), [Pathways]));
+        await app.StartAsync();
+        using var control = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+
+        await using var one = await MatchmarkSession.StartAsync(control, "test1");
+        await using var two = await MatchmarkSession.StartAsync(control, "test2");
+        var other = await one.AddPrincipalAsync();
+        other.Should().NotBe(one.Credential!.Value);
+
+        var created = await one.Client.PostAsJsonAsync("pets", new { name = "Rex" });
+        var id = (await created.Content.ReadFromJsonAsync<JsonObject>())!["id"]!.ToJsonString();
+        async Task<HttpStatusCode> Get(MatchmarkSession session, KeyValuePair<string, string> principal)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"pets/{id}");
+            request.Headers.TryAddWithoutValidation(principal.Key, principal.Value);
+            return (await session.Client.SendAsync(request)).StatusCode;
+        }
+
+        (await Get(one, one.Credential!.Value)).Should().Be(HttpStatusCode.OK);
+        (await Get(one, other)).Should().Be(HttpStatusCode.NotFound, "the minted principal is someone else to the twin");
+        (await Get(two, other)).Should().Be(HttpStatusCode.Unauthorized, "a minted principal belongs to its own session");
+    }
+
     [Test]
     public async Task Scripted_answers_are_documented_outcomes_only_and_a_restart_starts_clean()
     {

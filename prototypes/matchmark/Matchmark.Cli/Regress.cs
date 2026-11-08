@@ -11,6 +11,7 @@ public static partial class Regress
 {
     public const string Usage = """
         usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks] [--random <n>] [--seed <n>] [--save <file>]
+                                [--principal <header>]...
 
           Generates a regression suite from the spec (examples, valid requests, boundary values, one invalid request per
           constraint, and workflows from its links) and runs it against the API at <base url>, checking every response.
@@ -20,6 +21,8 @@ public static partial class Regress
           --webhooks      <base url> is a receiver of the spec's webhooks (each at /{name}): test it instead of the API
           --random        also send n random valid requests per operation, shrinking each failure (--seed to repeat a run)
           --save          write each workflow's result, as the provider's half of hosted sessions' reports (matchmark host)
+          --principal     a credential as a header, "Authorization: Bearer abc": the first is sent with every request; a
+                          second is another principal, which mustn't see what the first creates (x-matchmark-scoped)
 
           An AsyncAPI 3 document in place of the spec tests a consumer of its messages: <base url> is a bridge that hands
           each POST /{operationId} to the consumer as a message (the body its payload, the headers its headers) and
@@ -90,6 +93,21 @@ public static partial class Regress
             => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : fallback;
 
         var options = new RegressionOptions { Workflows = !args.Contains("--no-workflows"), Random = Number(args, "--random", 0), Seed = Number(args, "--seed", 1) };
+        for (var i = 2; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--principal")
+            {
+                var header = args[i + 1].Split(':', 2);
+                if (header.Length != 2 || header[0].Trim().Length == 0)
+                {
+                    await output.WriteLineAsync($"error: --principal takes a header, \"Name: value\", not \"{args[i + 1]}\"");
+                    return 2;
+                }
+
+                options.Principals.Add(new KeyValuePair<string, string>(header[0].Trim(), header[1].Trim()));
+            }
+        }
+
         RegressionReport report;
         try
         {

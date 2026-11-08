@@ -18,6 +18,54 @@ public static class Traits
     /// <summary>The statuses a delete refused while something still refers to the resource answers with.</summary>
     public static readonly int[] RestrictStatuses = [409, 422];
 
+    /// <summary>The statuses a read, change or delete of another principal's resource answers with, in the order they're looked for.</summary>
+    public static readonly int[] ScopedStatuses = [404, 403];
+
+    /// <summary>The scope declared on a schema (<c>x-matchmark-scoped</c>), its <c>allOf</c> parts included; null when none.</summary>
+    public static Scoped? ScopedOf(OpenApiSpec spec, JsonNode? schemaNode)
+    {
+        if (schemaNode is null)
+        {
+            return null;
+        }
+
+        var schema = spec.Resolve(schemaNode);
+        if (schema["x-matchmark-scoped"] is JsonObject scoped)
+        {
+            return new Scoped(scoped["by"]?.GetValue<string>() ?? "principal", scoped["visible"]?.GetValue<string>() ?? "owner") { Declared = DeclaredStatus(scoped) };
+        }
+
+        return (schema["allOf"] as JsonArray ?? []).OfType<JsonNode>().Select(part => ScopedOf(spec, part)).FirstOrDefault(s => s is not null);
+    }
+
+    /// <summary>
+    /// The principal a request is from: the credential it presents where the spec's first security scheme says (an API
+    /// key's header, query parameter or cookie), else its Authorization header; empty when it presents none.
+    /// </summary>
+    public static string Principal(OpenApiSpec spec, IReadOnlyDictionary<string, string> headers, IEnumerable<KeyValuePair<string, string>> query)
+    {
+        var scheme = (spec.Find("#/components/securitySchemes") as JsonObject)?.Select(s => s.Value).OfType<JsonObject>().FirstOrDefault();
+        if (scheme?["type"]?.GetValue<string>() == "apiKey" && scheme["name"]?.GetValue<string>() is { } name)
+        {
+            switch (scheme["in"]?.GetValue<string>())
+            {
+                case "header" when headers.TryGetValue(name, out var key):
+                    return key;
+                case "query" when query.FirstOrDefault(q => q.Key == name).Value is { } key:
+                    return key;
+                case "cookie" when headers.TryGetValue("Cookie", out var cookies):
+                    return cookies.Split(';').Select(c => c.Trim().Split('=', 2)).FirstOrDefault(c => c.Length == 2 && c[0] == name)?[1] ?? string.Empty;
+            }
+        }
+
+        return headers.GetValueOrDefault("Authorization") ?? string.Empty;
+    }
+
+    /// <summary>The schema a collection holds: what its create returns, else what its item read returns.</summary>
+    public static JsonNode? CollectionSchema(OpenApiSpec spec, string collection)
+        => spec.Operations.Where(o => o.Method == "POST" && o.Path == collection).Select(ResourceSchema).FirstOrDefault(s => s is not null)
+           ?? spec.Operations.Where(o => o.Method == "GET" && o.Path.StartsWith(collection + "/{", StringComparison.Ordinal)).Select(ResourceSchema).FirstOrDefault(s => s is not null);
+
     /// <summary>The statuses a create past a limit answers with, in the order they're looked for in the spec.</summary>
     public static readonly int[] LimitStatuses = [409, 422, 400];
 
@@ -291,6 +339,13 @@ public sealed record Reference(string Field, string Target, string Collection, s
     public int? Declared { get; init; }
 
     public override string ToString() => $"{Field} → {Target}";
+}
+
+/// <summary>A scope: a resource belongs to the principal that created it, and is visible to its owner only.</summary>
+public sealed record Scoped(string By, string Visible)
+{
+    /// <summary>The status the declaration names for another principal's read, change or delete, if any.</summary>
+    public int? Declared { get; init; }
 }
 
 /// <summary>A limit: at most <paramref name="Max"/> resources in the scope (collection, parent, or principal).</summary>

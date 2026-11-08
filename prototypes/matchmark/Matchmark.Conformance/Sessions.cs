@@ -111,6 +111,17 @@ public static class SessionHosting
                     host.Given(scripted, operationId, given["status"]?.GetValue<int>() ?? 200, given["body"], given["times"]?.GetValue<int>());
                     context.Response.StatusCode = 204;
                     return;
+                case [var id, "principals"] when method == HttpMethods.Post && host.Find(id) is { } minting:
+                    if (host.MintPrincipal(minting) is { } minted)
+                    {
+                        await Write(context, 201, new { token = new { @in = minted.In, name = minted.Name, value = minted.Sent } }).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Problem(context, 409, "The spec declares no security scheme, so a session has no principals to mint.").ConfigureAwait(false);
+                    }
+
+                    return;
                 case [var id, ..] when host.Find(id) is null:
                     await Problem(context, 404, $"There is no session '{id}'.").ConfigureAwait(false);
                     return;

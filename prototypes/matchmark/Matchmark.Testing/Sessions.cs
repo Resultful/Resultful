@@ -147,6 +147,22 @@ public sealed partial class SessionHost
         return PathPrefix().Match(path) is { Success: true } match ? (match.Groups["id"].Value, "/" + match.Groups["rest"].Value) : (null, path);
     }
 
+    /// <summary>
+    /// Mints another principal for a session (Q47): a token in the spec's scheme that the session accepts as well as its
+    /// own, which the twin treats as someone else (the scoped trait). Null when the spec declares no security scheme.
+    /// </summary>
+    public SessionToken? MintPrincipal(Session session)
+    {
+        if (_scheme is not { } scheme)
+        {
+            return null;
+        }
+
+        var token = scheme.NewToken(session.Id);
+        session.AddPrincipal(token);
+        return token;
+    }
+
     /// <summary>A request to a session's copy, answered synchronously; see <see cref="AnswerAsync"/>.</summary>
     public SessionAnswer Answer(Session session, string method, string path, string queryString, IReadOnlyDictionary<string, string> headers, string? body, string? contentType)
         => AnswerAsync(session, method, path, queryString, headers, body, contentType).GetAwaiter().GetResult();
@@ -163,7 +179,7 @@ public sealed partial class SessionHost
         if (operation is not null && _scheme is { } scheme && Secured(operation))
         {
             var presented = scheme.Presented(headers, queryString);
-            var owner = presented is null ? null : _sessions.Values.FirstOrDefault(s => s.Token == presented);
+            var owner = presented is null ? null : _sessions.Values.FirstOrDefault(s => s.Holds(presented));
             string? refusal = presented is null ? $"This operation needs the session's token, sent as {scheme.Describe()}."
                 : owner is null ? "That token isn't any session's."
                 : owner != session ? $"This token belongs to session '{owner.Id}'."
@@ -473,6 +489,28 @@ public sealed class Session
     public SessionToken? TokenInfo { get; }
 
     internal string? Token => TokenInfo?.Value;
+
+    private readonly List<SessionToken> _principals = [];
+
+    /// <summary>The other principals minted for this session (Q47), each a token of its own that the session accepts.</summary>
+    public IReadOnlyList<SessionToken> Principals { get { lock (_principals) { return [.. _principals]; } } }
+
+    internal void AddPrincipal(SessionToken token)
+    {
+        lock (_principals)
+        {
+            _principals.Add(token);
+        }
+    }
+
+    /// <summary>Whether a presented token is this session's: its own, or a principal minted for it.</summary>
+    internal bool Holds(string presented)
+    {
+        lock (_principals)
+        {
+            return Token == presented || _principals.Any(p => p.Value == presented);
+        }
+    }
 
     public IReadOnlyList<string> Pathways { get; }
 
