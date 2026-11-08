@@ -122,13 +122,16 @@ namespace Matchmark.Generator
         public static readonly AuditRule UniqueDeclared = new("unique-declared", "note",
             "A create that documents 409 says which fields must be unique", "UniqueEnforced: duplicate, case-variant and renamed-into cases");
 
+        public static readonly AuditRule LimitExercised = new("limit-exercised", "note",
+            "A limit is low enough for the suite to reach", "LimitEnforced: the create past the limit");
+
         public static readonly AuditRule Invariants = new("invariants", "note",
             "The spec states invariants the schema can't", "Postcondition, SchemaRule, TransitionRule and dependency cases");
 
         public static IReadOnlyList<AuditRule> Rules { get; } =
         [
             OperationId, BoundedString, BoundedNumber, RejectionDocumented, RequestExample, ReadOnlyDeclared, AdditionalProperties,
-            CreateLinked, SecurityDocumented, IdempotencyKey, Concurrency, UniqueDeclared, Invariants,
+            CreateLinked, SecurityDocumented, IdempotencyKey, Concurrency, UniqueDeclared, LimitExercised, Invariants,
         ];
 
         private static readonly string[] Methods = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"];
@@ -266,6 +269,16 @@ namespace Matchmark.Generator
                     && !parameters.Any(p => (string?)p["in"] == "header" && string.Equals((string?)p["name"], "If-Match", StringComparison.OrdinalIgnoreCase)))
                 {
                     findings.Add(new AuditFinding(Concurrency, name, pointer, "changes a resource without If-Match: a concurrent change can be lost", id, null));
+                }
+            }
+
+            // A limit above 50 isn't exercised: reaching it would take that many creates per run.
+            foreach (var schema in schemas.Where(s => s.Value?["x-matchmark-limit"]?["max"] is JsonValue))
+            {
+                if (int.TryParse(schema.Value!["x-matchmark-limit"]!["max"]!.ToString(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var max) && max > 50)
+                {
+                    findings.Add(new AuditFinding(LimitExercised, schema.Key, $"#/components/schemas/{Escape(schema.Key)}/x-matchmark-limit",
+                        $"limits it to {max}, above the 50 the suite will create to reach a limit: the twin enforces it, but nothing checks the service does", null, null));
                 }
             }
 

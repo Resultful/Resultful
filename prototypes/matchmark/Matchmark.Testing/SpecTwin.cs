@@ -107,6 +107,9 @@ public sealed class SpecTwin : HttpMessageHandler
     private sealed class Collection
     {
         public Dictionary<string, (JsonObject Resource, int Version)> Items { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Each resource's scope as it was created: its parent's path values, and the credential that sent it.</summary>
+        public Dictionary<string, (string Parent, string Principal)> Scopes { get; } = new(StringComparer.Ordinal);
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -278,12 +281,26 @@ public sealed class SpecTwin : HttpMessageHandler
             return seen.Body == (body ?? string.Empty) ? seen.Answer : Problem(422, "That key was used with another body", operation);
         }
 
+        // Conserved totals (x-matchmark-conserved): owned code mustn't break one; the twin checks, and answers 500 if it does.
+        var conserved = Traits.ConservedTotals(_spec).Where(c => !c.Except.Contains(operation.Id)).ToList();
+        decimal[] Totals() => conserved.Select(c => Traits.Sum(_collections.TryGetValue(c.Collection, out var held) ? held.Items.Values.Select(i => i.Resource) : [], c.Total)).ToArray();
+        var totals = conserved.Count > 0 && (_behaviours.GetValueOrDefault(operation.Id)?.Count ?? 0) > 0 ? Totals() : null;
         foreach (var behaviour in _behaviours.GetValueOrDefault(operation.Id) ?? [])
         {
             var call = new TwinCall(operation.Id, values, query, json, _collections.ToDictionary(c => c.Key,
                 c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => i.Resource).ToList(), StringComparer.Ordinal));
             if (behaviour(call) is { } owned)
             {
+                if (totals is not null && owned.Status is >= 200 and < 300 && Totals() is var after
+                    && conserved.Select((c, i) => (c, i)).FirstOrDefault(p => totals[p.i] != after[p.i]) is { c: { } broken } changed)
+                {
+                    return new Reply(500, "application/problem+json", new JsonObject
+                    {
+                        ["title"] = $"Owned behaviour for {operation.Id} broke a conserved total: {broken} went from {totals[changed.i]} to {after[changed.i]}",
+                        ["status"] = 500,
+                    }.ToJsonString(), []);
+                }
+
                 return new Reply(owned.Status, owned.ContentType ?? operation.Response(owned.Status)?.Content.Keys.FirstOrDefault() ?? "application/json",
                     owned.Body?.ToJsonString(), []);
             }
@@ -326,6 +343,25 @@ public sealed class SpecTwin : HttpMessageHandler
             ("PATCH", true) when found is { } stored => Patched(stored.Resource, body as JsonObject),
             _ => null,
         };
+        // The scope a create lands in: the parent's path values, and the credential that sent it.
+        var scope = (Parent: string.Join('/', values.Where(v => v.Key != idName).OrderBy(v => v.Key, StringComparer.Ordinal).Select(v => v.Value)),
+            Principal: headers.GetValueOrDefault("Authorization") ?? string.Empty);
+
+        // A limit (x-matchmark-limit): a create past it is refused.
+        if (candidate is not null && (operation.Method == "POST" || found is null) && Traits.LimitOf(_spec, Traits.ResourceSchema(operation)) is { } limit)
+        {
+            var held = store.Items.Keys.Count(k => limit.Scope switch
+            {
+                "parent" => store.Scopes.GetValueOrDefault(k).Parent == scope.Parent,
+                "principal" => store.Scopes.GetValueOrDefault(k).Principal == scope.Principal,
+                _ => true,
+            });
+            if (held >= limit.Max)
+            {
+                return Refuse(operation, Traits.Status(operation, Traits.LimitStatuses, limit.Declared), string.Empty, $"Limit reached: at most {limit}.");
+            }
+        }
+
         if (candidate is not null)
         {
             // Unique keys (x-matchmark-unique): it mustn't share a key with another resource.
@@ -356,7 +392,9 @@ public sealed class SpecTwin : HttpMessageHandler
         switch (operation.Method, item)
         {
             case ("POST", false):
-                return Created(operation, store, body as JsonObject ?? [], NewId(operation, idName));
+                var newId = NewId(operation, idName);
+                store.Scopes[newId] = (scope.Parent, scope.Principal);
+                return Created(operation, store, body as JsonObject ?? [], newId);
             case ("GET", false):
                 return Listed(operation, store, query);
             case ("GET", true):
@@ -364,6 +402,7 @@ public sealed class SpecTwin : HttpMessageHandler
             case ("PUT", true):
                 if (found is null)
                 {
+                    store.Scopes[id!] = (scope.Parent, scope.Principal);
                     return operation.Response(201) is not null ? Created(operation, store, body as JsonObject ?? [], id!) : NotFound(operation);
                 }
 

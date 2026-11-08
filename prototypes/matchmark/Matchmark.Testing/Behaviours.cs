@@ -78,7 +78,83 @@ internal sealed partial class RegressionRunner
             await ReferencesAsync(@case, references, findings, cancellationToken).ConfigureAwait(false);
         }
 
+        if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.LimitEnforced)
+            && operation.Method == "POST" && Traits.LimitOf(suite.Spec, Traits.ResourceSchema(operation)) is { Max: <= MaxLimitExercised } limit
+            && _limitChecked.Add(operation.Id))
+        {
+            await LimitAsync(@case, exchange, limit, findings, cancellationToken).ConfigureAwait(false);
+        }
     }
+
+    /// <summary>A limit above this isn't exercised: the creates would make the run slow (the audit says so).</summary>
+    internal const int MaxLimitExercised = 50;
+
+    private readonly HashSet<string> _limitChecked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A limit (x-matchmark-limit): creates until one is refused, which must happen by the limit plus one, with the
+    /// documented status. What it created (not the case's own resource) is deleted after, so later cases still have room; without a delete on the
+    /// item path, it isn't exercised.
+    /// </summary>
+    private async Task LimitAsync(RegressionCase @case, Exchange exchange, Limit limit, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        var delete = suite.Spec.Operations.FirstOrDefault(o => o.Method == "DELETE"
+            && System.Text.RegularExpressions.Regex.IsMatch(o.Path, "^" + System.Text.RegularExpressions.Regex.Escape(operation.Path.TrimEnd('/')) + @"/\{[^}]+\}$"));
+        if (delete is null || operation.Body is not { } body || RequestJson(@case.Request, operation) is not JsonObject sent)
+        {
+            return;
+        }
+
+        var parameter = System.Text.RegularExpressions.Regex.Match(delete.Path, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+        var prefix = @case.Request.Path.Split('?')[0].TrimEnd('/');
+        var made = new List<string>();
+
+        var expected = Traits.Status(operation, Traits.LimitStatuses, limit.Declared);
+        var subject = $"{@case.Name}, limit {limit.Max} reached";
+        try
+        {
+            for (var i = 0; i <= limit.Max; i++)
+            {
+                var next = suite.Samples.Unique(sent, body.Schema, 80_000 + _behaviour++) ?? sent;
+                var answer = await SendAsync(@case.Request with { Body = RequestText(@case.Request, next), Headers = FreshKey(@case.Request.Headers) }, cancellationToken)
+                    .ConfigureAwait(false);
+                if (answer.Status is >= 200 and < 300)
+                {
+                    if (Id(answer.Json(), parameter) is { } id)
+                    {
+                        made.Add(id);
+                    }
+
+                    continue;
+                }
+
+                if (answer.Status != expected)
+                {
+                    Add(findings, Checks.LimitEnforced, subject, answer, $"a create past the limit ({limit}) was refused with {answer.Status}; the spec documents {expected} for it", Severity.Warning);
+                }
+
+                return;
+            }
+
+            Add(findings, Checks.LimitEnforced, subject, exchange,
+                $"{limit.Max + 2} creates were accepted; the spec limits it to {limit}, so a create past it must be refused ({expected})");
+        }
+        finally
+        {
+            foreach (var id in made)
+            {
+                var path = delete.Path.Replace("{" + parameter + "}", Uri.EscapeDataString(id), StringComparison.Ordinal);
+                path = prefix + path[operation.Path.TrimEnd('/').Length..];
+                await SendAsync(new RegressionRequest("DELETE", path.TrimStart('/'), [], @case.Request.Headers.Where(h => string.Equals(h.Key, "Authorization", StringComparison.OrdinalIgnoreCase)).ToList(), null, null),
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>A created resource's id: the item path's parameter, else <c>id</c>.</summary>
+    private static string? Id(JsonNode? created, string parameter)
+        => (created?[parameter] ?? created?["id"]) is { } id ? (id.GetValueKind() == JsonValueKind.String ? id.GetValue<string>() : id.ToJsonString()) : null;
 
     /// <summary>A list's items: the body when it's an array, else its first array property (items, data…).</summary>
     private static List<JsonObject> Items(JsonNode body)

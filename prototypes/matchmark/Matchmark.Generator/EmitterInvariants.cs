@@ -148,6 +148,79 @@ namespace Matchmark.Generator
             }
         }
 
+        /// <summary>
+        /// MM027 for a limit declared wrongly (a max below 1, an unknown scope); MM028 for a create of a limited schema that
+        /// documents no status to refuse with, unless the limit names its own.
+        /// </summary>
+        private void CheckLimits(List<Operation> operations)
+        {
+            foreach (var pair in _document.Components?.Schemas ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                if (!(Extension(pair.Value.Extensions, "x-matchmark-limit") is JsonObject limit))
+                {
+                    continue;
+                }
+
+                // YAML may give the number as text.
+                var max = limit["max"] is JsonValue m && int.TryParse(m.ToString(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
+                var scope = limit["scope"]?.GetValue<string>() ?? "collection";
+                var wrong = max < 1 ? "a max that isn't a whole number of at least 1"
+                    : scope is not ("collection" or "parent" or "principal") ? $"an unknown scope {scope}"
+                    : null;
+                if (wrong is not null)
+                {
+                    Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{pair.Key}'s x-matchmark-limit", wrong));
+                    continue;
+                }
+
+                if (limit["status"] is null)
+                {
+                    foreach (var operation in operations.Where(o => o.Method == "POST" && Creates(o, pair.Key) && !UniqueStatuses.Any(s => o.Errors.Any(e => e.Status == s))))
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantStatusMissing, _location, operation.Id, $"{pair.Key}'s limit", "409, 422 or 400"));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// MM027 for a conserved total declared wrongly: a field the schema doesn't have, one that isn't a number or a string
+        /// (decimal strings count), or an excepted operation the spec doesn't have.
+        /// </summary>
+        private void CheckConserved(List<Operation> operations)
+        {
+            var ids = new HashSet<string>(operations.Select(o => o.Id), StringComparer.Ordinal);
+            foreach (var pair in _document.Components?.Schemas ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                if (!(Extension(pair.Value.Extensions, "x-matchmark-conserved") is JsonArray totals))
+                {
+                    continue;
+                }
+
+                foreach (var total in totals.OfType<JsonObject>())
+                {
+                    var field = total["total"]?.ToString();
+                    var property = field is null ? null : Property(pair.Value, field);
+                    var type = property?.Type ?? 0;
+                    var wrong = field is null ? "no total field"
+                        : property is null ? $"an unknown field {field}"
+                        : !(type.HasFlag(JsonSchemaType.Number) || type.HasFlag(JsonSchemaType.Integer) || type.HasFlag(JsonSchemaType.String))
+                            ? $"{field}, which isn't a number or a decimal string"
+                        : (total["except"] as JsonArray ?? new JsonArray()).Select(e => e?.ToString()).FirstOrDefault(e => e is not null && !ids.Contains(e)) is { } unknown
+                            ? $"an unknown operation {unknown} in except"
+                        : null;
+                    if (wrong is not null)
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{pair.Key}'s x-matchmark-conserved", wrong));
+                    }
+                }
+            }
+        }
+
+        private static IOpenApiSchema? Property(IOpenApiSchema schema, string name)
+            => schema.Properties is not null && schema.Properties.TryGetValue(name, out var property) ? property
+               : (schema.AllOf ?? new List<IOpenApiSchema>()).Select(part => Property(part, name)).FirstOrDefault(p => p is not null);
+
         /// <summary>Whether a property's type allows null, so a reference to a deleted resource can be cleared.</summary>
         private static bool Nullable(IOpenApiSchema schema, string property)
             => schema.Properties is not null && schema.Properties.TryGetValue(property, out var value) && (value.Type ?? 0).HasFlag(JsonSchemaType.Null)
@@ -168,6 +241,8 @@ namespace Matchmark.Generator
         private string? EmitInvariants(List<Operation> operations)
         {
             CheckDerivedAndOrder(operations);
+            CheckLimits(operations);
+            CheckConserved(operations);
             var keys = UniqueKeys();
             var references = References();
             if (keys.Count == 0 && references.Count == 0)

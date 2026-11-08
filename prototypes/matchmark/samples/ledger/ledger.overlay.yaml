@@ -32,3 +32,7 @@ actions:
     update:
       x-matchmark-derived:
         balance: { on: create, value: request.opening }
+      # A transfer moves money without making any (invariants.md, conserved); only opening an account adds to the total.
+      x-matchmark-conserved:
+        - total: balance
+          except: [openAccount]

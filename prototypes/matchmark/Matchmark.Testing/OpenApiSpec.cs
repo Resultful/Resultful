@@ -16,6 +16,10 @@ public sealed class OpenApiSpec
 
     public IReadOnlyList<SpecOperation> Operations { get; }
 
+    /// <summary>The component schemas, by name.</summary>
+    public IEnumerable<KeyValuePair<string, JsonObject>> Schemas
+        => (_document["components"]?["schemas"] as JsonObject ?? []).Where(p => p.Value is JsonObject).Select(p => new KeyValuePair<string, JsonObject>(p.Key, (JsonObject)p.Value!));
+
     public static OpenApiSpec Parse(string json)
         => new(JsonNode.Parse(json) ?? throw new ArgumentException("The spec is empty.", nameof(json)));
 

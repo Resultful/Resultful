@@ -270,7 +270,7 @@ flowchart LR
 - Support measured against the official example sets.
 - The CLI as a dotnet tool and a container image.
 
-*Alongside steps 3 and 4 (Q44):* ✓ `unique`, ✓ `references`, ✓ `derived`, ✓ `order`, then the rest of the invariants across a collection, declared as traits (unique, references,
+*Alongside steps 3 and 4 (Q44):* ✓ `unique`, ✓ `references`, ✓ `derived`, ✓ `order`, ✓ `limit`, ✓ `conserved`, then `scoped` of the invariants across a collection, declared as traits (unique, references,
 derived, conserved, scoped, limit, order), each built once and used by the twin, the suite, the audit and the generator,
 starting with `unique` ([docs/reference/invariants.md](docs/reference/invariants.md)).
 

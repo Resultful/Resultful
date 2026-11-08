@@ -169,5 +169,32 @@ public sealed class LedgerTests
         }
     }
 
+    /// <summary>The conserved total is proven on the real Ledger: settlement that debits without crediting is caught.</summary>
+    [Test]
+    public async Task Settlement_that_loses_money_breaks_the_conserved_total()
+    {
+        const string Credit = "_accounts[target.Id] = target with { Balance = Money(Amount(target.Balance) + Amount(transfer.Amount)) };";
+        Source.Should().Contain(Credit);
+        var (assembly, _) = GeneratedServer.Build("Ledger", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "ledger.overlay.yaml")],
+            Source.Replace(Credit, string.Empty, StringComparison.Ordinal), withRules: true);
+        var app = await (Task<WebApplication>)assembly.GetType("Ledger.Api.Server")!.GetMethod("StartAsync")!.Invoke(null, null)!;
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+            var spec = SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml", out _,
+                [(File.ReadAllText(Path.Combine(Samples, "ledger.overlay.yaml")), "ledger.overlay.yaml")]);
+            await client.PostAsync("accounts", new StringContent("""{"owner":"Ada","opening":"500.00"}""", System.Text.Encoding.UTF8, "application/json"));
+            await client.PostAsync("accounts", new StringContent("""{"owner":"Bo","opening":"0.00"}""", System.Text.Encoding.UTF8, "application/json"));
+            var report = await RegressionSuite.FromJson(spec).RunAsync(client, new RegressionOptions { MaxRetryWait = TimeSpan.Zero });
+
+            report.Failures.Should().Contain(f => f.Check == Checks.TotalConserved && f.Message.Contains("changed the total of Account.balance", StringComparison.Ordinal) && f.Subject.Contains("getTransfer", StringComparison.Ordinal), report.ToString());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
     private static string ThisDirectory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 }

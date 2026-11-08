@@ -76,9 +76,9 @@ From the [invariants across a collection](invariants.md), each proven by an inje
 | `UniqueEnforced` (**Built**) | A create that repeats another resource's unique key (also in another case, when it ignores case), or a rename into it, is refused with the documented status. |
 | `ReferenceHolds` (**Built**) | A reference to nothing is refused, and deleting what a restricting reference still refers to is refused. |
 | `DerivedHolds` (**Built**) | A derived value equals its expression in every response that holds the resource. |
-| `TotalConserved` | A conserved total over the collection is the same before and after each operation that must keep it. |
+| `TotalConserved` (**Built**) | A conserved total over the collection is the same before and after each operation that must keep it. |
 | `ScopeHolds` | Another principal can't list, read, change or delete a scoped resource. |
-| `LimitEnforced` | The create past a limit is refused with the documented status. |
+| `LimitEnforced` (**Built**) | The create past a limit is refused with the documented status. |
 | `ListOrdered` (**Built**) | A list is in its declared order, page after page. |
 
 ## Sessions
