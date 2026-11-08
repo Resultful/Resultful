@@ -163,6 +163,107 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
     public bool Passed => Failures.Count == 0;
 
     /// <summary>
+    /// The fidelity of this run (against a fake or twin) to <paramref name="real"/> (the same suite against the real API,
+    /// from the same seed state): the share of steps, case by case and workflow step by step, whose status matches and
+    /// whose body matches once volatile values are left out (ids, anything ending in Id or At, ETags, trace ids, and
+    /// <paramref name="volatileNames"/>). Per operation and overall (GAPS.md, gap 2).
+    /// </summary>
+    public FidelityReport Fidelity(RegressionReport real, params string[] volatileNames)
+    {
+        var ignored = new HashSet<string>(volatileNames, StringComparer.OrdinalIgnoreCase) { "id", "traceId", "etag", "createdAt", "updatedAt" };
+        var steps = new List<(string Operation, string Subject, Exchange Mine, Exchange Theirs)>();
+        var theirs = real.Cases.ToDictionary(c => c.Case.Name, StringComparer.Ordinal);
+        foreach (var mine in Cases.Where(c => theirs.ContainsKey(c.Case.Name)))
+        {
+            steps.Add((mine.Case.Operation.Id, mine.Case.Name, mine.Exchange, theirs[mine.Case.Name].Exchange));
+        }
+
+        var theirFlows = real.Workflows.ToDictionary(w => w.Name, StringComparer.Ordinal);
+        foreach (var mine in Workflows.Where(w => theirFlows.ContainsKey(w.Name)))
+        {
+            var match = theirFlows[mine.Name];
+            for (var i = 0; i < Math.Min(mine.Exchanges.Count, match.Exchanges.Count); i++)
+            {
+                steps.Add((mine.Name, $"{mine.Name}, step {i + 1} ({mine.Exchanges[i].Request.Method} {mine.Exchanges[i].Request.Path})", mine.Exchanges[i], match.Exchanges[i]));
+            }
+        }
+
+        var mismatches = new List<string>();
+        var operations = steps.GroupBy(s => s.Operation, StringComparer.Ordinal).Select(group =>
+        {
+            var matched = 0;
+            foreach (var (_, subject, mine, other) in group)
+            {
+                if (mine.Status != other.Status)
+                {
+                    mismatches.Add($"{subject}: {mine.Status} here, {other.Status} from the real API");
+                }
+                else if (!JsonNode.DeepEquals(Normalized(mine, ignored), Normalized(other, ignored)))
+                {
+                    mismatches.Add($"{subject}: the bodies differ at {FirstDifference(Normalized(mine, ignored), Normalized(other, ignored), string.Empty)}");
+                }
+                else
+                {
+                    matched++;
+                }
+            }
+
+            return new OperationFidelity(group.Key, group.Count(), matched);
+        }).OrderBy(o => o.Operation, StringComparer.Ordinal).ToList();
+        return new FidelityReport(operations, mismatches);
+    }
+
+    /// <summary>
+    /// What a step's answer says, without the wording: a problem is its status and which values it names (its title,
+    /// type and messages are how it's put); anything else is its JSON, volatile values and nulls left out.
+    /// </summary>
+    private static JsonNode? Normalized(Exchange exchange, HashSet<string> ignored)
+    {
+        var json = exchange.Json() ?? (exchange.Body.Length == 0 ? null : JsonValue.Create(exchange.Body));
+        if (json is JsonObject problem && (exchange.ContentType?.Contains("problem", StringComparison.OrdinalIgnoreCase) == true || problem["errors"] is JsonObject))
+        {
+            return new JsonObject
+            {
+                ["status"] = exchange.Status,
+                ["names"] = new JsonArray((problem["errors"] as JsonObject ?? []).Select(e => e.Key.TrimStart('$', '.').ToLowerInvariant())
+                    .Order(StringComparer.Ordinal).Select(k => (JsonNode?)JsonValue.Create(k)).ToArray()),
+            };
+        }
+
+        return Volatile(json?.DeepClone(), ignored);
+    }
+
+    private static JsonNode? Volatile(JsonNode? node, HashSet<string> ignored)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var name in obj.Select(p => p.Key).ToList())
+                {
+                    if (obj[name] is null || ignored.Contains(name) || name.Length > 2 && (name.EndsWith("Id", StringComparison.Ordinal) || name.EndsWith("At", StringComparison.Ordinal)))
+                    {
+                        obj.Remove(name);
+                    }
+                    else
+                    {
+                        obj[name] = Volatile(obj[name], ignored);
+                    }
+                }
+
+                return obj;
+            case JsonArray array:
+                for (var i = 0; i < array.Count; i++)
+                {
+                    array[i] = Volatile(array[i]?.DeepClone(), ignored);
+                }
+
+                return array;
+            default:
+                return node;
+        }
+    }
+
+    /// <summary>
     /// How this run's responses differ from <paramref name="other"/>'s, case by case and workflow step by step: status,
     /// then body (ignoring <paramref name="ignore"/>d properties, such as a trace id). For running one suite against two
     /// implementations that should behave the same.
@@ -310,4 +411,27 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
 
         return text.ToString();
     }
+}
+
+/// <summary>How many of an operation's steps matched the real API.</summary>
+public sealed record OperationFidelity(string Operation, int Steps, int Matched)
+{
+    public double Score => Steps == 0 ? 1 : (double)Matched / Steps;
+
+    public override string ToString() => $"{Operation}: {Matched}/{Steps} ({Score * 100:0}%)";
+}
+
+/// <summary>A fake's fidelity to the real API: per operation, overall, and each step that differed.</summary>
+public sealed record FidelityReport(IReadOnlyList<OperationFidelity> Operations, IReadOnlyList<string> Mismatches)
+{
+    public int Steps => Operations.Sum(o => o.Steps);
+
+    public int Matched => Operations.Sum(o => o.Matched);
+
+    public double Score => Steps == 0 ? 1 : (double)Matched / Steps;
+
+    public override string ToString()
+        => $"Fidelity: {Matched}/{Steps} steps match the real API ({Score * 100:0.#}%).\n"
+           + string.Join("\n", Operations.Select(o => $"  {o}"))
+           + (Mismatches.Count == 0 ? string.Empty : "\nMismatches:\n" + string.Join("\n", Mismatches.Select(m => $"  {m}")));
 }

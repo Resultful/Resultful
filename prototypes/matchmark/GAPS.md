@@ -20,6 +20,13 @@ The contract already has the seam. A stateful fake is one more implementation of
 an in-memory store per collection, the spec's conventions for ids, paging and ETags, and the existing seed scenarios
 as its starting data. Operations that are not plain CRUD stay scripted, or get behaviour written for them (gap 2).
 
+*Status:* done, from the spec alone rather than generated per API. `SpecTwin` (Matchmark.Testing) infers collections
+from the paths and keeps resources in memory: POST creates (assigning the id and what the response requires), GET
+reads and lists, PUT replaces or creates, PATCH merges, DELETE removes, and requests are checked as the spec says;
+ETags with If-Match, and Idempotency-Key, behave as its headers say. `Seed` gives it starting data;
+`matchmark twin <spec>` and `app.UseMatchmarkTwin(spec)` serve it. The Pet Store twin passes the whole generated
+suite but one step: a second pet may not take a name already used, which the spec doesn't say (`TwinTests`).
+
 ## 2. Nothing measures a fake against the real API
 
 Every check in the prototype compares code with the spec: the compiler, the round-trip document, client
@@ -41,6 +48,12 @@ suite itself, which already runs against any implementation.
 The roadmap's differential runner (stage 5) compares two of our own implementations. This gap is the same machinery
 pointed at someone else's API.
 
+*Status:* the score, done: `RegressionReport.Fidelity(real)` (and `matchmark fidelity <spec> <real> <fake> --floor`)
+pairs the suite's steps, case by case and workflow step by step, and counts those whose status and body match, a
+problem compared by which values it names rather than its wording, volatile values left out. The Pet Store twin, seeded
+with the service's data, scores 89%; its mismatches are the unique-name rule, two problems worded differently, and a
+list after the two have diverged. Recording real responses for PR builds is next.
+
 ## 3. Behaviour beyond CRUD has no author
 
 VISION leaves "the behaviour inside each operation" to people or to an agent. For a service that is right. For a fake
@@ -52,6 +65,10 @@ of someone else's API, nobody on the team knows the behaviour well enough to wri
 - A change is kept only if the score rises on a held-out set of sequences the agent never saw, and no operation's
   score falls. The agent never edits generated code, the comparison rules or the floor.
 
+*Status:* the inputs exist: `FidelityReport.Mismatches` is the task list (each mismatch names the step, the twin's
+answer and the real one), and the per-operation scores are what a change must not lower. Where an agent writes the
+behaviour (owned code beside the twin) is next.
+
 ## 4. Only Petstore has been through it
 
 The sample spec is the only one the generator has run on. Constructs real specs use heavily are skipped with
@@ -62,6 +79,11 @@ use all of these.
 A run against one large spec is already on the roadmap (stage 1). It should be a **corpus**, not one spec: a set of
 real specs built in CI, with the share of operations generated without a diagnostic tracked as a number that only
 rises.
+
+*Status:* done. The corpus (samples/) holds six specs in its ledger, each compiled, scaffolded and, for four, run as
+a generated server against its suite; inline objects, `allOf`, `oneOf` without a discriminator, `default` responses,
+more than six responses, forms, deep-object parameters and redirects are all generated. GitHub's and Stripe's specs
+are fetched and generated in CI (`.github/workflows/matchmark.yml`): 98.7% and 99.8% of their operations, compiling.
 
 ## 5. The generator does more work than it needs to
 

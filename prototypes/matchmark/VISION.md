@@ -71,10 +71,10 @@ consumers actually use, not against the whole spec.
 
 **For teams depending on APIs they don't own,** a twin: a fake that remembers, measured against the real thing.
 The fake above answers one call at a time. A twin is the next step up ([GAPS.md](GAPS.md), gaps 1 to 3):
-- **Stateful.** A generated in-memory implementation of the contract. Resources are inferred from paths, so a `POST`
+- ✓ **Stateful** (`SpecTwin`, from the spec alone). A generated in-memory implementation of the contract. Resources are inferred from paths, so a `POST`
   followed by a `GET` round-trips, and lists, paging, ETags and deletes behave as the spec's conventions say. Seed
   scenarios set its starting data, and snapshots let a dev server keep state across restarts.
-- **Measured.** The same request sequences run against the real API (a sandbox, on a schedule) and against the twin.
+- ✓ **Measured** (`RegressionReport.Fidelity`, `matchmark fidelity`). The same request sequences run against the real API (a sandbox, on a schedule) and against the twin.
   The share of steps that match is its **fidelity score**, per operation and overall, with a floor in CI that only
   rises. PR builds replay recorded real responses, so they need no credentials.
 - **Grown by agents.** Behaviour beyond CRUD is what nobody on a consuming team knows well enough to write, and the
