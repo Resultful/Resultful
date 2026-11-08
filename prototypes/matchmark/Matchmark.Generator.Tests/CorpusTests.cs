@@ -29,6 +29,7 @@ public sealed class CorpusTests
         ("catalogue", "samples/catalogue/openapi.yaml", [], ["samples/catalogue/catalogue.overlay.yaml"]),
         ("payments", "samples/payments/openapi.yaml", [], []),
         ("notifications", "samples/notifications/openapi.yaml", [], []),
+        ("flags", "samples/flags/openapi.yaml", [], ["samples/flags/flags.overlay.yaml"]),
     ];
 
     [Test]
@@ -60,7 +61,8 @@ public sealed class CorpusTests
             "bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%",
             "catalogue: generator skips 0; suite 73 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 97%",
             "payments: generator skips 0; suite 93 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%",
-            "notifications: generator skips 0; suite 49 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps, 28 callback cases; audit 1 warnings, 3 findings, 100%");
+            "notifications: generator skips 0; suite 49 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps, 28 callback cases; audit 1 warnings, 3 findings, 100%",
+            "flags: generator skips 0; suite 73 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 100%");
     }
 
     /// <summary>What the generator writes for each sample compiles: the Contract and Server parts, against Resultful and ASP.NET Core.</summary>
@@ -71,6 +73,7 @@ public sealed class CorpusTests
     [TestCase("catalogue")]
     [TestCase("payments")]
     [TestCase("notifications")]
+    [TestCase("flags")]
     public void The_code_generated_for_each_sample_compiles(string name)
     {
         var sample = Samples.Single(s => s.Name == name);
@@ -104,6 +107,7 @@ public sealed class CorpusTests
     [TestCase("payments", true)]
     [TestCase("payments", false)]
     [TestCase("notifications", true)]
+    [TestCase("flags", true)]
     public void The_scaffold_for_each_sample_compiles(string name, bool controllers)
     {
         var sample = Samples.Single(s => s.Name == name);

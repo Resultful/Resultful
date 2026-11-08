@@ -11,6 +11,7 @@ sample changes the ledger; so does breaking something that worked.
 | `orders/` | Written to exercise behaviour across calls and over time: an Idempotency-Key, ETag and If-Match, a cursor, a 202 and an operation to poll, rate limits, deprecation, webhooks. | Overlay, Arazzo |
 | `catalogue/` | OpenAPI 3.2: a search sent as a QUERY (RFC 10008) and an export streamed as JSON Lines (`itemSchema`), with a declared prefix relation and postconditions in its overlay. Its generated server runs against the suite (`CatalogueTests`). | Overlay |
 | `payments/` | Request bodies as forms, the way Stripe takes them (nested values in brackets, numbers and true or false as text), and a `default` error response carrying its status (a declined card is a 402), a list filtered by a deep-object query parameter, and a receipt that is a redirect. Its generated server runs against the suite, random requests included (`FormTests`). | |
+| `flags/` | Concurrency and partial updates: an ETag on every read, set by the handler (`{Api}Headers`); If-Match on every change; JSON Merge Patch; a version only the server sets, that only goes up (a transition rule); a write-only secret. Its generated server passes its suite, and its twin is measured against it (`FlagsTests`). | Overlay |
 | `notifications/` | OpenAPI 3.2: subscribe, then receive. A callback, signed, generated as a typed receiver and a sender; and a server-sent event stream whose events' data are typed by their `contentSchema`. Both sides are held to their suites, and a notification goes all the way round (`NotificationsTests`). | |
 | `bookings/` | Written for invariants the schema can't state, in its overlay: a booking ends after it starts and is for a room or a desk, not both (CEL); a search's filters depend on each other (IDL); a new booking is booked (a postcondition). Its generated server enforces them (`GeneratedRulesTests`). | Overlay |
 
@@ -24,13 +25,14 @@ bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Araz
 catalogue: generator skips 0; suite 73 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 97%
 payments: generator skips 0; suite 93 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 notifications: generator skips 0; suite 49 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps, 28 callback cases; audit 1 warnings, 3 findings, 100%
+flags: generator skips 0; suite 73 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 100%
 ```
 
 The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's
 `operationPath` steps and its workflow in a second document. The Overlay files are applied by the generator, the CLI
 and the engine. The Orders overlay carries one example of each kind of invariant from
 [COMPLETENESS.md](../COMPLETENESS.md), and the Bookings overlay the invariants its generated server enforces.
-COMPLETENESS.md proposes the next samples (Ledger, Feature flags).
+COMPLETENESS.md proposes the next sample (Ledger).
 Large public specs (GitHub, Stripe) are fetched, not committed (`samples/large/fetch.sh`), and run for scale by
 `LargeSpecTests` when `MATCHMARK_LARGE_SPECS` names where they were fetched to. Their ledger (November 2026):
 

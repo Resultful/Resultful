@@ -281,22 +281,43 @@ namespace Matchmark.Generator
 
                 var invoke = $"await handlers.{operation.Name}({string.Join(", ", call.Append("cancellationToken"))})";
                 var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+                var apply = operation.ResponseHeaders.Count > 0 ? "foreach (var header in headers.Values) Response.Headers[header.Key] = header.Value;" : null;
+                if (apply is not null)
+                {
+                    w.Line($"using var headers = {_apiName}Headers.Begin();");
+                }
+
                 if (operation.Errors.Count == 0)
                 {
                     if (!hasValue)
                     {
                         w.Line($"{invoke};");
+                        if (apply is not null)
+                        {
+                            w.Line(apply);
+                        }
+
                         w.Line($"return {Action(operation.Successes[0], "null")};");
                     }
                     else
                     {
                         w.Line($"var value = {invoke};");
+                        if (apply is not null)
+                        {
+                            w.Line(apply);
+                        }
+
                         w.Line($"return {ActionSuccess(operation, "value")};");
                     }
                 }
                 else
                 {
                     w.Line($"var result = {invoke};");
+                    if (apply is not null)
+                    {
+                        w.Line(apply);
+                    }
+
                     w.Line("return result.Match<IActionResult>(");
                     w.Line($"    success => {ActionSuccess(operation, "success")},");
                     w.Line($"    error => error.Match<IActionResult>({string.Join(", ", operation.Errors.Select(e => $"@case => {Action(e, "@case.Body")}"))}));");
