@@ -76,9 +76,10 @@ mismatches as structured tasks, and `FidelityLoop.Judge` keeps a change only if 
 operation falls (`matchmark fidelity --tasks --gate`). `TwinTests` keeps the unique-name rule and rejects a change
 that refuses every new pet. ✓ A run with an agent writing
 (`AgentLoopTests`, Ledger): three attempts from the training tasks alone, one kept (held out 61.9% to 85.7%), one
-rejected because an operation fell, one rejected because only training rose (LAYERS.md has the log). The writer was
-the coding agent working on this prototype; running one unattended needs a model API in CI, which this repository
-doesn't configure.
+rejected because an operation fell, one rejected because only training rose (LAYERS.md has the log). Then an independent
+agent, limited to `LedgerOwned.cs` and the training tasks, reached the same 85.7% on its own in six attempts
+(`The_owned_behaviour_passes_the_gate`). `matchmark-agent-loop.yml` runs that loop unattended, given an
+`ANTHROPIC_API_KEY` secret.
 
 ## 4. Only Petstore has been through it
 
