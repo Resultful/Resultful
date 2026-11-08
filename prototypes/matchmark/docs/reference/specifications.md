@@ -12,7 +12,7 @@ examples, in a [support matrix](support-matrix.md) generated from the tests.
 | Format | The model holds | Read by forward porting | Written | Status today |
 |:--|:--|:--|:--|:--|
 | OpenAPI | 3.2 | 2.0, 3.0, 3.1 | 3.2, and 3.1 for ASP.NET Core 10 | **Partial.** 2.0 to 3.2 are read through Microsoft.OpenApi. The engine normalises to 3.1 JSON, and keeps 3.2 only when the input is 3.2. |
-| AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Partial.** 3.x is read by Matchmark's own reader. 2.x is not read. |
+| AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Built.** 2.x is forward-ported by Matchmark's port of the official migration guide; 3.x is read by Matchmark's own reader, to be replaced (Q30). |
 | Arazzo | 1.1 | 1.0 | 1.1 | **Built** by Matchmark's own reader, to be replaced (Q31, Q32). |
 | Overlay | 1.2 | 1.0, 1.1 | | **Built** by Matchmark's own implementation, to be replaced (Q31, Q32). |
 
@@ -31,7 +31,7 @@ examples, in a [support matrix](support-matrix.md) generated from the tests.
 - **How long (Q24).** A version stays supported for as long as a supported .NET release emits it. ASP.NET Core 10 (LTS)
   writes OpenAPI 3.1 by default; ASP.NET Core 11 writes 3.2. Both are first-class today.
 - **`matchmark upgrade` (Q23).** The forward port as a command: it writes the migrated spec and lists what changed and
-  what was lost ([command line](cli.md#upgrade)). **Planned.**
+  what was lost ([command line](cli.md#upgrade)). **Built.**
 
 ## Libraries
 
@@ -46,6 +46,9 @@ could take it and dropped once upstream releases it (Q33).
 | Arazzo | [BinkyLabs.OpenApi.Arazzo](https://github.com/BinkyLabs/openapi-arazzo-dotnet) 1.0.0-preview.4 | MIT | 1.0 | 1.1 | **Planned** (Q31) |
 | Overlay | [BinkyLabs.OpenApi.Overlays](https://github.com/BinkyLabs/openapi-overlays-dotnet) 3.0.0-preview.8 | MIT | 1.0, 1.1 | 1.2 | **Planned** (Q31) |
 
+- The AsyncAPI SDK reads v2 and v3 but doesn't convert between them, and the official converter is a JavaScript
+  package. AsyncAPI 2.x is forward-ported by `AsyncApiUpgrade`, Matchmark's C# port of the official guide *Migrating to
+  v3*, section by section ([question 11](../QUESTIONS.md)).
 - The BinkyLabs libraries are pre-release, so they are pinned to exact versions.
 - If a BinkyLabs library proves insufficient, Matchmark gets a reader of its own for that format (Q31).
 - Matchmark's own readers are retired only when their replacement passes the same tests: the corpus ledger and the

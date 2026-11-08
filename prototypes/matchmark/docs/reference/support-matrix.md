@@ -9,21 +9,21 @@ hand: when a result changes, the test writes this page and fails until it's comm
 | Verify | OpenAPI: a regression suite is generated. AsyncAPI: a consumer suite is generated. Arazzo: its workflow runs with no gaps and passes against a twin. Overlay: what it adds reaches the suite. |
 | Host | The suite passes against a twin of the API (OpenAPI). Event channels per session are planned. |
 | Generate | The generated code compiles with nothing skipped (`MM001` to `MM003`). |
-| Write | The document is written in another version: `matchmark upgrade`, planned. |
+| Write | `matchmark upgrade` writes it at the latest version of its format, with nothing lost. |
 
 `✓` passes, `✗` fails with the reason, `planned` isn't built yet, `n/a` doesn't apply to the format.
 
 | Format | Version | Read | Verify | Host | Generate | Write |
 |:--|:--|:--|:--|:--|:--|:--|
-| OpenAPI | 2.0 | ✓ | ✓ 30 cases | ✓ | ✓ | planned |
-| OpenAPI | 3.0 | ✓ | ✓ 33 cases | ✓ | ✓ | planned |
-| OpenAPI | 3.1 | ✓ | ✓ 33 cases | ✓ | ✓ | planned |
-| OpenAPI | 3.2 | ✓ | ✓ 45 cases | ✓ | ✓ | planned |
-| AsyncAPI | 2.6 | ✗ not read | – | planned | – | planned |
-| AsyncAPI | 3.0 | ✓ | ✓ 20 cases | planned | ✓ | planned |
-| AsyncAPI | 3.1 | ✓ | ✓ 20 cases | planned | ✓ | planned |
-| Arazzo | 1.0 | ✓ | ✓ 1 workflow | n/a | n/a | planned |
-| Arazzo | 1.1 | ✓ | ✓ 1 workflow | n/a | n/a | planned |
-| Overlay | 1.0 | ✓ | ✓ | n/a | ✓ | planned |
-| Overlay | 1.1 | ✓ | ✓ | n/a | ✓ | planned |
-| Overlay | 1.2 | ✓ | ✓ | n/a | ✓ | planned |
+| OpenAPI | 2.0 | ✓ | ✓ 30 cases | ✓ | ✓ | ✓ to 3.2.0 |
+| OpenAPI | 3.0 | ✓ | ✓ 33 cases | ✓ | ✓ | ✓ to 3.2.0 |
+| OpenAPI | 3.1 | ✓ | ✓ 33 cases | ✓ | ✓ | ✓ to 3.2.0 |
+| OpenAPI | 3.2 | ✓ | ✓ 45 cases | ✓ | ✓ | ✓ to 3.2.0 |
+| AsyncAPI | 2.6 | ✓ | ✓ 20 cases | planned | ✓ | ✓ to 3.1.0 |
+| AsyncAPI | 3.0 | ✓ | ✓ 20 cases | planned | ✓ | ✓ to 3.1.0 |
+| AsyncAPI | 3.1 | ✓ | ✓ 20 cases | planned | ✓ | ✓ to 3.1.0 |
+| Arazzo | 1.0 | ✓ | ✓ 1 workflow | n/a | n/a | ✓ to 1.1.0 |
+| Arazzo | 1.1 | ✓ | ✓ 1 workflow | n/a | n/a | ✓ to 1.1.0 |
+| Overlay | 1.0 | ✓ | ✓ | n/a | ✓ | ✓ to 1.2.0 |
+| Overlay | 1.1 | ✓ | ✓ | n/a | ✓ | ✓ to 1.2.0 |
+| Overlay | 1.2 | ✓ | ✓ | n/a | ✓ | ✓ to 1.2.0 |

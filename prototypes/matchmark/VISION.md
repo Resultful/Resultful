@@ -182,7 +182,7 @@ them.
 | Format | Model holds | Read by forward porting | Library | Today |
 |:--|:--|:--|:--|:--|
 | OpenAPI | 3.2 | 2.0, 3.0, 3.1 | Microsoft.OpenApi | 2.0 to 3.2 read; the engine still normalises to 3.1 |
-| AsyncAPI | 3.1 | 2.x, 3.0 | `asyncapi/net-sdk`, with an Oxbow fork for 3.1 | Matchmark's own reader, 3.x only |
+| AsyncAPI | 3.1 | 2.x, 3.0 | `asyncapi/net-sdk`, with an Oxbow fork for 3.1 | Matchmark's own reader; 2.x forward-ported by Matchmark's port of the official migration guide |
 | Arazzo | 1.1 | 1.0 | BinkyLabs.OpenApi.Arazzo, with an Oxbow fork for 1.1 | Matchmark's own reader, 1.0 and 1.1 |
 | Overlay | 1.2 | 1.0, 1.1 | BinkyLabs.OpenApi.Overlays, with an Oxbow fork for 1.2 | Matchmark's own implementation, 1.0 to 1.2 |
 
@@ -263,8 +263,9 @@ flowchart LR
 
 **3. Verify.** Alongside step 2: it lives in the engine, which is separate from the generator.
 - Every version in the table above read, through the standard libraries and their Oxbow forks.
-- `matchmark upgrade`, and forward porting on every read, with losses reported.
-- Support measured against the official example sets, and the support matrix generated from the tests.
+- ✓ `matchmark upgrade`, and forward porting on every read (AsyncAPI 2.x included), with losses reported.
+- ✓ The support matrix, generated from the tests ([docs/reference/support-matrix.md](docs/reference/support-matrix.md)).
+- Support measured against the official example sets.
 - The CLI as a dotnet tool and a container image.
 
 **4. Hosted sessions.**

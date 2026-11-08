@@ -16,14 +16,15 @@ namespace Matchmark.Generator
     /// </summary>
     public static class AsyncApi
     {
-        private static readonly Regex Version = new Regex(@"^\s*[""']?asyncapi[""']?\s*:\s*[""']?3\.", RegexOptions.Multiline);
+        private static readonly Regex Version = new Regex(@"^\s*[""']?asyncapi[""']?\s*:\s*[""']?[23]\.", RegexOptions.Multiline);
 
         public static bool IsAsyncApi(string text) => Version.IsMatch(text);
 
         /// <summary>The document (YAML or JSON) as OpenAPI 3.1 JSON.</summary>
         public static string ToOpenApi(string text, string path)
         {
-            var document = Overlay.Parse(text, path) as JsonObject ?? throw new InvalidOperationException($"{path} isn't an object.");
+            // 2.x and 3.0 are forward-ported to the latest version first (AsyncApiUpgrade).
+            var document = AsyncApiUpgrade.Upgrade(Overlay.Parse(text, path) as JsonObject ?? throw new InvalidOperationException($"{path} isn't an object.")).Document;
             var defaultContentType = document["defaultContentType"]?.GetValue<string>() ?? "application/json";
             var webhooks = new JsonObject();
             foreach (var pair in document["operations"] as JsonObject ?? new JsonObject())
