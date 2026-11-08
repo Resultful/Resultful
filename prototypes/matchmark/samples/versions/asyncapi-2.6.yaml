@@ -1,0 +1,23 @@
+asyncapi: 2.6.0
+info: { title: Shelter events, version: "1.0.0" }
+defaultContentType: application/json
+channels:
+  pets.adopted:
+    publish:
+      operationId: receiveAdoption
+      message: { $ref: '#/components/messages/Adoption' }
+    subscribe:
+      operationId: publishAdoption
+      message: { $ref: '#/components/messages/Adoption' }
+components:
+  messages:
+    Adoption:
+      name: adoption
+      payload: { $ref: '#/components/schemas/Adoption' }
+  schemas:
+    Adoption:
+      type: object
+      required: [petId, adopter]
+      properties:
+        petId: { type: integer, minimum: 1 }
+        adopter: { type: string, minLength: 1, maxLength: 80 }

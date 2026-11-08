@@ -17,10 +17,16 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
     private static readonly string[] NonMatching = ["!!", "NOT VALID", " ", "~", "-1", "0", "Aa1!"];
 
     /// <summary>A valid value: the schema's example or default if valid, else one built from the schema.</summary>
-    public bool TrySample(JsonNode schemaNode, bool full, out JsonNode? value)
+    public bool TrySample(JsonNode schemaNode, bool full, out JsonNode? value) => TrySample(schemaNode, full, Direction.Request, out value);
+
+    /// <summary>
+    /// A valid value for one direction: a request leaves read-only values out (the server sets them), a response leaves
+    /// write-only values out (they're never sent back).
+    /// </summary>
+    public bool TrySample(JsonNode schemaNode, bool full, Direction direction, out JsonNode? value)
     {
-        value = Build(schemaNode, full, 0, string.Empty, _ => 0, out var ok);
-        return ok && validator.IsValid(value, schemaNode, Direction.Request);
+        value = Build(schemaNode, full, 0, string.Empty, _ => 0, out var ok, direction: direction);
+        return ok && validator.IsValid(value, schemaNode, direction);
     }
 
     /// <summary>
@@ -55,7 +61,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
     }
 
     private JsonNode? Build(JsonNode schemaNode, bool full, int depth, string path, Func<string, int> choose, out bool ok,
-        List<(string Path, int Members, List<string> Labels)>? unions = null)
+        List<(string Path, int Members, List<string> Labels)>? unions = null, Direction direction = Direction.Request)
     {
         ok = true;
         var schema = spec.Resolve(schemaNode);
@@ -84,7 +90,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             var mapping = SchemaValidator.Mapping(schema, members);
             unions?.Add((path, mapping.Count, mapping.Select(m => m.Value).ToList()));
             var (value, member) = mapping[Math.Clamp(choose(path), 0, mapping.Count - 1)];
-            var built = Build(member, full, depth + 1, path, choose, out ok, unions);
+            var built = Build(member, full, depth + 1, path, choose, out ok, unions, direction);
             if (schema["discriminator"]?["propertyName"]?.GetValue<string>() is { } property && built is JsonObject obj)
             {
                 obj[property] = value;
@@ -98,7 +104,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             var merged = new JsonObject();
             foreach (var part in all)
             {
-                if (Build(part!, full, depth + 1, path, choose, out var partOk, unions) is JsonObject piece && partOk)
+                if (Build(part!, full, depth + 1, path, choose, out var partOk, unions, direction) is JsonObject piece && partOk)
                 {
                     foreach (var (k, v) in piece)
                     {
@@ -131,7 +137,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                 count = Math.Min(count, SchemaValidator.Count(schema, "maxItems") ?? count);
                 for (var i = 0; i < count && schema["items"] is { } items; i++)
                 {
-                    array.Add(Build(items, full, depth + 1, $"{path}[]", choose, out var itemOk, unions));
+                    array.Add(Build(items, full, depth + 1, $"{path}[]", choose, out var itemOk, unions, direction));
                     ok &= itemOk;
                 }
 
@@ -142,12 +148,13 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                 foreach (var (name, property) in schema["properties"]?.AsObject() ?? [])
                 {
                     // Read-only values are the server's to set; a request doesn't send them (the suite's read-only case does, on purpose).
-                    if (!required.Contains(name) && !full || validator.Flag(property!, "readOnly"))
+                    // Write-only values are never sent back, so a response leaves them out.
+                    if (!required.Contains(name) && !full || validator.Flag(property!, direction == Direction.Response ? "writeOnly" : "readOnly"))
                     {
                         continue;
                     }
 
-                    var built = Build(property!, full, depth + 1, SchemaValidator.Join(path, name), choose, out var propertyOk, unions);
+                    var built = Build(property!, full, depth + 1, SchemaValidator.Join(path, name), choose, out var propertyOk, unions, direction);
                     if (propertyOk)
                     {
                         result[name] = built;

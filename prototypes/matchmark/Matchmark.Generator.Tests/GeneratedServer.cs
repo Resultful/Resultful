@@ -64,7 +64,7 @@ internal static class GeneratedServer
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
 
         public override AnalyzerConfigOptions GetOptions(AdditionalText textFile)
-            => textFile.Path.EndsWith(".overlay.yaml", StringComparison.Ordinal) ? _overlay : _spec;
+            => System.IO.Path.GetFileName(textFile.Path).Contains("overlay", StringComparison.Ordinal) ? _overlay : _spec;
 
         private sealed class Values(Dictionary<string, string> values) : AnalyzerConfigOptions
         {

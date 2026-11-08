@@ -166,6 +166,12 @@ Running the generator and the engine over specs other than the Pet Store found t
   now documents. `The_owned_behaviour_passes_the_gate` holds what it wrote. Running the loop unattended in CI isn't
   set up: it needs an Anthropic credential the repository doesn't have.
 
+- **The support matrix found two in the twin.** Run over one document per format version (samples/versions), the
+  twin answered a 404 the spec documents without a body with a problem body anyway, and answered an operation it
+  couldn't map to a collection (OpenAPI 3.2's `QUERY` search) with a sampled body missing its read-only `id`, because
+  it sampled the response as if it were a request. *Fixed:* a status documented without a body is sent without one,
+  and response samples include read-only values and leave out write-only ones.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
