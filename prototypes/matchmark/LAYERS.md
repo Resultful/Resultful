@@ -124,6 +124,12 @@ Running the generator and the engine over specs other than the Pet Store found t
   parameters are read by their JSON names; the client writes parameters as the spec does; binding errors use the
   spec's names.
 
+- **Flags found that a handler couldn't set a response header**, so an ETag the spec requires could never be sent.
+  *Fixed:* a handler sets the headers the spec documents through `{Api}Headers` (`FlagsHeaders.SetETag(…)`), a scope the
+  generated endpoint (and scaffolded controller) opens around each call and writes onto the response; the client keeps
+  the last response's headers (`LastHeaders`), to send an ETag back as If-Match. Its suite also caught the sample's own
+  handler bumping a version on a PUT that changed nothing, which RFC 9110's idempotent PUT doesn't allow.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.

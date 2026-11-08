@@ -195,6 +195,26 @@ public sealed class SpecTwin : HttpMessageHandler
                 {
                     Error(errors, problem);
                 }
+
+                // The rules the spec declares (x-matchmark-rules), as a generated server enforces them.
+                foreach (var (at, _, message, error) in errors.Count == 0 ? SchemaRules.Broken(_spec, json, schema.Schema) : [])
+                {
+                    if (error is null)
+                    {
+                        Error(errors, at == "$" ? "$" : at.TrimStart('$', '.'), message ?? "The value breaks a rule.");
+                    }
+                }
+            }
+        }
+
+        // And its parameters' dependencies (x-dependencies).
+        var given = operation.Parameters.Where(p => p.In == "query").Select(p => (p.Name, Value: query.FirstOrDefault(q => q.Key == p.Name).Value))
+            .Where(p => p.Value is not null).ToDictionary(p => p.Name, p => p.Value!, StringComparer.Ordinal);
+        foreach (var dependency in errors.Count == 0 ? operation.Dependencies : [])
+        {
+            if (!dependency.Holds(given))
+            {
+                Error(errors, dependency.Parameters.Count > 0 ? dependency.Parameters[0] : "query", $"Must satisfy {dependency.Source}");
             }
         }
 

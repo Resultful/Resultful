@@ -1448,6 +1448,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public Body? Body { get; set; }
 
+            /// <summary>The response headers its responses document (ETag...), set by its handler through {Api}Headers.</summary>
+            public SortedSet<string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+
             public List<Response> Successes { get; } = new();
 
             public List<Response> Errors { get; } = new();
@@ -1818,6 +1821,14 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             foreach (var pair in spec.Responses ?? new OpenApiResponses())
             {
+                foreach (var header in pair.Value.Headers?.Keys ?? Enumerable.Empty<string>())
+                {
+                    if (!string.Equals(header, "Content-Type", StringComparison.OrdinalIgnoreCase))
+                    {
+                        operation.ResponseHeaders.Add(header);
+                    }
+                }
+
                 // "default": every status the spec doesn't name, an error case that carries its status.
                 var status = pair.Key == "default" ? 0 : -1;
                 if (status != 0 && (!int.TryParse(pair.Key, NumberStyles.None, CultureInfo.InvariantCulture, out status) || !Naming.StatusNames.ContainsKey(status)))
@@ -2043,6 +2054,50 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 EmitValidatingHandlers(w, group.Key, group.ToList());
             }
 
+            if (operations.SelectMany(o => o.ResponseHeaders).Distinct(StringComparer.OrdinalIgnoreCase).ToList() is { Count: > 0 } headers)
+            {
+                w.Line("/// <summary>");
+                w.Line($"/// The response headers the spec documents for <c>{_apiName}</c>, for a handler to set: the generated endpoint opens a scope");
+                w.Line("/// around each call and writes what was set onto the response. Outside one (a test calling a handler), setting does nothing.");
+                w.Line("/// </summary>");
+                w.Open($"public static class {_apiName}Headers");
+                w.Line("private static readonly global::System.Threading.AsyncLocal<global::System.Collections.Generic.Dictionary<string, string>?> Current = new();");
+                w.Line();
+                w.Line("/// <summary>Opens a scope: what handlers set in it, until it's disposed.</summary>");
+                w.Line("public static Scope Begin() => new(Current.Value);");
+                w.Line();
+                w.Line("/// <summary>Sets a response header, by name.</summary>");
+                w.Open("public static void Set(string name, string value)");
+                w.Open("if (Current.Value is { } values)");
+                w.Line("values[name] = value;");
+                w.Close();
+                w.Close();
+                foreach (var header in headers)
+                {
+                    w.Line();
+                    w.Line($"/// <summary>Sets the <c>{header}</c> response header.</summary>");
+                    w.Line($"public static void Set{Naming.Pascal(header)}(string value) => Set({Naming.Literal(header)}, value);");
+                }
+
+                w.Line();
+                w.Open("public sealed class Scope : global::System.IDisposable");
+                w.Line("private readonly global::System.Collections.Generic.Dictionary<string, string>? _previous;");
+                w.Line("private readonly global::System.Collections.Generic.Dictionary<string, string> _values = new(global::System.StringComparer.OrdinalIgnoreCase);");
+                w.Line();
+                w.Open("internal Scope(global::System.Collections.Generic.Dictionary<string, string>? previous)");
+                w.Line("_previous = previous;");
+                w.Line("Current.Value = _values;");
+                w.Close();
+                w.Line();
+                w.Line("/// <summary>The headers set in this scope.</summary>");
+                w.Line("public global::System.Collections.Generic.IReadOnlyDictionary<string, string> Values => _values;");
+                w.Line();
+                w.Line("public void Dispose() => Current.Value = _previous;");
+                w.Close();
+                w.Close();
+                w.Line();
+            }
+
             return w.ToString();
         }
 
@@ -2196,6 +2251,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line("_onViolation?.Invoke(violation);");
             w.Line("return violation;");
             w.Close();
+            w.Line();
+            w.Line("private IReadOnlyDictionary<string, string> _lastHeaders = new Dictionary<string, string>();");
+            w.Line();
+            w.Line("/// <summary>The headers of the last response (its ETag, say, to send back as If-Match).</summary>");
+            w.Line("public IReadOnlyDictionary<string, string> LastHeaders => _lastHeaders;");
             w.Line();
             w.Line("/// <summary>The documented outcomes this client has received, for measuring which ones a test suite reaches.</summary>");
             w.Line("public IReadOnlyCollection<(string Operation, int Status)> Observed => _observed.Keys.ToList();");
@@ -2442,6 +2502,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             }
 
             w.Line("using var __response = await _http.SendAsync(__request, cancellationToken).ConfigureAwait(false);");
+            w.Line("_lastHeaders = __response.Headers.Concat(__response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => string.Join(\", \", g.First().Value), StringComparer.OrdinalIgnoreCase);");
             w.Open("switch ((int)__response.StatusCode)");
 
             foreach (var response in operation.Successes.Concat(operation.Errors))
@@ -3543,6 +3604,11 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             }
 
             args.Add($"[FromServices] {HandlerInterface(operation.Tag)} __handlers");
+            if (operation.ResponseHeaders.Count > 0)
+            {
+                args.Add("HttpContext __context");
+            }
+
             args.Add("CancellationToken __cancellationToken");
 
             var call = new List<string>(operation.Parameters.Select(p => p.Identifier));
@@ -3619,23 +3685,45 @@ private static (string Key, string Message)? BindingError(Exception exception) =
 
             var invoke = $"await __handlers.{operation.Name}({string.Join(", ", call)}).ConfigureAwait(false)";
             var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+            var headers = operation.ResponseHeaders.Count > 0;
+            if (headers)
+            {
+                w.Line($"using var __headers = {_apiName}Headers.Begin();");
+            }
 
+            // The response headers the handler set, written onto the response before it's returned.
+            var apply = headers ? "foreach (var __header in __headers.Values) __context.Response.Headers[__header.Key] = __header.Value;" : null;
             if (operation.Errors.Count == 0)
             {
                 if (!hasValue)
                 {
                     w.Line($"{invoke};");
+                    if (apply is not null)
+                    {
+                        w.Line(apply);
+                    }
+
                     w.Line($"return {operation.Successes[0].Factory("_")};");
                 }
                 else
                 {
                     w.Line($"var __value = {invoke};");
+                    if (apply is not null)
+                    {
+                        w.Line(apply);
+                    }
+
                     w.Line($"return {Success(operation, "__value", returnType)};");
                 }
             }
             else
             {
                 w.Line($"var __result = {invoke};");
+                if (apply is not null)
+                {
+                    w.Line(apply);
+                }
+
                 w.Line($"return __result.Match<{returnType}>(");
                 w.Line($"    __success => {Success(operation, "__success", returnType)},");
                 w.Line($"    __error => __error.Match<{returnType}>({string.Join(", ", operation.Errors.Select(e => $"__case => {e.Factory("__case.Body")}"))}));");

@@ -1,0 +1,130 @@
+openapi: 3.1.0
+info:
+  title: Flags
+  version: 1.0.0
+  description: >
+    Feature flags, written for concurrency and partial updates: an ETag on every read, If-Match on every change (412
+    when stale, 428 when missing), JSON Merge Patch (RFC 7396), a version only the server sets and that only goes up,
+    and a secret that is written but never read back.
+paths:
+  /flags:
+    get:
+      operationId: listFlags
+      responses:
+        '200':
+          description: The flags
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Flag' } }
+  /flags/{key}:
+    parameters:
+      - { name: key, in: path, required: true, schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,39}$', example: dark-mode } }
+    put:
+      operationId: putFlag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewFlag' }
+            example: { enabled: true, rollout: 25, description: The dark theme }
+      responses:
+        '200':
+          description: Replaced
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Flag' } } }
+        '201':
+          description: Created
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Flag' } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+    get:
+      operationId: getFlag
+      responses:
+        '200':
+          description: The flag
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Flag' } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: patchFlag
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: string, maxLength: 64 } }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/FlagPatch' }
+            example: { rollout: 50 }
+      responses:
+        '200':
+          description: Changed
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Flag' } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412':
+          description: The flag changed since that ETag
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+    delete:
+      operationId: deleteFlag
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  headers:
+    ETag: { required: true, schema: { type: string } }
+  responses:
+    Invalid:
+      description: The request is invalid
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' } } }
+    NotFound:
+      description: No such flag
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+  schemas:
+    NewFlag:
+      type: object
+      required: [enabled]
+      additionalProperties: false
+      properties:
+        enabled: { type: boolean }
+        rollout: { type: integer, minimum: 0, maximum: 100 }
+        description: { type: [string, 'null'], maxLength: 200 }
+        secret: { type: string, minLength: 8, maxLength: 64, writeOnly: true }
+    FlagPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled: { type: boolean }
+        rollout: { type: integer, minimum: 0, maximum: 100 }
+        description: { type: [string, 'null'], maxLength: 200 }
+    Flag:
+      type: object
+      required: [key, enabled, rollout, version]
+      properties:
+        key: { type: string, readOnly: true }
+        enabled: { type: boolean }
+        rollout: { type: integer, minimum: 0, maximum: 100 }
+        description: { type: [string, 'null'] }
+        version: { type: integer, format: int64, readOnly: true, minimum: 1 }
+        secret: { type: string, writeOnly: true }
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+        errors:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }

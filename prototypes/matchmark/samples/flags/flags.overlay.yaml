@@ -1,0 +1,20 @@
+# Invariants of the Flags API (COMPLETENESS.md, section 2).
+overlay: 1.1.0
+info:
+  title: Matchmark invariants for the Flags API
+  version: 1.0.0
+extends: ./openapi.yaml
+actions:
+  - target: $.components.schemas.NewFlag
+    update:
+      x-matchmark-rules:
+        - rule: "!self.enabled || !has(self.rollout) || self.rollout > 0"
+          message: An enabled flag is rolled out to someone.
+  - target: $.components.schemas.Flag
+    update:
+      x-matchmark-rules:
+        - rule: "!self.enabled || self.rollout > 0"
+          message: An enabled flag is rolled out to someone.
+      x-matchmark-transitions:
+        - rule: "!has(oldSelf.version) || self.version >= oldSelf.version"
+          message: A flag's version only goes up.
