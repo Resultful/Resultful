@@ -3,8 +3,13 @@ name: matchmark-agent-loop
 # The Matchmark fidelity loop with an agent writing, unattended (prototypes/matchmark, GAPS.md gap 3): an agent edits
 # only the Ledger twin's owned behaviour (LedgerOwned.cs) from the training tasks the gate prints, and the gate judges it
 # on held-out sequences the agent can't see. Nothing is pushed: the behaviour and the gate's verdict are uploaded for a
-# person to review. It needs an ANTHROPIC_API_KEY secret, and skips itself without one.
+# person to review. It needs an ANTHROPIC_API_KEY secret, and skips itself without one. A push that changes the loop
+# (this file, or the owned behaviour) runs everything but the agent: the gate on the committed behaviour, and the upload.
 on:
+  push:
+    paths:
+      - '.github/workflows/matchmark-agent-loop.yml'
+      - 'prototypes/matchmark/Matchmark.Generator.Tests/LedgerOwned.cs'
   workflow_dispatch:
   schedule:
     - cron: '17 3 * * 1'
@@ -27,19 +32,24 @@ jobs:
         env:
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "$KEY" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "::notice::A push checks the loop without the agent: the gate on the committed behaviour."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "check=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$KEY" ]; then
             echo "::notice::No ANTHROPIC_API_KEY secret, so the agent loop doesn't run."
             echo "present=false" >> "$GITHUB_OUTPUT"
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "check=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout repository
-        if: steps.key.outputs.present == 'true'
+        if: steps.key.outputs.check == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET SDK
-        if: steps.key.outputs.present == 'true'
+        if: steps.key.outputs.check == 'true'
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
@@ -84,12 +94,12 @@ jobs:
             six times, keep the best kept state, and restore the empty Apply if nothing is kept.
 
       - name: The gate, run again by the workflow
-        if: steps.key.outputs.present == 'true'
+        if: steps.key.outputs.check == 'true'
         working-directory: prototypes/matchmark
         run: dotnet test Matchmark.Generator.Tests --configuration Release --filter The_owned_behaviour_passes_the_gate
 
       - name: Upload the behaviour and the verdict
-        if: always() && steps.key.outputs.present == 'true'
+        if: always() && steps.key.outputs.check == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ledger-owned
