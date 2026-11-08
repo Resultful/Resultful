@@ -52,24 +52,25 @@ flowchart LR
 
 ### 1. Attributes on generated models and parameters
 
-The mapping `Constraints.cs` already reads, written in the other direction. On each model property, and on each
-generated endpoint parameter:
+**Built on model properties** (`ModelAttributeTests`); endpoint parameters are **Planned**. The mapping `Constraints.cs`
+already reads, written in the other direction:
 
 | Schema | Attribute | Notes |
 |:--|:--|:--|
-| `required` (non-nullable) | `[Required]` | reference types only; value types are required by their type |
-| `minLength`, `maxLength` (string) | `[MinLength]`, `[MaxLength]` | as ASP.NET Core's OpenAPI document reads them today |
-| `minItems`, `maxItems` (array) | `[Length(min, max)]` | .NET 8 |
-| `minimum`, `maximum` | `[Range(min, max)]` | |
-| `exclusiveMinimum`, `exclusiveMaximum` | `[Range(…, MinimumIsExclusive = true, MaximumIsExclusive = true)]` | .NET 8 |
-| `pattern` | `[RegularExpression(pattern)]` | |
-| string `enum`, `const` | `[AllowedValues(…)]` | .NET 8; enums typed as C# enums need none |
-| `format: email` | `[EmailAddress]` | |
-| `format: uri` | `[Url]` | |
-| `format: byte` | `[Base64String]` | .NET 8 |
-| `multipleOf` | `[MultipleOf(step)]` | Matchmark.Validation |
-| `uniqueItems` | `[UniqueItems]` | Matchmark.Validation |
-| `minProperties`, `maxProperties` (maps) | `[PropertyCount(min, max)]` | Matchmark.Validation |
+| `required` | none: the C# `required` member | System.Text.Json refuses a body without it, and ASP.NET Core's OpenAPI document reads `required` members; `[Required]` would also refuse an empty string the spec allows |
+| `minLength`, `maxLength` (string) | `[MinLength]`, `[MaxLength]` | **Built**; as ASP.NET Core's OpenAPI document reads them |
+| `minItems`, `maxItems` (array) | `[MinLength]`, `[MaxLength]` | **Built**; on a collection they count items, and the OpenAPI document writes them as `minItems`, `maxItems` |
+| `minimum` and `maximum` | `[Range(min, max)]` | **Built**. A one-sided bound has no attribute (`Range` needs both); the generated validator checks it |
+| `exclusiveMinimum`, `exclusiveMaximum` | `[Range(…, MinimumIsExclusive = true, MaximumIsExclusive = true)]` | **Built**, with the other bound as above |
+| `pattern` | `[RegularExpression(pattern)]` | **Built** |
+| string `enum` kept as text | `[AllowedValues(…)]` | **Built**; an enum schema of its own is a C# enum, which needs none |
+| `format: email` | `[EmailAddress]` | **Built**. .NET's check is looser than a full address grammar |
+| `format: uri` | `[Url]` | **Built** |
+| `format: byte` | `[Base64String]` | **Built** |
+| `const` | `[AllowedValues(value)]` | Planned |
+| `multipleOf` | `[MultipleOf(step)]` | Planned; Matchmark.Validation |
+| `uniqueItems` | `[UniqueItems]` | Planned; Matchmark.Validation |
+| `minProperties`, `maxProperties` (maps) | `[PropertyCount(min, max)]` | Planned; Matchmark.Validation |
 
 Attributes that .NET doesn't have come from a new small package, **Matchmark.Validation**: the three above, written
 once, not generated per API.
