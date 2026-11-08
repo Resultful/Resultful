@@ -1,0 +1,61 @@
+name: matchmark
+
+# The Matchmark prototype (prototypes/matchmark): its tests, then the large public specs (GitHub's and Stripe's,
+# fetched, not committed), whose share of operations generated is a number that should only rise.
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'prototypes/matchmark/**', 'Resultful/**', '.github/workflows/matchmark.yml' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'prototypes/matchmark/**', 'Resultful/**', '.github/workflows/matchmark.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototypes/matchmark
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test Matchmark.slnx --configuration Release
+
+      - name: Fetch the large specs
+        run: sh samples/large/fetch.sh
+
+      - name: Generate and compile the large specs
+        env:
+          MATCHMARK_LARGE_SPECS: ${{ github.workspace }}/prototypes/matchmark/samples/large
+        run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter LargeSpecTests
+
+      - name: Ledgers
+        if: always()
+        run: |
+          {
+            echo '### Corpus'
+            echo '```'
+            cat Matchmark.Generator.Tests/bin/Release/net10.0/corpus-ledger.txt 2>/dev/null || echo 'no ledger'
+            echo '```'
+            echo '### Large specs'
+            echo '```'
+            cat Matchmark.Generator.Tests/bin/Release/net10.0/large-ledger.txt 2>/dev/null || echo 'not run'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
