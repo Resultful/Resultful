@@ -7,7 +7,7 @@ namespace Matchmark.Cli;
 /// <c>regress &lt;spec&gt; &lt;base url&gt;</c>: generates the regression suite from a spec and runs it against any HTTP API,
 /// whatever it is written in. Prints the report; the exit code is 0 when nothing failed.
 /// </summary>
-public static class Regress
+public static partial class Regress
 {
     public const string Usage = """
         usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks] [--random <n>] [--seed <n>]
@@ -19,6 +19,10 @@ public static class Regress
           --no-workflows  don't follow links or run workflows (for a target that keeps no state, such as a fake)
           --webhooks      <base url> is a receiver of the spec's webhooks (each at /{name}): test it instead of the API
           --random        also send n random valid requests per operation, shrinking each failure (--seed to repeat a run)
+
+          An AsyncAPI 3 document in place of the spec tests a consumer of its messages: <base url> is a bridge that hands
+          each POST /{operationId} to the consumer as a message (the body its payload, the headers its headers) and
+          answers 2xx when the consumer takes it, 400 when it refuses it.
         """;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -47,8 +51,14 @@ public static class Regress
                 }
             }
 
-            var json = SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out problems, overlays);
-            if (args.Contains("--webhooks"))
+            var text = await File.ReadAllTextAsync(args[0], cancellationToken);
+            if (AsyncApi().IsMatch(text))
+            {
+                problems = [];
+                suite = AsyncApiDocument.Parse(SpecJson.AsyncApi(text, args[0])).ConsumerSuite()
+                    ?? throw new InvalidOperationException($"{args[0]} receives no messages, so there's no consumer to test.");
+            }
+            else if (SpecJson.Normalize(text, args[0], out problems, overlays) is var json && args.Contains("--webhooks"))
             {
                 suite = RegressionSuite.ForWebhooks(json) ?? throw new InvalidOperationException($"{args[0]} declares no webhooks.");
             }
@@ -57,7 +67,7 @@ public static class Regress
                 suite = RegressionSuite.FromJson(json, [.. arazzo]);
             }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or SharpYaml.YamlException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or SharpYaml.YamlException or System.Text.Json.JsonException)
         {
             await output.WriteLineAsync($"error: {e.Message}");
             return 2;
@@ -93,4 +103,7 @@ public static class Regress
         await output.WriteLineAsync(report.ToString());
         return report.Passed ? 0 : 1;
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\s*[""']?asyncapi[""']?\s*:", System.Text.RegularExpressions.RegexOptions.Multiline)]
+    private static partial System.Text.RegularExpressions.Regex AsyncApi();
 }

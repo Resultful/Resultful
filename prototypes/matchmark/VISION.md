@@ -195,13 +195,15 @@ then Arazzo and Overlays, then `x-matchmark-*`, measured against the [sample cor
 - ✓ A differential runner comparing two implementations.
 
 **6. Beyond HTTP.**
-- AsyncAPI for events, and other hosts, through the same model.
+- AsyncAPI for events (✓ in the engine: a consumer's suite and a producer's messages), and other hosts, through the
+  same model.
 - OpenAPI 3.2: `QUERY`, and streamed items as typed streams.
 
 **7. Twins of APIs we don't own.**
 - A stateful fake: the contract implemented over an in-memory store inferred from the spec's paths.
 - A fidelity run: recorded sequences against the real API and the twin, normalised and scored, with a floor in CI.
-- An agent loop that closes fidelity gaps in the twin's owned code, scored on held-out sequences.
+- An agent loop that closes fidelity gaps in the twin's owned code, scored on held-out sequences (✓ the loop: tasks,
+  held-out split and gate; the agent in it next).
 - Fidelity drops reported as upstream changes.
 - Twins published as packages, each with its fidelity score.
 
