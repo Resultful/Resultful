@@ -710,7 +710,7 @@ namespace Matchmark.Generator
                         // Optional, but never null: absent is left out, not written as null (and null is refused when read).
                         w.Line("[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]");
                     }
-                    foreach (var annotation in Annotations(property.Value))
+                    foreach (var annotation in Annotations(property.Value, type))
                     {
                         w.Line(annotation);
                     }
@@ -728,29 +728,71 @@ namespace Matchmark.Generator
         }
 
         /// <summary>
-        /// DataAnnotations mirroring the constraints. They are not what validates (the generated validator is); they
-        /// let ASP.NET Core's own OpenAPI document carry the constraints, so the round-trip check can compare them.
+        /// DataAnnotations mirroring the constraints (validation.md, the attribute table). They are not yet what validates
+        /// (the generated validator is); they let ASP.NET Core's own OpenAPI document carry the constraints, so the
+        /// round-trip check can compare them, and .NET's validation layer read them. A required member needs no
+        /// [Required]: it's a C# required member, and System.Text.Json refuses a body without it. A one-sided bound has
+        /// no attribute (Range needs both), so it's checked by the generated validator only.
         /// </summary>
-        private static IEnumerable<string> Annotations(IOpenApiSchema schema)
+        private static IEnumerable<string> Annotations(IOpenApiSchema schema, string type)
         {
-            if (schema.MinLength is { } min)
+            const string Ns = "global::System.ComponentModel.DataAnnotations.";
+            var array = (schema.Type ?? 0).HasFlag(JsonSchemaType.Array);
+            if ((array ? schema.MinItems : schema.MinLength) is { } min)
             {
-                yield return $"[global::System.ComponentModel.DataAnnotations.MinLength({min.Invariant()})]";
+                yield return $"[{Ns}MinLength({min.Invariant()})]";
             }
 
-            if (schema.MaxLength is { } max)
+            if ((array ? schema.MaxItems : schema.MaxLength) is { } max)
             {
-                yield return $"[global::System.ComponentModel.DataAnnotations.MaxLength({max.Invariant()})]";
+                yield return $"[{Ns}MaxLength({max.Invariant()})]";
             }
 
             if (schema.Pattern is { } pattern)
             {
-                yield return $"[global::System.ComponentModel.DataAnnotations.RegularExpression({Naming.Literal(pattern)})]";
+                yield return $"[{Ns}RegularExpression({Naming.Literal(pattern)})]";
             }
 
-            if (schema.Minimum is { } minimum && schema.Maximum is { } maximum)
+            var lower = schema.ExclusiveMinimum ?? schema.Minimum;
+            var upper = schema.ExclusiveMaximum ?? schema.Maximum;
+            if (lower is not null && upper is not null)
             {
-                yield return $"[global::System.ComponentModel.DataAnnotations.Range({Number(minimum)}, {Number(maximum)})]";
+                var exclusive = new List<string>();
+                if (schema.ExclusiveMinimum is not null)
+                {
+                    exclusive.Add("MinimumIsExclusive = true");
+                }
+
+                if (schema.ExclusiveMaximum is not null)
+                {
+                    exclusive.Add("MaximumIsExclusive = true");
+                }
+
+                yield return $"[{Ns}Range({Number(lower)}, {Number(upper)}{string.Concat(exclusive.Select(e => ", " + e))})]";
+            }
+
+            if (type != "string")
+            {
+                yield break;
+            }
+
+            // A string enum the model keeps as text (an enum schema of its own is a C# enum, which needs none).
+            if (schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String))
+            {
+                yield return $"[{Ns}AllowedValues({string.Join(", ", values.Select(v => Naming.Literal(v!.GetValue<string>())))})]";
+            }
+
+            switch (schema.Format)
+            {
+                case "email":
+                    yield return $"[{Ns}EmailAddress]";
+                    break;
+                case "uri":
+                    yield return $"[{Ns}Url]";
+                    break;
+                case "byte":
+                    yield return $"[{Ns}Base64String]";
+                    break;
             }
         }
 
