@@ -109,6 +109,12 @@ public static class Checks
 
     /// <summary>A list is in its declared order (x-matchmark-order).</summary>
     public const string ListOrdered = nameof(ListOrdered);
+
+    /// <summary>A create past a limit (x-matchmark-limit) is refused with the documented status.</summary>
+    public const string LimitEnforced = nameof(LimitEnforced);
+
+    /// <summary>A write that isn't excepted leaves a conserved total (x-matchmark-conserved) as it was.</summary>
+    public const string TotalConserved = nameof(TotalConserved);
 }
 
 public enum Severity

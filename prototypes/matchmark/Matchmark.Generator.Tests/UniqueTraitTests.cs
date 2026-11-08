@@ -168,3 +168,101 @@ public sealed class DerivedAndOrderTraitTests
 
     private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 }
+
+/// <summary>The limit trait in the generator: MM027 for a limit declared wrongly, MM028 for a create with no status to refuse with.</summary>
+[TestFixture]
+public sealed class LimitTraitTests
+{
+    private static readonly string PetStore = Path.GetFullPath(Path.Combine(Directory(), "..", "Matchmark.Sample.Contract", "petstore.yaml"));
+
+    [TestCase("{ max: 100 }", null)]
+    [TestCase("{ max: 0 }", "a max that isn't a whole number of at least 1")]
+    [TestCase("{ max: 5, scope: tenant }", "an unknown scope tenant")]
+    public void A_limit_is_read_and_checked(string limit, string? wrong)
+    {
+        var diagnostics = Build(limit);
+        if (wrong is null)
+        {
+            diagnostics.Should().NotContain(d => d.Id == "MM027" && d.GetMessage(null).Contains("x-matchmark-limit", StringComparison.Ordinal));
+        }
+        else
+        {
+            diagnostics.Should().Contain(d => d.Id == "MM027" && d.GetMessage(null).Contains("Pet's x-matchmark-limit", StringComparison.Ordinal) && d.GetMessage(null).Contains(wrong, StringComparison.Ordinal));
+        }
+    }
+
+    [Test]
+    public void A_create_with_no_status_for_the_limit_is_reported_unless_it_names_one()
+    {
+        // The Pet Store's create documents 409 (for the unique name), so the limit has a status; this spec's doesn't.
+        const string Spec = """
+            {
+              "openapi": "3.1.1",
+              "info": { "title": "Pins", "version": "1.0.0" },
+              "paths": {
+                "/pins": { "post": { "operationId": "pin",
+                  "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pin" } } } },
+                  "responses": { "201": { "description": "Pinned", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pin" } } } } } } }
+              },
+              "components": { "schemas": { "Pin": { "type": "object", "properties": { "note": { "type": "string" } }, "x-matchmark-limit": { "max": 3 } } } }
+            }
+            """;
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "pins.json");
+        File.WriteAllText(path, Spec);
+        GeneratedServer.Build("Pins", path, [], string.Empty, withRules: false).Diagnostics
+            .Should().Contain(d => d.Id == "MM028" && d.GetMessage(null).Contains("Pin's limit", StringComparison.Ordinal));
+
+        File.WriteAllText(path, Spec.Replace("{ \"max\": 3 }", "{ \"max\": 3, \"status\": 403 }", StringComparison.Ordinal));
+        GeneratedServer.Build("Pins", path, [], string.Empty, withRules: false).Diagnostics.Should().NotContain(d => d.Id == "MM028");
+    }
+
+    [Test]
+    public void The_audit_notes_a_limit_too_high_to_reach()
+    {
+        string Spec(int max) => SpecJson.Normalize(File.ReadAllText(PetStore).Replace("      x-matchmark-unique:\n", $"      x-matchmark-limit: {{ max: {max} }}\n      x-matchmark-unique:\n", StringComparison.Ordinal), "petstore.yaml");
+        Audit.Run(Spec(500)).Should().Contain(f => f.Rule.Id == "limit-exercised" && f.Subject == "Pet");
+        Audit.Run(Spec(50)).Should().NotContain(f => f.Rule.Id == "limit-exercised");
+    }
+
+    private static IReadOnlyList<Microsoft.CodeAnalysis.Diagnostic> Build(string limit)
+    {
+        var spec = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"limit-{Math.Abs(limit.GetHashCode(StringComparison.Ordinal))}.yaml");
+        File.WriteAllText(spec, File.ReadAllText(PetStore).Replace("      x-matchmark-unique:\n", $"      x-matchmark-limit: {limit}\n      x-matchmark-unique:\n", StringComparison.Ordinal));
+        return GeneratedServer.Build("PetStore", spec, [], string.Empty, withRules: false).Diagnostics;
+    }
+
+    private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
+}
+
+/// <summary>The conserved trait in the generator: the Ledger's declaration is right, and MM027 reports one that isn't.</summary>
+[TestFixture]
+public sealed class ConservedTraitTests
+{
+    private static readonly string Ledger = Path.GetFullPath(Path.Combine(Directory(), "..", "samples", "ledger"));
+
+    [TestCase("total: balance", "except: [openAccount]", null)]
+    [TestCase("total: credit", "except: [openAccount]", "an unknown field credit")]
+    [TestCase("total: owner", "except: [closeAccount]", "an unknown operation closeAccount in except")]
+    public void A_conserved_total_is_checked(string total, string except, string? wrong)
+    {
+        var overlay = File.ReadAllText(Path.Combine(Ledger, "ledger.overlay.yaml"))
+            .Replace("- total: balance", "- " + total, StringComparison.Ordinal)
+            .Replace("except: [openAccount]", except, StringComparison.Ordinal)
+            .Replace("extends: ./openapi.yaml", "extends: " + Path.Combine(Ledger, "openapi.yaml"), StringComparison.Ordinal);
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"conserved-{Math.Abs((total + except).GetHashCode(StringComparison.Ordinal))}.overlay.yaml");
+        File.WriteAllText(path, overlay);
+
+        var diagnostics = GeneratedServer.Build("Ledger", Path.Combine(Ledger, "openapi.yaml"), [path], string.Empty, withRules: true).Diagnostics
+            .Where(d => d.Id == "MM027" && d.GetMessage(null).Contains("x-matchmark-conserved", StringComparison.Ordinal)).ToList();
+        if (wrong is null)
+        {
+            diagnostics.Should().BeEmpty();
+        }
+        else
+        {
+            diagnostics.Should().Contain(d => d.GetMessage(null).Contains(wrong, StringComparison.Ordinal));
+        }
+    }
+
+    private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
+}

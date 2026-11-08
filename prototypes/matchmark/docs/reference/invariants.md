@@ -1,7 +1,7 @@
 # Invariants across a collection
 
-Decision Q44 ([decisions](../decisions.md#second-round)). **`unique`, `references`, `derived` and `order` are Built**,
-end to end; `conserved`, `scoped` and `limit` are **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
+Decision Q44 ([decisions](../decisions.md#second-round)). **`unique`, `references`, `derived`, `order`, `limit` and
+`conserved` are Built**, end to end; `scoped` is **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
 and the vocabulary Matchmark reads for it.
 
 ## Why
@@ -44,9 +44,9 @@ fidelity it adds across the corpus.
 | [unique](#unique) (**Built**) | `x-matchmark-unique` | no two resources share these values | enforces | duplicates, case variants, renames into a taken value |
 | [references](#references) (**Built**) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
 | [derived](#derived) (**Built**) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
-| [conserved](#conserved) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
+| [conserved](#conserved) (**Built**) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
 | [scoped](#scoped) | `x-matchmark-scoped` | a resource belongs to the principal that created it | filters by token | a second principal can't see or change it |
-| [limit](#limit) | `x-matchmark-limit` | at most n resources per scope | enforces | the n + 1th create |
+| [limit](#limit) (**Built**) | `x-matchmark-limit` | at most n resources per scope | enforces | the n + 1th create |
 | [order](#order) (**Built**) | `x-matchmark-order` | a list is sorted this way | sorts | checks order, across pages too |
 
 Rules that span a collection but fit no trait are not given a general escape hatch yet (a CEL rule over the whole
@@ -228,14 +228,25 @@ x-matchmark-conserved:
 ```
 
 **Semantics.** Over the whole collection, the sum of the field is the same before and after every successful operation
-not listed in `except`. A ledger's transfers conserve money; opening an account doesn't.
+not listed in `except`. A ledger's transfers conserve money; opening an account doesn't. Reads count: a service may do
+deferred work when it's next looked at (the Ledger settles a transfer when it's read).
+
+**Built.** The Ledger declares its balances conserved except by `openAccount`; `LedgerTests` injects settlement that
+debits without crediting, and the suite catches it. `ConservedTests` shows the twin and the suite on a smaller spec.
 
 **Twin.** Checks only. Which resources change, and by how much, is the operation's business logic, so it stays owned
-code; the twin refuses (500, naming the trait) an owned behaviour that breaks the total, so a wrong behaviour is caught
-in the twin's own tests.
+code; the twin answers 500, naming the trait and the totals, when an owned behaviour's success breaks the total, so a
+wrong behaviour is caught in the twin's own tests. What the twin infers itself never moves a total.
 
-**Suite.** In workflows, lists the collection before and after each such step and compares the totals. Checked as
-`TotalConserved`. A paged list is walked whole.
+**Suite.** With workflows on, reads the total before and after each successful case and each links workflow (from its
+first step to its last, so deferred work is inside it) whose operations aren't excepted. A failed call isn't checked.
+The total is read through the collection's list, when it has an unpaged one; otherwise resource by resource, over the
+ones the run has seen created or referred to (the Ledger has no list of accounts; its transfers' `from` and `to`, declared
+as [references](#references), name them). Checked as `TotalConserved`. Walking a paged list whole is **Planned**, and
+so are Arazzo workflows.
+
+**Generator.** `MM027` for a total field the schema doesn't have, one that isn't a number or a string (decimal strings
+count), or an operation in `except` the spec doesn't have.
 
 ## scoped
 
@@ -265,8 +276,22 @@ x-matchmark-limit:
 
 **Semantics.** At most `max` resources in the scope. The `max + 1`th create answers the violation status.
 
-**Twin.** Enforces. **Suite.** Creates up to the limit, then once more: `{op}: limit {max} reached`. Checked as
-`LimitEnforced`. A limit above 50 isn't exercised (the cases would be slow); the audit says so.
+**Built.** `LimitTests` shows each scope in the twin and the suite catching a twin without the declaration.
+
+**Twin.** Enforces: a create (a `POST`, or a `PUT` that creates) when the scope already holds `max` is refused. The twin
+records each resource's scope as it's created: `parent` is the create's path values other than the resource's own id
+(`/boards/1/pins` and `/boards/2/pins` are counted apart), and `principal` is the request's `Authorization` header, until
+[scoped](#scoped) gives principals a fuller meaning.
+
+**Suite.** After a create succeeds, creates more with fresh values (so a unique key doesn't refuse them first) until one
+is refused, which must happen within `max + 1`: `{op}, limit {max} reached`. A refusal with a status other than the
+documented one is a warning. What it created, but not the case's own resource, is deleted after, so later cases still
+have room; so the check needs a `DELETE` on the item path, and isn't run without one. Checked as `LimitEnforced`, with
+workflows on.
+
+**Generator.** `MM027` for a `max` below 1 or an unknown scope; `MM028` for a create that documents none of 409, 422,
+400, unless the limit names its `status`. **Audit.** Rule `limit-exercised`: a limit above 50 isn't exercised (the cases
+would be slow), so nothing checks the service keeps it.
 
 ## order
 
@@ -298,7 +323,7 @@ pages, and a `sort` parameter overriding it, are **Planned**. `MM027` reports an
 | unique | 1 | the commonest; the Pet Store's owned code is the proof |
 | references | 2 | the Ledger's transfers, and most APIs with child resources |
 | derived, order | 3 | small, and each removes a known mismatch |
-| conserved, limit | 4 | |
+| conserved, limit | 4 | both Built |
 | scoped | 5 | needs a second principal in the suite and in sessions |
 
 Each is done when the twin enforces it with no owned code, the suite catches a service that breaks it (an injected

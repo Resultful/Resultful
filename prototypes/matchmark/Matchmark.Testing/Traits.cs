@@ -18,6 +18,73 @@ public static class Traits
     /// <summary>The statuses a delete refused while something still refers to the resource answers with.</summary>
     public static readonly int[] RestrictStatuses = [409, 422];
 
+    /// <summary>The statuses a create past a limit answers with, in the order they're looked for in the spec.</summary>
+    public static readonly int[] LimitStatuses = [409, 422, 400];
+
+    /// <summary>The limit declared on a schema (<c>x-matchmark-limit</c>), its <c>allOf</c> parts included; null when none.</summary>
+    public static Limit? LimitOf(OpenApiSpec spec, JsonNode? schemaNode)
+    {
+        if (schemaNode is null)
+        {
+            return null;
+        }
+
+        var schema = spec.Resolve(schemaNode);
+        if (schema["x-matchmark-limit"] is JsonObject limit && limit["max"] is JsonValue max && max.GetValueKind() == JsonValueKind.Number)
+        {
+            return new Limit(max.GetValue<int>(), limit["scope"]?.GetValue<string>() ?? "collection") { Declared = DeclaredStatus(limit) };
+        }
+
+        return (schema["allOf"] as JsonArray ?? []).OfType<JsonNode>().Select(part => LimitOf(spec, part)).FirstOrDefault(l => l is not null);
+    }
+
+    /// <summary>
+    /// The totals declared conserved (<c>x-matchmark-conserved</c>) on every component schema, each with the collection
+    /// that holds the schema's resources; a schema no collection creates is left out.
+    /// </summary>
+    public static IReadOnlyList<Conserved> ConservedTotals(OpenApiSpec spec)
+    {
+        var totals = new List<Conserved>();
+        foreach (var (name, schema) in spec.Schemas)
+        {
+            if (Collection(spec, name) is not { } collection)
+            {
+                continue;
+            }
+
+            foreach (var declaration in (schema["x-matchmark-conserved"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                if (declaration["total"]?.GetValue<string>() is { } total)
+                {
+                    totals.Add(new Conserved(name, total, collection,
+                        (declaration["except"] as JsonArray ?? []).Select(e => e?.GetValue<string>()).OfType<string>().ToList()));
+                }
+            }
+        }
+
+        return totals;
+    }
+
+    /// <summary>The collection path a component schema's resources live in: where a POST creates it, else where a GET lists it.</summary>
+    public static string? Collection(OpenApiSpec spec, string schema)
+    {
+        var reference = "#/components/schemas/" + schema;
+        bool Refers(JsonNode? node) => node?["$ref"]?.GetValue<string>() == reference || node?["items"]?["$ref"]?.GetValue<string>() == reference;
+        bool HasItemPath(string path) => spec.Operations.Any(o => System.Text.RegularExpressions.Regex.IsMatch(o.Path,
+            "^" + System.Text.RegularExpressions.Regex.Escape(path.TrimEnd('/')) + @"/\{[^}]+\}$"));
+        return spec.Operations.FirstOrDefault(o => o.Method == "POST" && HasItemPath(o.Path) && Refers(ResourceSchema(o)))?.Path
+               ?? spec.Operations.FirstOrDefault(o => o.Method == "GET" && HasItemPath(o.Path) && Refers(ResourceSchema(o)))?.Path;
+    }
+
+    /// <summary>A field's sum over resources: numbers, and decimal strings ("25.00"); anything else counts as nothing.</summary>
+    public static decimal Sum(IEnumerable<JsonObject> resources, string field)
+        => resources.Sum(r => Node(r, field) switch
+        {
+            JsonValue v when v.GetValueKind() == JsonValueKind.String
+                && decimal.TryParse(v.GetValue<string>(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) => d,
+            var n => SchemaValidator.NumberOf(n) ?? 0m,
+        });
+
     /// <summary>The unique keys declared on a schema (<c>x-matchmark-unique</c>), its <c>allOf</c> parts included.</summary>
     public static IReadOnlyList<UniqueKey> Unique(OpenApiSpec spec, JsonNode? schemaNode)
     {
@@ -224,6 +291,24 @@ public sealed record Reference(string Field, string Target, string Collection, s
     public int? Declared { get; init; }
 
     public override string ToString() => $"{Field} → {Target}";
+}
+
+/// <summary>A limit: at most <paramref name="Max"/> resources in the scope (collection, parent, or principal).</summary>
+public sealed record Limit(int Max, string Scope)
+{
+    /// <summary>The status the declaration names for a create past the limit, if any.</summary>
+    public int? Declared { get; init; }
+
+    public override string ToString() => $"{Max} per {Scope}";
+}
+
+/// <summary>
+/// A conserved total: the field summed over the schema's collection, unchanged by every successful operation but those
+/// in <paramref name="Except"/>.
+/// </summary>
+public sealed record Conserved(string Schema, string Total, string Collection, IReadOnlyList<string> Except)
+{
+    public override string ToString() => $"the total of {Schema}.{Total}";
 }
 
 /// <summary>A derived field: its name, when it's set (create, update, always), and the CEL expression over request, self and oldSelf.</summary>

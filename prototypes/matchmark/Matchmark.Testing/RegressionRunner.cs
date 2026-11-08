@@ -74,7 +74,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         {
             foreach (var workflow in suite.Workflows)
             {
-                workflows.Add(await RunWorkflowAsync(workflow, cancellationToken).ConfigureAwait(false));
+                workflows.Add(await ConservedAsync(workflow, () => RunWorkflowAsync(workflow, cancellationToken), cancellationToken).ConfigureAwait(false));
             }
 
             foreach (var workflow in suite.Arazzo)
@@ -108,9 +108,16 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var method = @case.Operation.Method;
         var safe = method is "GET" or "HEAD" or "QUERY";
         var before = safe && !options.Skip.Contains(Checks.SafeChangesNothing) ? await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false) : null;
+        var totals = await TotalsBeforeAsync(@case, cancellationToken).ConfigureAwait(false);
 
         var exchange = await SendAsync(@case.Request, cancellationToken).ConfigureAwait(false);
         var findings = new List<Finding>();
+        if (totals is not null && exchange.Status is >= 200 and < 300)
+        {
+            await TotalsAfterAsync(@case, exchange, totals, findings, cancellationToken).ConfigureAwait(false);
+        }
+
+        RememberConserved(@case, exchange);
         var valid = @case.Kind != CaseKind.Invalid;
         var success = exchange.Status is >= 200 and < 300;
         Response(@case.Operation, exchange, valid && (@case.Kind != CaseKind.ReadOnlySent || success), @case.Name, findings);
