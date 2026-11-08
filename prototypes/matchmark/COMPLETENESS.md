@@ -122,7 +122,7 @@ invariant scope above, in its overlay.
 |:--|:--|
 | **Orders** (in the corpus) | idempotency, concurrency, paging, a 202, deprecation; now also a total that must add up, a lifecycle (`pending → paid → shipped`, `cancelled` only from `pending`), and paging and filtering relations |
 | **Bookings** (in the corpus) | date ranges (`startsAt < endsAt`); `OnlyOne(roomId, deskId)` (IDL); a 409 for an overlap; time zones; reading back with `If-None-Match` |
-| **Ledger** | conservation: a transfer leaves the total balance unchanged, and a balance never goes negative; money as decimal strings; an Idempotency-Key where a retry must not pay twice; settlement as a 202 |
+| **Ledger** (in the corpus) | conservation: a transfer leaves the total balance unchanged, and a balance never goes negative; money as decimal strings; an Idempotency-Key where a retry must not pay twice; settlement as a 202 |
 | **Catalogue search** (in the corpus) | OpenAPI 3.2's `query` operations (the QUERY method, RFC 10008); filters, sorting and paging as metamorphic relations (results are a subset, ordered, and a prefix); facet counts that agree with the results |
 | **Feature flags** (in the corpus) | JSON Merge Patch and JSON Patch; a version that only goes up; `ETag` on every read; `readOnly` and `writeOnly` |
 | **Notifications** (in the corpus) | webhooks and callbacks (subscribe, then receive); a signature header; an SSE stream with OpenAPI 3.2's `itemSchema` |

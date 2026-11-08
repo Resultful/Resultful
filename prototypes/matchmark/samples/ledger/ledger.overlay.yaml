@@ -1,0 +1,25 @@
+# Invariants of the Ledger (COMPLETENESS.md, section 2).
+overlay: 1.1.0
+info:
+  title: Matchmark invariants for the Ledger
+  version: 1.0.0
+extends: ./openapi.yaml
+actions:
+  - target: $.components.schemas.NewTransfer
+    update:
+      x-matchmark-rules:
+        - rule: self.from != self.to
+          message: A transfer is between two accounts.
+        - rule: self.amount != '0.00'
+          message: A transfer moves some money.
+  - target: $.paths['/transfers'].post
+    update:
+      x-matchmark-ensures:
+        - condition: $response.body#/amount == $request.body#/amount
+        - condition: $response.body#/from == $request.body#/from
+        - condition: $response.body#/status == 'pending'
+  - target: $.components.schemas.Transfer
+    update:
+      x-matchmark-transitions:
+        - rule: "oldSelf.status == self.status || (oldSelf.status == 'pending' && self.status == 'settled')"
+          message: A transfer settles once, and stays settled.

@@ -407,7 +407,14 @@ public sealed class RegressionSuite
             {
                 var start = Cases.Where(c => c.Operation == operation && c.Kind is CaseKind.Valid or CaseKind.Example)
                     .OrderBy(c => c.Kind == CaseKind.Example ? 0 : c.Name.EndsWith("valid, required values only", StringComparison.Ordinal) ? 1 : 2)
-                    .First();
+                    .FirstOrDefault();
+                if (start is null)
+                {
+                    // Every valid request broke a declared rule, so none is left to start from: an example would give one.
+                    Gaps.Add($"{operation}: no valid request keeps to its rules, so its links aren't followed; give its body an example");
+                    continue;
+                }
+
                 Workflows.Add(new RegressionWorkflow($"{operation.Id} {status}, then {string.Join(", ", response.Links.Select(l => l.OperationId))}", start, status, response.Links));
             }
         }

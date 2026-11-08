@@ -412,7 +412,8 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var reads = links.Where(l => l.Operation?.Method == "GET").ToList();
         var writes = links.Where(l => l.Operation?.Method is "PUT" or "PATCH" or "POST").ToList();
         var deletes = links.Where(l => l.Operation?.Method == "DELETE").ToList();
-        Exchange? current = start;
+        // What was written, to read back: not after a 202, whose work finishes later, so the resource may have moved on.
+        Exchange? current = start.Status == 202 ? null : start;
         var lastSeen = start;
 
         async Task<Exchange> Follow((SpecLink Link, SpecOperation? Operation) link, string step)
@@ -466,8 +467,8 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
                 continue;
             }
 
-            current = SameSchema(start, exchange) ? exchange : null;
-            if (current is not null)
+            current = SameSchema(start, exchange) && exchange.Status != 202 ? exchange : null;
+            if (SameSchema(start, exchange))
             {
                 Transitions(lastSeen, exchange, $"{workflow.Name}: {write.Link.Name}", findings);
                 lastSeen = exchange;
