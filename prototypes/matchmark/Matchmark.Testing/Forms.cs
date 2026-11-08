@@ -48,7 +48,8 @@ public static class Forms
     public static string Encode(JsonNode? node)
         => string.Join("&", Fields(node, null).Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
 
-    private static IEnumerable<KeyValuePair<string, string>> Fields(JsonNode? node, string? prefix)
+    /// <summary>The fields of a value, under <paramref name="prefix"/> (a deep-object query parameter's name) when given.</summary>
+    internal static IEnumerable<KeyValuePair<string, string>> Fields(JsonNode? node, string? prefix)
     {
         switch (node)
         {

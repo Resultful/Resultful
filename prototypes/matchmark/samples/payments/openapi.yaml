@@ -7,6 +7,34 @@ info:
     brackets (card[number], metadata[order], expand[0]), numbers and true or false as text; answered as JSON.
 paths:
   /charges:
+    get:
+      operationId: listCharges
+      description: Charges, filtered as Stripe filters them, by a deep-object range (created[gte]=1700000000).
+      parameters:
+        - name: created
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              gt: { type: integer, format: int64, minimum: 0 }
+              gte: { type: integer, format: int64, minimum: 0 }
+              lt: { type: integer, format: int64, minimum: 0 }
+              lte: { type: integer, format: int64, minimum: 0 }
+        - { name: limit, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: The charges
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Charge' } }
+        '400':
+          description: The filter is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
     post:
       operationId: createCharge
       requestBody:
@@ -90,9 +118,10 @@ components:
           items: { type: string, maxLength: 20 }
     Charge:
       type: object
-      required: [id, amount, currency, captured, last4]
+      required: [id, amount, currency, captured, last4, created]
       properties:
         id: { type: string, pattern: '^ch_[0-9]+$', example: ch_1 }
+        created: { type: integer, format: int64, description: When it was created, in seconds since 1970 }
         amount: { type: integer }
         currency: { $ref: '#/components/schemas/Currency' }
         captured: { type: boolean }

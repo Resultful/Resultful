@@ -760,6 +760,57 @@ public static T ReadForm<T>(IEnumerable<KeyValuePair<string, string>> fields)
         ?? throw new global::System.Text.Json.JsonException(""The form is empty."");
 }
 
+/// <summary>A deep-object query parameter's value (name[a][b]=v) as JSON, or the text of name=v; null when it isn't there.</summary>
+public static global::System.Text.Json.Nodes.JsonNode? QueryNode(IEnumerable<KeyValuePair<string, string>> fields, string name)
+{
+    var own = fields.Where(f => f.Key == name || f.Key.StartsWith(name + ""["", System.StringComparison.Ordinal)).ToList();
+    if (own.Count == 0)
+    {
+        return null;
+    }
+
+    if (own.All(f => f.Key == name))
+    {
+        return global::System.Text.Json.Nodes.JsonValue.Create(own[0].Value);
+    }
+
+    var root = new global::System.Text.Json.Nodes.JsonObject();
+    foreach (var field in own.Where(f => f.Key != name))
+    {
+        var keys = FormKeys(""x"" + field.Key.Substring(name.Length));
+        var node = root;
+        for (var i = 1; i < keys.Count; i++)
+        {
+            var key = keys[i].Length == 0 ? node.Count.ToString(global::System.Globalization.CultureInfo.InvariantCulture) : keys[i];
+            if (i == keys.Count - 1)
+            {
+                node[key] = field.Value;
+            }
+            else
+            {
+                if (node[key] is not global::System.Text.Json.Nodes.JsonObject next)
+                {
+                    next = new global::System.Text.Json.Nodes.JsonObject();
+                    node[key] = next;
+                }
+
+                node = next;
+            }
+        }
+    }
+
+    return FormArrays(root);
+}
+
+/// <summary>JSON as the type, numbers and true or false read from their text.</summary>
+public static T FromNode<T>(global::System.Text.Json.Nodes.JsonNode node)
+    => global::System.Text.Json.JsonSerializer.Deserialize<T>(node, FormRead) ?? throw new global::System.Text.Json.JsonException(""The value is null."");
+
+/// <summary>A value as a deep-object query parameter's fields: name[a][b]=v, or name=v for a plain value.</summary>
+public static IEnumerable<KeyValuePair<string, string>> QueryFields<T>(string name, T value)
+    => FormFields(value).Select(f => new KeyValuePair<string, string>(
+        f.Key.Length == 0 ? name : name + ""["" + (f.Key.IndexOf('[') is var open and >= 0 ? f.Key.Substring(0, open) + ""]"" + f.Key.Substring(open) : f.Key + ""]""), f.Value));
+
 /// <summary>The type as form fields, nested values in brackets; absent values left out.</summary>
 public static IEnumerable<KeyValuePair<string, string>> FormFields<T>(T value)
     => FormFlatten(global::System.Text.Json.JsonSerializer.SerializeToNode(value, FormWrite), null);
@@ -1060,7 +1111,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 w.Line();
             }
 
-            if (operations.Any(o => o.Body is { Form: true }))
+            if (operations.Any(o => o.Body is { Form: true } || o.Parameters.Any(p => p.Deep)))
             {
                 w.Block(FormMethods);
                 w.Line();
@@ -1208,6 +1259,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public string Attribute { get; }
 
             public IOpenApiSchema? Schema { get; }
+
+            /// <summary>An object in the query, as a deep object (created[gte]=1&amp;created[lt]=9): read by the endpoint itself.</summary>
+            public bool Deep { get; set; }
         }
 
         private sealed class Response
@@ -1320,7 +1374,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public List<Param> Parameters { get; } = new();
 
             /// <summary>A parameter has constraints (bounds, lengths, a pattern) the endpoint checks.</summary>
-            public bool ValidatesParameters => Parameters.Any(p => p.Schema is { } s && (s.Minimum is not null || s.Maximum is not null
+            public bool ValidatesParameters => Parameters.Any(p => p.Deep || p.Schema is { } s && (s.Minimum is not null || s.Maximum is not null
                 || s.MinLength is not null || s.MaxLength is not null || s.Pattern is not null));
 
             /// <summary>Its x-dependencies (IDL), enforced at the endpoint when Matchmark.Rules is referenced.</summary>
@@ -1415,6 +1469,32 @@ public static (string Key, string Message) BindingError(string? key, string mess
             return operations;
         }
 
+        /// <summary>
+        /// Reads a deep-object query parameter into its local: its bracketed keys as the type, null when absent (and,
+        /// when it's required, the missing value is the problem). <paramref name="fail"/> throws or returns, given a
+        /// JsonException placed at the parameter.
+        /// </summary>
+        private void EmitDeepRead(CodeWriter w, Param deep, string query, string cancellation, string fail)
+        {
+            var type = deep.Type.TrimEnd('?');
+            var node = $"__node_{deep.Identifier.TrimStart('@')}";
+            w.Line($"{deep.Type} {deep.Identifier};");
+            w.Open("try");
+            w.Line($"var {node} = {ValidationClass}.QueryNode(global::System.Linq.Enumerable.SelectMany({query}, q => global::System.Linq.Enumerable.Select(q.Value, v => new KeyValuePair<string, string>(q.Key, v ?? string.Empty))), {Naming.Literal(deep.Name)});");
+            if (!deep.Type.EndsWith("?", StringComparison.Ordinal))
+            {
+                w.Line($"if ({node} is null) throw new global::System.Text.Json.JsonException(\"The query is missing required properties including: '{deep.Name}'.\", \"$\", null, null);");
+            }
+
+            w.Line($"{deep.Identifier} = {node} is null ? default({deep.Type}) : {ValidationClass}.FromNode<{type}>({node});");
+            w.Close();
+            w.Open("catch (global::System.Text.Json.JsonException e)");
+            w.Line(string.Format(CultureInfo.InvariantCulture, fail,
+                $"new global::System.Text.Json.JsonException(e.Message, \"$.{deep.Name}\" + (e.Path ?? \"$\").Substring(1), null, null)"));
+            w.Close();
+            w.Line();
+        }
+
         /// <summary>The checks of one array item (<c>__item</c>) at <paramref name="path"/>: its bounds, or its schema's Check.</summary>
         private List<string> ItemChecks(IOpenApiSchema items, string path, List<string> patterns)
         {
@@ -1461,12 +1541,19 @@ public static (string Key, string Message) BindingError(string? key, string mess
         }
 
         /// <summary>The checks of an endpoint's bound parameters, each adding to <c>__invalid</c>, by the spec's constraints.</summary>
-        private static IEnumerable<string> ParameterChecks(Operation operation)
+        private IEnumerable<string> ParameterChecks(Operation operation)
         {
             foreach (var (parameter, index) in operation.Parameters.Select((p, i) => (p, i)))
             {
                 if (parameter.Schema is not { } schema)
                 {
+                    continue;
+                }
+
+                // A deep object is one of the generated types: its own Validate, each error under the parameter's name.
+                if (parameter.Deep && _schemas.Keys.Select(Naming.Pascal).Contains(parameter.Type.TrimEnd('?')))
+                {
+                    yield return $"if ({parameter.Identifier} is {{ }} __deep{index.Invariant()} && {ValidationClass}.Validate(__deep{index.Invariant()}) is {{ }} __errors{index.Invariant()}) foreach (var __e in __errors{index.Invariant()}) __invalid[{Naming.Literal(parameter.Name + ".")} + __e.Key] = __e.Value;";
                     continue;
                 }
 
@@ -1561,14 +1648,19 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     _ => null,
                 };
 
-                if (attribute is null || parameter.Schema is null || TypeOf(parameter.Schema, $"{context} parameter '{parameter.Name}'") is not { } type)
+                // An object in the query (style: deepObject) gets a type of its own, named for the operation and parameter.
+                var hint = parameter.In == ParameterLocation.Query ? operation.Name + Naming.Pascal(parameter.Name!) : null;
+                if (attribute is null || parameter.Schema is null || TypeOf(parameter.Schema, $"{context} parameter '{parameter.Name}'", hint) is not { } type)
                 {
                     Unsupported($"{context} parameter '{parameter.Name}'", $"{parameter.In} parameters");
                     return false;
                 }
 
                 var nullable = !parameter.Required ? "?" : string.Empty;
-                operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute, parameter.Schema));
+                operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute, parameter.Schema)
+                {
+                    Deep = parameter.In == ParameterLocation.Query && (parameter.Style == ParameterStyle.DeepObject || IsObject(parameter.Schema)),
+                });
             }
 
             if (spec.RequestBody is { } requestBody)
@@ -2154,7 +2246,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
             if (query.Count > 0)
             {
                 w.Line("var __query = new List<string>();");
-                foreach (var p in query)
+                foreach (var p in query.Where(p => p.Deep))
+                {
+                    var local = $"__d_{p.Identifier.TrimStart('@')}";
+                    w.Line($"if ((object?){p.Identifier} is {{ }} {local}) foreach (var __f in {ValidationClass}.QueryFields({Naming.Literal(p.Name)}, {local})) __query.Add(Uri.EscapeDataString(__f.Key) + \"=\" + Uri.EscapeDataString(__f.Value));");
+                }
+
+                foreach (var p in query.Where(p => !p.Deep))
                 {
                     w.Line(p.Type.EndsWith("?", StringComparison.Ordinal)
                         ? $"if ({p.Identifier} is {{ }} __{p.Identifier.TrimStart('@')}) __query.Add({Naming.Literal(p.Name + "=")} + Segment(__{p.Identifier.TrimStart('@')}));"
@@ -3258,12 +3356,16 @@ private static (string Key, string Message)? BindingError(Exception exception) =
 
         private void EmitEndpoint(CodeWriter w, Operation operation)
         {
-            var args = operation.Parameters
+            var args = operation.Parameters.Where(p => !p.Deep)
                 .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                 .ToList();
+            if (operation.Body is { Form: true } || operation.Parameters.Any(p => p.Deep))
+            {
+                args.Add("HttpRequest __http");
+            }
+
             if (operation.Body is { Form: true })
             {
-                args.Add("HttpRequest __form");
             }
             else if (operation.Body is not null)
             {
@@ -3284,17 +3386,22 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             var returnType = operation.EndpointReturnType;
             w.Line($"app.MapMethods({Naming.Literal(operation.Path)}, new[] {{ {Naming.Literal(operation.Method)} }}, static async Task<{returnType}> ({string.Join(", ", args)}) =>");
             w.Open(string.Empty);
+            foreach (var deep in operation.Parameters.Where(p => p.Deep))
+            {
+                EmitDeepRead(w, deep, "__http.Query", "__cancellationToken", "throw new BadHttpRequestException(\"The query doesn't match the schema.\", StatusCodes.Status400BadRequest, {0});");
+            }
+
             if (operation.Body is { Form: true } form)
             {
                 // Read here rather than bound with [FromForm], so that nested values in brackets work and a form that
                 // doesn't fit the schema is the same validation problem a JSON body would be.
-                w.Open("if (!__form.HasFormContentType)");
+                w.Open("if (!__http.HasFormContentType)");
                 w.Line($"throw new BadHttpRequestException(\"The body must be {FormMedia}.\", StatusCodes.Status415UnsupportedMediaType);");
                 w.Close();
                 w.Line();
                 w.Line($"{form.Type} body;");
                 w.Open("try");
-                w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>(global::System.Linq.Enumerable.SelectMany(await __form.ReadFormAsync(__cancellationToken).ConfigureAwait(false), f => global::System.Linq.Enumerable.Select(f.Value, v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
+                w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>(global::System.Linq.Enumerable.SelectMany(await __http.ReadFormAsync(__cancellationToken).ConfigureAwait(false), f => global::System.Linq.Enumerable.Select(f.Value, v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
                 w.Close();
                 w.Open("catch (JsonException e)");
                 w.Line("throw new BadHttpRequestException(\"The form doesn't match the schema.\", StatusCodes.Status400BadRequest, e);");

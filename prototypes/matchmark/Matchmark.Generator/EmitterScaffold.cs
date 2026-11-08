@@ -231,7 +231,7 @@ namespace Matchmark.Generator
                     w.Line("[ProducesResponseType<HttpValidationProblemDetails>(400, \"application/problem+json\")]");
                 }
 
-                var args = operation.Parameters
+                var args = operation.Parameters.Where(p => !p.Deep)
                     .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                     .ToList();
                 var call = operation.Parameters.Select(p => p.Identifier).ToList();
@@ -246,6 +246,12 @@ namespace Matchmark.Generator
                 }
 
                 w.Open($"public async Task<IActionResult> {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
+                foreach (var deep in operation.Parameters.Where(p => p.Deep))
+                {
+                    EmitDeepRead(w, deep, "Request.Query", "cancellationToken",
+                        $"{{{{ var (key, message) = {ValidationClass}.BindingError(({{0}}).Path ?? \"$\", ({{0}}).Message); return ValidationProblem(modelStateDictionary: Invalid(new Dictionary<string, string[]> {{{{ [key] = [message] }}}})); }}}}");
+                }
+
                 if (operation.Body is { Form: true } form)
                 {
                     // Read here rather than bound by MVC, so that nested values in brackets work, as the generated endpoints read it.
