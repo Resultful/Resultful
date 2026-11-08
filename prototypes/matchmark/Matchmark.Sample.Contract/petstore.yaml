@@ -8,6 +8,9 @@ paths:
   /pets:
     get:
       operationId: listPets
+      # Pets are listed in id order (invariants.md, order): the service sorts by id, and the twin and the suite read this.
+      x-matchmark-order:
+        by: [id]
       tags: [pets]
       parameters:
         - name: limit

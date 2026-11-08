@@ -127,3 +127,44 @@ public sealed class ReferenceTraitTests
 
     private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 }
+
+/// <summary>The derived and order traits in the generator: MM027 for what they name that isn't there.</summary>
+[TestFixture]
+public sealed class DerivedAndOrderTraitTests
+{
+    private static readonly string Ledger = Path.GetFullPath(Path.Combine(Directory(), "..", "samples", "ledger"));
+    private static readonly string PetStore = Path.GetFullPath(Path.Combine(Directory(), "..", "Matchmark.Sample.Contract", "petstore.yaml"));
+
+    [Test]
+    public void The_samples_declarations_are_right()
+    {
+        GeneratedServer.Build("Ledger", Path.Combine(Ledger, "openapi.yaml"), [Path.Combine(Ledger, "ledger.overlay.yaml")], string.Empty, withRules: true)
+            .Diagnostics.Should().NotContain(d => d.Id == "MM027");
+        GeneratedServer.Build("PetStore", PetStore, [], string.Empty, withRules: false).Diagnostics.Should().NotContain(d => d.Id == "MM027");
+    }
+
+    [Test]
+    public void A_derived_field_that_isn_t_there_is_reported()
+    {
+        var overlay = File.ReadAllText(Path.Combine(Ledger, "ledger.overlay.yaml"))
+            .Replace("balance: { on: create, value: request.opening }", "credit: { on: create, value: request.opening }", StringComparison.Ordinal)
+            .Replace("extends: ./openapi.yaml", "extends: " + Path.Combine(Ledger, "openapi.yaml"), StringComparison.Ordinal);
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "derived-wrong.overlay.yaml");
+        File.WriteAllText(path, overlay);
+
+        GeneratedServer.Build("Ledger", Path.Combine(Ledger, "openapi.yaml"), [path], string.Empty, withRules: true).Diagnostics
+            .Should().Contain(d => d.Id == "MM027" && d.GetMessage(null).Contains("x-matchmark-derived", StringComparison.Ordinal) && d.GetMessage(null).Contains("unknown field credit", StringComparison.Ordinal));
+    }
+
+    [Test]
+    public void An_order_by_a_field_the_items_don_t_have_is_reported()
+    {
+        var spec = Path.Combine(TestContext.CurrentContext.WorkDirectory, "order-wrong.yaml");
+        File.WriteAllText(spec, File.ReadAllText(PetStore).Replace("by: [id]", "by: [age]", StringComparison.Ordinal));
+
+        GeneratedServer.Build("PetStore", spec, [], string.Empty, withRules: false).Diagnostics
+            .Should().Contain(d => d.Id == "MM027" && d.GetMessage(null).Contains("listPets's x-matchmark-order", StringComparison.Ordinal) && d.GetMessage(null).Contains("unknown field age", StringComparison.Ordinal));
+    }
+
+    private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
+}

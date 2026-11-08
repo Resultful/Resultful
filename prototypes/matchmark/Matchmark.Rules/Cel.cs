@@ -33,6 +33,22 @@ public static class Cel
         }
     }
 
+    /// <summary>
+    /// Evaluates an expression to a value, over the variables given (<c>request</c>, <c>self</c>, <c>oldSelf</c> for a
+    /// derived field); an error is reported, not thrown.
+    /// </summary>
+    public static (JsonNode? Value, string? Error) Evaluate(string expression, IReadOnlyDictionary<string, JsonNode?> variables)
+    {
+        try
+        {
+            return (new Parser(expression, new Dictionary<string, JsonNode?>(variables, StringComparer.Ordinal)).Evaluate(), null);
+        }
+        catch (CelException e)
+        {
+            return (null, e.Message);
+        }
+    }
+
     public sealed class CelException(string message) : Exception(message);
 
     private sealed class Parser(string text, Dictionary<string, JsonNode?> variables)

@@ -103,6 +103,12 @@ public static class Checks
 
     /// <summary>A reference to nothing (x-matchmark-references) is refused, and so is deleting what is still referred to when the reference restricts it.</summary>
     public const string ReferenceHolds = nameof(ReferenceHolds);
+
+    /// <summary>A derived field (x-matchmark-derived) equals its expression in a create's response.</summary>
+    public const string DerivedHolds = nameof(DerivedHolds);
+
+    /// <summary>A list is in its declared order (x-matchmark-order).</summary>
+    public const string ListOrdered = nameof(ListOrdered);
 }
 
 public enum Severity

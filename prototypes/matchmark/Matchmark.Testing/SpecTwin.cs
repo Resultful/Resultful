@@ -369,6 +369,7 @@ public sealed class SpecTwin : HttpMessageHandler
 
                 var replaced = (JsonObject)(body as JsonObject ?? []).DeepClone();
                 Keep(found.Value.Resource, replaced, operation, idName, id!);
+                Derive(operation, replaced, body, found.Value.Resource, create: false);
                 store.Items[id!] = (replaced, found.Value.Version + 1);
                 return View(operation, 200, replaced, found.Value.Version + 1);
             case ("PATCH", true):
@@ -379,6 +380,7 @@ public sealed class SpecTwin : HttpMessageHandler
 
                 var patched = (JsonObject)found.Value.Resource.DeepClone();
                 Merge(patched, body as JsonObject ?? []);
+                Derive(operation, patched, body, found.Value.Resource, create: false);
                 store.Items[id!] = (patched, found.Value.Version + 1);
                 return View(operation, 200, patched, found.Value.Version + 1);
             case ("DELETE", true):
@@ -412,6 +414,7 @@ public sealed class SpecTwin : HttpMessageHandler
         var resource = (JsonObject)body.DeepClone();
         var (_, idName) = Resource(operation);
         Keep(null, resource, operation, idName, id);
+        Derive(operation, resource, body, null, create: true);
         store.Items[id] = (resource, 1);
         var status = operation.Response(201) is not null ? 201 : 200;
         var answer = View(operation, status, resource, 1);
@@ -474,7 +477,10 @@ public sealed class SpecTwin : HttpMessageHandler
     {
         var limit = operation.Parameters.FirstOrDefault(p => p.In == "query" && p.Name.ToLowerInvariant() is "limit" or "pagesize" or "page_size" or "per_page" or "top") is { } l
                     && query.FirstOrDefault(q => q.Key == l.Name).Value is { } text && int.TryParse(text, out var n) ? n : int.MaxValue;
-        var items = store.Items.Values.Take(limit).Select(i => (JsonNode?)Shaped(Item(operation), i.Resource)).ToArray();
+        // A declared order (x-matchmark-order) sorts the list; otherwise it's in the order resources were stored.
+        var order = Traits.Order(operation);
+        var stored = order.Count == 0 ? store.Items.Values.ToList() : store.Items.Values.OrderBy(i => i.Resource, Comparer<JsonObject>.Create((a, b) => Traits.Compare(a, b, order))).ToList();
+        var items = stored.Take(limit).Select(i => (JsonNode?)Shaped(Item(operation), i.Resource)).ToArray();
         var schema = Success(operation) is { } s ? _spec.Resolve(s) : [];
         JsonNode list = SchemaValidator.Types(schema).Contains("array")
             ? new JsonArray(items)
@@ -535,6 +541,20 @@ public sealed class SpecTwin : HttpMessageHandler
         => new(status, operation.Response(status)?.Content.Keys.FirstOrDefault() ?? "application/json", body.ToJsonString(), headers);
 
     private static Reply NotFound(SpecOperation operation) => Problem(404, "Not found", operation);
+
+    /// <summary>Derived fields (x-matchmark-derived), computed as the resource is stored: on create, on update, or always.</summary>
+    private void Derive(SpecOperation operation, JsonObject resource, JsonNode? request, JsonObject? old, bool create)
+    {
+        foreach (var derived in Traits.DerivedFields(_spec, Traits.ResourceSchema(operation)).Where(d => create ? d.OnCreate : d.OnUpdate))
+        {
+            var self = (JsonObject)resource.DeepClone();
+            self.Remove(derived.Field);
+            if (Traits.Evaluate(derived, request, self, old) is { } value)
+            {
+                resource[derived.Field] = value.DeepClone();
+            }
+        }
+    }
 
     private static JsonObject Patched(JsonObject resource, JsonObject? patch)
     {

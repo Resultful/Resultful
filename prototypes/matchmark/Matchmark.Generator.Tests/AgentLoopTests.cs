@@ -37,6 +37,7 @@ public sealed class AgentLoopTests
         {
             schema.Remove("x-matchmark-references");
             schema.Remove("x-matchmark-unique");
+            schema.Remove("x-matchmark-derived");
         }
 
         return document.ToJsonString();
