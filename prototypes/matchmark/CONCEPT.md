@@ -634,5 +634,6 @@ In order of value for each mode:
 | Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | ✓ **Parameter constraints in the generated server.** Endpoints check bounds, lengths and patterns; the Bookings sample's suite caught the gap, as predicted. |
 
 One step serves both modes and comes first: **packaging.** That means a NuGet package with a `.props` file declaring
-the build metadata (✓ done; see README.md), problem types the contract owns, and a lenient client mode. The prototype
+the build metadata (✓ done; see README.md), problem types the contract owns, and a lenient client mode (✓ done: given
+`onViolation`, the client reports what it can read past and carries on). The prototype
 can't be adopted without it.
