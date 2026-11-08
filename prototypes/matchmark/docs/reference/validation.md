@@ -1,7 +1,8 @@
 # Validation on .NET's validation layer
 
 **Planned** (decision Q45, [decisions](../decisions.md#second-round)): adopted now, with the spike as its first
-implementation step. Nothing on this page is built yet. It specifies how
+implementation step. The spike is **Built** ([what it found](#what-the-spike-found)); the generator's part is next. It
+specifies how
 Matchmark's per-object checks move onto .NET's own validation layer (`Microsoft.Extensions.Validation`, .NET 10), so a
 generated service validates the way any .NET service does, and Matchmark stops maintaining a validator of its own.
 Invariants across a collection, such as uniqueness, are not model validation: see [invariants](invariants.md#common-rules).
@@ -132,10 +133,26 @@ the Bookings sample:
 3. The round-trip check still finds no differences, now that models carry attributes.
 4. The generated client refuses the same bad requests before sending.
 
-If 1 fails, Matchmark's resolver covers what .NET's generator can't see, as designed ([question 2](../QUESTIONS.md)). If
-the layer can't keep the error keys or the checks, the fallback is to keep Matchmark's validator behind the same keys and
-generate attributes for the OpenAPI document and hand-written code only. Either way the result is recorded in
-[decisions](../decisions.md).
+If 1 fails, Matchmark's resolver covers what .NET's generator can't see, as designed. If the layer can't keep the error
+keys or the checks, the fallback is to keep Matchmark's validator behind the same keys and generate attributes for the
+OpenAPI document and hand-written code only. Either way the result is recorded in [decisions](../decisions.md).
+
+### What the spike found
+
+**Built** as `ValidationSpikeTests` (what the generator would emit, written by hand), and a two-project build, on .NET
+10.0.14, where `Microsoft.Extensions.Validation` ships in the ASP.NET Core shared framework (marked experimental,
+`ASP0029`):
+
+| Finding | Consequence |
+|:--|:--|
+| A resolver inserted first in `ValidationOptions.Resolvers` makes minimal APIs validate a body parameter, nested models and `IValidatableObject` included, with no help from Microsoft's generator. | Condition 1 holds: the design works. |
+| `ValidatablePropertyInfo` finds the property by reflection on its `Name`, so `Name` must be the C# name; the error key is the path of `Name`s (`Details.LivesLeft`), and the display name (the JSON name) only reaches the message. | The layer alone can't keep the spec's keys. |
+| The generated parameter info can translate keys after validating: it runs the base validation into its own error dictionary, then maps each C# path to the JSON path through the models' `[JsonPropertyName]`s (`details.livesLeft`). | The spec's keys are kept in one generated place, not per property. |
+| A rule across fields (`IValidatableObject`) is keyed by the member names its `ValidationResult` gives, as written. | Generated rules name the JSON field, as `{Api}Validation` does today. |
+| Microsoft's generator validates a model in a referenced project when it sees a `Map` call taking it, but under C# keys (decision Q54). | Matchmark generates the resolver for everything. |
+
+Conditions 2 to 4 (every suite with the same keys, the round trip, the client) need the generator to emit the
+attributes and the resolver; that's the next step.
 
 ## Done when
 
