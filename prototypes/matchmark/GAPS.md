@@ -78,8 +78,8 @@ that refuses every new pet. ✓ A run with an agent writing
 (`AgentLoopTests`, Ledger): three attempts from the training tasks alone, one kept (held out 61.9% to 85.7%), one
 rejected because an operation fell, one rejected because only training rose (LAYERS.md has the log). Then an independent
 agent, limited to `LedgerOwned.cs` and the training tasks, reached the same 85.7% on its own in six attempts
-(`The_owned_behaviour_passes_the_gate`). `matchmark-agent-loop.yml` runs that loop unattended, given an
-`ANTHROPIC_API_KEY` secret.
+(`The_owned_behaviour_passes_the_gate`). Running the loop unattended in CI would need an Anthropic credential
+the repository doesn't have, so it isn't set up.
 
 ## 4. Only Petstore has been through it
 
