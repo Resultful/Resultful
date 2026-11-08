@@ -26,6 +26,10 @@ const string Usage = """
     matchmark audit <spec> [--arazzo <file>]... [--overlay <file>]... [--sarif <file>] [--spectral <file>] [--strict]
 
       Reports what the spec leaves out, each finding measured in the cases and workflows its change would add.
+
+    matchmark diff <old spec> <new spec> [--allow-breaking]
+
+      Lists what changed and whom it breaks; exits 1 on a breaking change the major version didn't announce.
     """;
 
 if (args.Length > 0 && args[0] == "regress")
@@ -36,6 +40,11 @@ if (args.Length > 0 && args[0] == "regress")
 if (args.Length > 0 && args[0] == "audit")
 {
     return await AuditCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "diff")
+{
+    return await SpecDiff.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length < 3 || args[0] != "scaffold" || args.Contains("--help"))
