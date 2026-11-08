@@ -50,9 +50,19 @@ public sealed class FormTests
                 {
                     Id = $"ch_{Interlocked.Increment(ref _next)}", Amount = body.Amount, Currency = body.Currency, Captured = body.Capture ?? true,
                     Description = body.Description, Last4 = body.Card.Number[^4..], Metadata = body.Metadata,
+                    Created = 1_700_000_000 + _next,
                 };
                 _charges[charge.Id] = charge;
                 return Task.FromResult(Result.Ok<Charge, CreateChargeError>(charge));
+            }
+
+            public Task<Result<IReadOnlyList<Charge>, ListChargesError>> ListCharges(ListChargesCreated? created, int? limit, CancellationToken cancellationToken)
+            {
+                IReadOnlyList<Charge> found = _charges.Values
+                    .Where(c => (created?.Gt is not { } gt || c.Created > gt) && (created?.Gte is not { } gte || c.Created >= gte)
+                                && (created?.Lt is not { } lt || c.Created < lt) && (created?.Lte is not { } lte || c.Created <= lte))
+                    .OrderBy(c => c.Created).Take(limit ?? 10).ToList();
+                return Task.FromResult(Result.Ok<IReadOnlyList<Charge>, ListChargesError>(found));
             }
 
             public Task<Result<Charge, GetChargeError>> GetCharge(string chargeId, CancellationToken cancellationToken)
@@ -104,6 +114,14 @@ public sealed class FormTests
                 var declined = (CreateChargeDefault)((CreateChargeError)result.ToOneOf().Value).Value;
                 return $"{declined.Status} {declined.Body.ErrorValue.Code}";
             }
+
+            /// <summary>The client sends the deep-object filter; the server reads it.</summary>
+            public static async Task<int> ListedAsync(string url, long from)
+            {
+                using var http = new HttpClient { BaseAddress = new Uri(url) };
+                var result = await new PaymentsClient(http).ListCharges(new ListChargesCreated { Gte = from }, 100, default);
+                return ((IReadOnlyList<Charge>)result.ToOneOf().Value).Count;
+            }
         }
         """;
 
@@ -125,9 +143,14 @@ public sealed class FormTests
             File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "payments.txt"), report.ToString());
             report.Failures.Should().BeEmpty(report.ToString());
             report.Cases.Should().Contain(c => c.Case.Request.ContentType == "application/x-www-form-urlencoded" && c.Exchange.Status == 200)
-                .And.Contain(c => c.Case.Kind == CaseKind.Invalid && c.Case.Request.Body!.Contains("card%5Bexp_month%5D=13", StringComparison.Ordinal) && c.Exchange.Status == 400);
+                .And.Contain(c => c.Case.Kind == CaseKind.Invalid && c.Case.Request.Body != null && c.Case.Request.Body.Contains("card%5Bexp_month%5D=13", StringComparison.Ordinal) && c.Exchange.Status == 400);
             (await (Task<string>)server.GetMethod("ChargeAsync")!.Invoke(null, [url])!).Should().Be("1250 Gbp False 5556 o-17");
             (await (Task<string>)server.GetMethod("DeclineAsync")!.Invoke(null, [url])!).Should().Be("402 card_declined");
+            var all = await (Task<int>)server.GetMethod("ListedAsync")!.Invoke(null, [url, 0L])!;
+            (await (Task<int>)server.GetMethod("ListedAsync")!.Invoke(null, [url, 1_700_000_000L + 1_000_000])!).Should().Be(0);
+            all.Should().BePositive();
+            report.Cases.Should().Contain(c => c.Case.Request.Query.Any(q => q.Key.StartsWith("created[", StringComparison.Ordinal)) && c.Exchange.Status == 200)
+                .And.Contain(c => c.Case.Kind == CaseKind.Invalid && c.Case.Request.Query.Any(q => q.Key.StartsWith("created[", StringComparison.Ordinal)) && c.Exchange.Status == 400);
         }
         finally
         {

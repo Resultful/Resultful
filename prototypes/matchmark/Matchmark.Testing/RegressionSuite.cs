@@ -222,7 +222,9 @@ public sealed class RegressionSuite
             var values = new Dictionary<SpecParameter, JsonNode?>();
             foreach (var parameter in operation.Parameters)
             {
-                if (Value(parameter.Example, parameter.Schema, full: false) is { } value)
+                // A deep object takes every property, so its leaves have bounds and violations to vary.
+                var deep = parameter.In == "query" && SchemaValidator.Types(_suite.Spec.Resolve(parameter.Schema)).Contains("object");
+                if (Value(parameter.Example, parameter.Schema, full: deep) is { } value)
                 {
                     values[parameter] = value.Node;
                 }
@@ -310,7 +312,7 @@ public sealed class RegressionSuite
             {
                 foreach (var variant in _suite.Samples.Boundaries(values[parameter], parameter.Schema).Where(v => v.Value is not null))
                 {
-                    Add(operation, CaseKind.Boundary, $"{Where(parameter)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter));
+                    Add(operation, CaseKind.Boundary, $"{Where(parameter, variant.Path)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter, variant.Path));
                 }
             }
 
@@ -330,9 +332,9 @@ public sealed class RegressionSuite
 
             foreach (var parameter in operation.Parameters.Where(values.ContainsKey))
             {
-                foreach (var variant in _suite.Samples.Violations(values[parameter], parameter.Schema).Where(v => Serializable(v.Value) && !ValidAsText(parameter, v.Value)))
+                foreach (var variant in _suite.Samples.Violations(values[parameter], parameter.Schema).Where(v => Serializable(parameter, v.Value) && !ValidAsText(parameter, v.Value)))
                 {
-                    Add(operation, CaseKind.Invalid, $"{Where(parameter)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter));
+                    Add(operation, CaseKind.Invalid, $"{Where(parameter, variant.Path)} {variant.Description}", With(values, parameter, variant.Value), full, Where(parameter, variant.Path));
                 }
             }
 
@@ -539,6 +541,13 @@ public sealed class RegressionSuite
             var headers = new List<KeyValuePair<string, string>>();
             foreach (var (parameter, value) in parameters)
             {
+                // An object in the query is a deep object: created[gte]=1&created[lt]=9.
+                if (parameter.In == "query" && value is JsonObject deep)
+                {
+                    query.AddRange(Forms.Fields(deep, parameter.Name));
+                    continue;
+                }
+
                 // Each case is its own attempt, so it gets its own Idempotency-Key, unless the key is what the case is about.
                 var texts = string.Equals(parameter.Name, "Idempotency-Key", StringComparison.OrdinalIgnoreCase) && parameter.In == "header"
                             && location != $"header.{parameter.Name}"
@@ -614,6 +623,10 @@ public sealed class RegressionSuite
 
         private static bool Opaque(SpecParameter parameter) => parameter.In == "query" && RegressionRunner.Cursors.Contains(parameter.Name.ToLowerInvariant());
 
+        /// <summary>A parameter, or a value inside a deep-object parameter (query.created.gte).</summary>
+        private static string Where(SpecParameter parameter, string path)
+            => path.Length == 0 ? Where(parameter) : path.StartsWith('[') ? Where(parameter) + path : $"{Where(parameter)}.{path}";
+
         private static string BodyWhere(string path) => path.Length == 0 ? "body" : path.StartsWith('[') ? "body" + path : $"body.{path}";
 
         /// <summary>
@@ -622,11 +635,13 @@ public sealed class RegressionSuite
         /// </summary>
         private bool ValidAsText(SpecParameter parameter, JsonNode? value)
             => value is JsonValue && SchemaValidator.Types(_suite.Spec.Resolve(parameter.Schema)) is var types && types.Contains("string") && !types.Contains("null")
-               && _suite.Validator.IsValid(JsonValue.Create(Text(value)), parameter.Schema);
+               && _suite.Validator.IsValid(JsonValue.Create(Text(value)), parameter.Schema)
+               // A deep object is text too: what reads back valid can't be sent invalid.
+               || value is JsonObject && _suite.Validator.IsValid(Forms.Decode(Forms.Encode(value), parameter.Schema, _suite.Spec), parameter.Schema);
 
-        /// <summary>A parameter value can only be sent as text: a scalar, or an array of scalars.</summary>
-        private static bool Serializable(JsonNode? value)
-            => value is JsonValue || value is JsonArray array && array.All(i => i is JsonValue);
+        /// <summary>A parameter value can only be sent as text: a scalar, an array of scalars, or (in the query) a deep object.</summary>
+        private static bool Serializable(SpecParameter parameter, JsonNode? value)
+            => value is JsonValue || value is JsonArray array && array.All(i => i is JsonValue) || value is JsonObject && parameter.In == "query";
 
         private static IEnumerable<string> Texts(JsonNode? value) => value switch
         {

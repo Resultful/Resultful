@@ -113,7 +113,9 @@ Running the generator and the engine over specs other than the Pet Store found t
   `default` response weren't generated, so none of Stripe's 612 operations was; and the Payments sample written for
   them found that arrays were never validated (`maxItems`, and each item's own constraints). *Done:* forms are read
   and written by the generated server, client and engine; `default` is an error case that carries its status; arrays
-  are checked. Stripe went from 0% to 94%.
+  are checked. Stripe went from 0% to 94%; with deep-object query parameters (`created[gte]=…`, read and validated by
+  the endpoint, written by the client, sent by the engine with a case for each leaf's bounds) and schemas that are any
+  JSON value typed rather than skipped, it's at 99.8%.
 
 ## The plan, in order
 

@@ -10,7 +10,7 @@ sample changes the ledger; so does breaking something that worked.
 | `museum/` | A real-world OpenAPI 3.1 document written by someone else (Redocly, MIT). Uses what the Pet Store doesn't: primitive component schemas, `allOf`, named arrays. | Arazzo workflows |
 | `orders/` | Written to exercise behaviour across calls and over time: an Idempotency-Key, ETag and If-Match, a cursor, a 202 and an operation to poll, rate limits, deprecation, webhooks. | Overlay, Arazzo |
 | `catalogue/` | OpenAPI 3.2: a search sent as a QUERY (RFC 10008) and an export streamed as JSON Lines (`itemSchema`), with a declared prefix relation and postconditions in its overlay. Its generated server runs against the suite (`CatalogueTests`). | Overlay |
-| `payments/` | Request bodies as forms, the way Stripe takes them (nested values in brackets, numbers and true or false as text), and a `default` error response carrying its status (a declined card is a 402). Its generated server runs against the suite, random requests included (`FormTests`). | |
+| `payments/` | Request bodies as forms, the way Stripe takes them (nested values in brackets, numbers and true or false as text), and a `default` error response carrying its status (a declined card is a 402), and a list filtered by a deep-object query parameter. Its generated server runs against the suite, random requests included (`FormTests`). | |
 | `bookings/` | Written for invariants the schema can't state, in its overlay: a booking ends after it starts and is for a room or a desk, not both (CEL); a search's filters depend on each other (IDL); a new booking is booked (a postcondition). Its generated server enforces them (`GeneratedRulesTests`). | Overlay |
 
 Today's ledger:
@@ -21,7 +21,7 @@ museum: generator skips 3; suite 100 cases, 0 workflows from links, 3 of 3 Arazz
 orders: generator skips 0; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps, 19 webhook cases; audit 3 warnings, 8 findings, 91%
 bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 catalogue: generator skips 0; suite 73 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 97%
-payments: generator skips 0; suite 56 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
+payments: generator skips 0; suite 88 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 ```
 
 The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's
@@ -34,12 +34,12 @@ Large public specs (GitHub, Stripe) are fetched, not committed (`samples/large/f
 
 ```
 github: 1272 operations, 1244 generated (97.8%), 0 compile errors
-stripe: 612 operations, 592 generated (96.7%), 0 compile errors
+stripe: 612 operations, 611 generated (99.8%), 0 compile errors
 ```
 
 The first run found that the generator failed outright on GitHub's spec, and that what it wrote didn't compile; both
 are fixed (LAYERS.md). Stripe was at 0%: it sends every request body as `application/x-www-form-urlencoded`, and
 documents its errors only as a `default` response. Both are generated now (the Payments sample). Component schemas
 that are any JSON value (an object with no properties, an anyOf nothing tells apart) were skipped, and with them
-everything that referred to them; they're `JsonElement` now. What's left of Stripe is mostly its list filters,
-deep-object query parameters; of GitHub, operations whose only answers are redirects.
+everything that referred to them; they're `JsonElement` now. Stripe's list filters are deep-object query parameters
+(`created[gte]=…`), generated now too. What's left of GitHub is mostly operations whose only answers are redirects.
