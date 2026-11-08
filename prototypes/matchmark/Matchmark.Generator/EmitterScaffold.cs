@@ -153,7 +153,7 @@ namespace Matchmark.Generator
                         }
 
                         var propertyType = TypeOf(property.Value, id) ?? "object";
-                        parts.Add($"{Naming.Pascal(property.Key)} = {(value is null ? "null" : CSharp(value, property.Value, propertyType))}");
+                        parts.Add($"{Member(Naming.Pascal(id), target, property.Key)} = {(value is null ? "null" : CSharp(value, property.Value, propertyType))}");
                     }
 
                     return $"new {Naming.Pascal(id)} {{ {string.Join(", ", parts)} }}";

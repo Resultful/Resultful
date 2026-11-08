@@ -75,7 +75,7 @@ namespace Matchmark.Generator
                 {
                     CompareEnum(target, shape, where, differences);
                 }
-                else if (target.OneOf is { Count: > 0 })
+                else if (IsUnion(target))
                 {
                     CompareUnion(id, target, shape, shapes, path, where, differences, visited);
                 }

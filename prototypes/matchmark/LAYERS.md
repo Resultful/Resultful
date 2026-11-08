@@ -101,6 +101,14 @@ Running the generator and the engine over specs other than the Pet Store found t
   by default), so `status: 3` was accepted; and a `202` with no body called `TypedResults.Accepted()`, which needs a
   URI. *Fixed:* enums use `{Api}EnumConverter<T>`, which refuses numbers; the 202 passes a null location.
 
+- **The first run over GitHub's and Stripe's specs** (1,272 and 612 operations) found the generator failing outright,
+  then code that didn't compile. A `oneOf` beside an object's properties without a discriminator ("one of these
+  fields is required") was taken for a union; a property named like its type (`Email.email`) and properties whose
+  names differ only in symbols (GitHub's reactions `+1` and `-1`) made invalid C#; and an API with no operation the
+  generator could write got a client declared with no interfaces. *Fixed:* such a `oneOf` only constrains the object;
+  property names spell out a leading `+`/`-`, take `Value` when they'd repeat the type's name, and are numbered when
+  they'd repeat a sibling's. GitHub's spec now generates 95% of its operations, and all of it compiles.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
