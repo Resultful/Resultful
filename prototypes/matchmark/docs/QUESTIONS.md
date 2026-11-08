@@ -12,3 +12,12 @@ object models directly.
 their own validation of a document, and whether their object models carry what the engine needs (examples, extensions,
 JSON Schema keywords) without loss. A benefit the engine would otherwise have to build is the case for the dependency.
 *Assumption until then:* the engine keeps working on normalised JSON.
+
+**2. How should the generator read a spec split across files?** The OpenAPI 2.0 `petstore-separate` example refers to
+`../common/Error.yaml` and `parameters.yaml`; Matchmark reads a spec's text alone, so the reference has nothing to
+resolve against and the example isn't read (found by the official-examples measurement). A source generator may read only
+the files given to it as `AdditionalFiles`, so the other files have to reach it somehow.
+*The options:* (a) the project lists every part as an `AdditionalFile`, marked as part of the spec
+(`MatchmarkSpecPart`), and Matchmark resolves references among them; (b) a `matchmark bundle` command writes one file
+that the project uses instead; (c) both, with (b) for CI and specs from elsewhere.
+*Assumption until then:* a split spec isn't read, and the measurement names it as the one OpenAPI example that fails.

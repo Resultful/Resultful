@@ -68,6 +68,24 @@ could take it and dropped once upstream releases it (Q33).
   `retry`, `goto`, `end`, nested workflows and AsyncAPI message steps.
 - **Overlay.** `Overlay` applies 1.0 to 1.2: `update`, `remove`, `copy`, with RFC 9535 JSONPath targets and filters.
 
+## Measured against the specifications' own examples
+
+**Built** (decisions Q20, Q51). `samples/examples/fetch.sh` fetches each specification's examples at a pinned commit, and
+`OfficialExamplesTests` measures them; CI runs both and puts the ledger in the run's summary. A pin moves in a change of
+its own, with the measurement before and after.
+
+| Source, pinned | What passing means | 8 November 2026 |
+|:--|:--|:--|
+| `OAI/learn.openapis.org` `82b82f3`, `examples/` (2.0 to 3.2, the YAML of each) | read, then generated as a contract and server that compile | 2.0: 7/8; 3.0: 6/6; 3.1: 3/3; 3.2: 2/2 |
+| `asyncapi/spec` `4166274`, `examples/` (3.0 and 3.1) | read | 24/24 |
+| `OAI/Arazzo-Specification` `e9ee1c4`, `examples/` (1.0, 1.1) | read, with its workflows | 6/6 |
+| `OAI/Overlay-Specification` `be39b56`, `compliant-sets/` | applied to the set's input, gives its output exactly | 8/8 |
+
+What the first measurement found: the 3.1 `tictactoe` example's enum request body generated a call to a validator that
+doesn't exist for enums (fixed); and the 2.0 `petstore-separate` example, split across files, can't be read
+([question 2](../QUESTIONS.md)). `OAI/OpenAPI-Specification` itself no longer holds examples; they moved to
+`learn.openapis.org`.
+
 ## Version facts this is written against
 
 Checked on 8 November 2026.

@@ -1627,7 +1627,10 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public bool Text => MediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase);
 
             /// <summary>A generated object type, so the validation class has a Validate for it (a list or a primitive body has none).</summary>
-            public bool Validated => !Type.Contains("global::", StringComparison.Ordinal) && Type is not ("string" or "int" or "long" or "float" or "double" or "decimal" or "bool");
+            public bool Validated => !Enum && !Type.Contains("global::", StringComparison.Ordinal) && Type is not ("string" or "int" or "long" or "float" or "double" or "decimal" or "bool");
+
+            /// <summary>A body that's one of an enum's values.</summary>
+            public bool Enum { get; set; }
 
             public string Type { get; }
 
@@ -2176,7 +2179,8 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         return false;
                     }
 
-                    operation.Body = new Body(bodyType, bodySchema);
+                    // An enum body (tictactoe's mark) is checked by its converter as it's read: no Validate for it.
+                    operation.Body = new Body(bodyType, bodySchema) { Enum = IsEnumRef(bodySchema) || IsEnum(bodySchema) };
                 }
                 else if (requestBody.Content?.TryGetValue(FormMedia, out var form) == true && form.Schema is { } formSchema)
                 {
