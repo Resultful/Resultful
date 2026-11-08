@@ -216,12 +216,12 @@ namespace Matchmark.Generator
                 w.Line($"[{verb}({Naming.Literal(operation.Path)}, Name = {Naming.Literal(operation.Id)})]");
                 if (operation.Body is not null)
                 {
-                    w.Line("[Consumes(\"application/json\")]");
+                    w.Line(operation.Body.Form ? "[Consumes(\"application/x-www-form-urlencoded\")]" : "[Consumes(\"application/json\")]");
                 }
 
-                foreach (var response in operation.Successes.Concat(operation.Errors))
+                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => !r.IsDefault))
                 {
-                    w.Line(response.BodyType is null
+                    w.Line(response.BodyType is null || response.IsRedirect
                         ? $"[ProducesResponseType({response.Status.Invariant()})]"
                         : $"[ProducesResponseType<{response.BodyType}>({response.Status.Invariant()}, {Naming.Literal(response.MediaType!)})]");
                 }
