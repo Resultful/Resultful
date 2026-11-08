@@ -1,0 +1,84 @@
+openapi: 3.1.1
+info:
+  title: Shelter
+  version: 1.0.0
+  description: >
+    Hosted sessions' sample: browsing is public, everything else needs the visitor's bearer token. A consumer's tests
+    run against their own session's copy (matchmark host) and must cover the pathways in shelter.arazzo.yaml.
+security:
+  - visitor: []
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      security: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+      responses:
+        '200':
+          description: The pets
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Pet' } } } }
+        '400':
+          description: Invalid
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' } } }
+    post:
+      operationId: createPet
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/NewPet' } } }
+      responses:
+        '201':
+          description: Created
+          content: { application/json: { schema: { $ref: '#/components/schemas/Pet' } } }
+        '400':
+          description: Invalid
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' } } }
+        '401':
+          description: No visitor token
+        '409':
+          description: A pet with that name exists
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      parameters:
+        - { name: petId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: The pet
+          content: { application/json: { schema: { $ref: '#/components/schemas/Pet' } } }
+        '400':
+          description: Invalid
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' } } }
+        '401':
+          description: No visitor token
+        '404':
+          description: No such pet
+components:
+  securitySchemes:
+    visitor:
+      type: http
+      scheme: bearer
+  schemas:
+    NewPet:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40, example: Rex }
+    Pet:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, readOnly: true }
+        name: { type: string, minLength: 1, maxLength: 40, example: Rex }
+    ProblemDetails:
+      type: object
+      properties:
+        title: { type: string }
+        status: { type: integer }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        title: { type: string }
+        status: { type: integer }
+        errors: { type: object, additionalProperties: { type: array, items: { type: string } } }

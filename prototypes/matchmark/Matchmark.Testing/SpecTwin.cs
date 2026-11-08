@@ -572,7 +572,7 @@ public sealed class SpecTwin : HttpMessageHandler
         return JsonValue.Create(text);
     }
 
-    private (SpecOperation? Operation, Dictionary<string, string> Values) Match(string method, string path)
+    internal (SpecOperation? Operation, Dictionary<string, string> Values) Match(string method, string path)
     {
         foreach (var operation in _spec.Operations.Where(o => o.Method == method).OrderBy(o => o.Path.Count(c => c == '{')))
         {
@@ -586,7 +586,7 @@ public sealed class SpecTwin : HttpMessageHandler
         return (null, []);
     }
 
-    private static List<KeyValuePair<string, string>> Query(string query)
+    internal static List<KeyValuePair<string, string>> Query(string query)
         => query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
             .Select(p => p.Split('=', 2))
             .Select(p => new KeyValuePair<string, string>(Uri.UnescapeDataString(p[0].Replace('+', ' ')), p.Length > 1 ? Uri.UnescapeDataString(p[1].Replace('+', ' ')) : string.Empty))

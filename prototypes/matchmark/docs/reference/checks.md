@@ -67,9 +67,8 @@ These run when the spec, or an overlay on it, declares the behaviour ([extension
 | `WorkflowCriteria` | Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles. |
 | `MessageConforms` | A message in a workflow, sent by it or received from the API, conforms to its AsyncAPI message. |
 
-## Planned
+## Sessions
 
-| Check | For | Proves |
-|:--|:--|:--|
-| `PathwayCovered` | Hosted sessions (step 4, Q40) | Each Arazzo pathway required of a consumer was completed in its session. |
-| `SessionIsolated` | Hosted sessions (Q41) | A token is accepted only by its own session's copy. |
+A hosted session's report ([sessions](sessions.md#the-report)) isn't a check of the engine's, but it judges the same way:
+a required pathway not completed, an invalid call, or a provider that doesn't pass the pathways each make the run
+incomplete, with a reason.

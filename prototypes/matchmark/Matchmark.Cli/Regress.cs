@@ -10,7 +10,7 @@ namespace Matchmark.Cli;
 public static partial class Regress
 {
     public const string Usage = """
-        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks] [--random <n>] [--seed <n>]
+        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks] [--random <n>] [--seed <n>] [--save <file>]
 
           Generates a regression suite from the spec (examples, valid requests, boundary values, one invalid request per
           constraint, and workflows from its links) and runs it against the API at <base url>, checking every response.
@@ -19,6 +19,7 @@ public static partial class Regress
           --no-workflows  don't follow links or run workflows (for a target that keeps no state, such as a fake)
           --webhooks      <base url> is a receiver of the spec's webhooks (each at /{name}): test it instead of the API
           --random        also send n random valid requests per operation, shrinking each failure (--seed to repeat a run)
+          --save          write each workflow's result, as the provider's half of hosted sessions' reports (matchmark host)
 
           An AsyncAPI 3 document in place of the spec tests a consumer of its messages: <base url> is a bridge that hands
           each POST /{operationId} to the consumer as a message (the body its payload, the headers its headers) and
@@ -101,6 +102,12 @@ public static partial class Regress
         }
 
         await output.WriteLineAsync(report.ToString());
+        if (Array.IndexOf(args, "--save") is var save and >= 0 && save + 1 < args.Length)
+        {
+            // The provider's results for the workflows run, for the provider half of hosted sessions' reports.
+            await File.WriteAllTextAsync(args[save + 1], ProviderResults.Of(report).ToJson(), cancellationToken);
+        }
+
         return report.Passed ? 0 : 1;
     }
 

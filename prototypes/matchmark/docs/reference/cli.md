@@ -16,7 +16,7 @@ or a target that can't be reached.
 | [`twin`](#twin) | Built | A stateful fake of the API from the spec alone. |
 | [`fidelity`](#fidelity) | Built | A fake scored against the real API, and the gate for changes to it. |
 | [`upgrade`](#upgrade) | Built | The spec, forward-ported to the latest version of its format, or written down to OpenAPI 3.1. |
-| [`host`](#host) | Planned | The session host: a copy of the API per test session. |
+| [`host`](#host) | Built | The session host: a copy of the API per test session. |
 
 ## audit
 
@@ -41,7 +41,7 @@ check that is checkable.
 
 ```
 matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
-                  [--random <n>] [--seed <n>]
+                  [--random <n>] [--seed <n>] [--save <file>]
 ```
 
 Generates the regression suite from the spec and runs it against the API at `<base url>`, checking every response
@@ -56,6 +56,7 @@ constraint, workflows from its `links`, and the Arazzo workflows given. Exits `1
 | `--webhooks` | `<base url>` is a receiver of the spec's webhooks, each at `/{name}`: test it instead of the API. |
 | `--random <n>` | Also send `n` random valid requests per operation, shrinking each failure to the smallest request that still fails. |
 | `--seed <n>` | The seed for `--random`, to repeat a run. Default `1`. |
+| `--save <file>` | Write each workflow's result as JSON: the provider's half of hosted sessions' reports (`matchmark host --provider`). |
 
 **An AsyncAPI 3 document** in place of the spec tests a consumer of its messages. `<base url>` is then a bridge that
 hands each `POST /{operationId}` to the consumer as a message (the body its payload, the headers its headers) and
@@ -153,11 +154,18 @@ so apply to everything that uses it; a channel given by `$ref`, which isn't conv
 
 ## host
 
-*Planned (roadmap step 4; decisions Q34 to Q43, and [questions](../QUESTIONS.md) 6 and 8).*
-
 ```
-matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--urls <url>]
+matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>]
 ```
 
-Serves the session host: one copy of the API per test session, routed by host. See [hosted sessions](sessions.md) for
-the control API.
+Serves a copy of the API per test session, from the spec alone ([hosted sessions](sessions.md)). A consumer starts a
+session with `PUT /__fake/sessions/{id}` and calls it at `{id}.localhost`, or with the header
+`X-Matchmark-Session: {id}`. Each copy is a twin of the API, seeded per session, guarded by the session's token in the
+spec's security scheme. Runs until stopped.
+
+| Option | Meaning |
+|:--|:--|
+| `--arazzo <file>` | Pathways: Arazzo workflows a session can require its consumer to cover. Repeatable. |
+| `--overlay <file>` | An Overlay applied to the spec first. Repeatable. |
+| `--provider <file>` | The provider's results for the pathways, from `matchmark regress --save`, for the report's provider half. |
+| `--urls <url>` | Where to listen. Default `http://localhost:8080`. |
