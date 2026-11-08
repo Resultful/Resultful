@@ -691,7 +691,19 @@ namespace Matchmark.Generator
                     w.Line("[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]");
                 }
 
-                w.Open(hasBase ? $"public sealed record {name} : {Naming.Pascal(union.Base)}" : $"public sealed record {name}");
+                // Rules across fields (x-matchmark-rules) make the model an IValidatableObject, for .NET's validation layer.
+                var rules = _hasRules ? Rules(schema).ToList() : new List<(string Rule, string? Message)>();
+                var validatable = rules.Count > 0 ? "global::System.ComponentModel.DataAnnotations.IValidatableObject" : null;
+                w.Open(hasBase ? $"public sealed record {name} : {Naming.Pascal(union.Base)}{(validatable is null ? string.Empty : ", " + validatable)}"
+                    : $"public sealed record {name}{(validatable is null ? string.Empty : " : " + validatable)}");
+                if (validatable is not null)
+                {
+                    w.Line("/// <summary>The spec's rules across this model's fields (x-matchmark-rules), for .NET's validation layer: each broken one, keyed at the model.</summary>");
+                    w.Line($"global::System.Collections.Generic.IEnumerable<global::System.ComponentModel.DataAnnotations.ValidationResult> {validatable}.Validate(global::System.ComponentModel.DataAnnotations.ValidationContext validationContext)");
+                    w.Line($"    => {ValidationClass}.Broken(this, {string.Join(", ", rules.Select(r => $"({Naming.Literal(r.Rule)}, {Naming.Literal(r.Message ?? $"Must satisfy {r.Rule}.")})"))});");
+                    w.Line();
+                }
+
                 foreach (var property in schema.Properties!)
                 {
                     // The discriminator is written and read by System.Text.Json from the base type's attributes.
@@ -960,7 +972,8 @@ namespace Matchmark.Generator
             w.Line("        {");
             w.Line("            foreach (var error in context.ValidationErrors ?? new Dictionary<string, string[]>())");
             w.Line("            {");
-            w.Line("                var key = JsonPath(_root, error.Key);");
+            w.Line("                // A rule broken by the whole body is keyed at it: $, as the generated validator keys it.");
+            w.Line("                var key = error.Key.Length == 0 ? \"$\" : JsonPath(_root, error.Key);");
             w.Line("                errors ??= new Dictionary<string, string[]>();");
             w.Line("                errors[key] = errors.TryGetValue(key, out var had) ? had.Concat(error.Value).ToArray() : error.Value;");
             w.Line("            }");
@@ -1516,6 +1529,16 @@ public static (string Key, string Message) BindingError(string? key, string mess
             {
                 // An absent optional value is absent to CEL's has(), not a null.
                 w.Line("private static readonly global::System.Text.Json.JsonSerializerOptions RulesJson = new(global::System.Text.Json.JsonSerializerDefaults.Web) { DefaultIgnoreCondition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };");
+                w.Line();
+                w.Line("/// <summary>The rules a model breaks, as .NET's validation layer takes them (IValidatableObject): a result per broken rule.</summary>");
+                w.Open("public static global::System.Collections.Generic.IEnumerable<global::System.ComponentModel.DataAnnotations.ValidationResult> Broken<T>(T value, params (string Rule, string Message)[] rules)");
+                w.Line("var node = global::System.Text.Json.JsonSerializer.SerializeToNode(value, RulesJson);");
+                w.Open("foreach (var rule in rules)");
+                w.Open("if (global::Matchmark.Rules.Cel.Check(rule.Rule, node) is { Holds: false, Error: null })");
+                w.Line("yield return new global::System.ComponentModel.DataAnnotations.ValidationResult(rule.Message);");
+                w.Close();
+                w.Close();
+                w.Close();
                 w.Line();
                 w.Line("/// <summary>An x-matchmark-rules rule (CEL over the value as JSON); a value it can't be evaluated on is left to the handler.</summary>");
                 w.Open("private static void Rule<T>(T value, string path, string rule, string message, Errors errors)");

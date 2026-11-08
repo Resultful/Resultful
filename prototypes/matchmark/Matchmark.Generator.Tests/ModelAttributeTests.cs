@@ -35,6 +35,7 @@ public sealed class ModelAttributeTests
             "schemas": {
               "Shape": {
                 "type": "object",
+                "x-matchmark-rules": [ { "rule": "self.sides != 5", "message": "Pentagons are another API." } ],
                 "required": ["name", "sides", "ratio", "tags"],
                 "properties": {
                   "name": { "type": "string", "minLength": 1, "maxLength": 20, "pattern": "^[a-z]+$" },
@@ -101,7 +102,7 @@ public sealed class ModelAttributeTests
     {
         var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shapes.json");
         File.WriteAllText(path, Spec);
-        return GeneratedServer.Build("Shapes", path, [], Source, withRules: false).Assembly;
+        return GeneratedServer.Build("Shapes", path, [], Source, withRules: true).Assembly;
     }
 
     /// <summary>
@@ -112,6 +113,7 @@ public sealed class ModelAttributeTests
     [TestCase("""{"name":"square","sides":4,"ratio":1,"tags":[]}""")]
     [TestCase("""{"name":"","sides":13,"ratio":0,"tags":["a","b","c","d","e"],"kind":"liquid"}""")]
     [TestCase("""{"name":"square","sides":4,"ratio":0.5,"tags":["a"],"owner":"not an address","icon":"%%%"}""")]
+    [TestCase("""{"name":"pentagon","sides":5,"ratio":0.5,"tags":["a"]}""")]
     public async Task Net_s_layer_keys_errors_as_the_generated_validator_does(string body)
     {
         async Task<(int Status, string[] Keys, string Text)> Post(bool net)
