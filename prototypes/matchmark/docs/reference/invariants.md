@@ -1,8 +1,8 @@
 # Invariants across a collection
 
-**Proposed** (decision P1, [decisions](../decisions.md#proposed)). Nothing on this page is built yet. It specifies a fifth
-scope of invariant, the rules that hold across every resource in a collection, and the vocabulary Matchmark will read for
-it.
+**Planned** (decision Q44, [decisions](../decisions.md#second-round)). Nothing on this page is built yet. It specifies a
+fifth scope of invariant, the rules that hold across every resource in a collection, and the vocabulary Matchmark reads
+for it.
 
 ## Why
 
@@ -135,7 +135,7 @@ schema gets a note: "say which fields must be unique; it adds 3 cases".
 an earlier body's value, is proposed as a `unique` declaration on that field, for a person to review.
 
 **Generator.** `PetStoreInvariants.Unique` lists the keys (`new UniqueKey("Pet", ["name"], IgnoreCase: true)`), for a
-service to apply as an index. For EF Core, Matchmark.Conformance will offer
+service to apply as an index (Q46). For EF Core, Matchmark.Conformance offers
 `modelBuilder.ApplyMatchmarkUnique<PetRecord>(PetStoreInvariants.Unique, map)`, where `map` names the entity property
 for each JSON field, since the stored entity and the API model are different types.
 
@@ -217,9 +217,9 @@ x-matchmark-scoped:
 the scoped status when they read, change or delete it.
 
 **Twin.** Records the creating token and filters by it. In [sessions](sessions.md), each session's token is a principal;
-a session can mint a second principal for a test (`POST /__fake/sessions/{id}/principals`, planned with this trait).
+a session mints a second principal for a test with `POST /__fake/sessions/{id}/principals` (Q47).
 
-**Suite.** Needs two credentials (`RegressionOptions.Principals`, `matchmark regress --principal <header>` twice). Creates
+**Suite.** Needs two credentials (`RegressionOptions.Principals`, `matchmark regress --principal <header>` twice, Q47). Creates
 as the first, then reads, lists, changes and deletes as the second. Checked as `ScopeHolds`. Without two principals, the
 cases are a gap, not a pass.
 
