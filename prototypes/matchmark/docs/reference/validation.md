@@ -69,12 +69,13 @@ already reads, written in the other direction:
 | `format: uri` | `[Url]` | **Built** |
 | `format: byte` | `[Base64String]` | **Built** |
 | `const` | `[AllowedValues(value)]` | Planned |
-| `multipleOf` | `[MultipleOf(step)]` | Planned; Matchmark.Validation |
-| `uniqueItems` | `[UniqueItems]` | Planned; Matchmark.Validation |
-| `minProperties`, `maxProperties` (maps) | `[PropertyCount(min, max)]` | Planned; Matchmark.Validation |
+| `multipleOf` | `[MultipleOf(step)]` | **Built**; Matchmark.Validation, compared in decimal |
+| `uniqueItems` | `[UniqueItems]` | **Built**; Matchmark.Validation, items compared as JSON |
+| `minProperties`, `maxProperties` (maps) | `[PropertyCount(min, max)]` | **Built**; Matchmark.Validation, -1 for no bound |
 
-Attributes that .NET doesn't have come from a new small package, **Matchmark.Validation**: the three above, written
-once, not generated per API.
+Attributes that .NET doesn't have come from a new small package, **Matchmark.Validation** (**Built**): the three above,
+written once, not generated per API, and generated only when the project references it. Matchmark's own validator
+checks none of these three, so on .NET's layer they're new checks, not moved ones.
 
 ### 2. Rules across fields
 
@@ -127,7 +128,7 @@ A contract-only package (`MatchmarkProblems="Owned"`) takes the package as its o
 | The spike | **Built** | `ValidationSpikeTests`; decision Q54 |
 | 1. Attributes on generated models | **Built** | `ModelAttributeTests`; every suite and the round-trip check pass |
 | 2. The resolver, opt-in | **Built** | `ModelAttributeTests` sends the same bad bodies with and without it: the same statuses and error keys. `SpecRegressionTests` runs the Pet Store's whole suite, random requests included, with it registered, and .NET's layer answers some bad bodies itself |
-| 3. The default, and `{Api}Validation` retired | Planned | needs the rest of the attribute table (Matchmark.Validation), rules as `IValidatableObject`, endpoint parameters, and the client |
+| 3. The default, and `{Api}Validation` retired | Planned | Matchmark.Validation is **Built**; still needed: rules as `IValidatableObject`, endpoint parameters, and the client |
 
 What differs when .NET's layer answers, found by slice 2: the keys and statuses are the same, but the messages are
 .NET's (*The field sides must be between 3 and 12.*), the problem body has no `type` or `status`, and a field reports

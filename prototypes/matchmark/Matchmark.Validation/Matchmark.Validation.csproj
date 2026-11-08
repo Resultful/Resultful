@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The validation attributes .NET doesn't have, for the schema keywords Matchmark generates them for (validation.md):
+    multipleOf, uniqueItems, minProperties and maxProperties. Written once, not generated per API. Nothing but the BCL.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>DataAnnotations for JSON Schema keywords .NET has no attribute for: MultipleOf, UniqueItems, PropertyCount.</Description>
+  </PropertyGroup>
+</Project>

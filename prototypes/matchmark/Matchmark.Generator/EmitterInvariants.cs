@@ -28,6 +28,9 @@ namespace Matchmark.Generator
         /// <summary>Whether the project references Microsoft.Extensions.Validation, so the contract gets a resolver for it (Q45).</summary>
         public bool NetValidation { get; set; }
 
+        /// <summary>Whether the project references Matchmark.Validation, for multipleOf, uniqueItems and the property counts.</summary>
+        public bool ValidationAttributes { get; set; }
+
         /// <summary>Each schema's declared unique keys: (schema, fields, ignoreCase), checked against the schema's properties.</summary>
         private List<(string Schema, List<string> Fields, bool IgnoreCase)> UniqueKeys()
         {
