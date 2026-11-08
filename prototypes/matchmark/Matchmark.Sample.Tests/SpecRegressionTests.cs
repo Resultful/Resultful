@@ -40,6 +40,18 @@ public sealed class SpecRegressionTests
     }
 
     [Test]
+    public async Task The_service_passes_random_requests_too()
+    {
+        await using var app = new PetStoreApp();
+
+        var report = await Suite.RunAsync(app.CreateClient(), new RegressionOptions { Workflows = false, Random = 25, Seed = 11 });
+
+        Write("service-random", report);
+        report.Cases.Count(c => c.Case.Name.Contains(": random ", StringComparison.Ordinal)).Should().BeGreaterThan(50);
+        report.Failures.Should().BeEmpty(report.ToString());
+    }
+
+    [Test]
     public async Task The_untouched_scaffold_passes_the_suite()
     {
         // The reference implementation answers with the spec's examples and keeps nothing, so there is no state to follow.

@@ -10,7 +10,7 @@ namespace Matchmark.Cli;
 public static class Regress
 {
     public const string Usage = """
-        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
+        usage: matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks] [--random <n>] [--seed <n>]
 
           Generates a regression suite from the spec (examples, valid requests, boundary values, one invalid request per
           constraint, and workflows from its links) and runs it against the API at <base url>, checking every response.
@@ -18,6 +18,7 @@ public static class Regress
           --overlay       an OpenAPI Overlay applied to the spec first (repeat for more, applied in order)
           --no-workflows  don't follow links or run workflows (for a target that keeps no state, such as a fake)
           --webhooks      <base url> is a receiver of the spec's webhooks (each at /{name}): test it instead of the API
+          --random        also send n random valid requests per operation, shrinking each failure (--seed to repeat a run)
         """;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -68,7 +69,11 @@ public static class Regress
         }
 
         using var client = new HttpClient { BaseAddress = baseAddress };
-        var report = await suite.RunAsync(client, new RegressionOptions { Workflows = !args.Contains("--no-workflows") }, cancellationToken);
+        static int Number(string[] args, string name, int fallback)
+            => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : fallback;
+
+        var options = new RegressionOptions { Workflows = !args.Contains("--no-workflows"), Random = Number(args, "--random", 0), Seed = Number(args, "--seed", 1) };
+        var report = await suite.RunAsync(client, options, cancellationToken);
 
         await output.WriteLineAsync($"{suite} against {baseAddress}");
         foreach (var gap in suite.Gaps)

@@ -241,7 +241,7 @@ spec alone, and the installed tool ran its audit.
 
 ## Next steps, if this goes further
 
-- Random, shrinking inputs (CsCheck) on top of the generated suite's deterministic cases.
+- ✓ Random, shrinking inputs on top of the generated suite's deterministic cases (`RegressionOptions.Random`).
 - Trying the generator on a corpus of large real specs, to find the next unsupported constructs ([GAPS.md](GAPS.md), gap 4).
 - A stateful fake and a fidelity score against a real API: the twin in VISION stage 7 ([GAPS.md](GAPS.md), gaps 1 to 3).
 - Deciding whether a success union belongs in Resultful itself.
