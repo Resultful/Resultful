@@ -275,8 +275,9 @@ flowchart LR
 - ✓ Arazzo pathways, pathway coverage, and the two-sided report, the provider's half from `matchmark regress --save`.
 - WebSocket and broker channels per session.
 - ✓ `MatchmarkSession` for .NET tests, and the HTTP control API for everything else. Per-framework fixtures are next.
-- A session whose copy is the real service, through the generated handler interface; the generated fake hub moved onto
-  the session host.
+- ✓ A session whose copy is the real service, with an ephemeral database per session (EF Core and SQLite in the Pet
+  Store); the built-in twin stays the default store.
+- The generated fake hub moved onto the session host.
 
 **5. Flip.**
 - A spec derived from ASP.NET Core's own document, the application verified against it, then scaffolded from it.

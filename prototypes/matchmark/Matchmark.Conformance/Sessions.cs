@@ -49,7 +49,8 @@ public static class SessionHosting
             var body = request.ContentLength is > 0 || request.Headers.TransferEncoding.Count > 0
                 ? await new StreamReader(request.Body, Encoding.UTF8).ReadToEndAsync(context.RequestAborted).ConfigureAwait(false)
                 : null;
-            var answer = host.Answer(session, request.Method, rest, request.QueryString.Value ?? string.Empty, headers, body, request.ContentType?.Split(';')[0].Trim());
+            var answer = await host.AnswerAsync(session, request.Method, rest, request.QueryString.Value ?? string.Empty, headers, body,
+                request.ContentType?.Split(';')[0].Trim(), context.RequestAborted).ConfigureAwait(false);
             context.Response.StatusCode = answer.Status;
             foreach (var (name, value) in answer.Headers)
             {
@@ -74,13 +75,14 @@ public static class SessionHosting
             {
                 case [var id] when method == HttpMethods.Put:
                     var start = await Read(context).ConfigureAwait(false);
-                    var (session, created) = host.Start(id, start?["seed"] as JsonObject,
+                    var (session, created) = await host.StartAsync(id, start?["seed"],
                         start?["pathways"] switch
                         {
                             JsonArray list => list.Select(p => p!.GetValue<string>()),
                             JsonValue all when all.GetValueKind() == JsonValueKind.String => [all.GetValue<string>()],
                             _ => null,
-                        });
+                        },
+                        start?["copy"]?.GetValue<string>() ?? SessionCopy.Twin, context.RequestAborted).ConfigureAwait(false);
                     var hostName = context.Request.Host;
                     // An IP address has no subdomains: a session's own host is then {id}.localhost, which browsers resolve to loopback.
                     var name = System.Net.IPAddress.TryParse(hostName.Host, out _) ? "localhost" : hostName.Host;
@@ -92,10 +94,11 @@ public static class SessionHosting
                         header = new { name = "X-Matchmark-Session", value = id },
                         token = session.TokenInfo is { } token ? new { @in = token.In, name = token.Name, value = token.Sent } : null,
                         pathways = session.Pathways,
+                        copy = session.Copy,
                     }).ConfigureAwait(false);
                     return;
                 case [var id] when method == HttpMethods.Delete:
-                    context.Response.StatusCode = host.End(id) ? 204 : 404;
+                    context.Response.StatusCode = await host.EndAsync(id).ConfigureAwait(false) ? 204 : 404;
                     return;
                 case [var id, "calls"] when method == HttpMethods.Get && host.Find(id) is { } found:
                     await Write(context, 200, found.Calls.Select(c => new { c.OperationId, c.Method, c.Path, c.Status, c.Scripted })).ConfigureAwait(false);
@@ -143,4 +146,27 @@ public static class SessionHosting
         context.Response.ContentType = "application/problem+json";
         return context.Response.WriteAsync(new JsonObject { ["title"] = title, ["status"] = status }.ToJsonString(Json), context.RequestAborted);
     }
+
+    /// <summary>
+    /// In a service behind service sessions: makes each request's session (by host, <c>X-Matchmark-Session</c> or path
+    /// prefix, as the session host routes) the request's <see cref="MatchmarkSession(HttpContext)"/>, so the service can
+    /// choose that session's data, such as its own database. Requests with no session have none.
+    /// </summary>
+    public static IApplicationBuilder UseMatchmarkSessionScope(this IApplicationBuilder app)
+        => app.Use(async (context, next) =>
+        {
+            var headers = context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+            var (id, _) = SessionHost.Route(context.Request.Host.Value ?? string.Empty, headers, context.Request.Path.Value ?? "/");
+            if (id is not null)
+            {
+                context.Items[SessionKey] = id;
+            }
+
+            await next(context).ConfigureAwait(false);
+        });
+
+    /// <summary>The session this request belongs to, set by <see cref="UseMatchmarkSessionScope"/>; null when none.</summary>
+    public static string? MatchmarkSession(this HttpContext context) => context.Items.TryGetValue(SessionKey, out var id) ? id as string : null;
+
+    private const string SessionKey = "Matchmark.Session";
 }

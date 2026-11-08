@@ -35,14 +35,29 @@ public sealed partial class SessionHost
     /// <summary>How long a session lives without a request before it is removed (docs/QUESTIONS.md, question 4).</summary>
     public TimeSpan Idle { get; init; } = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// The real service, for sessions whose copy is <c>service</c>: requests are forwarded to it, tagged with the
+    /// session's id, after the host has checked the token and any script. Null when only twins are hosted.
+    /// </summary>
+    public ServiceCopy? Service { get; init; }
+
     /// <summary>The provider's results for the pathways, from a recorded <c>matchmark regress --save</c> run, if any.</summary>
     public ProviderResults? Provider { get; set; }
 
     /// <summary>The pathways the spec's Arazzo documents publish, by workflow id.</summary>
     public IReadOnlyList<string> PathwayIds => _pathways.SelectMany(d => d.Workflows).Select(w => w.Id).ToList();
 
-    /// <summary>Starts a session, or replaces it when the id exists. Returns it, and whether it was new.</summary>
+    /// <summary>Starts a session whose copy is a twin, or replaces it when the id exists. Returns it, and whether it was new.</summary>
     public (Session Session, bool Created) Start(string id, JsonObject? seed = null, IEnumerable<string>? pathways = null)
+        => StartAsync(id, seed, pathways, SessionCopy.Twin).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Starts a session, or replaces it when the id exists. A <see cref="SessionCopy.Twin"/> is seeded with collections of
+    /// resources (<c>{"/pets": [...]}</c>); a <see cref="SessionCopy.Service"/> hands the seed to the service's start hook,
+    /// which creates the session's own data (a database, say), and the old one is ended first.
+    /// </summary>
+    public async Task<(Session Session, bool Created)> StartAsync(string id, JsonNode? seed = null, IEnumerable<string>? pathways = null,
+        string copy = SessionCopy.Twin, CancellationToken cancellationToken = default)
     {
         if (!SessionId().IsMatch(id))
         {
@@ -60,13 +75,32 @@ public sealed partial class SessionHost
             throw new ArgumentException($"There is no pathway '{unknown}'. The pathways are: {string.Join(", ", PathwayIds)}.", nameof(pathways));
         }
 
-        var twin = new SpecTwin(_spec);
-        foreach (var (collection, items) in seed ?? [])
+        SpecTwin? twin = null;
+        switch (copy)
         {
-            twin.Seed(collection, (items as JsonArray ?? []).OfType<JsonObject>());
+            case SessionCopy.Twin:
+                twin = new SpecTwin(_spec);
+                foreach (var (collection, items) in seed as JsonObject ?? [])
+                {
+                    twin.Seed(collection, (items as JsonArray ?? []).OfType<JsonObject>());
+                }
+
+                break;
+            case SessionCopy.Service when Service is { } service:
+                if (_sessions.TryGetValue(id, out var previous) && previous.Copy == SessionCopy.Service)
+                {
+                    await service.End(id).ConfigureAwait(false);
+                }
+
+                await service.Start(id, seed, cancellationToken).ConfigureAwait(false);
+                break;
+            case SessionCopy.Service:
+                throw new ArgumentException("This host has no service to give a session: its copies are twins.", nameof(copy));
+            default:
+                throw new ArgumentException($"'{copy}' isn't a copy: use '{SessionCopy.Twin}' or '{SessionCopy.Service}'.", nameof(copy));
         }
 
-        var session = new Session(id, twin, _scheme?.NewToken(id), required);
+        var session = new Session(id, twin, _scheme?.NewToken(id), required, copy);
         var created = !_sessions.ContainsKey(id);
         _sessions[id] = session;
         return (session, created);
@@ -78,7 +112,23 @@ public sealed partial class SessionHost
         return _sessions.TryGetValue(id, out var session) ? session : null;
     }
 
-    public bool End(string id) => _sessions.TryRemove(id, out _);
+    public bool End(string id) => EndAsync(id).GetAwaiter().GetResult();
+
+    /// <summary>Ends a session; a service session's data is ended with it.</summary>
+    public async Task<bool> EndAsync(string id)
+    {
+        if (!_sessions.TryRemove(id, out var session))
+        {
+            return false;
+        }
+
+        if (session.Copy == SessionCopy.Service && Service is { } service)
+        {
+            await service.End(id).ConfigureAwait(false);
+        }
+
+        return true;
+    }
 
     /// <summary>The session a request belongs to: by the first label of its host, by header, or by path prefix.</summary>
     public static (string? Id, string Path) Route(string host, IReadOnlyDictionary<string, string> headers, string path)
@@ -97,11 +147,19 @@ public sealed partial class SessionHost
         return PathPrefix().Match(path) is { Success: true } match ? (match.Groups["id"].Value, "/" + match.Groups["rest"].Value) : (null, path);
     }
 
-    /// <summary>A request to a session's copy: the token checked where the spec secures the operation, then the twin's answer.</summary>
+    /// <summary>A request to a session's copy, answered synchronously; see <see cref="AnswerAsync"/>.</summary>
     public SessionAnswer Answer(Session session, string method, string path, string queryString, IReadOnlyDictionary<string, string> headers, string? body, string? contentType)
+        => AnswerAsync(session, method, path, queryString, headers, body, contentType).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// A request to a session's copy: the token checked where the spec secures the operation, then a script's answer if
+    /// one is due, else the copy's: the twin's, or the service's for the session's own data.
+    /// </summary>
+    public async Task<SessionAnswer> AnswerAsync(Session session, string method, string path, string queryString, IReadOnlyDictionary<string, string> headers,
+        string? body, string? contentType, CancellationToken cancellationToken = default)
     {
         session.Touch();
-        var (operation, _) = session.Twin.Match(method, path);
+        var operation = Match(method, path);
         if (operation is not null && _scheme is { } scheme && Secured(operation))
         {
             var presented = scheme.Presented(headers, queryString);
@@ -118,11 +176,70 @@ public sealed partial class SessionHost
             }
         }
 
-        var (status, type, answer, answerHeaders) = session.Twin.Answer(method, path, queryString, headers, body, contentType);
-        var scripted = session.TakeScripted();
+        int status;
+        string? type;
+        string? answer;
+        IReadOnlyDictionary<string, string> answerHeaders;
+        bool scripted;
+        if (session.Twin is { } twin)
+        {
+            (status, type, answer, answerHeaders) = twin.Answer(method, path, queryString, headers, body, contentType);
+            scripted = session.TakeScripted();
+        }
+        else if (operation is not null && session.Next(operation.Id) is { } script)
+        {
+            // A script answers before the service is asked, so a service session can force a documented error too.
+            _ = session.TakeScripted();
+            (status, type, answer, answerHeaders) = (script.Status, script.Body is null ? null : script.ContentType ?? Media(operation, script.Status),
+                script.Body?.ToJsonString(), new Dictionary<string, string>());
+            scripted = true;
+        }
+        else
+        {
+            (status, type, answer, answerHeaders) = await Forward(session, method, path, queryString, headers, body, contentType, cancellationToken).ConfigureAwait(false);
+            scripted = false;
+        }
+
         session.Record(new SessionCall(operation?.Id, method, path, status, scripted, Request(method, path, queryString, headers, body, contentType), answer));
         return new SessionAnswer(status, type, answer, answerHeaders);
     }
+
+    /// <summary>The service's answer, for this session's own data: the request as sent, tagged with the session's id.</summary>
+    private async Task<(int, string?, string?, IReadOnlyDictionary<string, string>)> Forward(Session session, string method, string path, string queryString,
+        IReadOnlyDictionary<string, string> headers, string? body, string? contentType, CancellationToken cancellationToken)
+    {
+        var service = Service ?? throw new InvalidOperationException("This host has no service.");
+        using var request = new HttpRequestMessage(new HttpMethod(method), path.TrimStart('/') + queryString);
+        if (body is not null)
+        {
+            request.Content = new StringContent(body, Encoding.UTF8);
+            request.Content.Headers.ContentType = contentType is null ? null : new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        }
+
+        foreach (var (name, value) in headers)
+        {
+            if (!name.Equals("Host", StringComparison.OrdinalIgnoreCase) && !name.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)
+                && !name.Equals("X-Matchmark-Session", StringComparison.OrdinalIgnoreCase))
+            {
+                request.Headers.TryAddWithoutValidation(name, value);
+            }
+        }
+
+        request.Headers.TryAddWithoutValidation("X-Matchmark-Session", session.Id);
+        using var response = await service.Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var answerHeaders = response.Headers.Where(h => !h.Key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(h => h.Key, h => string.Join(", ", h.Value), StringComparer.OrdinalIgnoreCase);
+        return ((int)response.StatusCode, response.Content.Headers.ContentType?.MediaType, text.Length == 0 ? null : text, answerHeaders);
+    }
+
+    /// <summary>The spec's operation for a request, preferring literal paths to templated ones, as the twin matches.</summary>
+    private SpecOperation? Match(string method, string path)
+        => _parsed.Operations.Where(o => o.Method == method).OrderBy(o => o.Path.Count(c => c == '{'))
+            .FirstOrDefault(o => Regex.IsMatch(path, "^" + Regex.Replace(Regex.Escape(o.Path), @"\\\{([^}]+)}", "[^/]+") + "/?$"));
+
+    private static string Media(SpecOperation operation, int status)
+        => operation.Response(status)?.Content.Keys.FirstOrDefault() ?? "application/json";
 
     /// <summary>Scripts a session's answers for an operation: only a status the spec documents for it.</summary>
     public void Given(Session session, string operationId, int status, JsonNode? body, int? times)
@@ -200,10 +317,18 @@ public sealed partial class SessionHost
         return new PathwayCoverage(workflowId, missing.Count == 0, missing);
     }
 
-    /// <summary>A step's success criteria against one call; without criteria, any 2xx.</summary>
+    /// <summary>
+    /// A step's success criteria against one call. A criterion that refers to the workflow's inputs or to other steps
+    /// ($inputs, $steps, $outputs) can't be judged from one call of the consumer's, so it is left out (question 13);
+    /// with nothing left to judge, any 2xx meets the step.
+    /// </summary>
     private static bool Meets(JsonObject step, SessionCall call)
     {
-        if (step["successCriteria"] is not JsonArray criteria || criteria.Count == 0)
+        var criteria = (step["successCriteria"] as JsonArray ?? []).OfType<JsonObject>()
+            .Where(c => !(c.ToJsonString().Contains("$inputs", StringComparison.Ordinal) || c.ToJsonString().Contains("$steps", StringComparison.Ordinal)
+                          || c.ToJsonString().Contains("$outputs", StringComparison.Ordinal)))
+            .ToList();
+        if (criteria.Count == 0)
         {
             return call.Status is >= 200 and < 300;
         }
@@ -211,7 +336,7 @@ public sealed partial class SessionHost
         var context = new ArazzoContext([]) { Current = call.Exchange() };
         try
         {
-            return criteria.OfType<JsonObject>().All(c => Criteria.Holds(c, context));
+            return criteria.All(c => Criteria.Holds(c, context));
         }
         catch (Exception e) when (e is InvalidOperationException or FormatException or JsonException)
         {
@@ -233,9 +358,9 @@ public sealed partial class SessionHost
     {
         foreach (var (id, session) in _sessions)
         {
-            if (DateTimeOffset.UtcNow - session.LastUsed > Idle)
+            if (DateTimeOffset.UtcNow - session.LastUsed > Idle && _sessions.TryRemove(id, out _) && session.Copy == SessionCopy.Service && Service is { } service)
             {
-                _sessions.TryRemove(id, out _);
+                _ = service.End(id);
             }
         }
     }
@@ -326,10 +451,11 @@ public sealed class Session
     private readonly Dictionary<string, TwinAnswer> _always = new(StringComparer.Ordinal);
     private bool _scripted;
 
-    internal Session(string id, SpecTwin twin, SessionToken? token, IReadOnlyList<string> pathways)
+    internal Session(string id, SpecTwin? twin, SessionToken? token, IReadOnlyList<string> pathways, string copy)
     {
         Id = id;
         Twin = twin;
+        Copy = copy;
         TokenInfo = token;
         Pathways = pathways;
         Touch();
@@ -337,7 +463,11 @@ public sealed class Session
 
     public string Id { get; }
 
-    public SpecTwin Twin { get; }
+    /// <summary>The session's twin, when its copy is <see cref="SessionCopy.Twin"/>; null for a service session.</summary>
+    public SpecTwin? Twin { get; }
+
+    /// <summary>What answers this session: <see cref="SessionCopy.Twin"/> or <see cref="SessionCopy.Service"/>.</summary>
+    public string Copy { get; }
 
     /// <summary>The session's token, or null when the spec declares no security scheme.</summary>
     public SessionToken? TokenInfo { get; }
@@ -381,7 +511,7 @@ public sealed class Session
     {
         lock (_scripts)
         {
-            if (!_scripts.ContainsKey(operationId) && !_always.ContainsKey(operationId))
+            if (Twin is not null && !_scripts.ContainsKey(operationId) && !_always.ContainsKey(operationId))
             {
                 Twin.On(operationId, _ => Next(operationId));
             }
@@ -402,7 +532,7 @@ public sealed class Session
         }
     }
 
-    private TwinAnswer? Next(string operationId)
+    internal TwinAnswer? Next(string operationId)
     {
         lock (_scripts)
         {
@@ -414,6 +544,21 @@ public sealed class Session
         }
     }
 }
+
+/// <summary>What a session's copy is: the built-in twin (an in-memory store from the spec), or the real service.</summary>
+public static class SessionCopy
+{
+    public const string Twin = "twin";
+
+    public const string Service = "service";
+}
+
+/// <summary>
+/// The real service behind service sessions: a client that reaches it, and the hooks that create a session's own data
+/// when it starts (given the session's seed) and remove it when it ends. Requests carry <c>X-Matchmark-Session</c>, which
+/// <c>UseMatchmarkSessionScope</c> (Matchmark.Conformance) makes the request's session in the service.
+/// </summary>
+public sealed record ServiceCopy(HttpClient Client, Func<string, JsonNode?, CancellationToken, Task> Start, Func<string, Task> End);
 
 /// <summary>A session's token: its value, and where a request sends it (header, query or cookie, by name, as written).</summary>
 public sealed record SessionToken(string Value, string In, string Name, string Sent);

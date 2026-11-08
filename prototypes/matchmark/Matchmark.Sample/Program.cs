@@ -1,3 +1,4 @@
+using Matchmark.Conformance;
 using PetStore;
 using PetStore.Api;
 using PetStore.Data;
@@ -15,6 +16,9 @@ builder.Services.AddScoped<IPetsHandlers, PetsHandlers>();
 var app = builder.Build();
 
 await app.Services.EnsurePetStoreDatabaseAsync();
+
+// Behind Matchmark's session host (PetStore:Sessions), each request uses its session's own database.
+app.UseMatchmarkSessionScope();
 
 app.MapOpenApi();
 app.MapPetStore();
