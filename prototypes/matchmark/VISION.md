@@ -167,7 +167,8 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ A lenient client mode that reports violations instead of throwing (`new {Api}Client(http, onViolation)`).
 - ✓ A run against a large real spec, fixing what it finds (`LargeSpecTests` over GitHub's and Stripe's, fetched not
   committed), with the share of operations generated tracked as a number that only rises: GitHub 95%, Stripe 94%
-  (from 0%, once forms and `default` responses were generated). Built in CI is next.
+  (from 0%, once forms and `default` responses were generated). Built in CI by `.github/workflows/matchmark.yml`, which
+  writes both ledgers to the run's summary.
 
 **2. The model in between.**
 - Refactor the generator around a small semantic model, before more outputs are added.
