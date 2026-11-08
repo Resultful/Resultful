@@ -316,7 +316,12 @@ namespace Matchmark.Generator
         {
             var type = (schema.Type ?? 0) & ~JsonSchemaType.Null;
             return type is JsonSchemaType.String or JsonSchemaType.Integer or JsonSchemaType.Number or JsonSchemaType.Boolean
-                   || type == JsonSchemaType.Array && schema.Items is not null;
+                   || type == JsonSchemaType.Array && schema.Items is not null
+                   // Any JSON value: an object with no properties, no type at all, or an anyOf nothing tells apart. Each is
+                   // JsonElement where it's used, so what refers to it isn't skipped.
+                   || type == JsonSchemaType.Object && schema.Properties is not { Count: > 0 } && schema.AdditionalProperties is null
+                   || type == 0 && schema.Properties is not { Count: > 0 } && schema.AllOf is not { Count: > 0 }
+                   || schema.AnyOf is { Count: > 0 } && schema.Properties is not { Count: > 0 };
         }
 
         /// <summary>An allOf as one object: every member's properties and required, members' own allOfs included.</summary>
