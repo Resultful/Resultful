@@ -25,6 +25,9 @@ namespace Matchmark.Generator
         /// <summary>EF Core is referenced, so the Server part adds the helper that applies unique keys as indexes.</summary>
         public bool EntityFramework { get; set; }
 
+        /// <summary>Whether the project references Microsoft.Extensions.Validation, so the contract gets a resolver for it (Q45).</summary>
+        public bool NetValidation { get; set; }
+
         /// <summary>Each schema's declared unique keys: (schema, fields, ignoreCase), checked against the schema's properties.</summary>
         private List<(string Schema, List<string> Fields, bool IgnoreCase)> UniqueKeys()
         {

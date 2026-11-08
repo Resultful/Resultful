@@ -36,7 +36,8 @@ namespace Matchmark.Generator
                     HasFakes: compilation.GetTypeByMetadataName("Matchmark.Fakes.Scenario") is not null,
                     HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null,
                     HasRules: compilation.GetTypeByMetadataName("Matchmark.Rules.Cel") is not null,
-                    HasEntityFramework: compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.ModelBuilder") is not null));
+                    HasEntityFramework: compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.ModelBuilder") is not null,
+                    HasValidation: compilation.GetTypeByMetadataName("Microsoft.Extensions.Validation.IValidatableInfoResolver") is not null));
 
             // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
             // AdditionalFiles joined to a spec by MatchmarkApiName.
@@ -46,7 +47,7 @@ namespace Matchmark.Generator
             context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays), static (spc, pair) =>
                 Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
                     pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules,
-                    pair.Left.Left.Right.HasEntityFramework));
+                    pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -161,7 +162,7 @@ namespace Matchmark.Generator
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
-            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false)
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
@@ -176,7 +177,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
@@ -396,6 +397,11 @@ namespace Matchmark.Generator
         public static readonly DiagnosticDescriptor InvariantStatusMissing = new(
             "MM028", "No status for an invariant",
             "'{0}' can break {1} but documents none of {2}, so the twin answers the first as a problem; document how it refuses",
+            Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor NetValidationMissing = new(
+            "MM029", ".NET's validation layer not referenced",
+            "Microsoft.Extensions.Validation isn't referenced, so the contract has no resolver for .NET's validation layer and keeps Matchmark's own validator: see docs/reference/validation.md",
             Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor OwnedProblemsNeedNoServer = new(

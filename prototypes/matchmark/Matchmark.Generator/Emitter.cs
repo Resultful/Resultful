@@ -105,6 +105,10 @@ namespace Matchmark.Generator
                 }
 
                 files["Validation"] = EmitValidation(operations);
+                if (EmitValidationResolver() is { } resolver)
+                {
+                    files["ValidationResolver"] = resolver;
+                }
                 files["Responses"] = EmitResponses(operations);
                 files["Handlers"] = EmitHandlers(operations);
                 files["Client"] = EmitClient(operations);
@@ -710,12 +714,13 @@ namespace Matchmark.Generator
                         // Optional, but never null: absent is left out, not written as null (and null is refused when read).
                         w.Line("[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]");
                     }
-                    foreach (var annotation in Annotations(property.Value, type))
+                    foreach (var annotation in Annotations(property.Value, type, nullable))
                     {
                         w.Line(annotation);
                     }
 
                     w.Line($"public {(required ? "required " : string.Empty)}{type}{(nullable ? "?" : string.Empty)} {Member(name, schema, property.Key)} {{ get; init; }}");
+                    _modelProperties.Add((name, Member(name, schema, property.Key), $"{type}{(nullable ? "?" : string.Empty)}", property.Key, Annotations(property.Value, type, nullable).ToList()));
                     w.Line();
                 }
 
@@ -734,23 +739,26 @@ namespace Matchmark.Generator
         /// [Required]: it's a C# required member, and System.Text.Json refuses a body without it. A one-sided bound has
         /// no attribute (Range needs both), so it's checked by the generated validator only.
         /// </summary>
-        private static IEnumerable<string> Annotations(IOpenApiSchema schema, string type)
+        private static IEnumerable<string> Annotations(IOpenApiSchema schema, string type, bool nullable = false)
+            => AnnotationParts(schema, type, nullable).Select(a => $"[global::System.ComponentModel.DataAnnotations.{a.Name}{(a.Args.Length + a.Named.Length == 0 ? string.Empty : $"({string.Join(", ", new[] { a.Args, a.Named }.Where(x => x.Length > 0))})")}]");
+
+        /// <summary>The attributes, as their names, positional arguments and named ones, so the resolver can construct them too.</summary>
+        private static IEnumerable<(string Name, string Args, string Named)> AnnotationParts(IOpenApiSchema schema, string type, bool nullable)
         {
-            const string Ns = "global::System.ComponentModel.DataAnnotations.";
             var array = (schema.Type ?? 0).HasFlag(JsonSchemaType.Array);
             if ((array ? schema.MinItems : schema.MinLength) is { } min)
             {
-                yield return $"[{Ns}MinLength({min.Invariant()})]";
+                yield return ("MinLength", min.Invariant(), string.Empty);
             }
 
             if ((array ? schema.MaxItems : schema.MaxLength) is { } max)
             {
-                yield return $"[{Ns}MaxLength({max.Invariant()})]";
+                yield return ("MaxLength", max.Invariant(), string.Empty);
             }
 
             if (schema.Pattern is { } pattern)
             {
-                yield return $"[{Ns}RegularExpression({Naming.Literal(pattern)})]";
+                yield return ("RegularExpression", Naming.Literal(pattern), string.Empty);
             }
 
             var lower = schema.ExclusiveMinimum ?? schema.Minimum;
@@ -768,7 +776,8 @@ namespace Matchmark.Generator
                     exclusive.Add("MaximumIsExclusive = true");
                 }
 
-                yield return $"[{Ns}Range({Number(lower)}, {Number(upper)}{string.Concat(exclusive.Select(e => ", " + e))})]";
+                // Doubles, so an integer bound and a fractional one make the same constructor.
+                yield return ("Range", $"{Double(lower)}, {Double(upper)}", string.Join(", ", exclusive));
             }
 
             if (type != "string")
@@ -779,21 +788,197 @@ namespace Matchmark.Generator
             // A string enum the model keeps as text (an enum schema of its own is a C# enum, which needs none).
             if (schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String))
             {
-                yield return $"[{Ns}AllowedValues({string.Join(", ", values.Select(v => Naming.Literal(v!.GetValue<string>())))})]";
+                // An optional or nullable value may be absent: AllowedValues refuses null unless it's listed.
+                yield return ("AllowedValues", string.Join(", ", values.Select(v => Naming.Literal(v!.GetValue<string>())).Concat(nullable ? NullValue : Array.Empty<string>())), string.Empty);
             }
 
             switch (schema.Format)
             {
                 case "email":
-                    yield return $"[{Ns}EmailAddress]";
+                    yield return ("EmailAddress", string.Empty, string.Empty);
                     break;
                 case "uri":
-                    yield return $"[{Ns}Url]";
+                    yield return ("Url", string.Empty, string.Empty);
                     break;
                 case "byte":
-                    yield return $"[{Ns}Base64String]";
+                    yield return ("Base64String", string.Empty, string.Empty);
                     break;
             }
+        }
+
+        private static readonly string[] NullValue = { "null" };
+
+        private static string Double(string value)
+        {
+            var number = Number(value);
+            return number.Contains('.') || number.Contains('E') || number.Contains('e') ? number : number + ".0";
+        }
+
+        /// <summary>Each generated model property: its record, member, C# type, JSON name and attributes, for the resolver.</summary>
+        private readonly List<(string Model, string Member, string Type, string Json, List<string> Attributes)> _modelProperties = new();
+
+        /// <summary>
+        /// The resolver for .NET's validation layer (validation.md, decision Q45), when the project references
+        /// Microsoft.Extensions.Validation: every generated model by its properties' attributes, under the spec's names, and
+        /// body parameters of those types, whose errors are keyed by the spec's JSON paths. Registered by Add{Api}Validation().
+        /// </summary>
+        private string? EmitValidationResolver()
+        {
+            // MM029 (NetValidationMissing) is reported once .NET's layer is the default; until then, Matchmark's own validator
+            // is what every contract uses, and the resolver is an opt-in (Add{Api}Validation).
+            if (!NetValidation || _shared || _modelProperties.Count == 0)
+            {
+                return null;
+            }
+
+            const string V = "global::Microsoft.Extensions.Validation.";
+            var w = new CodeWriter(_namespace);
+            w.Line("#pragma warning disable ASP0029 // Microsoft.Extensions.Validation is experimental in .NET 10.");
+            w.Usings("System", "System.Collections.Generic", "System.Linq", "System.Reflection", "System.Threading", "System.Threading.Tasks");
+            w.Line("/// <summary>");
+            w.Line($"/// Describes the {_apiName} models to .NET's validation layer, which Microsoft's validations generator can't see (they are");
+            w.Line("/// generated too): each property's DataAnnotations, under the spec's JSON names. Body parameters of these types are");
+            w.Line("/// validated, and their errors keyed by the spec's JSON paths (details.livesLeft), as the generated validator keys them.");
+            w.Line("/// </summary>");
+            w.Open($"public sealed class {_apiName}ValidationResolver : {V}IValidatableInfoResolver");
+            w.Line("private static readonly Dictionary<Type, Model> Types = new()");
+            w.Line("{");
+            foreach (var model in _modelProperties.GroupBy(p => p.Model))
+            {
+                w.Line($"    [typeof({model.Key})] = new Model(typeof({model.Key}), new Member[]");
+                w.Line("    {");
+                foreach (var property in model)
+                {
+                    var attributes = property.Attributes.Select(a => Construct(a));
+                    w.Line($"        new Member(typeof({model.Key}), {Naming.Literal(property.Member)}, {Naming.Literal(property.Json)}{string.Concat(attributes.Select(a => ", " + a))}),");
+                }
+
+                w.Line("    }),");
+            }
+
+            w.Line("};");
+            w.Line();
+            w.Open($"public bool TryGetValidatableTypeInfo(Type type, [global::System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {V}IValidatableInfo? validatableInfo)");
+            w.Line("validatableInfo = Types.TryGetValue(type, out var info) ? info : null;");
+            w.Line("return validatableInfo is not null;");
+            w.Close();
+            w.Line();
+            w.Open($"public bool TryGetValidatableParameterInfo(ParameterInfo parameterInfo, [global::System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {V}IValidatableInfo? validatableInfo)");
+            w.Line("var type = parameterInfo.ParameterType;");
+            w.Line("validatableInfo = Types.ContainsKey(Element(type) ?? type) ? new Body(type, parameterInfo.Name ?? \"body\") : null;");
+            w.Line("return validatableInfo is not null;");
+            w.Close();
+            w.Line();
+            w.Line("/// <summary>A C# error path (Details.LivesLeft, Tags[0]) as the spec's JSON path (details.livesLeft, tags[0]), from a root type.</summary>");
+            w.Open("public static string JsonPath(Type root, string path)");
+            w.Line("Type? type = root;");
+            w.Line("var segments = new List<string>();");
+            w.Line("foreach (var segment in path.Split('.'))");
+            w.Line("{");
+            w.Line("    var bracket = segment.IndexOf('[');");
+            w.Line("    var name = bracket < 0 ? segment : segment.Substring(0, bracket);");
+            w.Line("    if (name.Length == 0)");
+            w.Line("    {");
+            w.Line("        // An item of a list body: [0].");
+            w.Line("        segments.Add(segment);");
+            w.Line("        type = type is null ? null : Element(type);");
+            w.Line("        continue;");
+            w.Line("    }");
+            w.Line();
+            w.Line("    var member = type is null ? null : Types.TryGetValue(Nullable.GetUnderlyingType(type) ?? type, out var info) ? info.Fields.FirstOrDefault(m => m.Clr == name) : null;");
+            w.Line("    segments.Add((member?.Json ?? name) + (bracket < 0 ? string.Empty : segment.Substring(bracket)));");
+            w.Line("    type = member?.Type;");
+            w.Line("    if (bracket >= 0 && type is not null)");
+            w.Line("    {");
+            w.Line("        type = Element(type);");
+            w.Line("    }");
+            w.Line("}");
+            w.Line();
+            w.Line("return string.Join(\".\", segments);");
+            w.Close();
+            w.Line();
+            w.Line("/// <summary>A collection's item type, or null.</summary>");
+            w.Line("private static Type? Element(Type type) => type == typeof(string) ? null : type.IsArray ? type.GetElementType()");
+            w.Line("    : type.GetInterfaces().Concat(new[] { type }).FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments()[0];");
+            w.Line();
+            w.Line("#pragma warning disable CS9107 // the members are the base's too; they're kept to translate keys.");
+            w.Line($"private sealed class Model(Type type, Member[] members) : {V}ValidatableTypeInfo(type, members)");
+            w.Line("#pragma warning restore CS9107");
+            w.Line("{");
+            w.Line("    public IReadOnlyList<Member> Fields { get; } = members;");
+            w.Line();
+            w.Line("    protected override global::System.ComponentModel.DataAnnotations.ValidationAttribute[] GetValidationAttributes() => Array.Empty<global::System.ComponentModel.DataAnnotations.ValidationAttribute>();");
+            w.Line("}");
+            w.Line();
+            w.Line("/// <summary>A property: found by its C# name, shown by its JSON name.</summary>");
+            w.Line($"private sealed class Member(Type declaringType, string name, string json, params global::System.ComponentModel.DataAnnotations.ValidationAttribute[] attributes)");
+            w.Line($"    : {V}ValidatablePropertyInfo(declaringType, declaringType.GetProperty(name)!.PropertyType, name, json)");
+            w.Line("{");
+            w.Line("    public string Clr { get; } = name;");
+            w.Line();
+            w.Line("    public string Json { get; } = json;");
+            w.Line();
+            w.Line("    public Type Type { get; } = declaringType.GetProperty(name)!.PropertyType;");
+            w.Line();
+            w.Line("    protected override global::System.ComponentModel.DataAnnotations.ValidationAttribute[] GetValidationAttributes() => attributes;");
+            w.Line("}");
+            w.Line();
+            w.Line("/// <summary>A body parameter: validated by .NET, then its errors keyed by the spec's JSON paths.</summary>");
+            w.Line("#pragma warning disable CS9107 // the type is the base's too; it's kept to translate keys.");
+            w.Line($"private sealed class Body(Type type, string name) : {V}ValidatableParameterInfo(type, name, name)");
+            w.Line("#pragma warning restore CS9107");
+            w.Line("{");
+            w.Line("    private readonly Type _root = type;");
+            w.Line();
+            w.Line("    protected override global::System.ComponentModel.DataAnnotations.ValidationAttribute[] GetValidationAttributes() => Array.Empty<global::System.ComponentModel.DataAnnotations.ValidationAttribute>();");
+            w.Line();
+            w.Line($"    public override async Task ValidateAsync(object? value, {V}ValidateContext context, CancellationToken cancellationToken)");
+            w.Line("    {");
+            w.Line("        var errors = context.ValidationErrors;");
+            w.Line("        context.ValidationErrors = new Dictionary<string, string[]>();");
+            w.Line("        try");
+            w.Line("        {");
+            w.Line("            await base.ValidateAsync(value, context, cancellationToken).ConfigureAwait(false);");
+            w.Line("        }");
+            w.Line("        finally");
+            w.Line("        {");
+            w.Line("            foreach (var error in context.ValidationErrors ?? new Dictionary<string, string[]>())");
+            w.Line("            {");
+            w.Line("                var key = JsonPath(_root, error.Key);");
+            w.Line("                errors ??= new Dictionary<string, string[]>();");
+            w.Line("                errors[key] = errors.TryGetValue(key, out var had) ? had.Concat(error.Value).ToArray() : error.Value;");
+            w.Line("            }");
+            w.Line();
+            w.Line("            context.ValidationErrors = errors;");
+            w.Line("        }");
+            w.Line("    }");
+            w.Line("}");
+            w.Close();
+            w.Line();
+            w.Line($"/// <summary>Registers .NET's validation layer with the {_apiName} resolver first (validation.md).</summary>");
+            w.Open($"public static class {_apiName}ValidationExtensions");
+            w.Line($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{_apiName}Validation(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+            w.Line($"    => global::Microsoft.Extensions.DependencyInjection.ValidationServiceCollectionExtensions.AddValidation(services, options => options.Resolvers.Insert(0, new {_apiName}ValidationResolver()));");
+            w.Close();
+            return w.ToString();
+        }
+
+        /// <summary>An attribute line, [global::…Range(1, 2, MinimumIsExclusive = true)], as an expression that constructs it.</summary>
+        private static string Construct(string attribute)
+        {
+            var inner = attribute.Substring(1, attribute.Length - 2);
+            var open = inner.IndexOf('(');
+            var name = (open < 0 ? inner : inner.Substring(0, open)) + "Attribute";
+            if (open < 0)
+            {
+                return $"new {name}()";
+            }
+
+            var args = inner.Substring(open + 1, inner.Length - open - 2);
+            var named = System.Text.RegularExpressions.Regex.Match(args, @"(, )?(?<named>[A-Z]\w+ = .*)$");
+            return named.Success
+                ? $"new {name}({args.Substring(0, named.Index)}) {{ {named.Groups["named"].Value} }}"
+                : $"new {name}({args})";
         }
 
         // ---------------------------------------------------------------- validation
@@ -1189,6 +1374,17 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     if (prop.Maximum is { } maximum)
                     {
                         checks.Add($"if ({local} > {Number(maximum)}) errors.Add({jsonPath}, \"Must be at most {Number(maximum)}.\");");
+                    }
+
+                    // 3.1's numeric exclusive bounds (3.0's boolean form is read into these too).
+                    if (prop.ExclusiveMinimum is { } above)
+                    {
+                        checks.Add($"if ({local} <= {Number(above)}) errors.Add({jsonPath}, \"Must be more than {Number(above)}.\");");
+                    }
+
+                    if (prop.ExclusiveMaximum is { } below)
+                    {
+                        checks.Add($"if ({local} >= {Number(below)}) errors.Add({jsonPath}, \"Must be less than {Number(below)}.\");");
                     }
 
                     if (RefId(prop) is { } refId && _schemas.ContainsKey(refId) && !IsEnumRef(prop))
@@ -1694,6 +1890,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
         {
             "uri" => ($"!global::System.Uri.TryCreate({value}, global::System.UriKind.Absolute, out _)", "Must be an absolute URI."),
             "email" => ($"!global::System.Net.Mail.MailAddress.TryCreate({value}, out _)", "Must be an email address."),
+            "byte" => ($"!global::System.Convert.TryFromBase64String({value}, new byte[{value}.Length], out _)", "Must be base64."),
             _ => null,
         };
 
