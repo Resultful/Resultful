@@ -492,7 +492,7 @@ public sealed class SpecTwin : HttpMessageHandler
         }
 
         var (media, schema) = response.Content.FirstOrDefault();
-        return schema is not null && _samples.TrySample(schema, true, out var sample)
+        return schema is not null && _samples.TrySample(schema, true, Direction.Response, out var sample)
             ? new Reply(status, media, sample?.ToJsonString() ?? "null", [])
             : new Reply(status, null, null, []);
     }
@@ -502,9 +502,12 @@ public sealed class SpecTwin : HttpMessageHandler
 
     private static Reply NotFound(SpecOperation operation) => Problem(404, "Not found", operation);
 
+    /// <summary>A problem for a status; none when the spec documents that status without a body, as a 404 often is.</summary>
     private static Reply Problem(int status, string title, SpecOperation? operation)
-        => new(status, operation?.Response(status)?.Content.Keys.FirstOrDefault() ?? "application/problem+json",
-            new JsonObject { ["title"] = title, ["status"] = status }.ToJsonString(), []);
+        => operation?.Response(status) is { Content.Count: 0 }
+            ? new Reply(status, null, null, [])
+            : new(status, operation?.Response(status)?.Content.Keys.FirstOrDefault() ?? "application/problem+json",
+                new JsonObject { ["title"] = title, ["status"] = status }.ToJsonString(), []);
 
     private static Reply Invalid(Dictionary<string, List<string>> errors, SpecOperation operation)
         => new(400, operation.Response(400)?.Content.Keys.FirstOrDefault() ?? "application/problem+json", new JsonObject

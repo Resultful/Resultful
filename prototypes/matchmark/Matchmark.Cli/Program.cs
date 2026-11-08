@@ -2,7 +2,7 @@ using Matchmark.Generator;
 using Matchmark.Cli;
 
 const string Usage = """
-    matchmark: the OpenAPI document as an enforceable contract.
+    matchmark: the API specification as an enforceable contract.
 
     matchmark scaffold <spec> <output dir> [--style controllers|minimal] [--contract-namespace NS] [--namespace NS]
                       [--api NAME] [--overlay <file>]... [--force]
@@ -17,11 +17,11 @@ const string Usage = """
       --force               overwrite files that exist. Without it, existing files are kept, so re-running after a
                             spec change only adds what is new; the compiler then shows what no longer fits.
 
-    matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows]
+    matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
+                      [--random <n>] [--seed <n>]
 
-      --overlay applies an OpenAPI Overlay to the spec first (repeat for more, applied in order).
-
-      Runs the regression suite generated from the spec against any HTTP API.
+      Runs the regression suite generated from the spec against any HTTP API. An AsyncAPI 3 document tests a consumer
+      of its messages through a bridge.
 
     matchmark audit <spec> [--arazzo <file>]... [--overlay <file>]... [--sarif <file>] [--spectral <file>] [--strict]
 
@@ -31,13 +31,17 @@ const string Usage = """
 
       Lists what changed and whom it breaks; exits 1 on a breaking change the major version didn't announce.
 
-    matchmark twin <spec> [--urls <url>]
+    matchmark twin <spec> [--overlay <file>]... [--urls <url>]
 
       Serves a twin: a stateful fake of the API from the spec alone, for a frontend to work against.
 
-    matchmark fidelity <spec> <real url> <fake url> [--floor <percent>]
+    matchmark fidelity <spec> <real url | recording.json> <fake url> [--overlay <file>]... [--floor <percent>]
+                       [--record <file>] [--tasks <file>] [--gate <file>] [--held-out <percent>]
 
-      Measures a fake against the real API: the share of the suite's steps that answer the same.
+      Measures a fake against the real API: the share of the suite's steps that answer the same, and the gate for
+      changes to it.
+
+    Each command's own help: matchmark <command> with no arguments. Reference: docs/reference/cli.md.
     """;
 
 if (args.Length > 0 && args[0] == "regress")

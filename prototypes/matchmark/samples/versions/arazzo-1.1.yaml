@@ -1,0 +1,16 @@
+arazzo: 1.1.0
+info: { title: Shelter journeys, version: "1.0.0" }
+sourceDescriptions:
+  - { name: shelter, url: openapi-3.1.yaml, type: openapi }
+workflows:
+  - workflowId: register-and-read
+    steps:
+      - stepId: register
+        operationId: createPet
+        requestBody: { payload: { name: Rex } }
+        successCriteria: [ { condition: $statusCode == 201 } ]
+        outputs: { petId: $response.body#/id }
+      - stepId: read
+        operationId: getPet
+        parameters: [ { name: petId, in: path, value: $steps.register.outputs.petId } ]
+        successCriteria: [ { condition: $statusCode == 200 } ]
