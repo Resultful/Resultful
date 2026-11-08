@@ -18,7 +18,7 @@ const string Usage = """
                             spec change only adds what is new; the compiler then shows what no longer fits.
 
     matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
-                      [--random <n>] [--seed <n>]
+                      [--random <n>] [--seed <n>] [--save <file>]
 
       Runs the regression suite generated from the spec against any HTTP API. An AsyncAPI 3 document tests a consumer
       of its messages through a bridge.
@@ -34,6 +34,10 @@ const string Usage = """
     matchmark upgrade <spec> [--output <file>] [--to <version>]
 
       Writes the spec forward-ported to the latest version of its format, listing what changed and what was lost.
+
+    matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>]
+
+      Serves a copy of the API per test session: PUT /__fake/sessions/{id}, then call {id}.localhost.
 
     matchmark twin <spec> [--overlay <file>]... [--urls <url>]
 
@@ -56,6 +60,11 @@ if (args.Length > 0 && args[0] == "regress")
 if (args.Length > 0 && args[0] == "audit")
 {
     return await AuditCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "host")
+{
+    return await HostCommand.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length > 0 && args[0] == "upgrade")

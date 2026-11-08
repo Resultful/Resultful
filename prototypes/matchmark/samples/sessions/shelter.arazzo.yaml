@@ -1,0 +1,24 @@
+arazzo: 1.1.0
+info:
+  title: Shelter pathways
+  version: 1.0.0
+  description: The journeys a Shelter consumer must support, published by the Shelter team.
+sourceDescriptions:
+  - { name: shelter, url: openapi.yaml, type: openapi }
+workflows:
+  - workflowId: register-a-pet
+    steps:
+      - stepId: register
+        operationId: createPet
+        requestBody: { payload: { name: Rex } }
+        successCriteria: [ { condition: $statusCode == 201 } ]
+        outputs: { petId: $response.body#/id }
+      - stepId: read
+        operationId: getPet
+        parameters: [ { name: petId, in: path, value: $steps.register.outputs.petId } ]
+        successCriteria: [ { condition: $statusCode == 200 } ]
+  - workflowId: browse
+    steps:
+      - stepId: list
+        operationId: listPets
+        successCriteria: [ { condition: $statusCode == 200 } ]

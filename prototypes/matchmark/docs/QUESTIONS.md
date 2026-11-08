@@ -20,26 +20,27 @@ frontend, named later.
 ## Hosted sessions
 
 **4. How long does a session live?** Nothing says when an abandoned session is cleaned up.
-*Assumption:* a session ends when its consumer ends it, or after 30 minutes without a request, whichever comes first.
+*Assumption:* a session ends when its consumer ends it, or after 30 minutes without a request, whichever comes first. *Built on this assumption.*
 
 **5. What does a session's token look like when the spec declares no security scheme?** Q41 issues the token in the
 spec's own scheme. An API with no `securitySchemes` has none to issue in.
-*Assumption:* no token is issued or checked; the host alone picks the copy.
+*Assumption:* no token is issued or checked; the host alone picks the copy. *Built on this assumption.*
 
 **6. Is there a fallback for clients that can't resolve `*.localhost`?** Browsers resolve it to loopback, but some
 resolvers (some Linux containers, older HTTP clients) don't. Host routing (Q35) needs the `Host` header, not DNS: a
 client can connect to `localhost` and send `Host: test1.localhost`.
 *Assumption:* the host also accepts the session id in an `X-Matchmark-Session` header, for clients that can't set a
-host, and the path prefix `/sessions/{id}/` the prototype has today stays until host routing is proven.
+host, and the path prefix `/sessions/{id}/` the prototype has today stays until host routing is proven. *Built on this
+assumption; the .NET helper routes by the header.*
 
 **7. Where does the provider half of the report come from?** Q42's report pairs the consumer's session with the real
 service passing the same pathways. Running the real service on every report request is slow and needs it reachable.
 *Assumption:* the provider half is the latest `matchmark regress` result for those pathways, recorded with its date
-(as fidelity recordings are), and the report says how old it is.
+(as fidelity recordings are), and the report says how old it is. *Built on this assumption.*
 
 **8. Does the twin's CLI become the session host?** `matchmark twin` serves one twin today.
 *Assumption:* a new `matchmark host` command serves the session host; `matchmark twin` stays as the single-copy
-shortcut.
+shortcut. *Built on this assumption.*
 
 ## Specifications
 
@@ -61,3 +62,16 @@ JavaScript package. Q25 allows an official migration guide as the basis, and Mat
 section (`AsyncApiUpgrade`), keeping the tool .NET-only (Q3). The cost is keeping the port in step with the guide.
 *Assumption:* keep the C# port; propose it to `asyncapi/net-sdk` as a contribution through its Oxbow fork, so it lives
 in the standard library (Q33).
+
+## Hosted sessions, found while building
+
+**12. Is a secured call without the session's token an invalid call?** A consumer that calls a secured operation
+without its token gets a 401, as the spec says. The report could count it as the consumer's mistake, or as a check of
+the API's auth that the consumer ran on purpose.
+*Assumption:* it counts as invalid, like a request the spec refuses: a consumer test that means to check the 401 can
+script it with `given` instead. *Built on this assumption.*
+
+**13. How is a pathway step judged when its criteria refer to an earlier step?** Arazzo criteria can use earlier steps'
+outputs (`$steps.register.outputs.petId`). Coverage judges one call at a time and doesn't carry outputs forward.
+*Assumption:* such a criterion counts as met by any 2xx. Carrying outputs through the session's calls, as the engine
+does when it runs a workflow, would make coverage exact. *Built on this assumption.*

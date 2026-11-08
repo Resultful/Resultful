@@ -269,11 +269,14 @@ flowchart LR
 - The CLI as a dotnet tool and a container image.
 
 **4. Hosted sessions.**
-- Host-based routing, consumer-chosen session ids and session tokens in the spec's security scheme.
-- Each session a seeded twin with scripted outcomes and expected calls on top.
-- Arazzo pathways, pathway coverage, and the two-sided report.
+- ✓ Host-based routing, consumer-chosen session ids and session tokens in the spec's security scheme
+  (`matchmark host`, `UseMatchmarkSessions`).
+- ✓ Each session a seeded twin with scripted outcomes on top. Expected calls per session are next.
+- ✓ Arazzo pathways, pathway coverage, and the two-sided report, the provider's half from `matchmark regress --save`.
 - WebSocket and broker channels per session.
-- Framework helpers for .NET tests, and the HTTP control API for everything else.
+- ✓ `MatchmarkSession` for .NET tests, and the HTTP control API for everything else. Per-framework fixtures are next.
+- A session whose copy is the real service, through the generated handler interface; the generated fake hub moved onto
+  the session host.
 
 **5. Flip.**
 - A spec derived from ASP.NET Core's own document, the application verified against it, then scaffolded from it.
