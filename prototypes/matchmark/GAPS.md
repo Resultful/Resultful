@@ -45,7 +45,7 @@ What is missing is a **fidelity score**:
 Sequences come from the spec's `links` and Arazzo workflows, from Schemathesis stateful runs, and from the contract
 suite itself, which already runs against any implementation.
 
-The roadmap's differential runner (stage 5) compares two of our own implementations. This gap is the same machinery
+The roadmap's differential runner (done in the prototype) compares two of our own implementations. This gap is the same machinery
 pointed at someone else's API.
 
 *Status:* the score, done: `RegressionReport.Fidelity(real)` (and `matchmark fidelity <spec> <real> <fake> --floor`)
@@ -88,7 +88,7 @@ The sample spec is the only one the generator has run on. Constructs real specs 
 more than six responses (`Results<...>` takes at most six). Large public specs, the obvious targets for gap 1's fakes,
 use all of these.
 
-A run against one large spec is already on the roadmap (stage 1). It should be a **corpus**, not one spec: a set of
+A run against one large spec is already on the roadmap (done in the prototype). It should be a **corpus**, not one spec: a set of
 real specs built in CI, with the share of operations generated without a diagnostic tracked as a number that only
 rises.
 
@@ -99,8 +99,8 @@ are fetched and generated in CI (`.github/workflows/matchmark.yml`): 98.7% and 9
 
 ## 5. The generator does more work than it needs to
 
-- `Emitter.cs` is about 2,400 lines in one class. Stage 2's semantic model should come before more outputs are added,
-  or each new part makes that refactor harder.
+- `Emitter.cs` is 3,979 lines in one class, up from about 2,400 when this was first written. The model (VISION.md,
+  roadmap step 2) should come before more outputs are added, or each new part makes that refactor harder.
 - The Verify part re-parses the whole spec whenever any hand-written endpoint changes, because the parsed document is
   not an incremental step of its own. `Endpoint` also carries a `Location`, so editing above a controller action
   re-runs verification. On a large spec with Verify on, that is a re-parse on most edits to a controller file.

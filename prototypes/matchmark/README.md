@@ -243,7 +243,7 @@ spec alone, and the installed tool ran its audit.
 
 - ✓ Random, shrinking inputs on top of the generated suite's deterministic cases (`RegressionOptions.Random`).
 - ✓ Trying the generator on a corpus of large real specs, to find the next unsupported constructs ([GAPS.md](GAPS.md), gap 4).
-- ✓ A stateful fake and a fidelity score against a real API: the twin in VISION stage 7 ([GAPS.md](GAPS.md), gaps 1 and
+- ✓ A stateful fake and a fidelity score against a real API: the twin in VISION.md's later layers ([GAPS.md](GAPS.md), gaps 1 and
   2). ✓ The loop for writing its missing behaviour (gap 3): training tasks, held-out sequences, and a gate that keeps a
   change only when the held-out score rises (`FidelityLoop`, `matchmark fidelity --tasks --gate`), and a run of it with an agent writing (`AgentLoopTests`).
 - Deciding whether a success union belongs in Resultful itself.

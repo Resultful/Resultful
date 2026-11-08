@@ -182,7 +182,7 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    finishes later, rate limits and deprecation (`OrdersTests`). Each behaviour lands in the engine first: idempotency,
    concurrency, pagination, work that finishes later, rate limits and deprecation, each with its checks and a fault
    that proves them. Then the generated client, the fake and the server, one behaviour at a time, starting with
-   idempotency and concurrency on Orders. This is the semantic model of VISION.md's stage 2, with behaviour as traits on
+   idempotency and concurrency on Orders. This is the semantic model of VISION.md's roadmap step 2, with behaviour as traits on
    operations.
 4. ✓ **Overlays at build time.** The spec plus its overlays becomes the effective document that the generator and engine
    read. This is how behaviour attaches to an API you don't own, which the twins in GAPS.md need. Overlay 1.0 to 1.2:
