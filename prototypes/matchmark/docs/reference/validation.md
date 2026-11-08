@@ -79,9 +79,10 @@ checks none of these three, so on .NET's layer they're new checks, not moved one
 
 ### 2. Rules across fields
 
-`x-matchmark-rules` (CEL over `self`) on a schema: the generated model is a `partial record` implementing
-`IValidatableObject`, whose `Validate` evaluates each rule with Matchmark.Rules and yields a `ValidationResult` naming the
-fields the rule reads. Without Matchmark.Rules referenced, the rules aren't generated, as today (`MM025`).
+**Built.** `x-matchmark-rules` (CEL over `self`) on a schema: the generated model implements `IValidatableObject`, whose
+`Validate` evaluates each rule with Matchmark.Rules (through `{Api}Validation.Broken`) and yields a `ValidationResult`
+per broken rule, keyed at the model as Matchmark's validator keys it (`$` for the whole body). .NET runs it once the
+model's own attributes hold. Without Matchmark.Rules referenced, the rules aren't generated, as today (`MM025`).
 
 ### 3. The resolver
 
@@ -90,7 +91,7 @@ references `Microsoft.Extensions.Validation` (every .NET 10 web project does: it
 every generated model: each property by its C# name (the layer finds it by reflection), shown by its JSON name, with the
 same attributes the model carries; nested models and collection items are found through it. A body parameter of a
 generated type is validated, and its errors re-keyed from C# paths to the spec's JSON paths (`Details.LivesLeft` to
-`details.livesLeft`, `[0].name` for a list body). `IValidatableObject` for rules is **Planned** (step 2 above).
+`details.livesLeft`, `[0].name` for a list body). Rules as `IValidatableObject` are **Built** (step 2 above).
 
 ### 4. Registration
 
@@ -128,7 +129,21 @@ A contract-only package (`MatchmarkProblems="Owned"`) takes the package as its o
 | The spike | **Built** | `ValidationSpikeTests`; decision Q54 |
 | 1. Attributes on generated models | **Built** | `ModelAttributeTests`; every suite and the round-trip check pass |
 | 2. The resolver, opt-in | **Built** | `ModelAttributeTests` sends the same bad bodies with and without it: the same statuses and error keys. `SpecRegressionTests` runs the Pet Store's whole suite, random requests included, with it registered, and .NET's layer answers some bad bodies itself |
-| 3. The default, and `{Api}Validation` retired | Planned | Matchmark.Validation is **Built**; still needed: rules as `IValidatableObject`, endpoint parameters, and the client |
+| 3. The default, and `{Api}Validation` retired | Planned | **Built:** Matchmark.Validation, and rules as `IValidatableObject` (the same key, `$` for the body, and message). **Still needed:** see below |
+
+What slice 3 still needs, each a change to generated code that every suite must pass:
+
+1. **The switch.** `Add{Api}()` calling `Add{Api}Validation()`. Within one project it's direct. Across a contract and a
+   server project (the Pet Store's layout), the server's generator must know the contract assembly has the resolver:
+   either the server part looks the type up among references by the spec's namespace, or the contract records it in an
+   assembly attribute the server part reads. The second keeps the generator incremental.
+2. **Endpoint parameters.** Path, query and header values are read and checked by the generated endpoint itself today;
+   on .NET's layer they become attributed handler parameters, with `x-dependencies` as an endpoint filter.
+3. **The client.** It validates before sending through `{Api}Validation`, and validates responses with it too; on
+   .NET's layer, a `ValidateContext` outside ASP.NET Core over the same resolver for requests. Responses stay with the
+   suite's checks.
+4. **Retirement.** `{Api}Validation` keeps only what the serializer needs (`RefuseNulls`, binding errors), and MM029 is
+   reported when the layer isn't referenced.
 
 What differs when .NET's layer answers, found by slice 2: the keys and statuses are the same, but the messages are
 .NET's (*The field sides must be between 3 and 12.*), the problem body has no `type` or `status`, and a field reports
