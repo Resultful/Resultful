@@ -24,6 +24,15 @@ public sealed class RegressionOptions
     /// <summary>How many times work accepted with 202 is polled before it counts as never finishing.</summary>
     public int MaxPolls { get; set; } = 20;
 
+    /// <summary>
+    /// How many random valid requests to make for each operation, on top of the deterministic cases; none by default.
+    /// Each failure is shrunk to the smallest request that still fails the same way.
+    /// </summary>
+    public int Random { get; set; }
+
+    /// <summary>The seed of the random requests, so that a run can be repeated exactly.</summary>
+    public int Seed { get; set; } = 1;
+
     /// <summary>Properties that change from call to call, so reading back what was written ignores them.</summary>
     public ISet<string> Volatile { get; } = new HashSet<string>(StringComparer.Ordinal) { "traceId" };
 }
@@ -39,6 +48,11 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         foreach (var @case in suite.Cases.Where(options.Include))
         {
             cases.Add(await RunCaseAsync(@case, cancellationToken).ConfigureAwait(false));
+        }
+
+        if (options.Random > 0)
+        {
+            cases.AddRange(await RandomAsync(cancellationToken).ConfigureAwait(false));
         }
 
         var workflows = new List<WorkflowResult>();
