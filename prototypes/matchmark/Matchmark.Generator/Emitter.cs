@@ -154,6 +154,35 @@ namespace Matchmark.Generator
                 Diagnostics.AddRange(receiver.Diagnostics.Where(d => !Diagnostics.Any(e => e.Id == d.Id && e.GetMessage(CultureInfo.InvariantCulture) == d.GetMessage(CultureInfo.InvariantCulture))));
             }
 
+            // Callbacks: an operation's requests back to a URL its caller gave (subscribe, then receive). Generated like
+            // webhooks, as {Api}Callbacks, each callback at /{name}: a typed receiver for the caller, a sender for the API.
+            var callbacks = new OpenApiPaths();
+            foreach (var item in _document.Paths?.Values ?? Enumerable.Empty<IOpenApiPathItem>())
+            {
+                foreach (var operation in item.Operations?.Values ?? Enumerable.Empty<OpenApiOperation>())
+                {
+                    foreach (var callback in operation.Callbacks ?? new Dictionary<string, IOpenApiCallback>())
+                    {
+                        if (callback.Value.PathItems?.Values.FirstOrDefault() is { } target && !callbacks.ContainsKey("/" + callback.Key))
+                        {
+                            callbacks["/" + callback.Key] = target;
+                        }
+                    }
+                }
+            }
+
+            if (callbacks.Count > 0 && (contract || server))
+            {
+                var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = callbacks },
+                    _namespace, _apiName + "Callbacks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true };
+                foreach (var file in receiver.Emit(contract, server))
+                {
+                    files["Callbacks." + file.Key] = file.Value;
+                }
+
+                Diagnostics.AddRange(receiver.Diagnostics.Where(d => !Diagnostics.Any(e => e.Id == d.Id && e.GetMessage(CultureInfo.InvariantCulture) == d.GetMessage(CultureInfo.InvariantCulture))));
+            }
+
             return files;
         }
 
@@ -920,6 +949,7 @@ private sealed class FormBoolean : global::System.Text.Json.Serialization.JsonCo
 public static (string Key, string Message) BindingError(string? key, string message)
 {
     var at = key is null || key.Length == 0 || key == ""$"" ? string.Empty : key.StartsWith(""$."", System.StringComparison.Ordinal) ? key.Substring(2) : key.TrimStart('$');
+    at = ParameterNames.TryGetValue(at, out var named) ? named : at;
     var missing = Regex.Match(message, ""missing required properties including: '([^']+)'"");
     if (missing.Success)
     {
@@ -1052,6 +1082,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         checks.Add($"if (!Pattern{index.Invariant()}.IsMatch({local})) errors.Add({jsonPath}, {Naming.Literal("Must match " + pattern + ".")});");
                     }
 
+                    if (type == "string" && FormatCheck(prop.Format, local) is { } format)
+                    {
+                        checks.Add($"if ({format.Condition}) errors.Add({jsonPath}, {Naming.Literal(format.Message)});");
+                    }
+
                     if (prop.Minimum is { } minimum)
                     {
                         checks.Add($"if ({local} < {Number(minimum)}) errors.Add({jsonPath}, \"Must be at least {Number(minimum)}.\");");
@@ -1116,6 +1151,24 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 w.Block(FormMethods);
                 w.Line();
             }
+
+            var renamed = operations.SelectMany(o => o.Parameters).Where(p => p.Identifier.TrimStart('@') != p.Name)
+                .GroupBy(p => p.Identifier.TrimStart('@')).Select(g => g.First()).ToList();
+            w.Line("/// <summary>The spec's name of each parameter whose C# name differs (xSignature is X-Signature), for binding errors.</summary>");
+            w.Line($"private static readonly Dictionary<string, string> ParameterNames = new() {{ {string.Join(", ", renamed.Select(p => $"[{Naming.Literal(p.Identifier.TrimStart('@'))}] = {Naming.Literal(p.Name)}"))} }};");
+            w.Line();
+            w.Line("/// <summary>An enum from its text, by its name in the spec; false for anything else, a number included.</summary>");
+            w.Open("public static bool TryEnum<T>(string text, out T value) where T : struct, global::System.Enum");
+            w.Open("try");
+            w.Line("value = global::System.Text.Json.JsonSerializer.Deserialize<T>(global::System.Text.Json.JsonSerializer.Serialize(text));");
+            w.Line("return true;");
+            w.Close();
+            w.Open("catch (global::System.Text.Json.JsonException)");
+            w.Line("value = default;");
+            w.Line("return false;");
+            w.Close();
+            w.Close();
+            w.Line();
 
             var refused = _schemas.Where(s => !IsEnum(s.Value) && s.Value.OneOf is not { Count: > 0 } && s.Value.Properties is { Count: > 0 })
                 .Select(s => (Type: Naming.Pascal(s.Key), Names: s.Value.Properties!
@@ -1260,6 +1313,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public IOpenApiSchema? Schema { get; }
 
+            /// <summary>An enum: bound as text and read by its JSON name (Enum.TryParse would take a number, and not the spec's names).</summary>
+            public bool Enum { get; set; }
+
             /// <summary>An object in the query, as a deep object (created[gte]=1&amp;created[lt]=9): read by the endpoint itself.</summary>
             public bool Deep { get; set; }
         }
@@ -1298,6 +1354,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public bool IsStream => ItemType is not null;
 
+            /// <summary>Server-sent events: each item an event, its data the item (as JSON, or the text of a string).</summary>
+            public bool IsEventStream => IsStream && MediaType == "text/event-stream";
+
             /// <summary>A redirect (301, 302, 307, 308): its value is the Location, a string; it has no body.</summary>
             public bool IsRedirect { get; set; }
 
@@ -1317,6 +1376,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
             public string ResultType => IsRedirect ? "RedirectHttpResult"
+                : IsEventStream ? $"ServerSentEventsResult<{ItemType}>"
                 : IsStream ? "PushStreamHttpResult"
                 : Status == 401 && BodyType is null
                 ? "UnauthorizedHttpResult"
@@ -1344,6 +1404,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 _ when IsDefault => BodyType is null ? $"TypedResults.StatusCode({StatusOf(body)})"
                     : IsProblem ? $"Problem({body}, {StatusOf(body)})"
                     : $"TypedResults.Json({body}, statusCode: {StatusOf(body)})",
+                _ when IsEventStream => $"TypedResults.ServerSentEvents({body})",
                 _ when IsStream => $"TypedResults.Stream(async __stream => {{ await foreach (var __item in {body}) {{ await global::System.Text.Json.JsonSerializer.SerializeAsync(__stream, __item, global::System.Text.Json.JsonSerializerOptions.Web); await __stream.WriteAsync(new byte[] {{ 10 }}); }} }}, {Naming.Literal(MediaType!)})",
                 _ when IsValidation => $"TypedResults.ValidationProblem({body}.Errors, {body}.Detail, {body}.Instance, {body}.Title, {body}.Type)",
                 _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
@@ -1379,7 +1440,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public List<Param> Parameters { get; } = new();
 
             /// <summary>A parameter has constraints (bounds, lengths, a pattern) the endpoint checks.</summary>
-            public bool ValidatesParameters => Parameters.Any(p => p.Deep || p.Schema is { } s && (s.Minimum is not null || s.Maximum is not null
+            public bool ValidatesParameters => Parameters.Any(p => p.Deep || p.Enum || p.Schema is { } s && (s.Minimum is not null || s.Maximum is not null
                 || s.MinLength is not null || s.MaxLength is not null || s.Pattern is not null));
 
             /// <summary>Its x-dependencies (IDL), enforced at the endpoint when Matchmark.Rules is referenced.</summary>
@@ -1500,6 +1561,44 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line();
         }
 
+        /// <summary>The check of a string's format the generated types don't already make (uri, email): its failing condition.</summary>
+        private static (string Condition, string Message)? FormatCheck(string? format, string value) => format switch
+        {
+            "uri" => ($"!global::System.Uri.TryCreate({value}, global::System.UriKind.Absolute, out _)", "Must be an absolute URI."),
+            "email" => ($"!global::System.Net.Mail.MailAddress.TryCreate({value}, out _)", "Must be an email address."),
+            _ => null,
+        };
+
+        /// <summary>
+        /// Reads each enum parameter from its text by its name in the spec (the enum's own converter), into its local;
+        /// a value the spec doesn't name, or a required one missing, is the validation problem <paramref name="fail"/> gives.
+        /// </summary>
+        private void EmitEnumReads(CodeWriter w, Operation operation, string fail)
+        {
+            foreach (var parameter in operation.Parameters.Where(p => p.Enum))
+            {
+                var name = parameter.Identifier.TrimStart('@');
+                var type = parameter.Type.TrimEnd('?');
+                var problem = $"new Dictionary<string, string[]> {{ [{Naming.Literal(parameter.Name)}] = new[] {{ $\"'{{__text_{name}}}' is not one of the values the spec allows.\" }} }}";
+                w.Line($"{parameter.Type} {parameter.Identifier} = default;");
+                w.Open($"if (__text_{name} is not null)");
+                w.Open($"if (!{ValidationClass}.TryEnum<{type}>(__text_{name}, out var __value_{name}))");
+                w.Line(string.Format(CultureInfo.InvariantCulture, fail, problem));
+                w.Close();
+                w.Line();
+                w.Line($"{parameter.Identifier} = __value_{name};");
+                w.Close();
+                if (!parameter.Type.EndsWith("?", StringComparison.Ordinal))
+                {
+                    w.Open("else");
+                    w.Line(string.Format(CultureInfo.InvariantCulture, fail, $"new Dictionary<string, string[]> {{ [{Naming.Literal(parameter.Name)}] = new[] {{ \"The value is required.\" }} }}"));
+                    w.Close();
+                }
+
+                w.Line();
+            }
+        }
+
         /// <summary>The checks of one array item (<c>__item</c>) at <paramref name="path"/>: its bounds, or its schema's Check.</summary>
         private List<string> ItemChecks(IOpenApiSchema items, string path, List<string> patterns)
         {
@@ -1527,6 +1626,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     var index = patterns.Count;
                     patterns.Add(pattern);
                     checks.Add($"if (!Pattern{index.Invariant()}.IsMatch(__item)) errors.Add({path}, {Naming.Literal("Must match " + pattern + ".")});");
+                }
+
+                if (FormatCheck(items.Format, "__item") is { } format)
+                {
+                    checks.Add($"if ({format.Condition}) errors.Add({path}, {Naming.Literal(format.Message)});");
                 }
             }
             else if (Has(items, JsonSchemaType.Integer) || Has(items, JsonSchemaType.Number))
@@ -1596,6 +1700,12 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     if (schema.Pattern is { } pattern)
                     {
                         yield return $"if ({When()} && !global::System.Text.RegularExpressions.Regex.IsMatch({local}, {Naming.Literal(pattern)})) __invalid[{key}] = new[] {{ {Naming.Literal("Must match " + pattern + ".")} }};";
+                    }
+
+                    if (FormatCheck(schema.Format, "__fmt") is { } format)
+                    {
+                        var when = When();
+                        yield return $"if ({when} && {format.Condition.Replace("__fmt", local)}) __invalid[{key}] = new[] {{ {Naming.Literal(format.Message)} }};";
                     }
                 }
             }
@@ -1669,6 +1779,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute, parameter.Schema)
                 {
                     Deep = parameter.In == ParameterLocation.Query && (parameter.Style == ParameterStyle.DeepObject || IsObject(parameter.Schema)),
+                    Enum = !scalars && IsEnumRef(parameter.Schema),
                 });
             }
 
@@ -1737,20 +1848,37 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 }
                 else if (pair.Value.Content?.FirstOrDefault(c => c.Value.ItemSchema is not null) is { Key: not null } sequential)
                 {
-                    // OpenAPI 3.2's sequential media types: JSON Lines become IAsyncEnumerable<T>. A server-sent event's
-                    // itemSchema describes the event (data, event, id, retry), not a payload type, so it isn't generated yet.
-                    if (sequential.Key is not ("application/jsonl" or "application/x-ndjson")
-                        || TypeOf(sequential.Value.ItemSchema!, $"{context} response '{pair.Key}' item", $"{operation.Name}{(status == 0 ? "Default" : Naming.StatusNames[status])}Item") is not { } itemType)
+                    // OpenAPI 3.2's sequential media types, as IAsyncEnumerable<T>: JSON Lines, each line a T; server-sent
+                    // events, each event's data a T. A server-sent event's itemSchema describes the event (data, event,
+                    // id, retry): T is its data's contentSchema, or a string; an itemSchema without data is T itself.
+                    var payload = sequential.Value.ItemSchema!;
+                    string? itemType;
+                    if (sequential.Key == "text/event-stream" && payload.Properties?.TryGetValue("data", out var data) == true)
                     {
-                        Unsupported($"{context} response '{pair.Key}' ({sequential.Key})", "sequential media types other than JSON Lines");
+                        var content = (data as IOpenApiSchemaMissingProperties)?.ContentSchema is { } contentSchema ? RefId(contentSchema) : null;
+                        itemType = content is not null && _schemas.ContainsKey(content) ? Naming.Pascal(content) : "string";
+                        payload = content is not null && _document.Components?.Schemas?.TryGetValue(content, out var contentTarget) == true ? new OpenApiSchemaReference(content, _document) : data;
+                    }
+                    else if (sequential.Key is "application/jsonl" or "application/x-ndjson" or "text/event-stream")
+                    {
+                        itemType = TypeOf(payload, $"{context} response '{pair.Key}' item", $"{operation.Name}{(status == 0 ? "Default" : Naming.StatusNames[status])}Item");
+                    }
+                    else
+                    {
+                        itemType = null;
+                    }
+
+                    if (itemType is null)
+                    {
+                        Unsupported($"{context} response '{pair.Key}' ({sequential.Key})", "sequential media types other than JSON Lines and server-sent events");
                         return false;
                     }
 
                     var stream = new Response(status, $"global::System.Collections.Generic.IAsyncEnumerable<{itemType}>", sequential.Key, false,
-                        RefId(sequential.Value.ItemSchema!) is { } itemId && _schemas.TryGetValue(itemId, out var itemSchema) && !IsEnum(itemSchema) ? Naming.Pascal(itemId) : null)
+                        RefId(payload) is { } itemId && _schemas.TryGetValue(itemId, out var itemSchema) && !IsEnum(itemSchema) ? Naming.Pascal(itemId) : null)
                     {
                         ItemType = itemType,
-                        SampleJson = SampleOf(sequential.Value.ItemSchema, context, 0) is { } item ? new System.Text.Json.Nodes.JsonArray(item.DeepClone()).ToJsonString() : null,
+                        SampleJson = SampleOf(payload, context, 0) is { } item ? new System.Text.Json.Nodes.JsonArray(item.DeepClone()).ToJsonString() : null,
                     };
                     (status is >= 200 and < 300 ? operation.Successes : operation.Errors).Add(stream);
                     continue;
@@ -2079,7 +2207,16 @@ public static (string Key, string Message) BindingError(string? key, string mess
             }
 
             w.Line();
-            w.Line("private static string Text(object value) => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;");
+            w.Line("/// <summary>A parameter as the spec writes it: an enum by its name in the spec, dates in ISO 8601, true or false in lower case.</summary>");
+            w.Line("private static string Text(object value) => value switch");
+            w.Line("{");
+            w.Line("    Enum => JsonSerializer.Serialize(value, value.GetType(), Json).Trim('\"'),");
+            w.Line("    bool b => b ? \"true\" : \"false\",");
+            w.Line("    DateTimeOffset d => d.ToString(\"O\", CultureInfo.InvariantCulture),");
+            w.Line("    DateTime d => d.ToString(\"O\", CultureInfo.InvariantCulture),");
+            w.Line("    DateOnly d => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture),");
+            w.Line("    _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,");
+            w.Line("};");
             w.Line();
             w.Line("private static string Segment(object value) => Uri.EscapeDataString(Text(value));");
             w.Line();
@@ -2134,10 +2271,17 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line();
             w.Line("var items = new List<T>();");
             w.Line("var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);");
-            w.Open("foreach (var (line, index) in text.Split('\\n', StringSplitOptions.RemoveEmptyEntries).Select((l, i) => (l, i)))");
+            w.Line("// JSON Lines: each line an item. Server-sent events: each event's data (its data: lines, joined).");
+            w.Line("var lines = mediaType == \"text/event-stream\"");
+            w.Line("    ? text.Replace(\"\\r\\n\", \"\\n\").Split(\"\\n\\n\", StringSplitOptions.RemoveEmptyEntries)");
+            w.Line("        .Select(e => string.Join(\"\\n\", e.Split('\\n').Where(l => l.StartsWith(\"data:\", StringComparison.Ordinal)).Select(l => l.Substring(5).TrimStart(' '))))");
+            w.Line("        .Where(d => d.Length > 0)");
+            w.Line("        .ToArray()");
+            w.Line("    : text.Split('\\n', StringSplitOptions.RemoveEmptyEntries);");
+            w.Open("foreach (var (line, index) in lines.Select((l, i) => (l, i)))");
             w.Line("T? item;");
             w.Open("try");
-            w.Line("item = JsonSerializer.Deserialize<T>(line, Json);");
+            w.Line("item = typeof(T) == typeof(string) && mediaType == \"text/event-stream\" ? (T)(object)line : JsonSerializer.Deserialize<T>(line, Json);");
             w.Close();
             w.Open("catch (JsonException e)");
             w.Line("throw Fatal(new ContractViolationException(operation, status, $\"item {index + 1} does not match the schema: {e.Message}\", e));");
@@ -3383,7 +3527,7 @@ private static (string Key, string Message)? BindingError(Exception exception) =
         private void EmitEndpoint(CodeWriter w, Operation operation)
         {
             var args = operation.Parameters.Where(p => !p.Deep)
-                .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
+                .Select(p => p.Enum ? $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] string? __text_{p.Identifier.TrimStart('@')}" : $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                 .ToList();
             if (operation.Body is { Form: true } || operation.Parameters.Any(p => p.Deep))
             {
@@ -3416,6 +3560,8 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             {
                 EmitDeepRead(w, deep, "__http.Query", "__cancellationToken", "throw new BadHttpRequestException(\"The query doesn't match the schema.\", StatusCodes.Status400BadRequest, {0});");
             }
+
+            EmitEnumReads(w, operation, "return TypedResults.ValidationProblem({0});");
 
             if (operation.Body is { Form: true } form)
             {

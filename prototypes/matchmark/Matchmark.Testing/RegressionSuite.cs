@@ -80,6 +80,31 @@ public sealed class RegressionSuite
         return FromJson(receiver.ToJsonString());
     }
 
+    /// <summary>
+    /// The suite for the spec's callbacks, to run against a receiver: each callback is an operation at <c>/{name}</c> of
+    /// the receiver's base address (where the generated <c>Map{Api}Callbacks</c> puts it). Null when there are none.
+    /// </summary>
+    public static RegressionSuite? ForCallbacks(string specJson)
+    {
+        var spec = JsonNode.Parse(specJson) as JsonObject ?? throw new ArgumentException("The spec isn't a JSON object.", nameof(specJson));
+        var paths = new JsonObject();
+        foreach (var operation in (spec["paths"] as JsonObject ?? []).SelectMany(p => (p.Value as JsonObject ?? []).Select(o => o.Value)).OfType<JsonObject>())
+        {
+            foreach (var (name, callback) in operation["callbacks"] as JsonObject ?? [])
+            {
+                if ((callback?["$ref"]?.GetValue<string>() is { } reference ? spec["components"]?["callbacks"]?[reference[(reference.LastIndexOf('/') + 1)..]] : callback) is JsonObject expressions
+                    && expressions.FirstOrDefault().Value is { } item && !paths.ContainsKey("/" + name))
+                {
+                    paths["/" + name] = item.DeepClone();
+                }
+            }
+        }
+
+        return paths.Count == 0
+            ? null
+            : FromJson(new JsonObject { ["openapi"] = spec["openapi"]?.DeepClone(), ["info"] = spec["info"]?.DeepClone(), ["paths"] = paths, ["components"] = spec["components"]?.DeepClone() }.ToJsonString());
+    }
+
     /// <summary>The operation an Arazzo step calls: its operationId, with or without its source description's name in front.</summary>
     internal SpecOperation? ArazzoOperation(JsonObject step, ArazzoDocument document)
     {

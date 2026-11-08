@@ -232,7 +232,7 @@ namespace Matchmark.Generator
                 }
 
                 var args = operation.Parameters.Where(p => !p.Deep)
-                    .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
+                    .Select(p => p.Enum ? $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] string? __text_{p.Identifier.TrimStart('@')}" : $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                     .ToList();
                 var call = operation.Parameters.Select(p => p.Identifier).ToList();
                 if (operation.Body is { Form: false })
@@ -246,6 +246,7 @@ namespace Matchmark.Generator
                 }
 
                 w.Open($"public async Task<IActionResult> {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
+                EmitEnumReads(w, operation, "return ValidationProblem(modelStateDictionary: Invalid({0}));");
                 foreach (var deep in operation.Parameters.Where(p => p.Deep))
                 {
                     EmitDeepRead(w, deep, "Request.Query", "cancellationToken",
@@ -422,12 +423,20 @@ namespace Matchmark.Generator
             if (streams)
             {
                 w.Line();
-                w.Line("/// <summary>A JSON Lines body (OpenAPI 3.2's itemSchema): each item written as one line, as it comes.</summary>");
+                w.Line("/// <summary>A sequential body (OpenAPI 3.2's itemSchema): JSON Lines, or server-sent events, each item written as it comes.</summary>");
                 w.Open($"public sealed class {_apiName}JsonLines<T>(global::System.Collections.Generic.IAsyncEnumerable<T> items, string mediaType) : IActionResult");
                 w.Open("public async global::System.Threading.Tasks.Task ExecuteResultAsync(ActionContext context)");
                 w.Line("var response = context.HttpContext.Response;");
                 w.Line("response.ContentType = mediaType;");
                 w.Open("await foreach (var item in global::System.Threading.Tasks.TaskAsyncEnumerableExtensions.WithCancellation(items, context.HttpContext.RequestAborted))");
+                w.Open("if (mediaType == \"text/event-stream\")");
+                w.Line("// A server-sent event: its data the item, as JSON, or the text of a string.");
+                w.Line("var data = item is string text ? text : System.Text.Json.JsonSerializer.Serialize(item, System.Text.Json.JsonSerializerOptions.Web);");
+                w.Line("await response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes(\"data: \" + data + \"\\n\\n\"));");
+                w.Line("await response.Body.FlushAsync();");
+                w.Line("continue;");
+                w.Close();
+                w.Line();
                 w.Line("await System.Text.Json.JsonSerializer.SerializeAsync(response.Body, item, System.Text.Json.JsonSerializerOptions.Web);");
                 w.Line("await response.Body.WriteAsync(new byte[] { 10 });");
                 w.Close();

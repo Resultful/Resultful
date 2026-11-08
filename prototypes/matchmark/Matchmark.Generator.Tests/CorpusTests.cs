@@ -28,6 +28,7 @@ public sealed class CorpusTests
         ("bookings", "samples/bookings/openapi.yaml", [], ["samples/bookings/bookings.overlay.yaml"]),
         ("catalogue", "samples/catalogue/openapi.yaml", [], ["samples/catalogue/catalogue.overlay.yaml"]),
         ("payments", "samples/payments/openapi.yaml", [], []),
+        ("notifications", "samples/notifications/openapi.yaml", [], []),
     ];
 
     [Test]
@@ -46,7 +47,8 @@ public sealed class CorpusTests
             var audit = AuditCommand.Measure(json, arazzo);
             return $"{sample.Name}: generator skips {warnings.Distinct().Count()}; suite {suite.Cases.Count} cases, {suite.Workflows.Count} workflows from links, "
                    + $"{runnable} of {suite.Arazzo.Count} Arazzo workflows runnable, {suite.Gaps.Count} gaps"
-                   + (RegressionSuite.ForWebhooks(json) is { } webhooks ? $", {webhooks.Cases.Count} webhook cases; " : "; ")
+                   + (RegressionSuite.ForWebhooks(json) is { } webhooks ? $", {webhooks.Cases.Count} webhook cases" : string.Empty)
+                   + (RegressionSuite.ForCallbacks(json) is { } callbacks ? $", {callbacks.Cases.Count} callback cases; " : "; ")
                    + $"audit {audit.Findings.Count(f => f.Finding.Rule.Level == "warning")} warnings, {audit.Findings.Count} findings, {audit.Score * 100:0}%";
         }).ToList();
 
@@ -57,7 +59,8 @@ public sealed class CorpusTests
             "orders: generator skips 0; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps, 19 webhook cases; audit 3 warnings, 8 findings, 91%",
             "bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%",
             "catalogue: generator skips 0; suite 73 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 97%",
-            "payments: generator skips 0; suite 93 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%");
+            "payments: generator skips 0; suite 93 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%",
+            "notifications: generator skips 0; suite 49 cases, 0 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps, 28 callback cases; audit 1 warnings, 3 findings, 100%");
     }
 
     /// <summary>What the generator writes for each sample compiles: the Contract and Server parts, against Resultful and ASP.NET Core.</summary>
@@ -67,6 +70,7 @@ public sealed class CorpusTests
     [TestCase("bookings")]
     [TestCase("catalogue")]
     [TestCase("payments")]
+    [TestCase("notifications")]
     public void The_code_generated_for_each_sample_compiles(string name)
     {
         var sample = Samples.Single(s => s.Name == name);
@@ -99,6 +103,7 @@ public sealed class CorpusTests
     [TestCase("catalogue", true)]
     [TestCase("payments", true)]
     [TestCase("payments", false)]
+    [TestCase("notifications", true)]
     public void The_scaffold_for_each_sample_compiles(string name, bool controllers)
     {
         var sample = Samples.Single(s => s.Name == name);
