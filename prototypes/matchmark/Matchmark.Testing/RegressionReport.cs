@@ -97,6 +97,9 @@ public static class Checks
 
     /// <summary>A message in a workflow (sent by it, or received from the API) conforms to its AsyncAPI message.</summary>
     public const string MessageConforms = nameof(MessageConforms);
+
+    /// <summary>A write that repeats another resource's unique key (x-matchmark-unique) is refused with the documented status.</summary>
+    public const string UniqueEnforced = nameof(UniqueEnforced);
 }
 
 public enum Severity
@@ -226,16 +229,26 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
 
     /// <summary>A run's steps (each case, each workflow step) and their answers: a recording to replay a fidelity run against.</summary>
     public static FidelityRecording Record(RegressionReport report)
+        => new(Steps(report).Select(s => RecordedStep.Of(s.Operation, s.Subject, s.Exchange)).ToList());
+
+    /// <summary>A run's steps in the order they ran, each named as a recording names it.</summary>
+    internal static IEnumerable<(string Operation, string Subject, Exchange Exchange)> Steps(RegressionReport report)
     {
-        var steps = report.Cases.Select(c => RecordedStep.Of(c.Case.Operation.Id, c.Case.Name, c.Exchange)).ToList();
+        foreach (var result in report.Cases)
+        {
+            yield return (result.Case.Operation.Id, result.Case.Name, result.Exchange);
+        }
+
         foreach (var workflow in report.Workflows)
         {
             // Named without the ids in their paths, which differ between the two runs.
-            steps.AddRange(workflow.Exchanges.Select((e, i) => RecordedStep.Of(workflow.Name,
-                $"{workflow.Name}, step {i + 1} ({e.Request.Method} {System.Text.RegularExpressions.Regex.Replace(e.Request.Path, "/(?:[0-9]+|[0-9a-fA-F-]{36})(?=/|$)", "/{}")})", e)));
+            for (var i = 0; i < workflow.Exchanges.Count; i++)
+            {
+                var e = workflow.Exchanges[i];
+                yield return (workflow.Name,
+                    $"{workflow.Name}, step {i + 1} ({e.Request.Method} {System.Text.RegularExpressions.Regex.Replace(e.Request.Path, "/(?:[0-9]+|[0-9a-fA-F-]{36})(?=/|$)", "/{}")})", e);
+            }
         }
-
-        return new FidelityRecording(steps);
     }
 
     /// <summary>

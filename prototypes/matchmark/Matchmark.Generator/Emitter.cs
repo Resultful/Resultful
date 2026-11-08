@@ -108,6 +108,10 @@ namespace Matchmark.Generator
                 files["Responses"] = EmitResponses(operations);
                 files["Handlers"] = EmitHandlers(operations);
                 files["Client"] = EmitClient(operations);
+                if (EmitInvariants(operations) is { } invariants)
+                {
+                    files["Invariants"] = invariants;
+                }
                 if (_hasFakes)
                 {
                     files["Fake"] = EmitFake(operations);
@@ -117,6 +121,10 @@ namespace Matchmark.Generator
             if (server)
             {
                 files["Endpoints"] = EmitEndpoints(operations);
+                if (EmitInvariantsForEntityFramework() is { } entityFramework)
+                {
+                    files["Invariants.EntityFramework"] = entityFramework;
+                }
                 if (_describesItself)
                 {
                     files["OpenApi"] = EmitOpenApi();

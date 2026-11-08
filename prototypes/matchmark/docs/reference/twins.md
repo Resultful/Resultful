@@ -51,6 +51,8 @@ the gate; any writer, a person or an agent, fills it (Q5).
    where they first differ. The held-out mismatches are never shown.
 3. **Gate.** `FidelityLoop.Judge(before, after)` keeps a change only if the held-out score rose and no operation's
    held-out score fell.
+4. **Declarations before code.** `FidelityLoop.ProposeUnique` turns 409 mismatches on repeated values into proposed
+   `x-matchmark-unique` declarations ([invariants](invariants.md#unique)), which the twin then enforces with no owned code.
 
 `AgentLoopTests` runs the loop on the Ledger twin. An independent agent, given only the training tasks and
 `LedgerOwned.cs` to edit, raised held-out fidelity from 61.9% to 85.7% with its first attempt; four later guesses were

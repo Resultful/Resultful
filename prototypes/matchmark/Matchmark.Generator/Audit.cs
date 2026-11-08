@@ -119,16 +119,25 @@ namespace Matchmark.Generator
         public static readonly AuditRule Concurrency = new("concurrency", "note",
             "An update takes If-Match", "ETagChanges and StaleIfMatchRefused");
 
+        public static readonly AuditRule UniqueDeclared = new("unique-declared", "note",
+            "A create that documents 409 says which fields must be unique", "UniqueEnforced: duplicate, case-variant and renamed-into cases");
+
         public static readonly AuditRule Invariants = new("invariants", "note",
             "The spec states invariants the schema can't", "Postcondition, SchemaRule, TransitionRule and dependency cases");
 
         public static IReadOnlyList<AuditRule> Rules { get; } =
         [
             OperationId, BoundedString, BoundedNumber, RejectionDocumented, RequestExample, ReadOnlyDeclared, AdditionalProperties,
-            CreateLinked, SecurityDocumented, IdempotencyKey, Concurrency, Invariants,
+            CreateLinked, SecurityDocumented, IdempotencyKey, Concurrency, UniqueDeclared, Invariants,
         ];
 
         private static readonly string[] Methods = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"];
+
+        /// <summary>The component schema a response's body refers to, by name.</summary>
+        private static string? Resource(JsonObject response)
+            => (response["content"] as JsonObject)?.Select(c => c.Value?["schema"]?["$ref"]?.GetValue<string>()).FirstOrDefault(r => r != null) is string reference
+                ? reference.Substring(reference.LastIndexOf('/') + 1)
+                : null;
 
         private static readonly string[] ServerAssigned = ["id", "createdAt", "created_at", "updatedAt", "updated_at", "created", "modified"];
 
@@ -233,6 +242,16 @@ namespace Matchmark.Generator
                     if (!parameters.Any(p => (string?)p["in"] == "header" && string.Equals((string?)p["name"], "Idempotency-Key", StringComparison.OrdinalIgnoreCase)))
                     {
                         findings.Add(new AuditFinding(IdempotencyKey, name, pointer, "creates without an Idempotency-Key header: a retried request can create twice", id, null));
+                    }
+
+                    // A documented 409 on a create is usually a unique key the twin and the suite can't know (invariants.md),
+                    // unless the create takes an Idempotency-Key, whose 409 is the draft's "still being processed".
+                    var keyed = parameters.Any(p => (string?)p["in"] == "header" && string.Equals((string?)p["name"], "Idempotency-Key", StringComparison.OrdinalIgnoreCase));
+                    if (responses.ContainsKey("409") && !keyed && Resource(created) is { } resource && schemas[resource] is JsonObject resourceSchema
+                        && resourceSchema["x-matchmark-unique"] is null)
+                    {
+                        findings.Add(new AuditFinding(UniqueDeclared, name, $"#/components/schemas/{resource}",
+                            $"documents a 409 but {resource} declares no unique key: say which fields must be unique (x-matchmark-unique)", id, null));
                     }
 
                     if (created["links"] is not JsonObject { Count: > 0 } && (id is null || !reached.Contains(id)))

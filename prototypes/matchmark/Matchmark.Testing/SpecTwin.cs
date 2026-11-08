@@ -319,6 +319,21 @@ public sealed class SpecTwin : HttpMessageHandler
             return Problem(412, "The resource changed since that ETag", operation);
         }
 
+        // Unique keys (x-matchmark-unique): the resource as it would be stored mustn't share a key with another.
+        if (operation.Method is "POST" or "PUT" or "PATCH" && Traits.Unique(_spec, Traits.ResourceSchema(operation)) is { Count: > 0 } keys)
+        {
+            var candidate = (operation.Method, item) switch
+            {
+                ("POST", false) or ("PUT", true) => body as JsonObject,
+                ("PATCH", true) when found is { } stored => Patched(stored.Resource, body as JsonObject),
+                _ => null,
+            };
+            if (candidate is not null && Traits.Collision(keys, candidate, store.Items.Where(i => i.Key != id).Select(i => i.Value.Resource)) is { } key)
+            {
+                return Taken(operation, key);
+            }
+        }
+
         switch (operation.Method, item)
         {
             case ("POST", false):
@@ -501,6 +516,34 @@ public sealed class SpecTwin : HttpMessageHandler
         => new(status, operation.Response(status)?.Content.Keys.FirstOrDefault() ?? "application/json", body.ToJsonString(), headers);
 
     private static Reply NotFound(SpecOperation operation) => Problem(404, "Not found", operation);
+
+    private static JsonObject Patched(JsonObject resource, JsonObject? patch)
+    {
+        var copy = (JsonObject)resource.DeepClone();
+        Merge(copy, patch ?? []);
+        return copy;
+    }
+
+    /// <summary>A unique key already held: the documented status, keyed by field when that status is a validation problem.</summary>
+    private static Reply Taken(SpecOperation operation, UniqueKey key)
+    {
+        var status = Traits.Status(operation, Traits.UniqueStatuses);
+        var message = $"Must be unique: another resource has this {key}.";
+        var response = operation.Response(status);
+        if (response is { Content.Count: 0 })
+        {
+            return new Reply(status, null, null, []);
+        }
+
+        var (media, schema) = response?.Content.FirstOrDefault() ?? default;
+        var problem = new JsonObject { ["title"] = message, ["status"] = status };
+        if (schema?.ToJsonString().Contains("HttpValidationProblemDetails", StringComparison.Ordinal) == true || status == 400)
+        {
+            problem["errors"] = new JsonObject { [key.Fields[0]] = new JsonArray(JsonValue.Create(message)) };
+        }
+
+        return new Reply(status, media ?? "application/problem+json", problem.ToJsonString(), []);
+    }
 
     /// <summary>A problem for a status; none when the spec documents that status without a body, as a 404 often is.</summary>
     private static Reply Problem(int status, string title, SpecOperation? operation)
