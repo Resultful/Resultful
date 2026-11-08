@@ -87,6 +87,44 @@ public sealed class CorpusTests
         generated.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString()).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// What `matchmark scaffold` writes for each sample compiles against its generated contract: controllers and the
+    /// reference handlers, forms, deep objects, redirects and default responses included. (Program.cs and the OpenAPI
+    /// configuration are left out: they need the Microsoft.AspNetCore.OpenApi package and an entry point.)
+    /// </summary>
+    [TestCase("petstore", true)]
+    [TestCase("museum", true)]
+    [TestCase("orders", true)]
+    [TestCase("bookings", true)]
+    [TestCase("catalogue", true)]
+    [TestCase("payments", true)]
+    [TestCase("payments", false)]
+    public void The_scaffold_for_each_sample_compiles(string name, bool controllers)
+    {
+        var sample = Samples.Single(s => s.Name == name);
+        var spec = File.ReadAllText(Path.Combine(Root, sample.Path));
+        var files = Scaffolder.Scaffold(spec, Path.GetFileName(sample.Path), $"Corpus.{Pascal(name)}", $"Corpus.{Pascal(name)}.Scaffolded", Pascal(name), controllers, out _);
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator)
+            .Append(typeof(Resultful.Unit).Assembly.Location)
+            .Append(typeof(OneOf.OneOf<>).Assembly.Location)
+            .Distinct()
+            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path));
+        var parse = new CSharpParseOptions(LanguageVersion.Latest);
+        var trees = files.Where(f => f.Key != "Program.cs" && !f.Key.EndsWith("OpenApi.cs", StringComparison.Ordinal))
+            .Select(f => CSharpSyntaxTree.ParseText(f.Value, parse, f.Key));
+        var compilation = CSharpCompilation.Create($"{name}Scaffold", trees, references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        var driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], [new Text(sample.Path, spec)],
+            optionsProvider: new Options(name, "Contract"), parseOptions: parse);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out _);
+
+        generated.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString()).Should().BeEmpty();
+    }
+
+    private static string Pascal(string name) => char.ToUpperInvariant(name[0]) + name[1..];
+
     private sealed class Text(string path, string text) : AdditionalText
     {
         public override string Path => path;
@@ -94,14 +132,14 @@ public sealed class CorpusTests
         public override SourceText GetText(CancellationToken cancellationToken = default) => SourceText.From(text);
     }
 
-    private sealed class Options(string name) : AnalyzerConfigOptionsProvider
+    private sealed class Options(string name, string parts = "Contract,Server") : AnalyzerConfigOptionsProvider
     {
         private readonly AnalyzerConfigOptions _spec = new Values(new Dictionary<string, string>
         {
             ["build_metadata.AdditionalFiles.Matchmark"] = "true",
             ["build_metadata.AdditionalFiles.MatchmarkApiName"] = Naming(name),
             ["build_metadata.AdditionalFiles.MatchmarkNamespace"] = $"Corpus.{Naming(name)}",
-            ["build_metadata.AdditionalFiles.MatchmarkParts"] = "Contract,Server",
+            ["build_metadata.AdditionalFiles.MatchmarkParts"] = parts,
         });
 
         public override AnalyzerConfigOptions GlobalOptions { get; } = new Values([]);
