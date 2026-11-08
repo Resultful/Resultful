@@ -20,6 +20,11 @@ internal sealed partial class RegressionRunner
             return Forms.Decode(body, schema.Schema, suite.Spec);
         }
 
+        if (request.ContentType is { } type && OpenApiSpec.IsText(type))
+        {
+            return JsonValue.Create(body);
+        }
+
         try
         {
             return JsonNode.Parse(body);
@@ -31,7 +36,9 @@ internal sealed partial class RegressionRunner
     }
 
     private static string? RequestText(RegressionRequest request, JsonNode? json)
-        => Forms.IsForm(request.ContentType) ? Forms.Encode(json) : json?.ToJsonString();
+        => Forms.IsForm(request.ContentType) ? Forms.Encode(json)
+            : request.ContentType is { } type && OpenApiSpec.IsText(type) && json is JsonValue value && value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>()
+            : json?.ToJsonString();
 }
 
 /// <summary>

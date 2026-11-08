@@ -62,6 +62,33 @@ public sealed class CatalogueTests
                     ? Result.Ok<Product, GetProductError>(product)
                     : Result.Fail<Product, GetProductError>(GetProductError.NotFound(new ProblemDetails { Title = "No such product" })));
 
+            public Task<Result<IReadOnlyList<Product>, FindProductsError>> FindProducts(ProductFilter? filter, CancellationToken cancellationToken)
+            {
+                if (filter?.Text == "too-many")
+                {
+                    return Task.FromResult(Result.Fail<IReadOnlyList<Product>, FindProductsError>(FindProductsError.ClientError(429, new ProblemDetails { Title = "Slow down", Status = 429 })));
+                }
+
+                IReadOnlyList<Product> found = All
+                    .Where(p => (filter?.Text is not { } text || p.Name.Contains(text, StringComparison.OrdinalIgnoreCase)) && (filter?.MaxPrice is not { } max || p.Price <= max)
+                                && (filter?.Category is not { } category || p.Category == category))
+                    .Take(filter?.Limit ?? 50).ToList();
+                return Task.FromResult(Result.Ok<IReadOnlyList<Product>, FindProductsError>(found));
+            }
+
+            public Task<VoidResult<DescribeProductError>> DescribeProduct(long productId, string body, CancellationToken cancellationToken)
+            {
+                if (!_products.ContainsKey(productId))
+                {
+                    return Task.FromResult(Result.Fail<DescribeProductError>(DescribeProductError.NotFound(new ProblemDetails { Title = "No such product" })));
+                }
+
+                Descriptions[productId] = body;
+                return Task.FromResult(Result.Ok<DescribeProductError>());
+            }
+
+            public static readonly ConcurrentDictionary<long, string> Descriptions = new();
+
             public Task<IAsyncEnumerable<Product>> ExportProducts(CancellationToken cancellationToken)
                 => Task.FromResult(Export());
 
@@ -93,6 +120,18 @@ public sealed class CatalogueTests
                 app.MapCatalogue();
                 await app.StartAsync();
                 return app;
+            }
+
+            /// <summary>The querystring, a 4XX carrying its status, and a Markdown body, through the generated client.</summary>
+            public static async Task<string> FindAsync(string url)
+            {
+                using var http = new HttpClient { BaseAddress = new Uri(url) };
+                var client = new CatalogueClient(http);
+                var created = (Product)(await client.CreateProduct(new NewProduct { Name = "Hojicha", Price = 9m, Category = Category.Tea }, default)).ToOneOf().Value;
+                var found = (IReadOnlyList<Product>)(await client.FindProducts(new ProductFilter { Text = "hoji", MaxPrice = 10m, Limit = 5 }, default)).ToOneOf().Value;
+                var limited = (FindProductsClientError)((FindProductsError)(await client.FindProducts(new ProductFilter { Text = "too-many" }, default)).ToOneOf().Value).Value;
+                await client.DescribeProduct(created.Id, "# Hojicha\nRoasted green tea.", default);
+                return $"{found.Count(p => p.Id == created.Id)} {limited.Status} {Handlers.Descriptions[created.Id].Split('\n')[0]}";
             }
 
             /// <summary>The generated client: creates two products, then reads the export.</summary>
@@ -141,6 +180,9 @@ public sealed class CatalogueTests
             .And.Contain(c => c.Case.Request.Method == "QUERY" && c.Case.Kind == CaseKind.Invalid && c.Exchange.Status == 400);
         report.Workflows.Select(w => w.Name).Should().Contain("prefix listProducts by limit");
         exported.Should().BeGreaterThanOrEqualTo(2, "the client reads every line of the export");
+        report.Cases.Should().Contain(c => c.Case.Operation.Id == "findProducts" && c.Case.Kind == CaseKind.Invalid && c.Exchange.Status == 400
+                                           && c.Case.Request.Query.Any(q => q.Key == "limit"))
+            .And.Contain(c => c.Case.Operation.Id == "describeProduct" && c.Case.Request.ContentType == "text/markdown");
     }
 
     [Test]
@@ -165,6 +207,11 @@ public sealed class CatalogueTests
             var report = await Suite().RunAsync(client, new RegressionOptions());
             File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, $"catalogue-{(fault ? "fault" : "right")}.txt"), report.ToString());
             var exported = fault ? 0 : await (Task<int>)server.GetMethod("ExportedAsync")!.Invoke(null, [url])!;
+            if (!fault)
+            {
+                (await (Task<string>)server.GetMethod("FindAsync")!.Invoke(null, [url])!).Should().Be("1 429 # Hojicha");
+            }
+
             return (report, exported);
         }
         finally

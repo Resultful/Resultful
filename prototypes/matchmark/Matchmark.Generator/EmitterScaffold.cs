@@ -216,10 +216,10 @@ namespace Matchmark.Generator
                 w.Line($"[{verb}({Naming.Literal(operation.Path)}, Name = {Naming.Literal(operation.Id)})]");
                 if (operation.Body is not null)
                 {
-                    w.Line(operation.Body.Form ? "[Consumes(\"application/x-www-form-urlencoded\")]" : "[Consumes(\"application/json\")]");
+                    w.Line($"[Consumes({Naming.Literal(operation.Body.MediaType)})]");
                 }
 
-                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => !r.IsDefault))
+                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => !r.CarriesStatus))
                 {
                     w.Line(response.BodyType is null || response.IsRedirect
                         ? $"[ProducesResponseType({response.Status.Invariant()})]"
@@ -235,7 +235,7 @@ namespace Matchmark.Generator
                     .Select(p => p.Enum ? $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] string? __text_{p.Identifier.TrimStart('@')}" : $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                     .ToList();
                 var call = operation.Parameters.Select(p => p.Identifier).ToList();
-                if (operation.Body is { Form: false })
+                if (operation.Body is { Form: false, Text: false })
                 {
                     args.Add($"[FromBody] {operation.Body.Type} body");
                 }
@@ -251,6 +251,20 @@ namespace Matchmark.Generator
                 {
                     EmitDeepRead(w, deep, "Request.Query", "cancellationToken",
                         $"{{{{ var (key, message) = {ValidationClass}.BindingError(({{0}}).Path ?? \"$\", ({{0}}).Message); return ValidationProblem(modelStateDictionary: Invalid(new Dictionary<string, string[]> {{{{ [key] = [message] }}}})); }}}}");
+                }
+
+                if (operation.Body is { Text: true } text)
+                {
+                    // Text, read as it is.
+                    w.Open($"if (Request.ContentType?.StartsWith({Naming.Literal(text.MediaType)}, System.StringComparison.OrdinalIgnoreCase) != true)");
+                    w.Line("return StatusCode(StatusCodes.Status415UnsupportedMediaType);");
+                    w.Close();
+                    w.Line();
+                    w.Line("var body = await new System.IO.StreamReader(Request.Body).ReadToEndAsync(cancellationToken);");
+                    w.Open($"if ({ValidationClass}.CheckText(body, {(text.Schema.MinLength ?? (operation.RequiredBody ? 1 : 0)).Invariant()}, {(text.Schema.MaxLength?.Invariant() ?? "null")}, {(text.Schema.Pattern is { } textPattern ? Naming.Literal(textPattern) : "null")}) is {{ }} textErrors)");
+                    w.Line("return ValidationProblem(modelStateDictionary: Invalid(textErrors));");
+                    w.Close();
+                    w.Line();
                 }
 
                 if (operation.Body is { Form: true } form)
@@ -372,9 +386,9 @@ namespace Matchmark.Generator
             { IsRedirect: true, Status: 307 } => $"RedirectPreserveMethod({body})",
             { IsRedirect: true, Status: 308 } => $"RedirectPermanentPreserveMethod({body})",
             { IsRedirect: true } => $"Redirect({body})",
-            { IsDefault: true, BodyType: null } => $"StatusCode({Response.StatusOf(body)})",
-            { IsDefault: true, IsProblem: true } => $"ProblemResponse({body}, {Response.StatusOf(body)})",
-            { IsDefault: true } => $"StatusCode({Response.StatusOf(body)}, {body})",
+            { CarriesStatus: true, BodyType: null } => $"StatusCode({Response.StatusOf(body)})",
+            { CarriesStatus: true, IsProblem: true } => $"ProblemResponse({body}, {Response.StatusOf(body)})",
+            { CarriesStatus: true } => $"StatusCode({Response.StatusOf(body)}, {body})",
             { IsValidation: true } => $"ValidationProblem(detail: {body}.Detail, title: {body}.Title, modelStateDictionary: Invalid({body}.Errors))",
             { IsProblem: true } => $"ProblemResponse({body}, {response.Status.Invariant()})",
             { BodyType: null, Status: 204 } => "NoContent()",
