@@ -1,0 +1,44 @@
+arazzo: 1.1.0
+info:
+  title: Notifications, redelivered
+  version: 1.0.0
+  description: >
+    Arazzo 1.1 message steps over the Notifications events (asyncapi.yaml): ask for a notification to be redelivered,
+    then receive the notification that causes, matched by its correlation id.
+sourceDescriptions:
+  - name: notifications
+    url: openapi.yaml
+    type: openapi
+  - name: events
+    url: asyncapi.yaml
+    type: asyncapi
+workflows:
+  - workflowId: redeliver
+    inputs:
+      type: object
+      required: [notificationId, correlationId]
+      properties:
+        notificationId: { type: string, format: uuid }
+        correlationId: { type: string, format: uuid }
+    steps:
+      - stepId: ask
+        operationId: $sourceDescriptions.events.receiveRedelivery
+        action: send
+        parameters:
+          - { name: x-correlation-id, in: header, value: $inputs.correlationId }
+        requestBody:
+          payload:
+            notificationId: $inputs.notificationId
+            attempts: 1
+            reason: the receiver was down
+      - stepId: redelivered
+        operationId: $sourceDescriptions.events.publishNotification
+        action: receive
+        correlationId: $inputs.correlationId
+        timeout: 2000
+        successCriteria:
+          - condition: $message.payload#/id == $inputs.notificationId
+        outputs:
+          topic: $message.payload#/topic
+    outputs:
+      topic: $steps.redelivered.outputs.topic

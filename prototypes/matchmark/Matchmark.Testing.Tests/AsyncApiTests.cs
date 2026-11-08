@@ -62,6 +62,81 @@ public sealed class AsyncApiTests
         FluentActions.Invoking(() => Document.Check("nothing", null)).Should().Throw<KeyNotFoundException>();
     }
 
+    [TestCase("right", null)]
+    [TestCase("wrong topic", Checks.MessageConforms)]
+    [TestCase("silent", Checks.WorkflowCriteria)]
+    public async Task An_Arazzo_workflow_sends_a_message_and_receives_the_one_it_causes(string service, string? failing)
+    {
+        var samples = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "notifications"));
+        var suite = RegressionSuite.FromJson(
+            SpecJson.Normalize(File.ReadAllText(Path.Combine(samples, "openapi.yaml")), "openapi.yaml"),
+            SpecJson.Arazzo(File.ReadAllText(Path.Combine(samples, "notifications.arazzo.yaml")), "notifications.arazzo.yaml"));
+        suite.Gaps.Should().BeEmpty("message steps are runnable");
+        var options = new RegressionOptions
+        {
+            Include = _ => false,
+            Events = Document,
+            Bridge = new HttpClient(new Broker(service)) { BaseAddress = new Uri("http://broker/") },
+            MessageTimeout = TimeSpan.FromMilliseconds(300),
+        };
+        var id = Guid.NewGuid().ToString();
+        options.WorkflowInputs["redeliver"] = new JsonObject { ["notificationId"] = id, ["correlationId"] = Guid.NewGuid().ToString() };
+        using var api = new HttpClient(new Broker("unused")) { BaseAddress = new Uri("http://api/") };
+
+        var report = await suite.RunAsync(api, options);
+
+        var workflow = report.Workflows.Single(w => w.Name.Contains("redeliver", StringComparison.Ordinal));
+        if (failing is null)
+        {
+            report.Failures.Should().BeEmpty(report.ToString());
+            workflow.Skipped.Should().BeNull();
+        }
+        else
+        {
+            report.Failures.Should().Contain(f => f.Check == failing && f.Subject.EndsWith("step redelivered", StringComparison.Ordinal), report.ToString());
+        }
+    }
+
+    /// <summary>
+    /// A broker behind its bridge, with the service on it: a redelivery request is answered by publishing the notification,
+    /// under the request's correlation id. Wrong, it publishes it on a topic the document doesn't have; silent, not at all.
+    /// </summary>
+    private sealed class Broker(string service) : HttpMessageHandler
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<JsonObject> _published = new();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Post && path == "/receiveRedelivery")
+            {
+                var redelivery = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!;
+                var correlation = request.Headers.GetValues("x-correlation-id").Single();
+                if (service != "silent")
+                {
+                    _published.Enqueue(new JsonObject
+                    {
+                        ["payload"] = Notification(redelivery["notificationId"]!.GetValue<string>(), service == "wrong topic" ? "billing" : "orders"),
+                        ["headers"] = new JsonObject { ["x-correlation-id"] = correlation },
+                    });
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.Accepted);
+            }
+
+            if (request.Method == HttpMethod.Get && path == "/publishNotification")
+            {
+                var wanted = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["correlationId"];
+                var message = _published.FirstOrDefault(m => m["headers"]!["x-correlation-id"]!.GetValue<string>() == wanted);
+                return message is null
+                    ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                    : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(message.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+    }
+
     private static JsonObject Notification(string id, string topic)
         => new() { ["id"] = id, ["topic"] = topic, ["sentAt"] = "2026-11-08T10:00:00Z", ["summary"] = "Order 7 shipped" };
 

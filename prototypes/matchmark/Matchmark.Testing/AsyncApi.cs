@@ -57,6 +57,7 @@ public sealed class AsyncApiDocument
                     {
                         ["202"] = new JsonObject { ["description"] = "The consumer accepted the message." },
                         ["400"] = new JsonObject { ["description"] = "The consumer refused the message." },
+                        ["415"] = new JsonObject { ["description"] = "The message isn't in its content type." },
                     },
                 },
             };

@@ -71,6 +71,14 @@ internal sealed partial class RegressionRunner
                 context.Current = innerContext.Current;
                 context.Steps[stepId] = Outputs(step, innerContext.Outputs.DeepClone() as JsonObject ?? [], innerContext);
             }
+            else if (step["action"]?.GetValue<string>() is { } messageAction)
+            {
+                passed = await MessageStepAsync(step, messageAction, context, workflow.Document, subject, findings, cancellationToken).ConfigureAwait(false);
+                if (passed)
+                {
+                    context.Steps[stepId] = Outputs(step, [], context);
+                }
+            }
             else
             {
                 var operation = suite.ArazzoOperation(step, workflow.Document)!;
@@ -249,6 +257,99 @@ internal sealed partial class RegressionRunner
         }
 
         return new RegressionRequest(operation.Method, path, query, headers, body, contentType) { PathParameters = pathParameters };
+    }
+
+    /// <summary>
+    /// An Arazzo 1.1 message step, through the bridge (<see cref="RegressionOptions.Bridge"/>): send the message, or wait
+    /// for one with the step's correlation id. Either way the message is checked against its AsyncAPI message, and it's
+    /// the step's <c>$message</c> for its criteria and outputs.
+    /// </summary>
+    private async Task<bool> MessageStepAsync(JsonObject step, string action, ArazzoContext context, ArazzoDocument document, string subject,
+        List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var reference = step["operationId"]!.GetValue<string>();
+        var operationId = reference[(reference.LastIndexOf('.') + 1)..];
+        if (options.Events is not { } events || options.Bridge is not { } bridge || events.Operations.All(o => o.Id != operationId))
+        {
+            findings.Add(new Finding(Checks.WorkflowCriteria, Severity.Failure, subject,
+                $"it {action}s a message on {reference}, but no AsyncAPI document with that operation and no bridge were given (RegressionOptions.Events, Bridge)", string.Empty));
+            return false;
+        }
+
+        JsonObject? message;
+        if (action == "send")
+        {
+            var headers = new JsonObject();
+            foreach (var (name, _, value) in Parameters(step, context, document))
+            {
+                headers[name] = value?.DeepClone();
+            }
+
+            var payload = context.Substitute(step["requestBody"]?["payload"]);
+            message = new JsonObject { ["payload"] = payload?.DeepClone(), ["headers"] = headers };
+            using var request = new HttpRequestMessage(HttpMethod.Post, operationId)
+            {
+                Content = new StringContent(payload?.ToJsonString() ?? "null", System.Text.Encoding.UTF8, events.Operations.First(o => o.Id == operationId).Messages is [var first, ..] ? first.ContentType : "application/json"),
+            };
+            foreach (var (name, value) in headers)
+            {
+                request.Headers.TryAddWithoutValidation(name, ArazzoContext.Text(value));
+            }
+
+            Conforms(events, operationId, message, subject, "sends", findings);
+            using var response = await bridge.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                findings.Add(new Finding(Checks.WorkflowCriteria, Severity.Failure, subject, $"the bridge refused the message with {(int)response.StatusCode}", string.Empty));
+                return false;
+            }
+        }
+        else
+        {
+            var correlation = step["correlationId"] is { } id ? ArazzoContext.Text(context.Substitute(id)) : null;
+            var timeout = step["timeout"] is { } ms && SchemaValidator.NumberOf(ms) is { } millis ? TimeSpan.FromMilliseconds((double)millis) : options.MessageTimeout;
+            var until = DateTime.UtcNow + timeout;
+            message = null;
+            while (true)
+            {
+                var target = operationId + (correlation is null ? string.Empty : "?correlationId=" + Uri.EscapeDataString(correlation));
+                using var response = await bridge.GetAsync(target, cancellationToken).ConfigureAwait(false);
+                if ((int)response.StatusCode == 200)
+                {
+                    message = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)) as JsonObject;
+                    break;
+                }
+
+                if (DateTime.UtcNow >= until)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken).ConfigureAwait(false);
+            }
+
+            if (message is null)
+            {
+                findings.Add(new Finding(Checks.WorkflowCriteria, Severity.Failure, subject,
+                    $"no message on {operationId}{(correlation is null ? string.Empty : $" with correlation id {correlation}")} within {timeout.TotalMilliseconds:0} ms", string.Empty));
+                return false;
+            }
+
+            Conforms(events, operationId, message, subject, "received", findings);
+        }
+
+        context.Message = message;
+        return (step["successCriteria"] as JsonArray)?.OfType<JsonObject>().All(c => Criteria.Holds(c, context)) ?? true;
+    }
+
+    private static void Conforms(AsyncApiDocument events, string operationId, JsonObject message, string subject, string verb, List<Finding> findings)
+    {
+        var headers = message["headers"] as JsonObject;
+        var errors = events.Check(operationId, message["payload"], headers is { Count: > 0 } ? headers : null);
+        if (errors.Count > 0)
+        {
+            findings.Add(new Finding(Checks.MessageConforms, Severity.Failure, subject, $"the message it {verb} breaks its AsyncAPI message: {string.Join("; ", errors)}", string.Empty));
+        }
     }
 
     /// <summary>A replacement in a payload: the value at a JSON Pointer target, set.</summary>

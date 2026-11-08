@@ -74,8 +74,11 @@ there: the score rises from 87% to 93% and every 409 mismatch goes. ✓ The loop
 holds out a share of the sequences (whole workflows, by a stable hash), `FidelityReport.Tasks` gives the training
 mismatches as structured tasks, and `FidelityLoop.Judge` keeps a change only if the held-out score rises and no
 operation falls (`matchmark fidelity --tasks --gate`). `TwinTests` keeps the unique-name rule and rejects a change
-that refuses every new pet. The writer itself, an agent run against those tasks, is next: it
-needs a model in the loop, which a library's tests can't hold.
+that refuses every new pet. ✓ A run with an agent writing
+(`AgentLoopTests`, Ledger): three attempts from the training tasks alone, one kept (held out 61.9% to 85.7%), one
+rejected because an operation fell, one rejected because only training rose (LAYERS.md has the log). The writer was
+the coding agent working on this prototype; running one unattended needs a model API in CI, which this repository
+doesn't configure.
 
 ## 4. Only Petstore has been through it
 

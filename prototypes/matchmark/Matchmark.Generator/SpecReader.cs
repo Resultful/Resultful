@@ -23,6 +23,12 @@ namespace Matchmark.Generator
             ReadResult read;
             try
             {
+                if (AsyncApi.IsAsyncApi(text))
+                {
+                    text = AsyncApi.ToOpenApi(text, path);
+                    path = Path.ChangeExtension(path, ".json");
+                }
+
                 if (overlays?.ToList() is { Count: > 0 } applied)
                 {
                     text = Overlay.Apply(text, path, applied);

@@ -168,6 +168,14 @@ public sealed class RegressionSuite
                     gaps.Add($"step {id} runs the workflow {nested}, which isn't in any Arazzo document given");
                 }
             }
+            else if (step["action"] is not null || step["channelPath"] is not null)
+            {
+                // An Arazzo 1.1 message step: its operation is in an AsyncAPI document, found when it runs (RegressionOptions.Events).
+                if (step["operationId"] is null)
+                {
+                    gaps.Add($"step {id} names its channel by channelPath; name its AsyncAPI operation by operationId");
+                }
+            }
             else if (step["operationPath"] is { } operationPath && ArazzoOperation(step, workflow.Document) is null)
             {
                 gaps.Add($"step {id} names {operationPath}, which isn't an operation in the spec");

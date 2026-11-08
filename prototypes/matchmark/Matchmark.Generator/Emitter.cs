@@ -1124,6 +1124,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         checks.Add($"if ({format.Condition}) errors.Add({jsonPath}, {Naming.Literal(format.Message)});");
                     }
 
+                    // An enum written inline on a string property stays a string: its values are checked here.
+                    if (type.TrimEnd('?') == "string" && !IsEnumRef(prop) && prop.Enum is { Count: > 0 } values
+                        && values.Select(v => v is System.Text.Json.Nodes.JsonValue jv && jv.TryGetValue<string>(out var text) ? text : null).ToList() is var texts && texts.All(t => t is not null))
+                    {
+                        checks.Add($"if (!({local} is {string.Join(" or ", texts.Select(t => Naming.Literal(t!)))})) errors.Add({jsonPath}, {Naming.Literal("Must be one of " + string.Join(", ", texts) + ".")});");
+                    }
+
                     if (prop.Minimum is { } minimum)
                     {
                         checks.Add($"if ({local} < {Number(minimum)}) errors.Add({jsonPath}, \"Must be at least {Number(minimum)}.\");");
