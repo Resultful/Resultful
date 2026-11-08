@@ -13,5 +13,7 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <!-- Sentence-style test names; NUnit disposes fixtures' fields in TearDown. -->
     <NoWarn>$(NoWarn);CA1707;CA1001;CA2007;CA2234;CA1859;CA1861</NoWarn>
+    <!-- Tests find their samples from their own source path ([CallerFilePath]), which a CI build maps to /_/. -->
+    <ContinuousIntegrationBuild>false</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>
