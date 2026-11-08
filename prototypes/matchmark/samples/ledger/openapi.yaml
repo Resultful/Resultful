@@ -1,0 +1,136 @@
+openapi: 3.1.0
+info:
+  title: Ledger
+  version: 1.0.0
+  description: >
+    Accounts and the transfers between them: money as decimal strings, never floats; an Idempotency-Key on every
+    transfer, so a retry never pays twice; settlement as a 202 and an operation to poll. Its overlay says what the
+    schema can't: a balance never goes negative, and a transfer moves money without making any.
+paths:
+  /accounts:
+    post:
+      operationId: openAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewAccount' }
+            example: { owner: Ada, opening: '100.00' }
+      responses:
+        '201':
+          description: Opened
+          content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } }
+          links:
+            GetAccount: { operationId: getAccount, parameters: { accountId: $response.body#/id } }
+        '400': { $ref: '#/components/responses/Invalid' }
+  /accounts/{accountId}:
+    get:
+      operationId: getAccount
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200':
+          description: The account
+          content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /transfers:
+    post:
+      operationId: transfer
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewTransfer' }
+            example: { from: 1, to: 2, amount: '25.00' }
+      responses:
+        '202':
+          description: Accepted; it settles later
+          headers:
+            Location: { required: true, schema: { type: string } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } }
+          links:
+            GetTransfer: { operationId: getTransfer, parameters: { transferId: $response.body#/id } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '409':
+          description: The source can't cover it
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+        '422':
+          description: That key was used with another transfer
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+  /transfers/{transferId}:
+    get:
+      operationId: getTransfer
+      parameters:
+        - { name: transferId, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200':
+          description: The transfer
+          content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } }
+        '400': { $ref: '#/components/responses/Invalid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  responses:
+    Invalid:
+      description: The request is invalid
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' } } }
+    NotFound:
+      description: No such thing
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+  schemas:
+    Money:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,11})\.[0-9]{2}$'
+      example: '25.00'
+    NewAccount:
+      type: object
+      required: [owner, opening]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 80 }
+        opening: { $ref: '#/components/schemas/Money' }
+    Account:
+      type: object
+      required: [id, owner, balance]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        owner: { type: string }
+        balance: { $ref: '#/components/schemas/Money' }
+    NewTransfer:
+      type: object
+      required: [from, to, amount]
+      additionalProperties: false
+      properties:
+        from: { type: integer, format: int64, minimum: 1 }
+        to: { type: integer, format: int64, minimum: 1 }
+        amount: { $ref: '#/components/schemas/Money' }
+    Transfer:
+      type: object
+      required: [id, from, to, amount, status]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        from: { type: integer, format: int64 }
+        to: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [pending, settled] }
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+        errors:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }

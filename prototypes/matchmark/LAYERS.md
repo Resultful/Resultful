@@ -130,6 +130,12 @@ Running the generator and the engine over specs other than the Pet Store found t
   the last response's headers (`LastHeaders`), to send an ETag back as If-Match. Its suite also caught the sample's own
   handler bumping a version on a PUT that changed nothing, which RFC 9110's idempotent PUT doesn't allow.
 
+- **Ledger found two in the engine.** When every sampled request broke a declared rule (a transfer from an account to
+  itself), no valid case was left to start the links workflow from, and building the suite threw; it's a gap now, and
+  an example is the fix it names. And after a 202 the engine compared what it read back with what was written, though
+  accepted work changes the resource as it finishes (pending, then settled); it now reads after a 202 without
+  comparing, and the transition rule says how the resource may change.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
