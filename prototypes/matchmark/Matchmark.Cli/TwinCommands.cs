@@ -20,11 +20,17 @@ public static class TwinCommands
 
     public const string FidelityUsage = """
         usage: matchmark fidelity <spec> <real url | recording.json> <fake url> [--overlay <file>]... [--floor <percent>] [--record <file>]
+                                  [--tasks <file>] [--gate <file>] [--held-out <percent>]
 
           Runs the suite generated from the spec against the real API and against a fake (a twin, say), both from the
           same starting state, and reports the share of steps that answer the same, per operation. Exits 1 below --floor.
           --record saves the real API's answers; given in place of its URL, a recording is replayed, so a PR build needs
           neither the real API nor its credentials.
+          --tasks   writes each mismatch as a task (the step, both answers, where they differ) for whoever writes the
+                    fake's behaviour, as JSON
+          --gate    judges a change to the fake on the held-out part of the run (--held-out percent of its sequences,
+                    30 by default), which --tasks leaves out: exits 1 unless the held-out score rose and no operation
+                    fell since the scores kept in <file>, and keeps the new scores there when it passes
         """;
 
     public static async Task<int> TwinAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -59,9 +65,10 @@ public static class TwinCommands
         var suite = RegressionSuite.FromJson(await Spec(args, cancellationToken));
         using var fakeClient = new HttpClient { BaseAddress = fake };
         FidelityReport fidelity;
+        FidelityRecording expected;
+        RegressionReport run;
         try
         {
-            FidelityRecording expected;
             if (recorded)
             {
                 expected = FidelityRecording.FromJson(await File.ReadAllTextAsync(args[1], cancellationToken));
@@ -76,7 +83,8 @@ public static class TwinCommands
                 }
             }
 
-            fidelity = (await suite.RunAsync(fakeClient, cancellationToken: cancellationToken)).Fidelity(expected);
+            run = await suite.RunAsync(fakeClient, cancellationToken: cancellationToken);
+            fidelity = run.Fidelity(expected);
         }
         catch (HttpRequestException e)
         {
@@ -84,7 +92,39 @@ public static class TwinCommands
             return 2;
         }
 
+        FidelityReport? heldOut = null;
+        if (Option(args, "--gate") is not null)
+        {
+            var share = Option(args, "--held-out") is { } held && int.TryParse(held, NumberStyles.None, CultureInfo.InvariantCulture, out var p) && p <= 100 ? p : 30;
+            var (training, judged) = FidelityLoop.Split(expected, share);
+            fidelity = run.Fidelity(training);
+            heldOut = run.Fidelity(judged);
+        }
+
         await output.WriteLineAsync(fidelity.ToString());
+        if (Option(args, "--tasks") is { } tasks)
+        {
+            await File.WriteAllTextAsync(tasks, System.Text.Json.JsonSerializer.Serialize(fidelity.Tasks, Json), cancellationToken);
+        }
+
+        if (heldOut is not null && Option(args, "--gate") is { } gate)
+        {
+            // Only the held-out scores are shown and kept: its mismatches would make it training.
+            await output.WriteLineAsync($"Held out: {heldOut.Matched}/{heldOut.Steps} steps match ({heldOut.Score * 100:0.#}%).");
+            if (File.Exists(gate))
+            {
+                var kept = System.Text.Json.JsonSerializer.Deserialize<List<OperationFidelity>>(await File.ReadAllTextAsync(gate, cancellationToken), Json) ?? [];
+                var verdict = FidelityLoop.Judge(new FidelityReport(kept, []), heldOut);
+                await output.WriteLineAsync(verdict.ToString());
+                if (!verdict.Keep)
+                {
+                    return 1;
+                }
+            }
+
+            await File.WriteAllTextAsync(gate, System.Text.Json.JsonSerializer.Serialize(heldOut.Operations, Json), cancellationToken);
+        }
+
         var floor = Option(args, "--floor") is { } text && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent) ? percent / 100 : 0;
         return fidelity.Score < floor ? 1 : 0;
     }
@@ -102,6 +142,8 @@ public static class TwinCommands
 
         return SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out _, overlays);
     }
+
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true };
 
     private static string? Option(string[] args, string name)
         => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;

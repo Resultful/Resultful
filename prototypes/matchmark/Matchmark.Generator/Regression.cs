@@ -20,6 +20,22 @@ namespace Matchmark.Generator
         /// <summary>An OpenAPI 3.2 document: written as 3.2, so that what 3.1 can't say (query operations, itemSchema) is kept.</summary>
         private static readonly System.Text.RegularExpressions.Regex ThreeTwo = new(@"^\s*[""']?openapi[""']?\s*:\s*[""']?3\.2", System.Text.RegularExpressions.RegexOptions.Multiline);
 
+        /// <summary>An AsyncAPI document (YAML or JSON) as JSON, for the regression engine (AsyncApiDocument).</summary>
+        public static string AsyncApi(string text, string path)
+        {
+            var json = Yaml(text, path);
+            return json["asyncapi"] is null ? throw new InvalidOperationException($"{path} has no 'asyncapi' version, so it isn't an AsyncAPI document.") : json.ToJsonString();
+        }
+
+        private static System.Text.Json.Nodes.JsonNode Yaml(string text, string path)
+        {
+            var stream = new SharpYaml.Serialization.YamlStream();
+            stream.Load(new StringReader(text));
+            return stream.Documents.Count == 0
+                ? throw new InvalidOperationException($"{path} is empty.")
+                : Microsoft.OpenApi.YamlReader.YamlConverter.ToJsonNode(stream.Documents[0]);
+        }
+
         /// <summary>An Arazzo document (YAML or JSON) as JSON, for the regression engine.</summary>
         public static string Arazzo(string text, string path)
         {

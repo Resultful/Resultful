@@ -1,0 +1,68 @@
+asyncapi: 3.0.0
+info:
+  title: Notifications events
+  version: 1.0.0
+  description: >
+    The same notifications on a broker. The service publishes each notification (publishNotification), and consumes
+    requests to redeliver one (receiveRedelivery). The engine tests the consumer through an HTTP bridge and checks
+    what the producer sends.
+defaultContentType: application/json
+channels:
+  notifications:
+    address: notifications.{topic}
+    parameters:
+      topic:
+        enum: [orders, payments, flags]
+    messages:
+      notification: { $ref: '#/components/messages/Notification' }
+  redeliveries:
+    address: notifications.redeliver
+    messages:
+      redelivery: { $ref: '#/components/messages/Redelivery' }
+operations:
+  publishNotification:
+    action: send
+    channel: { $ref: '#/channels/notifications' }
+    messages:
+      - { $ref: '#/channels/notifications/messages/notification' }
+  receiveRedelivery:
+    action: receive
+    channel: { $ref: '#/channels/redeliveries' }
+    messages:
+      - { $ref: '#/channels/redeliveries/messages/redelivery' }
+components:
+  messages:
+    Notification:
+      name: notification
+      headers:
+        type: object
+        required: [x-correlation-id]
+        properties:
+          x-correlation-id: { type: string, format: uuid }
+      payload: { $ref: '#/components/schemas/Notification' }
+    Redelivery:
+      name: redelivery
+      headers:
+        type: object
+        required: [x-correlation-id]
+        properties:
+          x-correlation-id: { type: string, format: uuid }
+      payload: { $ref: '#/components/schemas/Redelivery' }
+  schemas:
+    Notification:
+      type: object
+      additionalProperties: false
+      required: [id, topic, sentAt]
+      properties:
+        id: { type: string, format: uuid }
+        topic: { type: string, enum: [orders, payments, flags] }
+        sentAt: { type: string, format: date-time }
+        summary: { type: string, maxLength: 200 }
+    Redelivery:
+      type: object
+      additionalProperties: false
+      required: [notificationId, attempts]
+      properties:
+        notificationId: { type: string, format: uuid }
+        attempts: { type: integer, minimum: 1, maximum: 5 }
+        reason: { type: string, minLength: 1, maxLength: 200 }

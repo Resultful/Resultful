@@ -70,8 +70,12 @@ of someone else's API, nobody on the team knows the behaviour well enough to wri
 *Status:* the seam and the loop exist. `FidelityReport.Mismatches` is the task list (each names the step, the twin's
 answer and the real one); `SpecTwin.On(operationId, behaviour)` is where owned behaviour goes, run after the request is
 checked; the per-operation scores are what a change must not lower. `TwinTests` writes the Pet Store's unique-name rule
-there: the score rises from 87% to 93% and every 409 mismatch goes. An agent doing the writing, against held-out
-sequences, is next.
+there: the score rises from 87% to 93% and every 409 mismatch goes. ✓ The loop around the writer: `FidelityLoop.Split`
+holds out a share of the sequences (whole workflows, by a stable hash), `FidelityReport.Tasks` gives the training
+mismatches as structured tasks, and `FidelityLoop.Judge` keeps a change only if the held-out score rises and no
+operation falls (`matchmark fidelity --tasks --gate`). `TwinTests` keeps the unique-name rule and rejects a change
+that refuses every new pet. The writer itself, an agent run against those tasks, is next: it
+needs a model in the loop, which a library's tests can't hold.
 
 ## 4. Only Petstore has been through it
 

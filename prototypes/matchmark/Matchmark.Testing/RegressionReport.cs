@@ -183,22 +183,32 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
             .Select(s => (s.Operation, s.Subject, Mine: mine.GetValueOrDefault(s.Subject)?.Exchange(), Theirs: s.Exchange())).ToList();
 
         var mismatches = new List<string>();
+        var tasks = new List<FidelityTask>();
         var operations = steps.GroupBy(s => s.Operation, StringComparer.Ordinal).Select(group =>
         {
             var matched = 0;
-            foreach (var (_, subject, here, other) in group)
+            foreach (var (operation, subject, here, other) in group)
             {
+                string? difference = null;
                 if (here is null)
                 {
                     mismatches.Add($"{subject}: not reached here; the real API answered {other.Status}");
+                    difference = "not reached";
                 }
                 else if (here.Status != other.Status)
                 {
                     mismatches.Add($"{subject}: {here.Status} here, {other.Status} from the real API");
+                    difference = "status";
                 }
                 else if (!JsonNode.DeepEquals(Normalized(here, ignored), Normalized(other, ignored)))
                 {
-                    mismatches.Add($"{subject}: the bodies differ at {FirstDifference(Normalized(here, ignored), Normalized(other, ignored), string.Empty)}");
+                    difference = FirstDifference(Normalized(here, ignored), Normalized(other, ignored), string.Empty);
+                    mismatches.Add($"{subject}: the bodies differ at {difference}");
+                }
+
+                if (difference is not null)
+                {
+                    tasks.Add(new FidelityTask(operation, subject, here?.Status, here?.Body, other.Status, other.Body, difference));
                 }
                 else
                 {
@@ -208,7 +218,7 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
 
             return new OperationFidelity(group.Key, group.Count(), matched);
         }).OrderBy(o => o.Operation, StringComparer.Ordinal).ToList();
-        return new FidelityReport(operations, mismatches);
+        return new FidelityReport(operations, mismatches) { Tasks = tasks };
     }
 
     /// <summary>A run's steps (each case, each workflow step) and their answers: a recording to replay a fidelity run against.</summary>
@@ -436,6 +446,9 @@ public sealed record OperationFidelity(string Operation, int Steps, int Matched)
 /// <summary>A fake's fidelity to the real API: per operation, overall, and each step that differed.</summary>
 public sealed record FidelityReport(IReadOnlyList<OperationFidelity> Operations, IReadOnlyList<string> Mismatches)
 {
+    /// <summary>The mismatches as tasks for whoever writes the twin's behaviour (<see cref="FidelityLoop"/>).</summary>
+    public IReadOnlyList<FidelityTask> Tasks { get; init; } = [];
+
     public int Steps => Operations.Sum(o => o.Steps);
 
     public int Matched => Operations.Sum(o => o.Matched);
