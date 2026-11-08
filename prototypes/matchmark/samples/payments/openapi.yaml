@@ -86,6 +86,27 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
+  /charges/{chargeId}/receipt:
+    get:
+      operationId: getReceipt
+      description: Where the charge's receipt is, as a redirect to it.
+      parameters:
+        - { name: chargeId, in: path, required: true, schema: { type: string, pattern: '^ch_[0-9]+$', maxLength: 30, example: ch_1 } }
+      responses:
+        '302':
+          description: The receipt is at the Location
+          headers:
+            Location: { required: true, schema: { type: string, format: uri } }
+        '400':
+          description: The id is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+        '404':
+          description: No such charge
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
 components:
   schemas:
     Currency:
