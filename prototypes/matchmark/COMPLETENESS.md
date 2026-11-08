@@ -85,7 +85,10 @@ reads them rather than inventing one.
 
 **Declared invariants go in all four places**, as in LAYERS.md. The server and client do it when the project
 references **Matchmark.Rules** (the CEL and IDL evaluators the engine uses too); without it the generator says the spec's
-invariants aren't enforced (`MM025`). `GeneratedRulesTests` builds the Bookings server both ways and runs the suite:
+invariants aren't enforced (`MM025`). The generated client runs the same checks before it sends (parameter bounds,
+dependencies, the body's schema and rules): a bad request never leaves, and is the spec's validation 400, built
+without a round trip, when the operation documents one. Arazzo workflows check transitions too, between readings of one
+resource (the same schema and `id`). `GeneratedRulesTests` builds the Bookings server both ways and runs the suite:
 with the runtime it passes, without it the suite finds each rule-breaking request accepted.
 
 | Where | What an invariant becomes |

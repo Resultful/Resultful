@@ -110,12 +110,32 @@ public sealed class ClientConformanceTests
         (await act.Should().ThrowAsync<ContractViolationException>()).Which.Should().BeSameAs(reported.Single());
     }
 
+    // ------------------------------------------------------------------ requests, checked before they leave
+
+    [Test]
+    public async Task A_request_that_breaks_the_spec_never_leaves_and_is_the_spec_s_400()
+    {
+        var canned = new Canned(HttpStatusCode.Created, "application/json", "{}");
+        var client = new PetStoreClient(new HttpClient(canned) { BaseAddress = new Uri("http://pets.test/") });
+
+        var result = await client.CreatePet(new NewPet { Name = new string('x', 51), Details = new Cat { LivesLeft = 12 } }, default);
+
+        canned.Requests.Should().Be(0);
+        result.ToOneOf().Value.Should().BeOfType<CreatePetError>().Which.Value.Should().BeOfType<CreatePetBadRequest>()
+            .Which.Body.Errors.Keys.Should().BeEquivalentTo("name", "details.livesLeft");
+    }
+
     private static PetStoreClient Client(HttpStatusCode status, string mediaType, string body, Action<ContractViolationException>? onViolation = null)
         => new(new HttpClient(new Canned(status, mediaType, body)) { BaseAddress = new Uri("http://pets.test/") }, onViolation);
 
     private sealed class Canned(HttpStatusCode status, string mediaType, string body) : HttpMessageHandler
     {
+        public int Requests { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) });
+        {
+            Requests++;
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) });
+        }
     }
 }

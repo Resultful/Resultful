@@ -1741,6 +1741,58 @@ public static (string Key, string Message) BindingError(string? key, string mess
             return w.ToString();
         }
 
+        /// <summary>
+        /// The request checked before it's sent, as the server would check it: parameter bounds, x-dependencies (with
+        /// Matchmark.Rules) and the body's schema and rules. A bad request never leaves: it is the spec's validation 400
+        /// when the operation documents one, built here without a round trip, and otherwise an ArgumentException.
+        /// </summary>
+        private void EmitClientChecks(CodeWriter w, Operation operation)
+        {
+            var bounds = ParameterChecks(operation).ToList();
+            var dependencies = operation.Dependencies.Count > 0 && _hasRules;
+            var body = operation.Body is { Validated: true };
+            if (bounds.Count == 0 && !dependencies && !body)
+            {
+                return;
+            }
+
+            w.Line("var __invalid = new Dictionary<string, string[]>();");
+            foreach (var check in bounds)
+            {
+                w.Line(check);
+            }
+
+            if (dependencies)
+            {
+                var given = operation.Parameters.Select(p => $"[{Naming.Literal(p.Name)}] = {ValidationClass}.Text({p.Identifier})");
+                w.Line($"foreach (var __error in {ValidationClass}.Broken{operation.Name}Dependencies(new Dictionary<string, string?> {{ {string.Join(", ", given)} }}) ?? new()) __invalid[__error.Key] = __error.Value;");
+            }
+
+            if (body)
+            {
+                w.Line($"foreach (var __error in {ValidationClass}.Validate(body) ?? new()) __invalid[__error.Key] = __error.Value;");
+            }
+
+            w.Open("if (__invalid.Count > 0)");
+            var validation = operation.Errors.FirstOrDefault(e => e.Status == 400 && e.BodyType == WellKnownSchemas[ValidationSchema]);
+            if (validation is null)
+            {
+                w.Line($"throw new ArgumentException({Naming.Literal(operation.Id + ": the request breaks the spec: ")} + string.Join(\"; \", __invalid.Select(e => $\"{{e.Key}}: {{string.Join(\" \", e.Value)}}\")));");
+            }
+            else
+            {
+                var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
+                var problem = $"new {validation.BodyType}(__invalid) {{ Title = \"One or more validation errors occurred.\", Status = 400 }}";
+                var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
+                w.Line(hasValue
+                    ? $"return global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error});"
+                    : $"return global::Resultful.Result.Fail<{operation.ErrorType}>({error});");
+            }
+
+            w.Close();
+            w.Line();
+        }
+
         private void EmitClientMethod(CodeWriter w, Operation operation)
         {
             var args = operation.Parameters.Select(p => $"{p.Type} {p.Identifier}").ToList();
@@ -1752,6 +1804,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             args.Add("CancellationToken cancellationToken");
             w.Line($"/// <summary><c>{operation.Method} {operation.Path}</c></summary>");
             w.Open($"public async {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args)})");
+            EmitClientChecks(w, operation);
 
             // The path, relative so a BaseAddress with a path prefix works: "/pets/{petId}" -> "pets/" + Segment(petId)
             var pieces = new List<string>();

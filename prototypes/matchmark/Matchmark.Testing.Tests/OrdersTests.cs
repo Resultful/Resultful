@@ -69,6 +69,15 @@ public sealed class OrdersTests
         report.Failures.Select(f => f.Check).Where(Behaviour.Contains).Distinct().Should().Contain(check, report.ToString());
     }
 
+    [Test]
+    public async Task The_Arazzo_checkout_checks_transitions_between_readings_of_one_order()
+    {
+        var report = await Run("ships an order it hasn't been paid for");
+
+        report.Failures.Where(f => f.Check == Checks.TransitionRule).Select(f => f.Subject)
+            .Should().Contain(s => s.StartsWith("Orders checkout: checkout, step ", StringComparison.Ordinal), report.ToString());
+    }
+
     private static async Task<RegressionReport> Run(string? fault)
     {
         using var client = new HttpClient(new OrdersApi(fault)) { BaseAddress = new Uri("http://orders/") };
