@@ -5,5 +5,7 @@
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>The runtime of Matchmark generated fakes: scenarios, expected calls and verification.</Description>
   </PropertyGroup>
 </Project>

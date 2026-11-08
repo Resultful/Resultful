@@ -1,0 +1,18 @@
+<Project>
+  <!--
+    The build metadata the generator reads, made visible to it, so that a project only marks its spec:
+      <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkParts="Contract,Server" />
+    Companions join a spec by MatchmarkApiName: MatchmarkArazzo="true" (workflows) and MatchmarkOverlay="true".
+    MatchmarkAudit="true" on a spec reports what it leaves out (MM024).
+  -->
+  <ItemGroup>
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkArazzo" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkOverlay" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkAudit" />
+    <CompilerVisibleProperty Include="RootNamespace" />
+  </ItemGroup>
+</Project>

@@ -4,8 +4,27 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
     <!-- Prototype: no analyzer release tracking for the MM diagnostics. -->
-    <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <NoWarn>$(NoWarn);RS2008;NU5128</NoWarn>
+
+    <!--
+      Packed as an analyzer: the generator and the spec reader it loads beside it go in analyzers/dotnet/cs, and
+      build/Matchmark.Generator.props declares the item metadata it reads, so a project only marks its spec.
+    -->
+    <IsPackable>true</IsPackable>
+    <PackageId>Matchmark.Generator</PackageId>
+    <Description>Generates an ASP.NET Core contract, server, client, fake and regression suite from an OpenAPI document.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(PKGMicrosoft_OpenApi)/lib/netstandard2.0/Microsoft.OpenApi.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(PKGMicrosoft_OpenApi_YamlReader)/lib/netstandard2.0/Microsoft.OpenApi.YamlReader.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(PKGSharpYaml)/lib/netstandard2.0/SharpYaml.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="build/Matchmark.Generator.props" Pack="true" PackagePath="build;buildTransitive" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />

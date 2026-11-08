@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- What the generator package declares: the build metadata the generator reads, made visible to it. -->
+  <Import Project="../Matchmark.Generator/build/Matchmark.Generator.props" />
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>PetStore</RootNamespace>
@@ -10,10 +12,6 @@
   <ItemGroup>
     <!-- The service implements the contract: it generates only the endpoints and the OpenAPI configuration. -->
     <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Server" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
   </ItemGroup>
 
   <ItemGroup>

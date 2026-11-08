@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- What the generator package declares: the build metadata the generator reads, made visible to it. -->
+  <Import Project="../Matchmark.Generator/build/Matchmark.Generator.props" />
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
@@ -14,13 +16,8 @@
   <ItemGroup>
     <!-- Regression: the suite generated from the spec (PetStoreRegression), rebuilt whenever the spec changes. -->
     <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Regression" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
     <!-- The spec's Arazzo workflows join the suite (PetStoreRegression.Workflows). -->
     <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.arazzo.yaml" MatchmarkArazzo="true" MatchmarkApiName="PetStore" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkArazzo" />
   </ItemGroup>
 
   <ItemGroup>

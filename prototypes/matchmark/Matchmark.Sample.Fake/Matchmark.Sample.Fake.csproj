@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- What the generator package declares: the build metadata the generator reads, made visible to it. -->
+  <Import Project="../Matchmark.Generator/build/Matchmark.Generator.props" />
   <!--
     A fake PetStore server with no hand-written behaviour: the generated endpoints over the generated PetStoreFake.
     It validates requests and describes itself exactly as the real service does, answers with the spec's examples, and
@@ -11,10 +13,6 @@
 
   <ItemGroup>
     <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Server,FakeServer" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
   </ItemGroup>
 
   <ItemGroup>
