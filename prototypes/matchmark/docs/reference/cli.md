@@ -15,7 +15,7 @@ or a target that can't be reached.
 | [`scaffold`](#scaffold) | Built | The server side as ASP.NET source you own. |
 | [`twin`](#twin) | Built | A stateful fake of the API from the spec alone. |
 | [`fidelity`](#fidelity) | Built | A fake scored against the real API, and the gate for changes to it. |
-| [`upgrade`](#upgrade) | Planned | The spec, forward-ported to the latest version of its format. |
+| [`upgrade`](#upgrade) | Built | The spec, forward-ported to the latest version of its format, or written down to OpenAPI 3.1. |
 | [`host`](#host) | Planned | The session host: a copy of the API per test session. |
 
 ## audit
@@ -128,15 +128,28 @@ rejects the change.
 
 ## upgrade
 
-*Planned (roadmap step 3; decisions Q23, Q25).*
-
 ```
 matchmark upgrade <spec> [--output <file>] [--to <version>]
 ```
 
-Writes the spec forward-ported to the latest version of its format (or `--to` an earlier one Matchmark can write), and
-lists every change the upgrade made and anything it couldn't carry across. Exits `1` when something was lost. Without
-`--output`, writes to standard output.
+Writes the spec forward-ported to the latest version of its format (decisions Q22 to Q25), and lists every change the
+upgrade made and anything the target version has no place for. Exits `1` when something was lost.
+
+| Format | Written as | How |
+|:--|:--|:--|
+| OpenAPI 2.0 to 3.2 | 3.2, or 3.1 with `--to 3.1` | Read and written by Microsoft.OpenApi. Written down to 3.1, a `QUERY` operation goes into `x-oai-additionalOperations`, as ASP.NET Core writes it. |
+| AsyncAPI 2.x, 3.0 | 3.1 | 2.x by Matchmark's port of the official guide, *Migrating to v3* (`AsyncApiUpgrade`); 3.0 moves up unchanged. |
+| Arazzo 1.0 | 1.1 | JSONPath criteria are named as the Goessner draft 1.0 meant, since 1.1 reads RFC 9535 by default. |
+| Overlay 1.0, 1.1 | 1.2 | The version moves up; nothing else changes. |
+
+| Option | Meaning |
+|:--|:--|
+| `--output <file>` | The file to write: `.json` for JSON, anything else YAML. Without it, YAML goes to standard output with the changes as `#` comments at the top. |
+| `--to <version>` | The version to write: `3.2` or `3.1` for OpenAPI; only the latest for the other formats. |
+
+What a 2.x AsyncAPI upgrade reports as **lost**: a channel parameter's schema keywords other than `enum`, `default` and
+`examples` (3.0 parameters are strings); scopes a server or operation required, which move onto the security scheme and
+so apply to everything that uses it; a channel given by `$ref`, which isn't converted.
 
 ## host
 

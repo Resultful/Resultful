@@ -62,7 +62,7 @@ public sealed class SupportMatrixTests
         var path = Path.Combine(Versions, $"openapi-{version}.yaml");
         if (!Probe(() => SpecJson.Normalize(File.ReadAllText(path), path), out var json, out var read))
         {
-            return ("OpenAPI", version, read, "", "", "", Planned);
+            return ("OpenAPI", version, read, "", "", "", Write(path));
         }
 
         var suite = RegressionSuite.FromJson(json!);
@@ -70,7 +70,7 @@ public sealed class SupportMatrixTests
         using var client = new HttpClient(new SpecTwin(json!)) { BaseAddress = new Uri("http://twin/") };
         var report = await suite.RunAsync(client, new RegressionOptions { MaxRetryWait = TimeSpan.Zero });
         var host = report.Failures.Count == 0 ? "✓" : $"✗ {report.Failures.Count} failures";
-        return ("OpenAPI", version, read, verify, host, Generate(path, []), Planned);
+        return ("OpenAPI", version, read, verify, host, Generate(path, []), Write(path));
     }
 
     /// <summary>Read: the document is read. Verify: a consumer suite is generated. Generate: typed messages compile.</summary>
@@ -79,12 +79,12 @@ public sealed class SupportMatrixTests
         var path = Path.Combine(Versions, $"asyncapi-{version}.yaml");
         if (!Probe(() => AsyncApiDocument.Parse(SpecJson.AsyncApi(File.ReadAllText(path), path)), out var document, out var read))
         {
-            return ("AsyncAPI", version, read, "", Planned, "", Planned);
+            return ("AsyncAPI", version, read, "", Planned, "", Write(path));
         }
 
         var suite = document!.ConsumerSuite();
         var verify = suite is { Cases.Count: > 0 } ? $"✓ {suite.Cases.Count} cases" : "✗ no consumer suite";
-        return ("AsyncAPI", version, read, verify, Planned, Generate(path, []), Planned);
+        return ("AsyncAPI", version, read, verify, Planned, Generate(path, []), Write(path));
     }
 
     /// <summary>Read: the document is read. Verify: its workflow runs, with no gaps, and passes against a twin.</summary>
@@ -94,20 +94,20 @@ public sealed class SupportMatrixTests
         var spec = Path.Combine(Versions, "openapi-3.1.yaml");
         if (!Probe(() => SpecJson.Arazzo(File.ReadAllText(path), path), out var arazzo, out var read))
         {
-            return ("Arazzo", version, read, "", NotApplicable, NotApplicable, Planned);
+            return ("Arazzo", version, read, "", NotApplicable, NotApplicable, Write(path));
         }
 
         var json = SpecJson.Normalize(File.ReadAllText(spec), spec);
         var suite = RegressionSuite.FromJson(json, arazzo!);
         if (suite.Gaps.Count > 0)
         {
-            return ("Arazzo", version, read, $"✗ {suite.Gaps[0]}", NotApplicable, NotApplicable, Planned);
+            return ("Arazzo", version, read, $"✗ {suite.Gaps[0]}", NotApplicable, NotApplicable, Write(path));
         }
 
         using var client = new HttpClient(new SpecTwin(json)) { BaseAddress = new Uri("http://twin/") };
         var report = await suite.RunAsync(client, new RegressionOptions { Include = _ => false, MaxRetryWait = TimeSpan.Zero });
         var verify = report.Workflows.Count > 0 && report.Failures.Count == 0 ? $"✓ {report.Workflows.Count} workflow" : $"✗ {report.Failures.Count} failures";
-        return ("Arazzo", version, read, verify, NotApplicable, NotApplicable, Planned);
+        return ("Arazzo", version, read, verify, NotApplicable, NotApplicable, Write(path));
     }
 
     /// <summary>Read: the overlay applies. Verify: what it adds reaches the suite. Generate: the overlaid spec compiles.</summary>
@@ -117,11 +117,25 @@ public sealed class SupportMatrixTests
         var spec = Path.Combine(Versions, "openapi-3.1.yaml");
         if (!Probe(() => SpecJson.Normalize(File.ReadAllText(spec), spec, out _, [(File.ReadAllText(path), path)]), out var json, out var read))
         {
-            return ("Overlay", version, read, "", NotApplicable, "", Planned);
+            return ("Overlay", version, read, "", NotApplicable, "", Write(path));
         }
 
         var verify = RegressionSuite.FromJson(json!).Spec.Operation("createPet").Json["x-matchmark-ensures"] is not null ? "✓" : "✗ not applied";
-        return ("Overlay", version, read, verify, NotApplicable, Generate(spec, [path]), Planned);
+        return ("Overlay", version, read, verify, NotApplicable, Generate(spec, [path]), Write(path));
+    }
+
+    /// <summary>Write: <c>matchmark upgrade</c> writes it at the latest version of its format, with nothing lost.</summary>
+    private static string Write(string path)
+    {
+        try
+        {
+            var result = SpecUpgrade.Upgrade(File.ReadAllText(path), path);
+            return result.Losses.Count == 0 ? $"✓ to {result.To}" : $"✗ {result.Losses.Count} lost";
+        }
+        catch (InvalidOperationException)
+        {
+            return "✗ not upgraded";
+        }
     }
 
     private static string Generate(string spec, string[] overlays)
@@ -169,7 +183,7 @@ public sealed class SupportMatrixTests
             | Verify | OpenAPI: a regression suite is generated. AsyncAPI: a consumer suite is generated. Arazzo: its workflow runs with no gaps and passes against a twin. Overlay: what it adds reaches the suite. |
             | Host | The suite passes against a twin of the API (OpenAPI). Event channels per session are planned. |
             | Generate | The generated code compiles with nothing skipped (`MM001` to `MM003`). |
-            | Write | The document is written in another version: `matchmark upgrade`, planned. |
+            | Write | `matchmark upgrade` writes it at the latest version of its format, with nothing lost. |
 
             `✓` passes, `✗` fails with the reason, `planned` isn't built yet, `n/a` doesn't apply to the format.
 

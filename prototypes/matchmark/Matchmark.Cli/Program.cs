@@ -31,6 +31,10 @@ const string Usage = """
 
       Lists what changed and whom it breaks; exits 1 on a breaking change the major version didn't announce.
 
+    matchmark upgrade <spec> [--output <file>] [--to <version>]
+
+      Writes the spec forward-ported to the latest version of its format, listing what changed and what was lost.
+
     matchmark twin <spec> [--overlay <file>]... [--urls <url>]
 
       Serves a twin: a stateful fake of the API from the spec alone, for a frontend to work against.
@@ -52,6 +56,11 @@ if (args.Length > 0 && args[0] == "regress")
 if (args.Length > 0 && args[0] == "audit")
 {
     return await AuditCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "upgrade")
+{
+    return await UpgradeCommand.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length > 0 && args[0] == "diff")

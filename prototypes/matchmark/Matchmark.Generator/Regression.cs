@@ -23,8 +23,10 @@ namespace Matchmark.Generator
         /// <summary>An AsyncAPI document (YAML or JSON) as JSON, for the regression engine (AsyncApiDocument).</summary>
         public static string AsyncApi(string text, string path)
         {
-            var json = Yaml(text, path);
-            return json["asyncapi"] is null ? throw new InvalidOperationException($"{path} has no 'asyncapi' version, so it isn't an AsyncAPI document.") : json.ToJsonString();
+            var json = Yaml(text, path) as System.Text.Json.Nodes.JsonObject;
+            return json?["asyncapi"] is null
+                ? throw new InvalidOperationException($"{path} has no 'asyncapi' version, so it isn't an AsyncAPI document.")
+                : AsyncApiUpgrade.Upgrade(json).Document.ToJsonString();
         }
 
         private static System.Text.Json.Nodes.JsonNode Yaml(string text, string path)

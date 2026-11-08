@@ -54,3 +54,10 @@ with System.Text.Json and needs no other dependency today. Adopting Microsoft.Op
 (Q28 to Q31) is about reading; the engine could keep JSON and receive normalised documents from them.
 *Assumption:* libraries read and forward-port; the engine keeps working on the normalised JSON they write, so
 `Matchmark.Testing` stays dependency-light until the model (step 2) replaces both.
+
+**11. Should AsyncAPI 2.x be converted by the official JavaScript converter instead of Matchmark's port?** The chosen
+AsyncAPI SDK (Q30) reads v2 and v3 but doesn't convert, and the official converter is `@asyncapi/converter`, a
+JavaScript package. Q25 allows an official migration guide as the basis, and Matchmark has ported the guide section by
+section (`AsyncApiUpgrade`), keeping the tool .NET-only (Q3). The cost is keeping the port in step with the guide.
+*Assumption:* keep the C# port; propose it to `asyncapi/net-sdk` as a contribution through its Oxbow fork, so it lives
+in the standard library (Q33).
