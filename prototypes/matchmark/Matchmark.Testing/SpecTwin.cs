@@ -24,6 +24,7 @@ public sealed class SpecTwin : HttpMessageHandler
     private readonly Dictionary<string, Collection> _collections = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string Body, Reply Answer)> _keys = new(StringComparer.Ordinal);
     private readonly object _gate = new();
+    private readonly Dictionary<string, List<Func<TwinCall, TwinAnswer?>>> _behaviours = new(StringComparer.Ordinal);
     private long _ids;
 
     public SpecTwin(string specJson)
@@ -42,6 +43,25 @@ public sealed class SpecTwin : HttpMessageHandler
             {
                 return _collections.ToDictionary(c => c.Key, c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => (JsonObject)i.Resource.DeepClone()).ToList());
             }
+        }
+    }
+
+    /// <summary>
+    /// Behaviour the spec doesn't state, for one operation (GAPS.md, gap 3): run after the request is checked, before
+    /// what the twin infers. An answer replaces the inferred one; null lets it through. Owned code, measured by the
+    /// fidelity score: a behaviour is right when the steps it touches match the real API.
+    /// </summary>
+    public SpecTwin On(string operationId, Func<TwinCall, TwinAnswer?> behaviour)
+    {
+        lock (_gate)
+        {
+            if (!_behaviours.TryGetValue(operationId, out var list))
+            {
+                _behaviours[operationId] = list = [];
+            }
+
+            list.Add(behaviour);
+            return this;
         }
     }
 
@@ -190,6 +210,17 @@ public sealed class SpecTwin : HttpMessageHandler
         if (key is not null && _keys.TryGetValue(key, out var seen))
         {
             return seen.Body == (body ?? string.Empty) ? seen.Answer : Problem(422, "That key was used with another body", operation);
+        }
+
+        foreach (var behaviour in _behaviours.GetValueOrDefault(operation.Id) ?? [])
+        {
+            var call = new TwinCall(operation.Id, values, query, json, _collections.ToDictionary(c => c.Key,
+                c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => i.Resource).ToList(), StringComparer.Ordinal));
+            if (behaviour(call) is { } owned)
+            {
+                return new Reply(owned.Status, owned.ContentType ?? operation.Response(owned.Status)?.Content.Keys.FirstOrDefault() ?? "application/json",
+                    owned.Body?.ToJsonString(), []);
+            }
         }
 
         var answer = Behave(operation, values, query, headers, json);
@@ -492,3 +523,14 @@ public sealed class SpecTwin : HttpMessageHandler
             .Select(p => new KeyValuePair<string, string>(Uri.UnescapeDataString(p[0].Replace('+', ' ')), p.Length > 1 ? Uri.UnescapeDataString(p[1].Replace('+', ' ')) : string.Empty))
             .ToList();
 }
+
+/// <summary>A request the twin received, for a behaviour of its own: the path values, query, body and what it holds.</summary>
+public sealed record TwinCall(
+    string OperationId,
+    IReadOnlyDictionary<string, string> Path,
+    IReadOnlyList<KeyValuePair<string, string>> Query,
+    JsonNode? Body,
+    IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> Resources);
+
+/// <summary>A behaviour's answer: the status, and a body (the media type is the spec's for that status unless given).</summary>
+public sealed record TwinAnswer(int Status, JsonNode? Body = null, string? ContentType = null);

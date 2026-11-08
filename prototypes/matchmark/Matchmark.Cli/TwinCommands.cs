@@ -19,10 +19,12 @@ public static class TwinCommands
         """;
 
     public const string FidelityUsage = """
-        usage: matchmark fidelity <spec> <real url> <fake url> [--overlay <file>]... [--floor <percent>]
+        usage: matchmark fidelity <spec> <real url | recording.json> <fake url> [--overlay <file>]... [--floor <percent>] [--record <file>]
 
           Runs the suite generated from the spec against the real API and against a fake (a twin, say), both from the
           same starting state, and reports the share of steps that answer the same, per operation. Exits 1 below --floor.
+          --record saves the real API's answers; given in place of its URL, a recording is replayed, so a PR build needs
+          neither the real API nor its credentials.
         """;
 
     public static async Task<int> TwinAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -46,19 +48,34 @@ public static class TwinCommands
 
     public static async Task<int> FidelityAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
     {
-        if (args.Length < 3 || !Uri.TryCreate(Slash(args[1]), UriKind.Absolute, out var real) || !Uri.TryCreate(Slash(args[2]), UriKind.Absolute, out var fake))
+        var recorded = args.Length >= 3 && File.Exists(args[1]);
+        Uri? real = null;
+        if (args.Length < 3 || !recorded && !Uri.TryCreate(Slash(args[1]), UriKind.Absolute, out real) || !Uri.TryCreate(Slash(args[2]), UriKind.Absolute, out var fake))
         {
             await output.WriteLineAsync(FidelityUsage);
             return 2;
         }
 
         var suite = RegressionSuite.FromJson(await Spec(args, cancellationToken));
-        using var realClient = new HttpClient { BaseAddress = real };
         using var fakeClient = new HttpClient { BaseAddress = fake };
         FidelityReport fidelity;
         try
         {
-            var expected = await suite.RunAsync(realClient, cancellationToken: cancellationToken);
+            FidelityRecording expected;
+            if (recorded)
+            {
+                expected = FidelityRecording.FromJson(await File.ReadAllTextAsync(args[1], cancellationToken));
+            }
+            else
+            {
+                using var realClient = new HttpClient { BaseAddress = real };
+                expected = RegressionReport.Record(await suite.RunAsync(realClient, cancellationToken: cancellationToken));
+                if (Option(args, "--record") is { } recording)
+                {
+                    await File.WriteAllTextAsync(recording, expected.ToJson(), cancellationToken);
+                }
+            }
+
             fidelity = (await suite.RunAsync(fakeClient, cancellationToken: cancellationToken)).Fidelity(expected);
         }
         catch (HttpRequestException e)

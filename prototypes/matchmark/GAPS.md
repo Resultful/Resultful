@@ -50,9 +50,11 @@ pointed at someone else's API.
 
 *Status:* the score, done: `RegressionReport.Fidelity(real)` (and `matchmark fidelity <spec> <real> <fake> --floor`)
 pairs the suite's steps, case by case and workflow step by step, and counts those whose status and body match, a
-problem compared by which values it names rather than its wording, volatile values left out. The Pet Store twin, seeded
-with the service's data, scores 89%; its mismatches are the unique-name rule, two problems worded differently, and a
-list after the two have diverged. Recording real responses for PR builds is next.
+problem compared by which values it names rather than its wording, volatile values left out. The real API's steps are
+the denominator, so a step the fake never reaches is a mismatch. The Pet Store twin, seeded with the service's data,
+scores 87%; its mismatches are the unique-name rule, two problems worded differently, and a list after the two have
+diverged. PR builds replay a recording (`RegressionReport.Record`, `matchmark fidelity --record`, then the recording in
+place of the real URL), which scores the same as the live run.
 
 ## 3. Behaviour beyond CRUD has no author
 
@@ -65,9 +67,11 @@ of someone else's API, nobody on the team knows the behaviour well enough to wri
 - A change is kept only if the score rises on a held-out set of sequences the agent never saw, and no operation's
   score falls. The agent never edits generated code, the comparison rules or the floor.
 
-*Status:* the inputs exist: `FidelityReport.Mismatches` is the task list (each mismatch names the step, the twin's
-answer and the real one), and the per-operation scores are what a change must not lower. Where an agent writes the
-behaviour (owned code beside the twin) is next.
+*Status:* the seam and the loop exist. `FidelityReport.Mismatches` is the task list (each names the step, the twin's
+answer and the real one); `SpecTwin.On(operationId, behaviour)` is where owned behaviour goes, run after the request is
+checked; the per-operation scores are what a change must not lower. `TwinTests` writes the Pet Store's unique-name rule
+there: the score rises from 87% to 93% and every 409 mismatch goes. An agent doing the writing, against held-out
+sequences, is next.
 
 ## 4. Only Petstore has been through it
 
