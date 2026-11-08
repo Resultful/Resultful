@@ -33,11 +33,13 @@ Large public specs (GitHub, Stripe) are fetched, not committed (`samples/large/f
 `LargeSpecTests` when `MATCHMARK_LARGE_SPECS` names where they were fetched to. Their ledger (November 2026):
 
 ```
-github: 1272 operations, 1209 generated (95%), 0 compile errors
-stripe: 612 operations, 578 generated (94.4%), 0 compile errors
+github: 1272 operations, 1244 generated (97.8%), 0 compile errors
+stripe: 612 operations, 592 generated (96.7%), 0 compile errors
 ```
 
 The first run found that the generator failed outright on GitHub's spec, and that what it wrote didn't compile; both
 are fixed (LAYERS.md). Stripe was at 0%: it sends every request body as `application/x-www-form-urlencoded`, and
-documents its errors only as a `default` response. Both are generated now (the Payments sample). What's left of Stripe
-is its list filters, deep-object query parameters.
+documents its errors only as a `default` response. Both are generated now (the Payments sample). Component schemas
+that are any JSON value (an object with no properties, an anyOf nothing tells apart) were skipped, and with them
+everything that referred to them; they're `JsonElement` now. What's left of Stripe is mostly its list filters,
+deep-object query parameters; of GitHub, operations whose only answers are redirects.
