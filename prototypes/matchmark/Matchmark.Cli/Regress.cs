@@ -69,16 +69,25 @@ public static class Regress
         }
 
         using var client = new HttpClient { BaseAddress = baseAddress };
-        static int Number(string[] args, string name, int fallback)
-            => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : fallback;
-
-        var options = new RegressionOptions { Workflows = !args.Contains("--no-workflows"), Random = Number(args, "--random", 0), Seed = Number(args, "--seed", 1) };
-        var report = await suite.RunAsync(client, options, cancellationToken);
-
         await output.WriteLineAsync($"{suite} against {baseAddress}");
         foreach (var gap in suite.Gaps)
         {
             await output.WriteLineAsync($"gap: {gap}");
+        }
+
+        static int Number(string[] args, string name, int fallback)
+            => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : fallback;
+
+        var options = new RegressionOptions { Workflows = !args.Contains("--no-workflows"), Random = Number(args, "--random", 0), Seed = Number(args, "--seed", 1) };
+        RegressionReport report;
+        try
+        {
+            report = await suite.RunAsync(client, options, cancellationToken);
+        }
+        catch (HttpRequestException e)
+        {
+            await output.WriteLineAsync($"error: {baseAddress} can't be reached: {e.Message}");
+            return 2;
         }
 
         await output.WriteLineAsync(report.ToString());

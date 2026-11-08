@@ -103,7 +103,9 @@ public sealed class OpenApiSpec
         }
 
         var body = Resolve(node);
-        var (mediaType, content) = (body["content"]?.AsObject() ?? []).FirstOrDefault(c => IsJson(c.Key));
+        // JSON, else a form (sent as form fields, nested values in brackets).
+        var (mediaType, content) = (body["content"]?.AsObject() ?? []).OrderBy(c => IsJson(c.Key) ? 0 : 1)
+            .FirstOrDefault(c => IsJson(c.Key) || Forms.IsForm(c.Key) && c.Value?["schema"] is JsonObject s && (Resolve(s)["properties"] is JsonObject { Count: > 0 } || s["$ref"] is not null));
         return content is null
             ? null
             : new SpecBody(body["required"]?.GetValue<bool>() == true, mediaType, content["schema"] ?? new JsonObject(),

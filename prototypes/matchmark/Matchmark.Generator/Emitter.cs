@@ -24,6 +24,8 @@ namespace Matchmark.Generator
 
         private const string ValidationSchema = "HttpValidationProblemDetails";
 
+        private const string FormMedia = "application/x-www-form-urlencoded";
+
         /// <summary>The framework types the schemas map onto: none when the contract owns its problem types.</summary>
         private Dictionary<string, string> Mapped => _ownProblems ? NoMapping : WellKnownSchemas;
 
@@ -716,6 +718,143 @@ namespace Matchmark.Generator
         /// The translation of a binding failure (ASP.NET Core's key and message) into the spec's terms, shared by the
         /// generated endpoints and the scaffolded controllers. Found necessary by the regression suite generated from the spec.
         /// </summary>
+        /// <summary>Forms (application/x-www-form-urlencoded), read into and written from the generated types, nested values in brackets.</summary>
+        private const string FormMethods = @"/// <summary>
+/// A form (application/x-www-form-urlencoded) as the type: nested values in brackets, as Stripe sends them (card[number],
+/// expand[], items[0][price]); numbers and true or false read from their text. Throws JsonException, at the value's
+/// path, for a form that doesn't fit the schema.
+/// </summary>
+public static T ReadForm<T>(IEnumerable<KeyValuePair<string, string>> fields)
+{
+    var root = new global::System.Text.Json.Nodes.JsonObject();
+    foreach (var field in fields)
+    {
+        var keys = FormKeys(field.Key);
+        var node = root;
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var key = keys[i].Length == 0 ? node.Count.ToString(global::System.Globalization.CultureInfo.InvariantCulture) : keys[i];
+            if (i == keys.Count - 1)
+            {
+                node[key] = field.Value;
+            }
+            else
+            {
+                if (node[key] is not global::System.Text.Json.Nodes.JsonObject next)
+                {
+                    next = new global::System.Text.Json.Nodes.JsonObject();
+                    node[key] = next;
+                }
+
+                node = next;
+            }
+        }
+    }
+
+    return global::System.Text.Json.JsonSerializer.Deserialize<T>(FormArrays(root), FormRead)
+        ?? throw new global::System.Text.Json.JsonException(""The form is empty."");
+}
+
+/// <summary>The type as form fields, nested values in brackets; absent values left out.</summary>
+public static IEnumerable<KeyValuePair<string, string>> FormFields<T>(T value)
+    => FormFlatten(global::System.Text.Json.JsonSerializer.SerializeToNode(value, FormWrite), null);
+
+private static readonly global::System.Text.Json.JsonSerializerOptions FormRead = new(global::System.Text.Json.JsonSerializerDefaults.Web) { Converters = { new FormBoolean() } };
+
+private static readonly global::System.Text.Json.JsonSerializerOptions FormWrite = new(global::System.Text.Json.JsonSerializerDefaults.Web)
+{
+    DefaultIgnoreCondition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+};
+
+private static List<string> FormKeys(string key)
+{
+    var open = key.IndexOf('[');
+    var keys = new List<string> { open < 0 ? key : key.Substring(0, open) };
+    while (open >= 0 && key.IndexOf(']', open) is var close and > 0)
+    {
+        keys.Add(key.Substring(open + 1, close - open - 1));
+        open = key.IndexOf('[', close);
+    }
+
+    return keys;
+}
+
+/// <summary>An object whose keys are 0, 1, 2... is an array.</summary>
+private static global::System.Text.Json.Nodes.JsonNode? FormArrays(global::System.Text.Json.Nodes.JsonNode? node)
+{
+    if (node is not global::System.Text.Json.Nodes.JsonObject obj)
+    {
+        return node?.DeepClone();
+    }
+
+    var index = 0;
+    if (obj.Count > 0 && obj.All(p => p.Key == (index++).ToString(global::System.Globalization.CultureInfo.InvariantCulture)))
+    {
+        return new global::System.Text.Json.Nodes.JsonArray(obj.Select(p => FormArrays(p.Value)).ToArray());
+    }
+
+    var copy = new global::System.Text.Json.Nodes.JsonObject();
+    foreach (var pair in obj)
+    {
+        copy[pair.Key] = FormArrays(pair.Value);
+    }
+
+    return copy;
+}
+
+private static IEnumerable<KeyValuePair<string, string>> FormFlatten(global::System.Text.Json.Nodes.JsonNode? node, string? prefix)
+{
+    switch (node)
+    {
+        case global::System.Text.Json.Nodes.JsonObject obj:
+            foreach (var pair in obj)
+            {
+                foreach (var field in FormFlatten(pair.Value, prefix is null ? pair.Key : prefix + ""["" + pair.Key + ""]""))
+                {
+                    yield return field;
+                }
+            }
+
+            break;
+        case global::System.Text.Json.Nodes.JsonArray array:
+            for (var i = 0; i < array.Count; i++)
+            {
+                foreach (var field in FormFlatten(array[i], prefix + ""["" + i.ToString(global::System.Globalization.CultureInfo.InvariantCulture) + ""]""))
+                {
+                    yield return field;
+                }
+            }
+
+            break;
+        case global::System.Text.Json.Nodes.JsonValue value:
+            yield return new KeyValuePair<string, string>(prefix ?? string.Empty, value.GetValueKind() switch
+            {
+                global::System.Text.Json.JsonValueKind.String => value.GetValue<string>(),
+                global::System.Text.Json.JsonValueKind.True => ""true"",
+                global::System.Text.Json.JsonValueKind.False => ""false"",
+                _ => value.ToJsonString(),
+            });
+            break;
+    }
+}
+
+/// <summary>true or false, from a form's text.</summary>
+private sealed class FormBoolean : global::System.Text.Json.Serialization.JsonConverter<bool>
+{
+    public override bool Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)
+        => reader.TokenType switch
+        {
+            global::System.Text.Json.JsonTokenType.True => true,
+            global::System.Text.Json.JsonTokenType.False => false,
+            global::System.Text.Json.JsonTokenType.String when reader.GetString() is ""true"" => true,
+            global::System.Text.Json.JsonTokenType.String when reader.GetString() is ""false"" => false,
+            _ => throw new global::System.Text.Json.JsonException(""Expected true or false.""),
+        };
+
+    public override void Write(global::System.Text.Json.Utf8JsonWriter writer, bool value, global::System.Text.Json.JsonSerializerOptions options)
+        => writer.WriteBooleanValue(value);
+}";
+
         private const string BindingErrorMethod = @"/// <summary>
 /// A request that couldn't be bound, in the spec's terms: which value was wrong (<c>name</c>, <c>details.goodBoy</c>,
 /// <c>petId</c>, or <c>body</c> for the whole body) and what was wrong with it. <paramref name=""key""/> is where ASP.NET Core
@@ -778,7 +917,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
         private string EmitValidation(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Collections.Generic", "System.Text.RegularExpressions");
+            w.Usings("System.Collections.Generic", "System.Linq", "System.Text.RegularExpressions");
 
             w.Line("/// <summary>");
             w.Line("/// Validation generated from the schema constraints (required, minLength, maxLength, pattern, minimum, maximum).");
@@ -872,6 +1011,25 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         checks.Add($"Check({local}, {jsonPath} + \".\", errors);");
                     }
 
+                    if (Has(prop, JsonSchemaType.Array) && type.StartsWith("global::System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal))
+                    {
+                        // An array: its count, and each item as its own schema says.
+                        if (prop.MinItems is { } minItems)
+                        {
+                            checks.Add($"if ({local}.Count < {minItems.Invariant()}) errors.Add({jsonPath}, \"Must have at least {minItems.Invariant()} items.\");");
+                        }
+
+                        if (prop.MaxItems is { } maxItems)
+                        {
+                            checks.Add($"if ({local}.Count > {maxItems.Invariant()}) errors.Add({jsonPath}, \"Must have at most {maxItems.Invariant()} items.\");");
+                        }
+
+                        if (prop.Items is { } items && ItemChecks(items, $"{jsonPath} + \"[\" + __i.ToString(global::System.Globalization.CultureInfo.InvariantCulture) + \"]\"", patterns) is { Count: > 0 } itemChecks)
+                        {
+                            checks.Add($"for (var __i = 0; __i < {local}.Count; __i++) {{ if ({local}[__i] is {{ }} __item) {{ {string.Join(" ", itemChecks)} }} }}");
+                        }
+                    }
+
                     if (checks.Count == 0)
                     {
                         continue;
@@ -894,6 +1052,12 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 }
 
                 w.Close();
+                w.Line();
+            }
+
+            if (operations.Any(o => o.Body is { Form: true }))
+            {
+                w.Block(FormMethods);
                 w.Line();
             }
 
@@ -1006,6 +1170,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 Schema = schema;
             }
 
+            public string MediaType { get; set; } = "application/json";
+
+            /// <summary>Sent as application/x-www-form-urlencoded, nested values in brackets (card[number]), as Stripe does.</summary>
+            public bool Form => MediaType == FormMedia;
+
             /// <summary>A generated object type, so the validation class has a Validate for it (a list or a primitive body has none).</summary>
             public bool Validated => !Type.Contains("global::", StringComparison.Ordinal) && Type is not ("string" or "int" or "long" or "float" or "double" or "decimal" or "bool");
 
@@ -1073,7 +1242,10 @@ public static (string Key, string Message) BindingError(string? key, string mess
             /// <summary>The body's schema, for turning a sample into C#.</summary>
             public IOpenApiSchema? Schema { get; set; }
 
-            public string CaseName => Naming.StatusNames[Status];
+            public string CaseName => IsDefault ? "Default" : Naming.StatusNames[Status];
+
+            /// <summary>The spec's "default" response: any status it doesn't name. Its case carries the status.</summary>
+            public bool IsDefault => Status == 0;
 
             /// <summary>
             /// A ProblemDetails body. TypedResults.NotFound(problem) and friends write it as application/json, so it
@@ -1091,17 +1263,23 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
 
             /// <summary>A status with a TypedResults factory of its own (TypedResults.Conflict); the rest go out by number.</summary>
-            public bool HasFactory => !IsStream && (Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null);
+            public bool HasFactory => !IsStream && !IsDefault && (Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null);
 
             /// <summary>
             /// Written by number (TypedResults.Json or StatusCode), so the result type carries no response metadata: the
             /// endpoint declares it with .Produces, as it does for problems.
             /// </summary>
-            public bool NeedsProduces => !IsValidation && !IsProblem && !HasFactory;
+            public bool NeedsProduces => !IsValidation && !IsProblem && !HasFactory && !IsDefault;
 
             /// <summary>The TypedResults call that produces it, given the body expression.</summary>
+            /// <summary>The status a default case carries, from the expression for its body ("__case.Body" → "__case.Status").</summary>
+            public static string StatusOf(string body) => (body.EndsWith(".Body", StringComparison.Ordinal) ? body.Substring(0, body.Length - 5) : body) + ".Status";
+
             public string Factory(string body) => (Status, BodyType is null) switch
             {
+                _ when IsDefault => BodyType is null ? $"TypedResults.StatusCode({StatusOf(body)})"
+                    : IsProblem ? $"Problem({body}, {StatusOf(body)})"
+                    : $"TypedResults.Json({body}, statusCode: {StatusOf(body)})",
                 _ when IsStream => $"TypedResults.Stream(async __stream => {{ await foreach (var __item in {body}) {{ await global::System.Text.Json.JsonSerializer.SerializeAsync(__stream, __item, global::System.Text.Json.JsonSerializerOptions.Web); await __stream.WriteAsync(new byte[] {{ 10 }}); }} }}, {Naming.Literal(MediaType!)})",
                 _ when IsValidation => $"TypedResults.ValidationProblem({body}.Errors, {body}.Detail, {body}.Instance, {body}.Title, {body}.Type)",
                 _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
@@ -1232,6 +1410,51 @@ public static (string Key, string Message) BindingError(string? key, string mess
             return operations;
         }
 
+        /// <summary>The checks of one array item (<c>__item</c>) at <paramref name="path"/>: its bounds, or its schema's Check.</summary>
+        private List<string> ItemChecks(IOpenApiSchema items, string path, List<string> patterns)
+        {
+            var checks = new List<string>();
+            if (RefId(items) is { } id && _schemas.ContainsKey(id) && !IsEnumRef(items))
+            {
+                checks.Add($"Check(__item, {path} + \".\", errors);");
+                return checks;
+            }
+
+            if (Has(items, JsonSchemaType.String))
+            {
+                if (items.MinLength is { } min)
+                {
+                    checks.Add($"if (__item.Length < {min.Invariant()}) errors.Add({path}, \"Must be at least {min.Invariant()} characters.\");");
+                }
+
+                if (items.MaxLength is { } max)
+                {
+                    checks.Add($"if (__item.Length > {max.Invariant()}) errors.Add({path}, \"Must be at most {max.Invariant()} characters.\");");
+                }
+
+                if (items.Pattern is { } pattern)
+                {
+                    var index = patterns.Count;
+                    patterns.Add(pattern);
+                    checks.Add($"if (!Pattern{index.Invariant()}.IsMatch(__item)) errors.Add({path}, {Naming.Literal("Must match " + pattern + ".")});");
+                }
+            }
+            else if (Has(items, JsonSchemaType.Integer) || Has(items, JsonSchemaType.Number))
+            {
+                if (items.Minimum is { } minimum)
+                {
+                    checks.Add($"if (__item < {Number(minimum)}) errors.Add({path}, \"Must be at least {Number(minimum)}.\");");
+                }
+
+                if (items.Maximum is { } maximum)
+                {
+                    checks.Add($"if (__item > {Number(maximum)}) errors.Add({path}, \"Must be at most {Number(maximum)}.\");");
+                }
+            }
+
+            return checks;
+        }
+
         /// <summary>The checks of an endpoint's bound parameters, each adding to <c>__invalid</c>, by the spec's constraints.</summary>
         private static IEnumerable<string> ParameterChecks(Operation operation)
         {
@@ -1345,18 +1568,42 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             if (spec.RequestBody is { } requestBody)
             {
-                if (JsonSchema(requestBody.Content) is not { } bodySchema || TypeOf(bodySchema, context + " request body", operation.Name + "Request") is not { } bodyType)
+                if (JsonSchema(requestBody.Content) is { } bodySchema)
                 {
-                    Unsupported(context + " request body", "request bodies must be JSON the generator can type");
+                    if (TypeOf(bodySchema, context + " request body", operation.Name + "Request") is not { } bodyType)
+                    {
+                        Unsupported(context + " request body", "request bodies must be JSON the generator can type");
+                        return false;
+                    }
+
+                    operation.Body = new Body(bodyType, bodySchema);
+                }
+                else if (requestBody.Content?.TryGetValue(FormMedia, out var form) == true && form.Schema is { } formSchema)
+                {
+                    // A form with no fields (Stripe declares one on its GETs) is no body at all.
+                    if (formSchema.Properties is { Count: > 0 } || formSchema.AdditionalProperties is not null)
+                    {
+                        if (TypeOf(formSchema, context + " request body", operation.Name + "Request") is not { } formType)
+                        {
+                            Unsupported(context + " request body", "form bodies must be objects the generator can type");
+                            return false;
+                        }
+
+                        operation.Body = new Body(formType, formSchema) { MediaType = FormMedia };
+                    }
+                }
+                else
+                {
+                    Unsupported(context + " request body", "request bodies must be JSON or a form the generator can type");
                     return false;
                 }
-
-                operation.Body = new Body(bodyType, bodySchema);
             }
 
             foreach (var pair in spec.Responses ?? new OpenApiResponses())
             {
-                if (!int.TryParse(pair.Key, NumberStyles.None, CultureInfo.InvariantCulture, out var status) || !Naming.StatusNames.ContainsKey(status))
+                // "default": every status the spec doesn't name, an error case that carries its status.
+                var status = pair.Key == "default" ? 0 : -1;
+                if (status != 0 && (!int.TryParse(pair.Key, NumberStyles.None, CultureInfo.InvariantCulture, out status) || !Naming.StatusNames.ContainsKey(status)))
                 {
                     Unsupported($"{context} response '{pair.Key}'", "status codes outside " + string.Join(", ", Naming.StatusNames.Keys));
                     return false;
@@ -1372,7 +1619,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     isValidation = operation.Body is not null && status == 400 && RefId(responseSchema) == ValidationSchema;
                     operation.ValidationDocumented |= isValidation;
 
-                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'", $"{operation.Name}{Naming.StatusNames[status]}Body");
+                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'", $"{operation.Name}{(status == 0 ? "Default" : Naming.StatusNames[status])}Body");
                     if (bodyType is null)
                     {
                         return false;
@@ -1387,7 +1634,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     // OpenAPI 3.2's sequential media types: JSON Lines become IAsyncEnumerable<T>. A server-sent event's
                     // itemSchema describes the event (data, event, id, retry), not a payload type, so it isn't generated yet.
                     if (sequential.Key is not ("application/jsonl" or "application/x-ndjson")
-                        || TypeOf(sequential.Value.ItemSchema!, $"{context} response '{pair.Key}' item", $"{operation.Name}{Naming.StatusNames[status]}Item") is not { } itemType)
+                        || TypeOf(sequential.Value.ItemSchema!, $"{context} response '{pair.Key}' item", $"{operation.Name}{(status == 0 ? "Default" : Naming.StatusNames[status])}Item") is not { } itemType)
                     {
                         Unsupported($"{context} response '{pair.Key}' ({sequential.Key})", "sequential media types other than JSON Lines");
                         return false;
@@ -1480,6 +1727,16 @@ public static (string Key, string Message) BindingError(string? key, string mess
             foreach (var response in cases)
             {
                 var caseName = operation.Name + response.CaseName;
+                if (response.IsDefault)
+                {
+                    w.Line($"/// <summary>Any status the spec doesn't name for <c>{operation.Id}</c> (its default response), with the status.</summary>");
+                    w.Line(response.BodyType is null
+                        ? $"public sealed record {caseName}(int Status);"
+                        : $"public sealed record {caseName}(int Status, {response.BodyType} Body);");
+                    w.Line();
+                    continue;
+                }
+
                 w.Line($"/// <summary>{response.Status.Invariant()} {response.CaseName} from <c>{operation.Id}</c>.</summary>");
                 w.Line(response.BodyType is null
                     ? $"public sealed record {caseName};"
@@ -1497,9 +1754,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 w.Line();
                 w.Line($"public static implicit operator {unionName}({caseName} value) => new(value);");
                 w.Line();
-                w.Line(response.BodyType is null
-                    ? $"public static {unionName} {response.CaseName}() => new {caseName}();"
-                    : $"public static {unionName} {response.CaseName}({response.BodyType} body) => new {caseName}(body);");
+                w.Line((response.IsDefault, response.BodyType is null) switch
+                {
+                    (true, true) => $"public static {unionName} {response.CaseName}(int status) => new {caseName}(status);",
+                    (true, false) => $"public static {unionName} {response.CaseName}(int status, {response.BodyType} body) => new {caseName}(status, body);",
+                    (false, true) => $"public static {unionName} {response.CaseName}() => new {caseName}();",
+                    _ => $"public static {unionName} {response.CaseName}({response.BodyType} body) => new {caseName}(body);",
+                });
             }
 
             w.Close();
@@ -1904,7 +2165,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 w.Line($"if ((object?){p.Identifier} is {{ }} __h_{p.Identifier.TrimStart('@')}) __request.Headers.TryAddWithoutValidation({Naming.Literal(p.Name)}, Text(__h_{p.Identifier.TrimStart('@')}));");
             }
 
-            if (operation.Body is not null)
+            if (operation.Body is { Form: true })
+            {
+                w.Line($"__request.Content = new FormUrlEncodedContent({ValidationClass}.FormFields(body));");
+            }
+            else if (operation.Body is not null)
             {
                 w.Line("__request.Content = JsonContent.Create(body, options: Json);");
             }
@@ -1915,11 +2180,14 @@ public static (string Key, string Message) BindingError(string? key, string mess
             foreach (var response in operation.Successes.Concat(operation.Errors))
             {
                 var value = ClientRead(operation, response);
-                EmitCase(w, operation, response, Outcome(operation, response, value), value is null);
+                EmitCase(w, operation, response, Outcome(operation, response, value, "(int)__response.StatusCode"), value is null);
             }
 
-            w.Line("default:");
-            w.Line($"    throw Undocumented({Naming.Literal(operation.Id)}, __response);");
+            if (!operation.Errors.Any(e => e.IsDefault))
+            {
+                w.Line("default:");
+                w.Line($"    throw Undocumented({Naming.Literal(operation.Id)}, __response);");
+            }
             w.Close();
             w.Close();
         }
@@ -1928,13 +2196,14 @@ public static (string Key, string Message) BindingError(string? key, string mess
         /// The handler's return value for a documented response, given an expression for its body (null when it has none).
         /// Empty for an operation whose handler returns a plain Task. Shared by the client and the fake.
         /// </summary>
-        private static string Outcome(Operation operation, Response response, string? value)
+        private static string Outcome(Operation operation, Response response, string? value, string status = "0")
         {
             var hasErrors = operation.Errors.Count > 0;
             var successHasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
             if (operation.Errors.Contains(response))
             {
-                var error = $"{operation.ErrorType}.{response.CaseName}({value ?? string.Empty})";
+                var arguments = response.IsDefault ? (value is null ? status : $"{status}, {value}") : value ?? string.Empty;
+                var error = $"{operation.ErrorType}.{response.CaseName}({arguments})";
                 return successHasValue
                     ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
                     : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
@@ -1956,7 +2225,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
         private static void EmitCase(CodeWriter w, Operation operation, Response response, string result, bool observeHere)
         {
-            w.Line($"case {response.Status.Invariant()}:");
+            w.Line(response.IsDefault ? "default:" : $"case {response.Status.Invariant()}:");
             if (observeHere)
             {
                 // No body to read (and so nothing else records the outcome).
@@ -2342,9 +2611,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Open("internal static string? SampleJson(string operation, int status) => (operation, status) switch");
             foreach (var operation in operations)
             {
-                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => r.BodyType is not null && r.SampleJson is not null))
+                foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => r.BodyType is not null && r.SampleJson is not null).OrderBy(r => r.IsDefault))
                 {
-                    w.Line($"({Naming.Literal(operation.Id)}, {response.Status.Invariant()}) => {Naming.Literal(response.SampleJson!)},");
+                    w.Line($"({Naming.Literal(operation.Id)}, {(response.IsDefault ? "_" : response.Status.Invariant())}) => {Naming.Literal(response.SampleJson!)},");
                 }
             }
 
@@ -2359,9 +2628,10 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Open("switch ((operation, status))");
             foreach (var operation in operations)
             {
-                foreach (var response in operation.Successes.Concat(operation.Errors))
+                // The default response answers any status the others don't, so it comes last.
+                foreach (var response in operation.Successes.Concat(operation.Errors).OrderBy(r => r.IsDefault))
                 {
-                    w.Line($"case ({Naming.Literal(operation.Id)}, {response.Status.Invariant()}):");
+                    w.Line($"case ({Naming.Literal(operation.Id)}, {(response.IsDefault ? "_" : response.Status.Invariant())}):");
                     string? value = null;
                     if (response.BodyType is not null)
                     {
@@ -2373,7 +2643,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                             : $"Body<{response.BodyType}>(json ?? {Naming.Literal(response.SampleJson ?? "null")}, {validate})";
                     }
 
-                    var outcome = Outcome(operation, response, value);
+                    var outcome = Outcome(operation, response, value, "status");
                     w.Line(outcome.Length == 0 ? "    answer = null;" : $"    answer = {outcome};");
                     w.Line("    return true;");
                 }
@@ -2986,7 +3256,11 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             var args = operation.Parameters
                 .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                 .ToList();
-            if (operation.Body is not null)
+            if (operation.Body is { Form: true })
+            {
+                args.Add("HttpRequest __form");
+            }
+            else if (operation.Body is not null)
             {
                 args.Add($"[FromBody] {operation.Body.Type} body");
             }
@@ -3005,6 +3279,23 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             var returnType = operation.EndpointReturnType;
             w.Line($"app.MapMethods({Naming.Literal(operation.Path)}, new[] {{ {Naming.Literal(operation.Method)} }}, static async Task<{returnType}> ({string.Join(", ", args)}) =>");
             w.Open(string.Empty);
+            if (operation.Body is { Form: true } form)
+            {
+                // Read here rather than bound with [FromForm], so that nested values in brackets work and a form that
+                // doesn't fit the schema is the same validation problem a JSON body would be.
+                w.Open("if (!__form.HasFormContentType)");
+                w.Line($"throw new BadHttpRequestException(\"The body must be {FormMedia}.\", StatusCodes.Status415UnsupportedMediaType);");
+                w.Close();
+                w.Line();
+                w.Line($"{form.Type} body;");
+                w.Open("try");
+                w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>(global::System.Linq.Enumerable.SelectMany(await __form.ReadFormAsync(__cancellationToken).ConfigureAwait(false), f => global::System.Linq.Enumerable.Select(f.Value, v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
+                w.Close();
+                w.Open("catch (JsonException e)");
+                w.Line("throw new BadHttpRequestException(\"The form doesn't match the schema.\", StatusCodes.Status400BadRequest, e);");
+                w.Close();
+                w.Line();
+            }
 
             var bounds = ParameterChecks(operation).ToList();
             if (bounds.Count > 0)

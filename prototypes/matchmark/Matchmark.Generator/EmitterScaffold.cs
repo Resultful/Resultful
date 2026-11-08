@@ -235,13 +235,35 @@ namespace Matchmark.Generator
                     .Select(p => $"[{p.Attribute}(Name = {Naming.Literal(p.Name)})] {p.Type} {p.Identifier}")
                     .ToList();
                 var call = operation.Parameters.Select(p => p.Identifier).ToList();
-                if (operation.Body is not null)
+                if (operation.Body is { Form: false })
                 {
                     args.Add($"[FromBody] {operation.Body.Type} body");
+                }
+
+                if (operation.Body is not null)
+                {
                     call.Add("body");
                 }
 
                 w.Open($"public async Task<IActionResult> {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
+                if (operation.Body is { Form: true } form)
+                {
+                    // Read here rather than bound by MVC, so that nested values in brackets work, as the generated endpoints read it.
+                    w.Open("if (!Request.HasFormContentType)");
+                    w.Line("return StatusCode(StatusCodes.Status415UnsupportedMediaType);");
+                    w.Close();
+                    w.Line();
+                    w.Line($"{form.Type} body;");
+                    w.Open("try");
+                    w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>((await Request.ReadFormAsync(cancellationToken)).SelectMany(f => f.Value.Select(v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
+                    w.Close();
+                    w.Open("catch (System.Text.Json.JsonException e)");
+                    w.Line($"var (key, message) = {ValidationClass}.BindingError(e.Path ?? \"$\", e.Message);");
+                    w.Line("return ValidationProblem(modelStateDictionary: Invalid(new Dictionary<string, string[]> { [key] = [message] }));");
+                    w.Close();
+                    w.Line();
+                }
+
                 if (operation.Body is { Validated: true })
                 {
                     w.Open($"if ({ValidationClass}.Validate(body) is {{ }} errors)");
@@ -318,6 +340,9 @@ namespace Matchmark.Generator
         private string Action(Response response, string body) => response switch
         {
             { IsStream: true } => $"new {_apiName}JsonLines<{response.ItemType}>({body}, {Naming.Literal(response.MediaType!)})",
+            { IsDefault: true, BodyType: null } => $"StatusCode({Response.StatusOf(body)})",
+            { IsDefault: true, IsProblem: true } => $"ProblemResponse({body}, {Response.StatusOf(body)})",
+            { IsDefault: true } => $"StatusCode({Response.StatusOf(body)}, {body})",
             { IsValidation: true } => $"ValidationProblem(detail: {body}.Detail, title: {body}.Title, modelStateDictionary: Invalid({body}.Errors))",
             { IsProblem: true } => $"ProblemResponse({body}, {response.Status.Invariant()})",
             { BodyType: null, Status: 204 } => "NoContent()",
