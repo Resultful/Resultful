@@ -40,7 +40,7 @@ The generated files are written to `obj/generated/` in the Contract and Sample p
 | `Matchmark.Conformance` | ASP.NET Core middleware, `UseMatchmarkConformance(spec)`: every response the server gives, checked by the engine's response checks. *Observe* logs and reports violations; *enforce* turns a violating response into a 500 problem, for tests. |
 | `Matchmark.Rules` | The invariant languages, for everything that enforces them: `Cel` (the subset of CEL Kubernetes rules use, for `x-matchmark-rules` and `x-matchmark-transitions`) and `Idl` (parameter dependencies, `x-dependencies`). Referencing it makes the generated server enforce them. |
 | `Matchmark.Fakes` | The runtime for generated fakes: `Scenario` (expected calls, in code or JSON), `ScenarioRunner` (order, request expectations, verification), `FakeCall`. Referencing it turns on the generated fake and scenario builder. |
-| `Matchmark.Cli` | The `matchmark` command. `matchmark scaffold` writes the server side of a spec as owned ASP.NET source (controllers or Minimal API), with a reference implementation, and never overwrites without `--force`. `matchmark regress <spec> <url>` runs the regression suite generated from a spec against any HTTP API. `--webhooks` tests a receiver of the spec's webhooks instead. `matchmark diff <old> <new>` classifies each change as breaking, breaking generated code, or additive, and fails a breaking change the major version didn't announce. `matchmark audit <spec>` reports what the spec leaves out, each finding measured in the cases its fix adds (text, SARIF, a Spectral ruleset). |
+| `Matchmark.Cli` | The `matchmark` command. `matchmark scaffold` writes the server side of a spec as owned ASP.NET source (controllers or Minimal API), with a reference implementation, and never overwrites without `--force`. `matchmark regress <spec> <url>` runs the regression suite generated from a spec against any HTTP API. `--webhooks` tests a receiver of the spec's webhooks instead. `matchmark twin <spec>` serves a stateful fake from the spec alone, and `matchmark fidelity <spec> <real> <fake>` scores a fake against the real API. `matchmark diff <old> <new>` classifies each change as breaking, breaking generated code, or additive, and fails a breaking change the major version didn't announce. `matchmark audit <spec>` reports what the spec leaves out, each finding measured in the cases its fix adds (text, SARIF, a Spectral ruleset). |
 | `Matchmark.Testing` | The regression engine: from an OpenAPI 3.1 document (JSON), it generates examples, valid requests, boundary values, one invalid request per constraint, and workflows from `links`, and checks every response. It needs only System.Text.Json. |
 | `Matchmark.Testing.Tests` | The engine on small specs, against a stub. |
 | `Matchmark.Sample.Scaffolded` | The Pet Store as the scaffolder writes it, untouched; tested to match the spec before anyone edits it. |
@@ -242,8 +242,9 @@ spec alone, and the installed tool ran its audit.
 ## Next steps, if this goes further
 
 - ✓ Random, shrinking inputs on top of the generated suite's deterministic cases (`RegressionOptions.Random`).
-- Trying the generator on a corpus of large real specs, to find the next unsupported constructs ([GAPS.md](GAPS.md), gap 4).
-- A stateful fake and a fidelity score against a real API: the twin in VISION stage 7 ([GAPS.md](GAPS.md), gaps 1 to 3).
+- ✓ Trying the generator on a corpus of large real specs, to find the next unsupported constructs ([GAPS.md](GAPS.md), gap 4).
+- ✓ A stateful fake and a fidelity score against a real API: the twin in VISION stage 7 ([GAPS.md](GAPS.md), gaps 1 and
+  2). An agent writing the twin's missing behaviour from its mismatches (gap 3) is next.
 - Deciding whether a success union belongs in Resultful itself.
 - Use `Resultful.AwesomeAssertions.OneOf` in these tests in place of the `Case<T>` helper, once it supports
   `OneOfBase` (Resultful/FluentAssertions.Resultful#2).

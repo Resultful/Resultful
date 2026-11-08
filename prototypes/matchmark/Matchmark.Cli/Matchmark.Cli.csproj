@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" />
     <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+    <!-- twin serves a stateful fake with ASP.NET Core. -->
+    <ProjectReference Include="../Matchmark.Conformance/Matchmark.Conformance.csproj" />
     <!-- The generator's own dependencies are private to it; as a library here, they're needed at run time. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.OpenApi.YamlReader" />

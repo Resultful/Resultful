@@ -30,6 +30,14 @@ const string Usage = """
     matchmark diff <old spec> <new spec> [--allow-breaking]
 
       Lists what changed and whom it breaks; exits 1 on a breaking change the major version didn't announce.
+
+    matchmark twin <spec> [--urls <url>]
+
+      Serves a twin: a stateful fake of the API from the spec alone, for a frontend to work against.
+
+    matchmark fidelity <spec> <real url> <fake url> [--floor <percent>]
+
+      Measures a fake against the real API: the share of the suite's steps that answer the same.
     """;
 
 if (args.Length > 0 && args[0] == "regress")
@@ -45,6 +53,16 @@ if (args.Length > 0 && args[0] == "audit")
 if (args.Length > 0 && args[0] == "diff")
 {
     return await SpecDiff.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "twin")
+{
+    return await TwinCommands.TwinAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "fidelity")
+{
+    return await TwinCommands.FidelityAsync(args[1..], Console.Out);
 }
 
 if (args.Length < 3 || args[0] != "scaffold" || args.Contains("--help"))
