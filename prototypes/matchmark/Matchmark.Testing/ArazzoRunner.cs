@@ -78,6 +78,7 @@ internal sealed partial class RegressionRunner
                 exchanges.Add(exchange);
                 context.Current = exchange;
                 Response(operation, exchange, requestValid: true, subject, findings);
+                Transition(exchange, subject, findings);
                 passed = (step["successCriteria"] as JsonArray)?.OfType<JsonObject>().All(c => Criteria.Holds(c, context))
                          ?? exchange.Status is >= 200 and < 300;
                 if (passed)
@@ -131,6 +132,27 @@ internal sealed partial class RegressionRunner
 
         Finish(workflow, context);
         return true;
+    }
+
+    /// <summary>The last reading of each resource in this run, by schema and id, for its x-matchmark-transitions.</summary>
+    private readonly Dictionary<string, Exchange> _readings = new(StringComparer.Ordinal);
+
+    /// <summary>A resource read again (the same schema and id as an earlier step's): the change must keep to its transition rules.</summary>
+    private void Transition(Exchange exchange, string subject, List<Finding> findings)
+    {
+        if (exchange.Status is < 200 or >= 300 || exchange.Json() is not JsonObject body || body["id"] is not JsonValue id
+            || Operation(exchange.Request)?.Response(exchange.Status)?.Content.Values.Select(OpenApiSpec.RefName).FirstOrDefault(n => n is not null) is not { } schema)
+        {
+            return;
+        }
+
+        var key = $"{schema}|{id.ToJsonString()}";
+        if (_readings.TryGetValue(key, out var before))
+        {
+            Transitions(before, exchange, subject, findings);
+        }
+
+        _readings[key] = exchange;
     }
 
     private static void Finish(ArazzoWorkflow workflow, ArazzoContext context)
