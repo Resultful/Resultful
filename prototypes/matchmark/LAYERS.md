@@ -60,7 +60,7 @@ defines the behaviour precisely enough to generate the other three.
 | **Work that finishes later** | `202` with `Location`; `Retry-After` on the status | polling reaches a final state within a bound; never a 5xx while running | the client polls until done | Orders |
 | **Rate limits** | `429` with `Retry-After`; RateLimit headers ([draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/)) | a 429 carries `Retry-After`; the suite backs off rather than failing | the client waits and retries; the fake can be told to limit | Orders |
 | **Deprecation** | `deprecated: true`; `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)) and `Sunset` ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) headers | the headers are present, and Sunset isn't before Deprecation | the client warns; generated code is `[Obsolete]` | Orders |
-| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). ✓ Callbacks, generated the same way as `{Api}Callbacks` (`RegressionSuite.ForCallbacks`; Notifications). ✓ AsyncAPI 3, in the engine: `AsyncApiDocument` reads operations and their messages through `$ref`s; its `receive` operations become a suite run against a consumer through an HTTP bridge (`POST /{operationId}`, payload as body, message headers as headers), and what a `send` operation publishes is checked message by message (`Check`); `matchmark regress` takes an AsyncAPI document (Notifications' `asyncapi.yaml`, `AsyncApiTests`). Generated typed messages, and Arazzo 1.1's AsyncAPI steps, are next |
+| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). ✓ Callbacks, generated the same way as `{Api}Callbacks` (`RegressionSuite.ForCallbacks`; Notifications). ✓ AsyncAPI 3, in the engine: `AsyncApiDocument` reads operations and their messages through `$ref`s; its `receive` operations become a suite run against a consumer through an HTTP bridge (`POST /{operationId}`, payload as body, message headers as headers), and what a `send` operation publishes is checked message by message (`Check`); `matchmark regress` takes an AsyncAPI document (Notifications' `asyncapi.yaml`, `AsyncApiTests`). ✓ Generated: the generator reads an AsyncAPI 3 document as webhooks, one per operation, so each payload is a typed model and each operation gets a receiver interface and a sender (`AsyncApiGenerationTests`). ✓ Arazzo 1.1 message steps (`action: send`/`receive`, `correlationId`, `timeout`, `$message`) run through the bridge, each message checked (`MessageConforms`; `notifications.arazzo.yaml`) |
 | **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | ✓ `query` operations everywhere (a 3.2 spec is kept as 3.2), `additionalOperations` in the engine; ✓ JSON Lines as `IAsyncEnumerable<T>` (endpoint, client, fake, scaffold), and every streamed item checked by the engine (Catalogue); ✓ server-sent events too, each event's data typed by its `contentSchema` and checked against it (Notifications); ✓ `in: querystring`: the whole query as one typed object, read and validated by the endpoint, written by the client, sent and broken leaf by leaf by the engine, checked by the twin (Catalogue's `findProducts`) |
 
 ## What the corpus found
@@ -145,6 +145,18 @@ Running the generator and the engine over specs other than the Pet Store found t
   parameter is the whole query as one object. Running the generated server against the suite caught the generator's
   own first attempt: it accepted text shorter than `minLength` and an empty required body.
 
+- **AsyncAPI found one more.** Its generated consumer took a notification on a topic its inline `enum` doesn't list:
+  an enum written inline on a string property stayed a string and wasn't checked. *Fixed:* its values are checked.
+
+- **The fidelity loop, run with an agent in it** (`AgentLoopTests`, Ledger, 30% held out). The writer (this
+  prototype's own coding agent, as no model API is configured for CI) saw only the training tasks. Attempt 1 kept
+  accounts as the real ledger does (`{id, owner, balance}`, the opening amount as the balance): held out rose from
+  61.9% to 81.0%, but `getTransfer` fell to 50%, so it was rejected; the twin's own store no longer had the accounts
+  transfers refer to. Attempt 2 kept that store in step (`SpecTwin.Seed` from the behaviour): 85.7%, nothing fell,
+  kept. The last training tasks were the real API's empty-bodied 415, which owned behaviour couldn't reach, as the
+  twin rejects before behaviours run; `SpecTwin.OnRejected` is that seam now. Attempt 3 used it: training reached
+  100% but held out didn't rise, so it was rejected, which is the gate refusing a change it can't see pay off.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
@@ -169,8 +181,8 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    `MatchmarkOverlay="true"` item next to the spec, or `--overlay` to `scaffold` and `regress`. The invariants it carries
    (COMPLETENESS.md) are checked by the engine.
 5. **OpenAPI 3.2 and events.** ✓ Webhooks, ✓ callbacks, ✓ `QUERY`, ✓ streamed items (JSON Lines and server-sent
-   events), ✓ `in: querystring`, ✓ AsyncAPI 3 in the engine (a consumer's suite over a bridge, a producer's messages
-   checked). Then generated typed messages, and Arazzo 1.1's AsyncAPI steps.
+   events), ✓ `in: querystring`, ✓ AsyncAPI 3: a consumer's suite over a bridge, a producer's messages checked, typed
+   messages generated, and Arazzo 1.1 message steps run.
 
 ## Versions this is written against
 

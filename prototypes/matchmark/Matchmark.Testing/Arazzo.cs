@@ -79,6 +79,9 @@ internal sealed class ArazzoContext(JsonObject inputs)
 
     public Exchange? Current { get; set; }
 
+    /// <summary>The last message a step sent or received: <c>{"payload": …, "headers": {…}}</c>.</summary>
+    public JsonObject? Message { get; set; }
+
     /// <summary>
     /// A runtime expression: <c>$inputs.key</c>, <c>$steps.create.outputs.id</c>, <c>$outputs.x</c>,
     /// <c>$response.body#/id</c>, <c>$response.header.ETag</c>, <c>$request.path.id</c>, <c>$statusCode</c>, <c>$method</c>,
@@ -95,6 +98,8 @@ internal sealed class ArazzoContext(JsonObject inputs)
             "$inputs" => Path(Inputs, parts.Skip(1)),
             "$outputs" => Path(Outputs, parts.Skip(1)),
             "$steps" when parts.Length >= 4 && parts[2] == "outputs" => Steps.TryGetValue(parts[1], out var step) ? Path(step, parts.Skip(3)) : null,
+            "$message" when parts.Length >= 2 && parts[1] == "payload" => Message?["payload"]?.DeepClone(),
+            "$message" when parts.Length >= 3 && parts[1] == "header" => Message?["headers"]?[string.Join('.', parts.Skip(2))]?.DeepClone(),
             "$statusCode" => Current is null ? null : JsonValue.Create(Current.Status),
             "$method" => Current is null ? null : JsonValue.Create(Current.Request.Method),
             "$url" => Current is null ? null : JsonValue.Create("/" + Current.Request.Target),

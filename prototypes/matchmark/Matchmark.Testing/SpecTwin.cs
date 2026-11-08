@@ -25,6 +25,7 @@ public sealed class SpecTwin : HttpMessageHandler
     private readonly Dictionary<string, (string Body, Reply Answer)> _keys = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Dictionary<string, List<Func<TwinCall, TwinAnswer?>>> _behaviours = new(StringComparer.Ordinal);
+    private readonly List<Func<TwinRejection, TwinAnswer?>> _rejections = [];
     private long _ids;
 
     public SpecTwin(string specJson)
@@ -43,6 +44,20 @@ public sealed class SpecTwin : HttpMessageHandler
             {
                 return _collections.ToDictionary(c => c.Key, c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => (JsonObject)i.Resource.DeepClone()).ToList());
             }
+        }
+    }
+
+    /// <summary>
+    /// How the API rejects, where it differs from the twin's problem details (GAPS.md, gap 3): run on every 4xx the twin
+    /// answers, its own checks' included, which <see cref="On"/> never sees. An answer replaces it; a null body is an
+    /// empty one.
+    /// </summary>
+    public SpecTwin OnRejected(Func<TwinRejection, TwinAnswer?> behaviour)
+    {
+        lock (_gate)
+        {
+            _rejections.Add(behaviour);
+            return this;
         }
     }
 
@@ -131,6 +146,23 @@ public sealed class SpecTwin : HttpMessageHandler
     }
 
     private Reply Answer(string method, string path, List<KeyValuePair<string, string>> query, IReadOnlyDictionary<string, string> headers, string? body, string? contentType)
+    {
+        var reply = Inferred(method, path, query, headers, body, contentType);
+        if (reply.Status is >= 400 and < 500)
+        {
+            foreach (var rejection in _rejections)
+            {
+                if (rejection(new TwinRejection(reply.Status, method, path, reply.Body is { Length: > 0 } text ? JsonNode.Parse(text) : null)) is { } answer)
+                {
+                    return new Reply(answer.Status, answer.Body is null ? null : answer.ContentType ?? reply.ContentType, answer.Body?.ToJsonString(), []);
+                }
+            }
+        }
+
+        return reply;
+    }
+
+    private Reply Inferred(string method, string path, List<KeyValuePair<string, string>> query, IReadOnlyDictionary<string, string> headers, string? body, string? contentType)
     {
         var (operation, values) = Match(method, path);
         if (operation is null)
@@ -565,6 +597,9 @@ public sealed record TwinCall(
     IReadOnlyList<KeyValuePair<string, string>> Query,
     JsonNode? Body,
     IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> Resources);
+
+/// <summary>A rejection the twin is about to answer: its status, the request, and the problem it would send.</summary>
+public sealed record TwinRejection(int Status, string Method, string Path, JsonNode? Problem);
 
 /// <summary>A behaviour's answer: the status, and a body (the media type is the spec's for that status unless given).</summary>
 public sealed record TwinAnswer(int Status, JsonNode? Body = null, string? ContentType = null);

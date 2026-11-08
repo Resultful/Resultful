@@ -15,7 +15,7 @@ public sealed class LedgerTests
 {
     private static readonly string Samples = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "ledger"));
 
-    private const string Source = """
+    internal const string Source = """
         using System;
         using System.Collections.Concurrent;
         using System.Collections.Generic;

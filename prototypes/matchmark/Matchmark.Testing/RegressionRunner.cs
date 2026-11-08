@@ -35,6 +35,20 @@ public sealed class RegressionOptions
 
     /// <summary>Properties that change from call to call, so reading back what was written ignores them.</summary>
     public ISet<string> Volatile { get; } = new HashSet<string>(StringComparer.Ordinal) { "traceId" };
+
+    /// <summary>
+    /// The AsyncAPI document an Arazzo 1.1 workflow's message steps name (a source description of type asyncapi), and
+    /// the bridge to its broker: a step that sends posts the message to <c>POST /{operationId}</c> (the payload the body,
+    /// header parameters its headers); a step that receives polls <c>GET /{operationId}?correlationId=…</c>, which answers
+    /// 200 with <c>{"payload": …, "headers": {…}}</c> once such a message has been published, 204 until then.
+    /// </summary>
+    public AsyncApiDocument? Events { get; set; }
+
+    /// <summary>The bridge to the broker, for <see cref="Events"/>.</summary>
+    public HttpClient? Bridge { get; set; }
+
+    /// <summary>How long a step that receives waits, when it gives no timeout of its own.</summary>
+    public TimeSpan MessageTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>Sends the suite's requests and checks every response against the spec.</summary>

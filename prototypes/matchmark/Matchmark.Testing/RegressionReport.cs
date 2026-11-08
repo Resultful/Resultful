@@ -94,6 +94,9 @@ public static class Checks
 
     /// <summary>Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles.</summary>
     public const string WorkflowCriteria = nameof(WorkflowCriteria);
+
+    /// <summary>A message in a workflow (sent by it, or received from the API) conforms to its AsyncAPI message.</summary>
+    public const string MessageConforms = nameof(MessageConforms);
 }
 
 public enum Severity
