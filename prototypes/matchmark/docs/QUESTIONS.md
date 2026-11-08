@@ -2,7 +2,7 @@
 
 What is still open. Each question names the assumption work proceeds on until it's answered, so nothing waits on it.
 When one is answered, its answer moves to [decisions.md](decisions.md) with its date, and it's deleted here. Questions
-answered so far are decisions Q44 to Q53.
+answered so far are decisions Q44 to Q54.
 
 **1. Should the test engine keep working on normalised JSON, or take the standard libraries as dependencies?** Once
 Matchmark reads specs through Microsoft.OpenApi, the AsyncAPI SDK and BinkyLabs (Q28 to Q31), the engine
@@ -12,8 +12,3 @@ object models directly.
 their own validation of a document, and whether their object models carry what the engine needs (examples, extensions,
 JSON Schema keywords) without loss. A benefit the engine would otherwise have to build is the case for the dependency.
 *Assumption until then:* the engine keeps working on normalised JSON.
-
-**2. Will .NET's validations generator see types in a referenced contract project?** The design for validation (Q45)
-doesn't depend on it, because Matchmark generates the resolver; if it does see them, the generated resolver may be needed
-only for the generated endpoints' parameters.
-*Assumption until then:* Matchmark generates the resolver for everything; the first implementation step finds out.
