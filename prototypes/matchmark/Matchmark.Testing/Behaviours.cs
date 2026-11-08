@@ -40,9 +40,120 @@ internal sealed partial class RegressionRunner
             await UniqueAsync(@case, keys, findings, cancellationToken).ConfigureAwait(false);
         }
 
+        if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.ReferenceHolds)
+            && operation.Method == "POST" && Traits.References(suite.Spec, Traits.ResourceSchema(operation)) is { Count: > 0 } references
+            && _referencesChecked.Add(operation.Id))
+        {
+            await ReferencesAsync(@case, references, findings, cancellationToken).ConfigureAwait(false);
+        }
+
     }
 
     private readonly HashSet<string> _uniqueChecked = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _referencesChecked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// References (x-matchmark-references): a create naming a resource that doesn't exist is refused, and a delete of a
+    /// resource still referred to is refused when the reference restricts it.
+    /// </summary>
+    private async Task ReferencesAsync(RegressionCase @case, IReadOnlyList<Reference> references, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        if (RequestJson(@case.Request, operation) is not JsonObject sent)
+        {
+            return;
+        }
+
+        foreach (var reference in references.Where(r => !r.Field.Contains('.', StringComparison.Ordinal)))
+        {
+            var read = suite.Spec.Operations.FirstOrDefault(o => o.Method == "GET" && o.Path == reference.Target);
+            var missing = await MissingAsync(sent[reference.Field], reference, read, cancellationToken).ConfigureAwait(false);
+            if (missing is not null)
+            {
+                var dangling = (JsonObject)sent.DeepClone();
+                dangling[reference.Field] = missing;
+                var expected = Traits.Status(operation, Traits.ReferenceStatuses, reference.Declared);
+                var answer = await SendAsync(@case.Request with { Body = RequestText(@case.Request, dangling), Headers = FreshKey(@case.Request.Headers) }, cancellationToken)
+                    .ConfigureAwait(false);
+                var subject = $"{@case.Name}, references {reference.Field} to nothing";
+                if (answer.Status is >= 200 and < 300)
+                {
+                    Add(findings, Checks.ReferenceHolds, subject, answer,
+                        $"a create whose {reference.Field} refers to {missing.ToJsonString()}, which doesn't exist, was accepted with {answer.Status}; it must be refused ({expected})");
+                }
+                else if (answer.Status != expected)
+                {
+                    Add(findings, Checks.ReferenceHolds, subject, answer, $"a reference to nothing was refused with {answer.Status}; the spec documents {expected} for it", Severity.Warning);
+                }
+            }
+
+            var delete = suite.Spec.Operations.FirstOrDefault(o => o.Method == "DELETE" && o.Path == reference.Target);
+            if (reference.OnDelete == "restrict" && delete is not null
+                && await ReferredAsync(@case, sent, reference, cancellationToken).ConfigureAwait(false) is { } target)
+            {
+                var parameter = System.Text.RegularExpressions.Regex.Match(reference.Target, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+                var path = reference.Target.Replace("{" + parameter + "}", Uri.EscapeDataString(target), StringComparison.Ordinal).TrimStart('/');
+                var answer = await SendAsync(new RegressionRequest("DELETE", path, [], [], null, null), cancellationToken).ConfigureAwait(false);
+                var expected = Traits.Status(delete, Traits.RestrictStatuses);
+                if (answer.Status is >= 200 and < 300)
+                {
+                    Add(findings, Checks.ReferenceHolds, $"{@case.Name}, references {reference.Field} still referring", answer,
+                        $"deleting {path}, which a resource's {reference.Field} still refers to, was accepted with {answer.Status}; the reference restricts it ({expected})");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// A fresh resource of the reference's target, and a fresh resource referring to it: the target's id, or null when
+    /// either can't be created. The restrict check then needs nothing earlier cases left behind.
+    /// </summary>
+    private async Task<string?> ReferredAsync(RegressionCase @case, JsonObject sent, Reference reference, CancellationToken cancellationToken)
+    {
+        var create = suite.Spec.Operations.FirstOrDefault(o => o.Method == "POST" && o.Path == reference.Collection && o.Body is not null);
+        if (create?.Body is not { } body || !suite.Samples.TrySample(body.Schema, false, out var sample) || sample is null)
+        {
+            return null;
+        }
+
+        var fresh = suite.Samples.Unique(sample, body.Schema, 70_000 + _behaviour++) ?? sample;
+        var made = await SendAsync(new RegressionRequest("POST", create.Path.TrimStart('/'), [], [], fresh.ToJsonString(), body.MediaType), cancellationToken).ConfigureAwait(false);
+        var parameter = System.Text.RegularExpressions.Regex.Match(reference.Target, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+        if (made.Status is < 200 or >= 300 || made.Json() is not JsonObject target || (target[parameter] ?? target["id"]) is not { } id)
+        {
+            return null;
+        }
+
+        var referring = (JsonObject)sent.DeepClone();
+        referring[reference.Field] = id.DeepClone();
+        if (suite.Samples.Unique(referring, @case.Operation.Body!.Schema, 70_000 + _behaviour++) is JsonObject unique)
+        {
+            unique[reference.Field] = id.DeepClone();
+            referring = unique;
+        }
+
+        var referred = await SendAsync(@case.Request with { Body = RequestText(@case.Request, referring), Headers = FreshKey(@case.Request.Headers) }, cancellationToken)
+            .ConfigureAwait(false);
+        return referred.Status is >= 200 and < 300 ? (id.GetValueKind() == JsonValueKind.String ? id.GetValue<string>() : id.ToJsonString()) : null;
+    }
+
+    /// <summary>An id of the reference's type that names no resource: checked with a read when the spec has one.</summary>
+    private async Task<JsonNode?> MissingAsync(JsonNode? sample, Reference reference, SpecOperation? read, CancellationToken cancellationToken)
+    {
+        JsonNode candidate = sample is JsonValue value && value.GetValueKind() == JsonValueKind.Number ? JsonValue.Create(987654321L)
+            : sample is JsonValue text && text.GetValueKind() == JsonValueKind.String && Guid.TryParse(text.GetValue<string>(), out _) ? JsonValue.Create(Guid.NewGuid().ToString())
+            : JsonValue.Create("missing-" + Guid.NewGuid().ToString("N")[..8]);
+        if (read is null)
+        {
+            return candidate;
+        }
+
+        var parameter = System.Text.RegularExpressions.Regex.Match(reference.Target, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+        var id = candidate.GetValueKind() == JsonValueKind.String ? candidate.GetValue<string>() : candidate.ToJsonString();
+        var answer = await SendAsync(new RegressionRequest("GET", reference.Target.Replace("{" + parameter + "}", Uri.EscapeDataString(id), StringComparison.Ordinal).TrimStart('/'),
+            [], [], null, null), cancellationToken).ConfigureAwait(false);
+        return answer.Status == 404 ? candidate : null;
+    }
 
     /// <summary>
     /// Unique keys (x-matchmark-unique): after a create succeeds, the same key again is refused, in another case too when
@@ -56,9 +167,9 @@ internal sealed partial class RegressionRunner
             return;
         }
 
-        var expected = Traits.Status(operation, Traits.UniqueStatuses);
         foreach (var key in keys)
         {
+            var expected = Traits.Status(operation, Traits.UniqueStatuses, key.Declared);
             if (Traits.Value(key, sent) is null)
             {
                 continue;
@@ -127,7 +238,7 @@ internal sealed partial class RegressionRunner
             [], FreshKey(@case.Request.Headers.Where(h => !string.Equals(h.Key, "If-Match", StringComparison.OrdinalIgnoreCase)).ToList()),
             renamed.ToJsonString(), change.Body!.MediaType);
         await RefusedAsync(request, $"{@case.Name}, unique {key} renamed into", $"a {change.Method} of another resource to the same", key,
-            Traits.Status(change, Traits.UniqueStatuses), findings, cancellationToken).ConfigureAwait(false);
+            Traits.Status(change, Traits.UniqueStatuses, key.Declared), findings, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task RefusedAsync(RegressionRequest request, string subject, string what, UniqueKey key, int expected, List<Finding> findings,

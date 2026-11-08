@@ -23,3 +23,7 @@ actions:
       x-matchmark-transitions:
         - rule: "oldSelf.status == self.status || (oldSelf.status == 'pending' && self.status == 'settled')"
           message: A transfer settles once, and stays settled.
+      # A transfer's accounts exist (invariants.md, references); the Ledger answers 400 naming the field that doesn't.
+      x-matchmark-references:
+        from: { target: '/accounts/{accountId}', status: 400 }
+        to: { target: '/accounts/{accountId}', status: 400 }

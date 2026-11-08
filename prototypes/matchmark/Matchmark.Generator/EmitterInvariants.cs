@@ -17,6 +17,11 @@ namespace Matchmark.Generator
     {
         private static readonly int[] UniqueStatuses = { 409, 422, 400 };
 
+        private static readonly int[] ReferenceStatuses = { 422, 404, 400 };
+
+        /// <summary>Schemas with a reference that names no status of its own, so a create must document one (MM028).</summary>
+        private readonly HashSet<string> _undeclaredStatus = new HashSet<string>(StringComparer.Ordinal);
+
         /// <summary>EF Core is referenced, so the Server part adds the helper that applies unique keys as indexes.</summary>
         public bool EntityFramework { get; set; }
 
@@ -50,6 +55,50 @@ namespace Matchmark.Generator
             return keys;
         }
 
+        /// <summary>Each schema's declared references: (schema, field, target, onDelete), checked against the schema and the spec's paths.</summary>
+        private List<(string Schema, string Field, string Target, string OnDelete)> References()
+        {
+            var references = new List<(string, string, string, string)>();
+            foreach (var pair in _document.Components?.Schemas ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                if (!(Extension(pair.Value.Extensions, "x-matchmark-references") is JsonObject declared))
+                {
+                    continue;
+                }
+
+                var properties = AllProperties(pair.Value);
+                foreach (var reference in declared)
+                {
+                    var target = reference.Value?["target"]?.GetValue<string>();
+                    var onDelete = reference.Value?["onDelete"]?.GetValue<string>() ?? "restrict";
+                    string? wrong = !properties.Contains(reference.Key) ? $"an unknown field {reference.Key}"
+                        : target is null ? $"no target for {reference.Key}"
+                        : _document.Paths?.ContainsKey(target) != true ? $"a target path the spec doesn't have, {target}"
+                        : !(onDelete is "restrict" or "cascade" or "clear" or "none") ? $"onDelete '{onDelete}' for {reference.Key}, not restrict, cascade, clear or none"
+                        : onDelete == "clear" && !Nullable(pair.Value, reference.Key) ? $"onDelete clear on {reference.Key}, which can't be null"
+                        : null;
+                    if (wrong is not null)
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{pair.Key}'s x-matchmark-references", wrong));
+                        continue;
+                    }
+
+                    references.Add((pair.Key, reference.Key, target!, onDelete));
+                    if (reference.Value?["status"] is null)
+                    {
+                        _undeclaredStatus.Add(pair.Key);
+                    }
+                }
+            }
+
+            return references;
+        }
+
+        /// <summary>Whether a property's type allows null, so a reference to a deleted resource can be cleared.</summary>
+        private static bool Nullable(IOpenApiSchema schema, string property)
+            => schema.Properties is not null && schema.Properties.TryGetValue(property, out var value) && (value.Type ?? 0).HasFlag(JsonSchemaType.Null)
+               || (schema.AllOf ?? new List<IOpenApiSchema>()).Any(part => Nullable(part, property));
+
         private static HashSet<string> AllProperties(IOpenApiSchema schema)
         {
             var names = new HashSet<string>(schema.Properties?.Keys ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
@@ -65,7 +114,8 @@ namespace Matchmark.Generator
         private string? EmitInvariants(List<Operation> operations)
         {
             var keys = UniqueKeys();
-            if (keys.Count == 0)
+            var references = References();
+            if (keys.Count == 0 && references.Count == 0)
             {
                 return null;
             }
@@ -81,10 +131,24 @@ namespace Matchmark.Generator
                 }
             }
 
+            foreach (var schema in references.Select(r => r.Schema).Distinct().Where(_undeclaredStatus.Contains))
+            {
+                foreach (var operation in operations.Where(o => o.Method == "POST" && Creates(o, schema)))
+                {
+                    if (!ReferenceStatuses.Any(s => operation.Errors.Any(e => e.Status == s)))
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantStatusMissing, _location, operation.Id, $"{schema}'s references", "422, 404 or 400"));
+                    }
+                }
+            }
+
             var w = new CodeWriter(_namespace);
             w.Usings("System.Collections.Generic");
             w.Line($"/// <summary>A unique key the spec declares (x-matchmark-unique): the schema, its fields as JSON names, and whether strings compare ignoring case.</summary>");
             w.Line($"public sealed record {_apiName}UniqueKey(string Schema, IReadOnlyList<string> Fields, bool IgnoreCase);");
+            w.Line();
+            w.Line($"/// <summary>A reference the spec declares (x-matchmark-references): the schema, its field, the item path it refers to, and what a delete does.</summary>");
+            w.Line($"public sealed record {_apiName}Reference(string Schema, string Field, string Target, string OnDelete);");
             w.Line();
             w.Line("/// <summary>");
             w.Line("/// The invariants across a collection the spec declares, as data: for a service to apply to its storage (a unique index),");
@@ -96,6 +160,15 @@ namespace Matchmark.Generator
             foreach (var (schema, fields, ignoreCase) in keys)
             {
                 w.Line($"    new({Naming.Literal(schema)}, new[] {{ {string.Join(", ", fields.Select(Naming.Literal))} }}, {(ignoreCase ? "true" : "false")}),");
+            }
+
+            w.Line("};");
+            w.Line();
+            w.Line($"public static IReadOnlyList<{_apiName}Reference> References {{ get; }} = new {_apiName}Reference[]");
+            w.Line("{");
+            foreach (var (schema, field, target, onDelete) in references)
+            {
+                w.Line($"    new({Naming.Literal(schema)}, {Naming.Literal(field)}, {Naming.Literal(target)}, {Naming.Literal(onDelete)}),");
             }
 
             w.Line("};");

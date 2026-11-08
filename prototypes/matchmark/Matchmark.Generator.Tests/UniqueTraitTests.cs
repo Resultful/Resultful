@@ -92,3 +92,38 @@ public sealed class UniqueTraitTests
 
     private static string ThisDirectory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 }
+
+/// <summary>The references trait in the generator (docs/reference/invariants.md#references): metadata, and MM027 for a wrong declaration.</summary>
+[TestFixture]
+public sealed class ReferenceTraitTests
+{
+    private static readonly string Ledger = Path.GetFullPath(Path.Combine(Directory(), "..", "samples", "ledger"));
+
+    [Test]
+    public void The_contract_carries_the_ledger_s_references_as_data()
+    {
+        var (assembly, diagnostics) = GeneratedServer.Build("Ledger", Path.Combine(Ledger, "openapi.yaml"), [Path.Combine(Ledger, "ledger.overlay.yaml")], string.Empty, withRules: true);
+
+        diagnostics.Should().NotContain(d => d.Id == "MM027" || d.Id == "MM028", string.Join("\n", diagnostics));
+        var references = ((System.Collections.IEnumerable)assembly.GetType("Ledger.Api.LedgerInvariants")!.GetProperty("References")!.GetValue(null)!).Cast<object>()
+            .Select(r => $"{r.GetType().GetProperty("Schema")!.GetValue(r)}.{r.GetType().GetProperty("Field")!.GetValue(r)} → {r.GetType().GetProperty("Target")!.GetValue(r)} ({r.GetType().GetProperty("OnDelete")!.GetValue(r)})");
+        references.Should().Equal("Transfer.from → /accounts/{accountId} (restrict)", "Transfer.to → /accounts/{accountId} (restrict)");
+    }
+
+    [TestCase("target: '/accounts/{accountId}'", "from: { target: '/owners/{ownerId}' }", "a target path the spec doesn't have")]
+    [TestCase("from: { target: '/accounts/{accountId}', status: 400 }", "payer: { target: '/accounts/{accountId}' }", "an unknown field payer")]
+    [TestCase("from: { target: '/accounts/{accountId}', status: 400 }", "from: { target: '/accounts/{accountId}', onDelete: clear }", "onDelete clear on from, which can't be null")]
+    public void A_wrong_reference_is_reported(string _, string replacement, string expected)
+    {
+        var overlay = File.ReadAllText(Path.Combine(Ledger, "ledger.overlay.yaml"))
+            .Replace("from: { target: '/accounts/{accountId}', status: 400 }", replacement, StringComparison.Ordinal);
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"wrong-{Math.Abs(replacement.GetHashCode(StringComparison.Ordinal))}.overlay.yaml");
+        File.WriteAllText(path, overlay.Replace("extends: ./openapi.yaml", "extends: " + Path.Combine(Ledger, "openapi.yaml"), StringComparison.Ordinal));
+
+        var (_, diagnostics) = GeneratedServer.Build("Ledger", Path.Combine(Ledger, "openapi.yaml"), [path], string.Empty, withRules: true);
+
+        diagnostics.Should().Contain(d => d.Id == "MM027" && d.GetMessage(null).Contains(expected, StringComparison.Ordinal), string.Join("\n", diagnostics));
+    }
+
+    private static string Directory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
+}

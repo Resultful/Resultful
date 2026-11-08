@@ -319,19 +319,38 @@ public sealed class SpecTwin : HttpMessageHandler
             return Problem(412, "The resource changed since that ETag", operation);
         }
 
-        // Unique keys (x-matchmark-unique): the resource as it would be stored mustn't share a key with another.
-        if (operation.Method is "POST" or "PUT" or "PATCH" && Traits.Unique(_spec, Traits.ResourceSchema(operation)) is { Count: > 0 } keys)
+        // Invariants across the collection (invariants.md), on the resource as it would be stored.
+        var candidate = (operation.Method, item) switch
         {
-            var candidate = (operation.Method, item) switch
+            ("POST", false) or ("PUT", true) => body as JsonObject,
+            ("PATCH", true) when found is { } stored => Patched(stored.Resource, body as JsonObject),
+            _ => null,
+        };
+        if (candidate is not null)
+        {
+            // Unique keys (x-matchmark-unique): it mustn't share a key with another resource.
+            var keys = Traits.Unique(_spec, Traits.ResourceSchema(operation));
+            if (keys.Count > 0 && Traits.Collision(keys, candidate, store.Items.Where(i => i.Key != id).Select(i => i.Value.Resource)) is { } key)
             {
-                ("POST", false) or ("PUT", true) => body as JsonObject,
-                ("PATCH", true) when found is { } stored => Patched(stored.Resource, body as JsonObject),
-                _ => null,
-            };
-            if (candidate is not null && Traits.Collision(keys, candidate, store.Items.Where(i => i.Key != id).Select(i => i.Value.Resource)) is { } key)
-            {
-                return Taken(operation, key);
+                return Refuse(operation, Traits.Status(operation, Traits.UniqueStatuses, key.Declared), key.Fields[0], $"Must be unique: another resource has this {key}.");
             }
+
+            // References (x-matchmark-references): each must name a resource that exists.
+            foreach (var reference in Traits.References(_spec, Traits.ResourceSchema(operation)))
+            {
+                if (Traits.Text(candidate, reference.Field) is { } target
+                    && !(_collections.TryGetValue(reference.Collection, out var targets) && targets.Items.ContainsKey(target)))
+                {
+                    return Refuse(operation, Traits.Status(operation, Traits.ReferenceStatuses, reference.Declared), reference.Field,
+                        $"No such resource: {reference.Field} refers to {reference.Target.Replace("{", "", StringComparison.Ordinal).Split('}')[0]} {target}, which doesn't exist.");
+                }
+            }
+        }
+
+        // A delete of something others refer to: restricted, or cascaded or cleared, as each reference says.
+        if (operation.Method == "DELETE" && item && id is not null && found is not null && Referred(operation, collection, id) is { } refused)
+        {
+            return refused;
         }
 
         switch (operation.Method, item)
@@ -524,11 +543,56 @@ public sealed class SpecTwin : HttpMessageHandler
         return copy;
     }
 
-    /// <summary>A unique key already held: the documented status, keyed by field when that status is a validation problem.</summary>
-    private static Reply Taken(SpecOperation operation, UniqueKey key)
+    /// <summary>
+    /// Deleting a resource others refer to: refused when a reference restricts it; otherwise what refers to it is deleted
+    /// (cascade) or has the reference cleared. Null when the delete may go ahead.
+    /// </summary>
+    private Reply? Referred(SpecOperation delete, string collection, string id)
     {
-        var status = Traits.Status(operation, Traits.UniqueStatuses);
-        var message = $"Must be unique: another resource has this {key}.";
+        var referrers = new List<(Collection Store, Reference Reference)>();
+        foreach (var create in _spec.Operations.Where(o => o.Method == "POST"))
+        {
+            var (referring, _) = Resource(create);
+            if (referring is null || create.Path != referring || !_collections.TryGetValue(referring, out var store))
+            {
+                continue;
+            }
+
+            referrers.AddRange(Traits.References(_spec, Traits.ResourceSchema(create)).Where(r => r.Collection == collection).Select(r => (store, r)));
+        }
+
+        foreach (var (store, reference) in referrers.Where(r => r.Reference.OnDelete == "restrict").DistinctBy(r => r.Reference.Field))
+        {
+            if (store.Items.Values.Any(i => Traits.Text(i.Resource, reference.Field) == id))
+            {
+                return Refuse(delete, Traits.Status(delete, Traits.RestrictStatuses), reference.Field,
+                    $"Still referred to: a resource's {reference.Field} refers to it, so it can't be deleted.");
+            }
+        }
+
+        foreach (var (store, reference) in referrers)
+        {
+            foreach (var (key, (resource, version)) in store.Items.Where(i => Traits.Text(i.Value.Resource, reference.Field) == id).ToList())
+            {
+                switch (reference.OnDelete)
+                {
+                    case "cascade":
+                        store.Items.Remove(key);
+                        break;
+                    case "clear":
+                        resource[reference.Field] = null;
+                        store.Items[key] = (resource, version + 1);
+                        break;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>An invariant broken: the status, keyed by field when that status is a validation problem.</summary>
+    private static Reply Refuse(SpecOperation operation, int status, string field, string message)
+    {
         var response = operation.Response(status);
         if (response is { Content.Count: 0 })
         {
@@ -539,7 +603,7 @@ public sealed class SpecTwin : HttpMessageHandler
         var problem = new JsonObject { ["title"] = message, ["status"] = status };
         if (schema?.ToJsonString().Contains("HttpValidationProblemDetails", StringComparison.Ordinal) == true || status == 400)
         {
-            problem["errors"] = new JsonObject { [key.Fields[0]] = new JsonArray(JsonValue.Create(message)) };
+            problem["errors"] = new JsonObject { [field] = new JsonArray(JsonValue.Create(message)) };
         }
 
         return new Reply(status, media ?? "application/problem+json", problem.ToJsonString(), []);

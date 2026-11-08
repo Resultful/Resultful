@@ -1,7 +1,7 @@
 # Invariants across a collection
 
-Decision Q44 ([decisions](../decisions.md#second-round)). **`unique` is Built**, end to end; the other traits are
-**Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
+Decision Q44 ([decisions](../decisions.md#second-round)). **`unique` and `references` are Built**, end to end; the
+other traits are **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
 and the vocabulary Matchmark reads for it.
 
 ## Why
@@ -42,7 +42,7 @@ fidelity it adds across the corpus.
 | Trait | Extension | Says | Twin | Suite |
 |:--|:--|:--|:--|:--|
 | [unique](#unique) (**Built**) | `x-matchmark-unique` | no two resources share these values | enforces | duplicates, case variants, renames into a taken value |
-| [references](#references) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
+| [references](#references) (**Built**) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
 | [derived](#derived) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
 | [conserved](#conserved) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
 | [scoped](#scoped) | `x-matchmark-scoped` | a resource belongs to the principal that created it | filters by token | a second principal can't see or change it |
@@ -87,8 +87,10 @@ field is diagnostic `MM027`.
 | references (deleting what's still referenced, `restrict`) | 409, 422 |
 | scoped (another principal's resource) | 404, 403 |
 
-The first status the operation documents is used. When it documents none of them, the trait still holds in the twin
-(answered with the first status in the list, as a problem), and the audit reports the gap (`MM028`).
+A trait may name its status (`status: 400`), which wins: the Ledger documents 422 for a reused Idempotency-Key, but answers
+an unknown account with 400, so its references say so. Otherwise the first status the operation documents is used. When
+it documents none of them, the trait still holds in the twin (answered with the first status in the list, as a problem),
+and the generator reports the gap (`MM028`), unless the declaration names its status.
 
 **The problem body** follows the documented response's schema; for a validation problem, the error is keyed by the
 field: `{"errors": {"name": ["Must be unique: another pet has it."]}}`.
@@ -154,12 +156,16 @@ The helper is generated into the service, which already references EF Core, so M
 
 ## references
 
+**Built.** The Ledger declares a transfer's `from` and `to` (its overlay), and its real server passes the checks;
+`TraitTests` shows each `onDelete` in the twin, and the suite catching a twin without the declaration.
+
 ```yaml
 x-matchmark-references:
   ownerId:
     target: /owners/{ownerId}   # the item path of the collection referred to
     onDelete: restrict          # restrict (default), cascade, clear, or none
     required: true              # a null or absent value is allowed when false
+    status: 400                 # optional: the status a reference to nothing answers with
 ```
 
 Keyed by field. `target` is the item path; the referred resource is the one whose id is the field's value.
@@ -171,11 +177,20 @@ are then allowed.
 
 **Twin.** Checks the target on writes; applies `onDelete` on deletes.
 
-**Suite.** `{op}: references {field} to nothing` (a fresh id no resource has) expects the unknown-target status;
-`{delete op}: references {field} still referring` expects the restrict status, or, for `cascade` and `clear`, reads the
-referring resource after. Checked as `ReferenceHolds`.
+**Suite.** After the first successful create of a referring resource:
+- `{op}: references {field} to nothing`: the same create with the field set to an id of its type that a read of the
+  target confirms is missing (404), expecting the unknown-target status;
+- `{op}: references {field} still referring`, for `restrict` when the target can be deleted: a fresh target and a fresh
+  resource referring to it are created, then the target is deleted, which must be refused.
 
-**Generator.** `{Api}Invariants.References`, for a foreign key.
+Checked as `ReferenceHolds`: an accepted reference to nothing, or an accepted restricted delete, is a failure. Both need
+a target that keeps state, so they run with workflows on. Checking `cascade` and `clear` from the suite (reading the
+referring resource after the delete) is **Planned**; the twin applies them.
+
+**Generator.** `{Api}Invariants.References` lists them (`new LedgerReference("Transfer", "from", "/accounts/{accountId}",
+"restrict")`), for a foreign key. MM027 reports an unknown field, a target path the spec doesn't have, an unknown
+`onDelete`, and `clear` on a field that can't be null. A foreign-key helper for EF Core is **Planned**: it needs the
+entity's navigation, which only the service knows.
 
 ## derived
 

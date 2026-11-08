@@ -100,6 +100,9 @@ public static class Checks
 
     /// <summary>A write that repeats another resource's unique key (x-matchmark-unique) is refused with the documented status.</summary>
     public const string UniqueEnforced = nameof(UniqueEnforced);
+
+    /// <summary>A reference to nothing (x-matchmark-references) is refused, and so is deleting what is still referred to when the reference restricts it.</summary>
+    public const string ReferenceHolds = nameof(ReferenceHolds);
 }
 
 public enum Severity
