@@ -1,0 +1,19 @@
+# Invariants of the Catalogue search (COMPLETENESS.md, section 2).
+overlay: 1.1.0
+info:
+  title: Matchmark invariants for the Catalogue API
+  version: 1.0.0
+extends: ./openapi.yaml
+actions:
+  - target: $.paths['/products'].get
+    description: A metamorphic relation; the list isn't paged, so it's declared rather than inferred.
+    update:
+      x-matchmark-relations:
+        - prefix: limit
+          description: The first n products are the start of the first n + 1.
+  - target: $.paths['/products'].post
+    description: What was added is what was sent.
+    update:
+      x-matchmark-ensures:
+        - condition: $response.body#/name == $request.body#/name
+        - condition: $response.body#/category == $request.body#/category

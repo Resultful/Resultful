@@ -7,7 +7,7 @@ using Microsoft.OpenApi.Reader;
 
 namespace Matchmark.Generator
 {
-    /// <summary>A spec (YAML or JSON, OpenAPI 3.0 or 3.1) written as OpenAPI 3.1 JSON: the form the regression engine reads.</summary>
+    /// <summary>A spec (YAML or JSON, OpenAPI 3.0 to 3.2) written as OpenAPI 3.1 JSON (3.2 as 3.2): the form the regression engine reads.</summary>
     public static class SpecJson
     {
         public static string Normalize(string text, string path) => Normalize(text, path, out _);
@@ -15,7 +15,10 @@ namespace Matchmark.Generator
         /// <summary>The spec, with any overlays applied, as OpenAPI 3.1 JSON, with what the reader objected to (and left out).</summary>
         public static string Normalize(string text, string path, out IReadOnlyList<string> problems, IEnumerable<(string Text, string Path)>? overlays = null)
             => Write(SpecReader.Read(text, path, out problems, overlays)
-                ?? throw new InvalidOperationException($"{path} could not be read: {string.Join("; ", problems)}"));
+                ?? throw new InvalidOperationException($"{path} could not be read: {string.Join("; ", problems)}"), ThreeTwo.IsMatch(text));
+
+        /// <summary>An OpenAPI 3.2 document: written as 3.2, so that what 3.1 can't say (query operations, itemSchema) is kept.</summary>
+        private static readonly System.Text.RegularExpressions.Regex ThreeTwo = new(@"^\s*[""']?openapi[""']?\s*:\s*[""']?3\.2", System.Text.RegularExpressions.RegexOptions.Multiline);
 
         /// <summary>An Arazzo document (YAML or JSON) as JSON, for the regression engine.</summary>
         public static string Arazzo(string text, string path)
@@ -36,10 +39,18 @@ namespace Matchmark.Generator
             return json["arazzo"] is null ? throw new InvalidOperationException($"{path} has no 'arazzo' version, so it isn't an Arazzo document.") : json.ToJsonString();
         }
 
-        internal static string Write(OpenApiDocument document)
+        internal static string Write(OpenApiDocument document, bool threeTwo = false)
         {
             using var writer = new StringWriter();
-            document.SerializeAsV31(new OpenApiJsonWriter(writer));
+            if (threeTwo)
+            {
+                document.SerializeAsV32(new OpenApiJsonWriter(writer));
+            }
+            else
+            {
+                document.SerializeAsV31(new OpenApiJsonWriter(writer));
+            }
+
             return writer.ToString();
         }
     }

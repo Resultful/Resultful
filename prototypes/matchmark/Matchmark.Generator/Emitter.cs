@@ -1020,6 +1020,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
             /// <summary>The body the fake answers with by default: the spec's example, or a valid sample built from the schema.</summary>
             public string? SampleJson { get; set; }
 
+            /// <summary>A sequential body (OpenAPI 3.2's itemSchema, as JSON Lines): the body type is IAsyncEnumerable of this.</summary>
+            public string? ItemType { get; set; }
+
+            public bool IsStream => ItemType is not null;
+
             /// <summary>The body's schema, for turning a sample into C#.</summary>
             public IOpenApiSchema? Schema { get; set; }
 
@@ -1032,7 +1037,8 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public bool IsProblem => BodyType is { } type && WellKnownSchemas.ContainsValue(type);
 
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
-            public string ResultType => Status == 401 && BodyType is null
+            public string ResultType => IsStream ? "PushStreamHttpResult"
+                : Status == 401 && BodyType is null
                 ? "UnauthorizedHttpResult"
                 : IsValidation ? "ValidationProblem"
                 : IsProblem ? "ProblemHttpResult"
@@ -1040,7 +1046,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
 
             /// <summary>A status with a TypedResults factory of its own (TypedResults.Conflict); the rest go out by number.</summary>
-            public bool HasFactory => Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null;
+            public bool HasFactory => !IsStream && (Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null);
 
             /// <summary>
             /// Written by number (TypedResults.Json or StatusCode), so the result type carries no response metadata: the
@@ -1051,6 +1057,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             /// <summary>The TypedResults call that produces it, given the body expression.</summary>
             public string Factory(string body) => (Status, BodyType is null) switch
             {
+                _ when IsStream => $"TypedResults.Stream(async __stream => {{ await foreach (var __item in {body}) {{ await global::System.Text.Json.JsonSerializer.SerializeAsync(__stream, __item, global::System.Text.Json.JsonSerializerOptions.Web); await __stream.WriteAsync(new byte[] {{ 10 }}); }} }}, {Naming.Literal(MediaType!)})",
                 _ when IsValidation => $"TypedResults.ValidationProblem({body}.Errors, {body}.Detail, {body}.Instance, {body}.Title, {body}.Type)",
                 _ when IsProblem => $"Problem({body}, {Status.Invariant()})",
                 (_, true) when !HasFactory => $"TypedResults.StatusCode({Status.Invariant()})",
@@ -1329,6 +1336,26 @@ public static (string Key, string Message) BindingError(string? key, string mess
                     var target = responseSchema.Items is { } items && Has(responseSchema, JsonSchemaType.Array) ? items : responseSchema;
                     isList = !ReferenceEquals(target, responseSchema);
                     schemaName = RefId(target) is { } id && _schemas.TryGetValue(id, out var s) && !IsEnum(s) ? Naming.Pascal(id) : null;
+                }
+                else if (pair.Value.Content?.FirstOrDefault(c => c.Value.ItemSchema is not null) is { Key: not null } sequential)
+                {
+                    // OpenAPI 3.2's sequential media types: JSON Lines become IAsyncEnumerable<T>. A server-sent event's
+                    // itemSchema describes the event (data, event, id, retry), not a payload type, so it isn't generated yet.
+                    if (sequential.Key is not ("application/jsonl" or "application/x-ndjson")
+                        || TypeOf(sequential.Value.ItemSchema!, $"{context} response '{pair.Key}' item", $"{operation.Name}{Naming.StatusNames[status]}Item") is not { } itemType)
+                    {
+                        Unsupported($"{context} response '{pair.Key}' ({sequential.Key})", "sequential media types other than JSON Lines");
+                        return false;
+                    }
+
+                    var stream = new Response(status, $"global::System.Collections.Generic.IAsyncEnumerable<{itemType}>", sequential.Key, false,
+                        RefId(sequential.Value.ItemSchema!) is { } itemId && _schemas.TryGetValue(itemId, out var itemSchema) && !IsEnum(itemSchema) ? Naming.Pascal(itemId) : null)
+                    {
+                        ItemType = itemType,
+                        SampleJson = SampleOf(sequential.Value.ItemSchema, context, 0) is { } item ? new System.Text.Json.Nodes.JsonArray(item.DeepClone()).ToJsonString() : null,
+                    };
+                    (status is >= 200 and < 300 ? operation.Successes : operation.Errors).Add(stream);
+                    continue;
                 }
 
                 var sample = JsonMedia(pair.Value.Content) is { } m ? Sample(m.Value, $"{context} response '{pair.Key}'") : null;
@@ -1648,6 +1675,36 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line("return value;");
             w.Close();
             w.Line();
+            w.Line("/// <summary>A JSON Lines body: every item read and checked against the schema, then yielded.</summary>");
+            w.Open("private async Task<IAsyncEnumerable<T>> ReadLines<T>(HttpResponseMessage response, string operation, string mediaType, Func<T, Dictionary<string, string[]>?>? validate, CancellationToken cancellationToken)");
+            w.Line("var status = (int)response.StatusCode;");
+            w.Line("_observed.TryAdd((operation, status), 0);");
+            w.Line("var actual = response.Content.Headers.ContentType?.MediaType;");
+            w.Open("if (!string.Equals(actual, mediaType, StringComparison.OrdinalIgnoreCase))");
+            w.Line("throw new ContractViolationException(operation, status, $\"the content type is '{actual}', the spec says '{mediaType}'\");");
+            w.Close();
+            w.Line();
+            w.Line("var items = new List<T>();");
+            w.Line("var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);");
+            w.Open("foreach (var (line, index) in text.Split('\\n', StringSplitOptions.RemoveEmptyEntries).Select((l, i) => (l, i)))");
+            w.Line("T? item;");
+            w.Open("try");
+            w.Line("item = JsonSerializer.Deserialize<T>(line, Json);");
+            w.Close();
+            w.Open("catch (JsonException e)");
+            w.Line("throw new ContractViolationException(operation, status, $\"item {index + 1} does not match the schema: {e.Message}\", e);");
+            w.Close();
+            w.Line();
+            w.Open("if (item is null || validate?.Invoke(item) is { } errors)");
+            w.Line("throw new ContractViolationException(operation, status, $\"item {index + 1} breaks the schema\");");
+            w.Close();
+            w.Line();
+            w.Line("items.Add(item);");
+            w.Close();
+            w.Line();
+            w.Line("return items.ToAsyncEnumerable();");
+            w.Close();
+            w.Line();
             w.Open("private void Observe(string operation, HttpResponseMessage response)");
             w.Line("_observed.TryAdd((operation, (int)response.StatusCode), 0);");
             w.Close();
@@ -1788,6 +1845,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 : response.IsList
                     ? $"items => ValidateEach(items, {ValidationClass}.Validate)"
                     : $"{ValidationClass}.Validate";
+            if (response.IsStream)
+            {
+                return $"await ReadLines<{response.ItemType}>(__response, {Naming.Literal(operation.Id)}, {Naming.Literal(response.MediaType!)}, {validate}, cancellationToken).ConfigureAwait(false)";
+            }
+
             return $"await Read<{response.BodyType}>(__response, {Naming.Literal(operation.Id)}, {Naming.Literal(response.MediaType!)}, {validate}, cancellationToken).ConfigureAwait(false)";
         }
 
@@ -2172,7 +2234,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         var validate = response.SchemaName is null
                             ? "null"
                             : response.IsList ? $"items => ValidateEach(items, {ValidationClass}.Validate)" : $"{ValidationClass}.Validate";
-                        value = $"Body<{response.BodyType}>(json ?? {Naming.Literal(response.SampleJson ?? "null")}, {validate})";
+                        value = response.IsStream
+                            ? $"Body<global::System.Collections.Generic.List<{response.ItemType}>>(json ?? {Naming.Literal(response.SampleJson ?? "[]")}, null).ToAsyncEnumerable()"
+                            : $"Body<{response.BodyType}>(json ?? {Naming.Literal(response.SampleJson ?? "null")}, {validate})";
                     }
 
                     var outcome = Outcome(operation, response, value);

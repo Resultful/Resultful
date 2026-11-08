@@ -1,0 +1,142 @@
+openapi: 3.2.0
+info:
+  title: Catalogue
+  version: 1.0.0
+  description: >
+    A product catalogue, written for what OpenAPI 3.2 adds: a search sent as a QUERY (RFC 10008), safe and idempotent
+    with its criteria in the body, and an export streamed as JSON Lines (itemSchema), each line checked as it arrives.
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, format: int32, minimum: 1, maximum: 100 } }
+      responses:
+        '200':
+          description: The products, oldest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        '400':
+          description: The limit is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+    query:
+      operationId: searchProducts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductSearch' }
+            example: { text: tea, maxPrice: 20 }
+      responses:
+        '200':
+          description: The products that match
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        '400':
+          description: The search is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+    post:
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewProduct' }
+            example: { name: Sencha, price: 12.5, category: tea }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+          links:
+            GetProduct: { operationId: getProduct, parameters: { productId: $response.body#/id } }
+        '400':
+          description: The product is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200':
+          description: The product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400':
+          description: The id is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+        '404':
+          description: No such product
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+  /products/export:
+    get:
+      operationId: exportProducts
+      responses:
+        '200':
+          description: Every product, one JSON object per line
+          content:
+            application/jsonl:
+              itemSchema: { $ref: '#/components/schemas/Product' }
+components:
+  schemas:
+    Category:
+      type: string
+      enum: [tea, coffee, cups]
+    NewProduct:
+      type: object
+      required: [name, price, category]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        price: { type: number, format: decimal, minimum: 0, maximum: 100000 }
+        category: { $ref: '#/components/schemas/Category' }
+    Product:
+      type: object
+      required: [id, name, price, category]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        price: { type: number, format: decimal, minimum: 0, maximum: 100000 }
+        category: { $ref: '#/components/schemas/Category' }
+    ProductSearch:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: { type: string, minLength: 1, maxLength: 100 }
+        maxPrice: { type: number, format: decimal, minimum: 0, maximum: 100000 }
+        category: { $ref: '#/components/schemas/Category' }
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+    HttpValidationProblemDetails:
+      type: object
+      properties:
+        type: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'], format: int32 }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'] }
+        errors:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }

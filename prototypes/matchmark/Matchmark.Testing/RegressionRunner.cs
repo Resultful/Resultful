@@ -310,6 +310,12 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             return;
         }
 
+        if (response.ItemSchemas.TryGetValue(match, out var itemSchema))
+        {
+            Items(exchange, match, itemSchema, subject, findings);
+            return;
+        }
+
         if (response.Content[match] is { } schema && OpenApiSpec.IsJson(match))
         {
             var json = exchange.Json();
