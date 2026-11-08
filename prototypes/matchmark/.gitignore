@@ -1,0 +1,3 @@
+# Fetched, never committed: samples/large/fetch.sh and samples/examples/fetch.sh.
+samples/large/*.json
+samples/examples/*/

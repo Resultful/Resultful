@@ -1,7 +1,8 @@
 name: matchmark
 
 # The Matchmark prototype (prototypes/matchmark): its tests, then the large public specs (GitHub's and Stripe's,
-# fetched, not committed), whose share of operations generated is a number that should only rise.
+# fetched, not committed), whose share of operations generated is a number that should only rise, and the
+# specifications' own examples at pinned commits (decision Q51), measured the same way.
 on:
   push:
     branches: [ main ]
@@ -46,6 +47,14 @@ jobs:
           MATCHMARK_LARGE_SPECS: ${{ github.workspace }}/prototypes/matchmark/samples/large
         run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter LargeSpecTests
 
+      - name: Fetch the specifications' own examples
+        run: sh samples/examples/fetch.sh
+
+      - name: Measure the specifications' own examples
+        env:
+          MATCHMARK_EXAMPLES: ${{ github.workspace }}/prototypes/matchmark/samples/examples
+        run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter OfficialExamplesTests
+
       - name: Ledgers
         if: always()
         run: |
@@ -57,5 +66,9 @@ jobs:
             echo '### Large specs'
             echo '```'
             cat Matchmark.Generator.Tests/bin/Release/net10.0/large-ledger.txt 2>/dev/null || echo 'not run'
+            echo '```'
+            echo "### The specifications' own examples"
+            echo '```'
+            cat Matchmark.Generator.Tests/bin/Release/net10.0/examples-ledger.txt 2>/dev/null || echo 'not run'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
