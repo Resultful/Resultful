@@ -74,7 +74,7 @@ From the [invariants across a collection](invariants.md), each proven by an inje
 | Check | Proves |
 |:--|:--|
 | `UniqueEnforced` (**Built**) | A create that repeats another resource's unique key (also in another case, when it ignores case), or a rename into it, is refused with the documented status. |
-| `ReferenceHolds` | A reference to nothing is refused; a delete applies its `onDelete` (restrict, cascade, clear). |
+| `ReferenceHolds` (**Built**) | A reference to nothing is refused, and deleting what a restricting reference still refers to is refused. |
 | `DerivedHolds` | A derived value equals its expression in every response that holds the resource. |
 | `TotalConserved` | A conserved total over the collection is the same before and after each operation that must keep it. |
 | `ScopeHolds` | Another principal can't list, read, change or delete a scoped resource. |

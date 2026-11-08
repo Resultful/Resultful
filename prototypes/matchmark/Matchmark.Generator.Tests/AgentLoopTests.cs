@@ -23,8 +23,24 @@ public sealed class AgentLoopTests
 
     private static readonly string Samples = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "ledger"));
 
-    private static readonly string Spec = SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml", out _,
-        [(File.ReadAllText(Path.Combine(Samples, "ledger.overlay.yaml")), "ledger.overlay.yaml")]);
+    /// <summary>
+    /// The Ledger's spec as the agents saw it, before traits: without x-matchmark-references (and unique keys), which now
+    /// give the twin some of what the agents had to write. The runs recorded here stay as they happened.
+    /// </summary>
+    private static readonly string Spec = WithoutTraits(SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml", out _,
+        [(File.ReadAllText(Path.Combine(Samples, "ledger.overlay.yaml")), "ledger.overlay.yaml")]));
+
+    private static string WithoutTraits(string spec)
+    {
+        var document = System.Text.Json.Nodes.JsonNode.Parse(spec)!;
+        foreach (var schema in document["components"]?["schemas"]?.AsObject().Select(p => p.Value).OfType<System.Text.Json.Nodes.JsonObject>() ?? [])
+        {
+            schema.Remove("x-matchmark-references");
+            schema.Remove("x-matchmark-unique");
+        }
+
+        return document.ToJsonString();
+    }
 
     [Test]
     public async Task The_twin_without_owned_behaviour_is_measured_and_its_training_tasks_written()

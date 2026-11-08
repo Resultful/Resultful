@@ -20,7 +20,7 @@ All are **Built**. Without `Matchmark.Rules` referenced, the generator reports d
 | Extension | On | Says |
 |:--|:--|:--|
 | `x-matchmark-unique` (**Built**) | a schema | no two resources share these values |
-| `x-matchmark-references` | a schema | a value names a resource that exists; what a delete does to it |
+| `x-matchmark-references` (**Built**) | a schema | a value names a resource that exists; what a delete does to it |
 | `x-matchmark-derived` | a schema | a value is computed (CEL over `request`, `self`, `oldSelf`) |
 | `x-matchmark-conserved` | a schema | a total over the collection doesn't change |
 | `x-matchmark-scoped` | a schema | a resource belongs to the principal that created it |
