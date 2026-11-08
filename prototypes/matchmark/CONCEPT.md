@@ -629,7 +629,7 @@ In order of value for each mode:
 
 | | Production workflow | Testing framework |
 |:--|:--|:--|
-| Next | **Runtime conformance middleware.** The regression engine's response checks, run on the server's own responses. *Observe* mode logs undocumented responses in production, *enforce* mode fails tests. | **Arazzo workflows.** Call sequences beyond what `links` can say, run as stateful tests from the seed scenarios. |
+| Next | ✓ **Runtime conformance middleware** (`Matchmark.Conformance`, `app.UseMatchmarkConformance(spec)`). The regression engine's response checks, postconditions and rules included, run on the server's own responses. *Observe* mode logs and reports each violation and changes nothing; *enforce* mode answers a violating response with a 500 problem naming it, so tests fail (`ConformanceTests`). | **Arazzo workflows.** Call sequences beyond what `links` can say, run as stateful tests from the seed scenarios. |
 | Then | **Spec diff in CI.** Classify spec changes as additive or breaking, and fail a breaking change that isn't versioned. | **Random inputs.** Schema-derived generators (CsCheck) on top of the deterministic cases, shrinking each failure to its smallest request. |
 | Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | ✓ **Parameter constraints in the generated server.** Endpoints check bounds, lengths and patterns; the Bookings sample's suite caught the gap, as predicted. |
 

@@ -504,10 +504,38 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         return Schema(a) is { } x && x == Schema(b);
     }
 
+    /// <summary>The operation a request is to: its method and path, the most literal path winning (/orders/export over /orders/{id}).</summary>
     private SpecOperation? Operation(RegressionRequest request)
-        => suite.Spec.Operations.FirstOrDefault(o => o.Method == request.Method
-            && System.Text.RegularExpressions.Regex.IsMatch(request.Path, "^" + System.Text.RegularExpressions.Regex.Replace(
-                System.Text.RegularExpressions.Regex.Escape(o.Path), @"\\\{[^}]+}", "[^/]+") + "$"));
+        => suite.Spec.Operations.Where(o => o.Method == request.Method).OrderBy(o => o.Path.Count(c => c == '{'))
+            .FirstOrDefault(o => Template(o.Path).IsMatch(request.Path));
+
+    private static System.Text.RegularExpressions.Regex Template(string path)
+        => new("^" + System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Escape(path), @"\\\{([^}]+)}", "(?<$1>[^/]+)") + "$");
+
+    /// <summary>
+    /// One exchange, checked as every response in a run is: documented status, content type, body and headers, and the
+    /// invariants the spec declares. For a server's own traffic, where whether the request was valid isn't known: a
+    /// 4xx the spec doesn't document is a warning, not a failure. A request to no operation in the spec is a failure.
+    /// </summary>
+    public IReadOnlyList<Finding> Check(Exchange exchange)
+    {
+        var findings = new List<Finding>();
+        if (Operation(exchange.Request) is not { } operation)
+        {
+            Add(findings, Checks.StatusDocumented, $"{exchange.Request.Method} {exchange.Request.Path}", exchange,
+                $"the spec has no operation for {exchange.Request.Method} {exchange.Request.Path}");
+            return findings;
+        }
+
+        if (exchange.Request.PathParameters.Count == 0 && Template(operation.Path).Match(exchange.Request.Path) is { Success: true } match)
+        {
+            var parameters = match.Groups.Keys.Where(k => !int.TryParse(k, out _)).ToDictionary(k => k, k => Uri.UnescapeDataString(match.Groups[k].Value), StringComparer.Ordinal);
+            exchange = exchange with { Request = exchange.Request with { PathParameters = parameters } };
+        }
+
+        Response(operation, exchange, requestValid: exchange.Status < 400, operation.Id, findings);
+        return findings;
+    }
 
     /// <summary>The request a link makes: its parameters from runtime expressions, anything else required sampled.</summary>
     private RegressionRequest Request(SpecLink link, SpecOperation target, Exchange source, int n)

@@ -37,6 +37,7 @@ The generated files are written to `obj/generated/` in the Contract and Sample p
 | `Matchmark.Generator` | The `IIncrementalGenerator` (netstandard2.0). It reads the spec with Microsoft.OpenApi 3.x, which ships inside the analyzer. |
 | `Matchmark.Sample.Contract` | `petstore.yaml` and the generated **Contract** part: types, response unions, `IPetsHandlers`, validation, `ValidatingPetsHandlers` and `PetStoreClient`. What a consumer or a test suite references. |
 | `Matchmark.Sample` | The service: the generated **Server** part (endpoints, OpenAPI configuration), `Program.cs`, the hand-written handlers (`PetsHandlers.cs`), and storage in SQLite through EF Core (`PetRepository.cs`, `Data/`). |
+| `Matchmark.Conformance` | ASP.NET Core middleware, `UseMatchmarkConformance(spec)`: every response the server gives, checked by the engine's response checks. *Observe* logs and reports violations; *enforce* turns a violating response into a 500 problem, for tests. |
 | `Matchmark.Rules` | The invariant languages, for everything that enforces them: `Cel` (the subset of CEL Kubernetes rules use, for `x-matchmark-rules` and `x-matchmark-transitions`) and `Idl` (parameter dependencies, `x-dependencies`). Referencing it makes the generated server enforce them. |
 | `Matchmark.Fakes` | The runtime for generated fakes: `Scenario` (expected calls, in code or JSON), `ScenarioRunner` (order, request expectations, verification), `FakeCall`. Referencing it turns on the generated fake and scenario builder. |
 | `Matchmark.Cli` | The `matchmark` command. `matchmark scaffold` writes the server side of a spec as owned ASP.NET source (controllers or Minimal API), with a reference implementation, and never overwrites without `--force`. `matchmark regress <spec> <url>` runs the regression suite generated from a spec against any HTTP API. `--webhooks` tests a receiver of the spec's webhooks instead. `matchmark audit <spec>` reports what the spec leaves out, each finding measured in the cases its fix adds (text, SARIF, a Spectral ruleset). |
@@ -216,7 +217,7 @@ API (not vendored) compiles too.
 
 ## Trying it as a package
 
-`dotnet pack` on `Matchmark.Generator`, `Matchmark.Rules`, `Matchmark.Fakes`, `Matchmark.Testing` and `Matchmark.Cli`
+`dotnet pack` on `Matchmark.Generator`, `Matchmark.Rules`, `Matchmark.Fakes`, `Matchmark.Testing`, `Matchmark.Conformance` and `Matchmark.Cli`
 (and `Resultful`) writes them to a local feed, at version `0.1.0-prototype`.
 
 - **Matchmark.Generator** is an analyzer package. It carries the spec reader the generator loads beside it, and

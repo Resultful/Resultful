@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The regression engine's response checks, run on a server's own responses: observe (log and report each violation,
+    change nothing) in production, enforce (answer a violating response with a 500 problem) in tests.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>ASP.NET Core middleware that checks a server's own responses against its OpenAPI document.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+  </ItemGroup>
+</Project>
