@@ -8,6 +8,8 @@
     <ProjectReference Include="../Matchmark.Cli/Matchmark.Cli.csproj" />
     <!-- GeneratedRulesTests compile generated servers that enforce invariants with it. -->
     <ProjectReference Include="../Matchmark.Rules/Matchmark.Rules.csproj" />
+    <!-- ConformanceTests run the middleware in front of a small hand-written API. -->
+    <ProjectReference Include="../Matchmark.Conformance/Matchmark.Conformance.csproj" />
     <!-- CorpusTests compile the generated contracts, which use Resultful's result types. -->
     <ProjectReference Include="../../../Resultful/Resultful.csproj" />
   </ItemGroup>

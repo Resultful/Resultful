@@ -168,6 +168,16 @@ public sealed class RegressionSuite
         => Cases.FirstOrDefault(c => c.Name == name) ?? throw new KeyNotFoundException($"The suite has no case '{name}'.");
 
     /// <summary>Runs every case and workflow against the API <paramref name="client"/> points at.</summary>
+    /// <summary>
+    /// Checks one exchange the way every response in a run is checked: for a server's own traffic (Matchmark.Conformance)
+    /// or any recorded one. <paramref name="headers"/> are the response's.
+    /// </summary>
+    public IReadOnlyList<Finding> Check(RegressionRequest request, int status, string? contentType, string body, IReadOnlyDictionary<string, string> headers,
+        RegressionOptions? options = null)
+        => new RegressionRunner(this, Unused, options ?? new RegressionOptions()).Check(new Exchange(request, status, contentType, body, headers));
+
+    private static readonly HttpClient Unused = new() { BaseAddress = new Uri("http://localhost/") };
+
     public Task<RegressionReport> RunAsync(HttpClient client, RegressionOptions? options = null, CancellationToken cancellationToken = default)
         => new RegressionRunner(this, client, options ?? new RegressionOptions()).RunAsync(cancellationToken);
 
