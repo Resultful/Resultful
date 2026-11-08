@@ -104,9 +104,10 @@ public sealed class SessionCopyTests
     }
 
     [Test]
-    public async Task The_same_pathway_shows_where_the_built_in_store_stops_and_the_service_goes_on()
+    public async Task The_same_pathway_passes_on_the_twin_and_the_service_once_the_spec_declares_its_unique_name()
     {
-        // The Pet Store's pathway ends by registering a name that's taken: a 409 only the real service knows about.
+        // The Pet Store's pathway ends by registering a name that's taken. The real service refuses it from its unique
+        // column; the twin refuses it because the spec declares the name unique (x-matchmark-unique), with no owned code.
         await using var service = await Session("service-path", seed: "Empty", pathways: ["register-and-rename"]);
         await using var twin = await MatchmarkSession.StartAsync(_control, "twin-path", pathways: ["register-and-rename"]);
 
@@ -117,8 +118,7 @@ public sealed class SessionCopyTests
         var onService = await service.ReportAsync();
         var onTwin = await twin.ReportAsync();
         onService.Consumer.Pathways.Single().Completed.Should().BeTrue(string.Join("; ", onService.Reasons));
-        onTwin.Consumer.Pathways.Single().Missing.Should().Equal(["name-taken", "remove", "gone"],
-            "the twin infers CRUD from the spec, and a unique name is behaviour the spec doesn't state; the workflow stops at that step");
+        onTwin.Consumer.Pathways.Single().Completed.Should().BeTrue(string.Join("; ", onTwin.Reasons));
     }
 
     private Task<MatchmarkSession> Session(string id, string seed, IEnumerable<string>? pathways = null)

@@ -1,8 +1,8 @@
 # Invariants across a collection
 
-**Planned** (decision Q44, [decisions](../decisions.md#second-round)). Nothing on this page is built yet. It specifies a
-fifth scope of invariant, the rules that hold across every resource in a collection, and the vocabulary Matchmark reads
-for it.
+Decision Q44 ([decisions](../decisions.md#second-round)). **`unique` is Built**, end to end; the other traits are
+**Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
+and the vocabulary Matchmark reads for it.
 
 ## Why
 
@@ -41,7 +41,7 @@ fidelity it adds across the corpus.
 
 | Trait | Extension | Says | Twin | Suite |
 |:--|:--|:--|:--|:--|
-| [unique](#unique) | `x-matchmark-unique` | no two resources share these values | enforces | duplicates, case variants, renames into a taken value |
+| [unique](#unique) (**Built**) | `x-matchmark-unique` | no two resources share these values | enforces | duplicates, case variants, renames into a taken value |
 | [references](#references) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
 | [derived](#derived) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
 | [conserved](#conserved) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
@@ -100,6 +100,11 @@ a service can apply them to its storage from one source.
 
 ## unique
 
+**Built.** The Pet Store and the Shelter declare their unique names. What it showed on the Pet Store: the twin from the
+spec alone, with the declaration, scores 93.2% against the real service (96 of 103 steps), exactly what the hand-written
+owned code scored on the spec without it, and the suite catches a twin of the bare spec on all three cases
+(`TwinTests`).
+
 ```yaml
 x-matchmark-unique:
   - fields: [name]          # one key; two or more fields make a compound key
@@ -108,7 +113,8 @@ x-matchmark-unique:
     nulls: distinct         # distinct (default, as SQL unique indexes do), or equal
 ```
 
-A list, so a schema can have several keys (`[sku]` and `[name, category]`).
+A list, so a schema can have several keys (`[sku]` and `[name, category]`). `scope: parent` and `nulls` are read; the
+twin compares within the collection it holds, which for a nested path is one parent's.
 
 **Semantics.** For every two resources in the scope, the values of the key's fields differ. Under `nulls: distinct`, a
 resource with any key field null or absent doesn't collide. Under `ignoreCase`, strings are compared after
@@ -126,18 +132,25 @@ owned code such as the Pet Store's `Taken` behaviour in `TwinTests`.
 | `{op}: unique {fields} taken, other case` | the same, in a different case, when `ignoreCase` |
 | `{op}: unique {fields} renamed into` | `PUT` or `PATCH` a second resource to the first's key |
 
-and one valid case, `{op}: unique {fields} free`, with a fresh key, which must succeed. Checked as `UniqueEnforced`.
+Each runs once per create operation, after its first successful valid case, with a fresh `Idempotency-Key` so a repeat
+isn't a replay. A fresh key succeeding is already every valid case. Checked as `UniqueEnforced`: accepted is a failure,
+refused with another status than the documented one a warning. The checks need a target that keeps state, so they run
+only with workflows on (a stateless fake runs with them off).
 
-**Audit.** Rule `unique-declared`: an operation that creates and documents 409 with no `x-matchmark-unique` on its
-schema gets a note: "say which fields must be unique; it adds 3 cases".
+**Audit.** Rule `unique-declared`: a create (a `POST` with a 201) that documents 409, whose created schema declares no
+`x-matchmark-unique`, gets a note. Not when the create takes an `Idempotency-Key`: its 409 is the draft's "still being
+processed" (the Orders sample).
 
-**Fidelity loop.** A training mismatch where the twin answered 2xx and the real API 409, on a create whose body repeats
-an earlier body's value, is proposed as a `unique` declaration on that field, for a person to review.
+**Fidelity loop.** `FidelityLoop.ProposeUnique(twin, fidelity)`: a mismatch where the twin answered 2xx and the real API
+409, on a create whose body repeats a string an earlier create to the same collection sent, is proposed as a `unique`
+declaration on that field (ignoring case when only the case differed), for a person to review.
 
-**Generator.** `PetStoreInvariants.Unique` lists the keys (`new UniqueKey("Pet", ["name"], IgnoreCase: true)`), for a
-service to apply as an index (Q46). For EF Core, Matchmark.Conformance offers
-`modelBuilder.ApplyMatchmarkUnique<PetRecord>(PetStoreInvariants.Unique, map)`, where `map` names the entity property
-for each JSON field, since the stored entity and the API model are different types.
+**Generator.** The `Contract` part's `PetStoreInvariants.Unique` lists the keys
+(`new PetStoreUniqueKey("Pet", new[] { "name" }, true)`), for a service to apply to its storage (Q46). When the project
+also references EF Core, the `Server` part adds `modelBuilder.ApplyPetStoreUnique<PetRecord>("Pet", map)`: a unique
+index per key, where `map` names the entity property for a JSON field (default: the field in Pascal case), since the
+stored entity and the API model are different types. Ignoring case is the store's (the Pet Store's `NOCASE` column).
+The helper is generated into the service, which already references EF Core, so Matchmark.Conformance needn't.
 
 ## references
 
@@ -254,8 +267,8 @@ list response, and across pages that each page continues the order. Checked as `
 
 | Id | Severity | When |
 |:--|:--|:--|
-| MM027 | Warning | A trait names an unknown field, a `target` path the spec doesn't have, `clear` on a non-nullable field, a derived field that isn't `readOnly`, or a `conserved` total that isn't numeric. The trait is ignored. |
-| MM028 | Info | An operation that can break a trait documents none of its statuses. The twin answers the first status in the list. |
+| MM027 (**Built** for unique) | Warning | A trait names an unknown field, a `target` path the spec doesn't have, `clear` on a non-nullable field, a derived field that isn't `readOnly`, or a `conserved` total that isn't numeric. The trait is ignored. |
+| MM028 (**Built** for unique) | Info | An operation that can break a trait documents none of its statuses. The twin answers the first status in the list. |
 
 ## Order of work
 

@@ -163,6 +163,10 @@ components:
     Pet:
       type: object
       required: [id, name, status, details]
+      # A name belongs to one pet: the service's column is unique (NOCASE), and the twin and the suite read this.
+      x-matchmark-unique:
+        - fields: [name]
+          ignoreCase: true
       properties:
         id:
           type: integer

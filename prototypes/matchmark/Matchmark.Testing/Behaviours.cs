@@ -32,6 +32,143 @@ internal sealed partial class RegressionRunner
             await PollAsync(exchange, operation, @case.Name, findings, null, cancellationToken).ConfigureAwait(false);
         }
 
+        // Unique keys need a target that keeps state; a stateless fake is run with workflows off, and so without these.
+        if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.UniqueEnforced)
+            && operation.Method == "POST" && Traits.Unique(suite.Spec, Traits.ResourceSchema(operation)) is { Count: > 0 } keys
+            && _uniqueChecked.Add(operation.Id))
+        {
+            await UniqueAsync(@case, keys, findings, cancellationToken).ConfigureAwait(false);
+        }
+
+    }
+
+    private readonly HashSet<string> _uniqueChecked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Unique keys (x-matchmark-unique): after a create succeeds, the same key again is refused, in another case too when
+    /// the key ignores case, and so is renaming a second resource into it.
+    /// </summary>
+    private async Task UniqueAsync(RegressionCase @case, IReadOnlyList<UniqueKey> keys, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        if (operation.Body is not { } body || RequestJson(@case.Request, operation) is not JsonObject sent)
+        {
+            return;
+        }
+
+        var expected = Traits.Status(operation, Traits.UniqueStatuses);
+        foreach (var key in keys)
+        {
+            if (Traits.Value(key, sent) is null)
+            {
+                continue;
+            }
+
+            await RefusedAsync(@case.Request with { Headers = FreshKey(@case.Request.Headers) }, $"{@case.Name}, unique {key} taken",
+                "a second create with the same", key, expected, findings, cancellationToken).ConfigureAwait(false);
+
+            if (key.IgnoreCase && Recased(sent, key) is { } variant)
+            {
+                await RefusedAsync(@case.Request with { Body = RequestText(@case.Request, variant), Headers = FreshKey(@case.Request.Headers) },
+                    $"{@case.Name}, unique {key} taken, other case", "a create with the same, in another case,", key, expected, findings, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            await RenameIntoAsync(@case, sent, body, key, findings, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>A second resource, then a PUT or PATCH that gives it the first's key: refused.</summary>
+    private async Task RenameIntoAsync(RegressionCase @case, JsonObject first, SpecBody body, UniqueKey key, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        if (operation.Method != "POST")
+        {
+            return;
+        }
+
+        var change = suite.Spec.Operations.FirstOrDefault(o => o.Method is "PUT" or "PATCH" && o.Body is not null
+            && System.Text.RegularExpressions.Regex.IsMatch(o.Path, "^" + System.Text.RegularExpressions.Regex.Escape(operation.Path.TrimEnd('/')) + @"/\{[^}]+\}$"));
+        if (change is null || suite.Samples.Unique(first, body.Schema, 60_000 + _behaviour++) is not JsonObject second
+            || Traits.Value(key, second) == Traits.Value(key, first))
+        {
+            return;
+        }
+
+        var created = await SendAsync(@case.Request with { Body = RequestText(@case.Request, second), Headers = FreshKey(@case.Request.Headers) }, cancellationToken)
+            .ConfigureAwait(false);
+        var parameter = System.Text.RegularExpressions.Regex.Match(change.Path, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+        if (created.Status is < 200 or >= 300 || created.Json() is not JsonObject resource
+            || (resource[parameter] ?? resource["id"]) is not { } id)
+        {
+            return;
+        }
+
+        JsonObject renamed;
+        if (change.Method == "PATCH")
+        {
+            renamed = [];
+            foreach (var field in key.Fields.Where(f => !f.Contains('.', StringComparison.Ordinal)))
+            {
+                renamed[field] = first[field]?.DeepClone();
+            }
+        }
+        else
+        {
+            renamed = (JsonObject)second.DeepClone();
+            foreach (var field in key.Fields.Where(f => !f.Contains('.', StringComparison.Ordinal)))
+            {
+                renamed[field] = first[field]?.DeepClone();
+            }
+        }
+
+        var idText = id.GetValueKind() == JsonValueKind.String ? id.GetValue<string>() : id.ToJsonString();
+        var request = new RegressionRequest(change.Method, change.Path.Replace("{" + parameter + "}", Uri.EscapeDataString(idText), StringComparison.Ordinal).TrimStart('/'),
+            [], FreshKey(@case.Request.Headers.Where(h => !string.Equals(h.Key, "If-Match", StringComparison.OrdinalIgnoreCase)).ToList()),
+            renamed.ToJsonString(), change.Body!.MediaType);
+        await RefusedAsync(request, $"{@case.Name}, unique {key} renamed into", $"a {change.Method} of another resource to the same", key,
+            Traits.Status(change, Traits.UniqueStatuses), findings, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RefusedAsync(RegressionRequest request, string subject, string what, UniqueKey key, int expected, List<Finding> findings,
+        CancellationToken cancellationToken)
+    {
+        var answer = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (answer.Status is >= 200 and < 300)
+        {
+            Add(findings, Checks.UniqueEnforced, subject, answer, $"{what} {key} was accepted with {answer.Status}; the spec declares it unique, so it must be refused ({expected})");
+        }
+        else if (answer.Status != expected)
+        {
+            Add(findings, Checks.UniqueEnforced, subject, answer, $"{what} {key} was refused with {answer.Status}; the spec documents {expected} for it", Severity.Warning);
+        }
+
+    }
+
+    /// <summary>The request's headers with a fresh Idempotency-Key, if it sends one, so a repeat isn't a replay.</summary>
+    private static List<KeyValuePair<string, string>> FreshKey(IReadOnlyList<KeyValuePair<string, string>> headers)
+        => headers.Select(h => string.Equals(h.Key, "Idempotency-Key", StringComparison.OrdinalIgnoreCase) ? new KeyValuePair<string, string>(h.Key, Guid.NewGuid().ToString()) : h)
+            .ToList();
+
+    /// <summary>The body with the key's first string field in another case, or null when changing case changes nothing.</summary>
+    private static JsonObject? Recased(JsonObject sent, UniqueKey key)
+    {
+        foreach (var field in key.Fields.Where(f => !f.Contains('.', StringComparison.Ordinal)))
+        {
+            if (sent[field] is JsonValue value && value.GetValueKind() == JsonValueKind.String && value.GetValue<string>() is { } text)
+            {
+                var upper = text.ToUpperInvariant();
+                var other = string.Equals(upper, text, StringComparison.Ordinal) ? text.ToLowerInvariant() : upper;
+                if (!string.Equals(other, text, StringComparison.Ordinal))
+                {
+                    var copy = (JsonObject)sent.DeepClone();
+                    copy[field] = other;
+                    return copy;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The same key and body again gives the same answer; the same key with another body is refused.</summary>

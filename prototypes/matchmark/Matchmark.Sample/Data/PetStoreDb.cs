@@ -33,9 +33,10 @@ public sealed class PetStoreDb(DbContextOptions<PetStoreDb> options) : DbContext
         // createPet fail (SQLite can't go past it); a plain rowid picks an unused id instead. Found by the regression suite.
         pet.Property(p => p.Id).Metadata.SetValueGenerationStrategy(Microsoft.EntityFrameworkCore.Metadata.SqliteValueGenerationStrategy.None);
 
-        // Names are unique ignoring case, as createPet's 409 says; NOCASE makes '=' in queries ignore case too.
+        // Names are unique ignoring case: the spec declares it (x-matchmark-unique), and the generated helper applies it as a
+        // unique index. Ignoring case is the store's: NOCASE makes the index, and '=' in queries, ignore case.
         pet.Property(p => p.Name).UseCollation("NOCASE");
-        pet.HasIndex(p => p.Name).IsUnique();
+        modelBuilder.ApplyPetStoreUnique<PetRecord>("Pet");
 
         pet.Property(p => p.Status).HasConversion<string>();
 

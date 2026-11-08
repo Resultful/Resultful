@@ -15,7 +15,7 @@ namespace Matchmark.Sample.Tests;
 public sealed class TwinTests
 {
     [Test]
-    public async Task A_twin_from_the_spec_alone_passes_the_suite_but_for_behaviour_beyond_CRUD()
+    public async Task A_twin_from_the_spec_alone_passes_the_suite()
     {
         var twin = new SpecTwin(PetStoreRegression.Spec);
         using var client = new HttpClient(twin) { BaseAddress = new Uri("http://twin/") };
@@ -24,8 +24,14 @@ public sealed class TwinTests
 
         report.Workflows.Single(w => w.Name == "createPet 201, then getPet, upsertPet, deletePet").Exchanges.Select(e => $"{e.Request.Method} {e.Status}")
             .Should().Equal("POST 201", "GET 200", "PUT 200", "GET 200", "DELETE 204", "GET 404");
-        report.Failures.Select(f => $"{f.Check} {f.Subject}").Should().Equal(
-            $"{Checks.WorkflowCriteria} Pet Store: register-and-rename, step name-taken");
+        report.Failures.Should().BeEmpty("the spec declares the unique name (x-matchmark-unique), so the twin refuses a taken one: " + report);
+
+        // The suite does check it: a twin of the spec without the declaration accepts a taken name, and is caught.
+        using var bare = new HttpClient(new SpecTwin(BareSpec)) { BaseAddress = new Uri("http://twin/") };
+        var caught = await PetStoreRegression.Suite.RunAsync(bare);
+        caught.Failures.Should().Contain(f => f.Check == Checks.UniqueEnforced && f.Subject.EndsWith("unique name (ignoring case) taken", StringComparison.Ordinal), caught.ToString());
+        caught.Failures.Should().Contain(f => f.Check == Checks.UniqueEnforced && f.Subject.EndsWith("taken, other case", StringComparison.Ordinal));
+        caught.Failures.Should().Contain(f => f.Check == Checks.UniqueEnforced && f.Subject.EndsWith("renamed into", StringComparison.Ordinal));
     }
 
     [Test]
@@ -45,23 +51,32 @@ public sealed class TwinTests
         actual.Fidelity(FidelityRecording.FromJson(RegressionReport.Record(expected).ToJson())).Should().BeEquivalentTo(fidelity,
             "a recording of the real API, replayed in a PR build, scores the same as the live run");
         fidelity.Score.Should().BeInRange(0.8, 0.99, fidelity.ToString());
-        fidelity.Mismatches.Should().Contain(m => m.StartsWith("Pet Store: register-and-rename, step 5 (POST /pets): 201 here, 409 from the real API", StringComparison.Ordinal),
-            "a unique name is behaviour the spec doesn't state, so the twin doesn't have it");
+        fidelity.Mismatches.Should().NotContain(m => m.Contains("409 from the real API", StringComparison.Ordinal),
+            "the spec declares the unique name, so the twin refuses a taken one: " + fidelity);
 
-        // Owned behaviour (GAPS.md, gap 3): a name already taken is a conflict. It's kept because the score rises.
+        // Before the declaration, the same rule was owned code (GAPS.md, gap 3). On the spec without it, the owned code
+        // scores what the declaration does, and the bare spec scores less: the declaration replaces the code.
+        var bare = await Measure(_ => { }, BareSpec);
         var owned = await Measure(twin => twin
             .On("createPet", call => Taken(call, except: null))
-            .On("upsertPet", call => Taken(call, except: call.Path["petId"])));
+            .On("upsertPet", call => Taken(call, except: call.Path["petId"])), BareSpec);
         File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "twin-fidelity-owned.txt"), owned.ToString());
-        owned.Score.Should().BeGreaterThan(fidelity.Score, owned.ToString());
-        owned.Mismatches.Should().NotContain(m => m.Contains("409 from the real API", StringComparison.Ordinal), owned.ToString());
+        bare.Mismatches.Should().Contain(m => m.Contains("409 from the real API", StringComparison.Ordinal), bare.ToString());
+
+        // From the bare spec's mismatches, the loop proposes the declaration rather than code (invariants.md#unique).
+        var (bareTwin, bareReal) = await Run(_ => { }, BareSpec);
+        var proposals = FidelityLoop.ProposeUnique(bareTwin, bareTwin.Fidelity(bareReal));
+        proposals.Select(p => (p.Path, p.Field)).Should().Contain(("/pets", "name"), string.Join("\n", proposals));
+        owned.Score.Should().Be(fidelity.Score, $"declared: {fidelity}\nowned: {owned}");
+        bare.Score.Should().BeLessThan(fidelity.Score);
     }
 
     [Test]
     public async Task A_change_is_kept_only_when_its_held_out_score_rises_and_no_operation_falls()
     {
-        // GAPS.md, gap 3: the writer sees the training part's tasks; a change is judged on the held-out part.
-        var (_, real) = await Run(_ => { });
+        // GAPS.md, gap 3: the writer sees the training part's tasks; a change is judged on the held-out part. The twin is
+        // the spec's without its unique-name declaration, so the rule is the writer's to find, as it was before traits.
+        var (_, real) = await Run(_ => { }, BareSpec);
         var recording = RegressionReport.Record(real);
         // Half held out, which puts the unique-name workflow (the 409s) on the held-out side.
         var (training, heldOut) = FidelityLoop.Split(recording, heldOutPercent: 50);
@@ -73,7 +88,7 @@ public sealed class TwinTests
         FidelityLoop.Split(recording, heldOutPercent: 30).Training.Steps.Where(s => s.Operation == "Pet Store: register-and-rename").Should().HaveCount(
             recording.Steps.Count(s => s.Operation == "Pet Store: register-and-rename"), "at 30% it's trained on, also whole");
 
-        var (twin, _) = await Run(_ => { });
+        var (twin, _) = await Run(_ => { }, BareSpec);
         var seen = twin.Fidelity(training);
         seen.Tasks.Should().HaveCount(seen.Mismatches.Count).And.OnlyContain(t => training.Steps.Any(s => s.Subject == t.Subject), "the writer sees only training tasks");
         var before = twin.Fidelity(heldOut);
@@ -82,12 +97,12 @@ public sealed class TwinTests
         // The unique-name rule closes the held-out 409s without lowering anything: kept.
         var (owned, _) = await Run(twin => twin
             .On("createPet", call => Taken(call, except: null))
-            .On("upsertPet", call => Taken(call, except: call.Path["petId"])));
+            .On("upsertPet", call => Taken(call, except: call.Path["petId"])), BareSpec);
         var kept = FidelityLoop.Judge(before, owned.Fidelity(heldOut));
         kept.Keep.Should().BeTrue(kept.ToString());
 
         // Refusing every new pet passes the 409s too, but everything else about createPet falls: rejected.
-        var (broken, _) = await Run(twin => twin.On("createPet", _ => new TwinAnswer(409, new JsonObject { ["title"] = "A pet with that name exists", ["status"] = 409 })));
+        var (broken, _) = await Run(twin => twin.On("createPet", _ => new TwinAnswer(409, new JsonObject { ["title"] = "A pet with that name exists", ["status"] = 409 })), BareSpec);
         var rejected = FidelityLoop.Judge(before, broken.Fidelity(heldOut));
         rejected.Keep.Should().BeFalse(rejected.ToString());
         rejected.Reasons.Should().Contain(r => r.StartsWith("createPet fell", StringComparison.Ordinal), rejected.ToString());
@@ -103,18 +118,28 @@ public sealed class TwinTests
             ? new TwinAnswer(409, new JsonObject { ["title"] = "A pet with that name exists", ["status"] = 409 })
             : null;
 
-    private static async Task<FidelityReport> Measure(Action<SpecTwin> behaviours)
+    /// <summary>The Pet Store's spec without its unique-name declaration: the spec as it was before traits.</summary>
+    private static readonly string BareSpec = WithoutUnique(PetStoreRegression.Spec);
+
+    private static string WithoutUnique(string spec)
     {
-        var (fake, real) = await Run(behaviours);
+        var document = JsonNode.Parse(spec)!;
+        document["components"]!["schemas"]!["Pet"]!.AsObject().Remove("x-matchmark-unique");
+        return document.ToJsonString();
+    }
+
+    private static async Task<FidelityReport> Measure(Action<SpecTwin> behaviours, string? spec = null)
+    {
+        var (fake, real) = await Run(behaviours, spec);
         return fake.Fidelity(real);
     }
 
-    /// <summary>The suite against a twin with these behaviours, and against the real service, both from the same pets.</summary>
-    private static async Task<(RegressionReport Twin, RegressionReport Real)> Run(Action<SpecTwin> behaviours)
+    /// <summary>The suite against a twin (of this spec) with these behaviours, and against the real service, both from the same pets.</summary>
+    private static async Task<(RegressionReport Twin, RegressionReport Real)> Run(Action<SpecTwin> behaviours, string? spec = null)
     {
         await using var app = new PetStoreApp();
         var real = app.CreateClient();
-        var twin = new SpecTwin(PetStoreRegression.Spec);
+        var twin = new SpecTwin(spec ?? PetStoreRegression.Spec);
         behaviours(twin);
         twin.Seed("/pets", (await real.GetFromJsonAsync<JsonArray>("pets?limit=100"))!.OfType<JsonObject>());
         using var fake = new HttpClient(twin) { BaseAddress = new Uri("http://twin/") };

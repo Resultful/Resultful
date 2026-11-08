@@ -68,6 +68,9 @@ components:
     Pet:
       type: object
       required: [id, name]
+      x-matchmark-unique:
+        - fields: [name]
+          ignoreCase: true
       properties:
         id: { type: integer, readOnly: true }
         name: { type: string, minLength: 1, maxLength: 40, example: Rex }

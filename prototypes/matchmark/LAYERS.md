@@ -172,6 +172,12 @@ Running the generator and the engine over specs other than the Pet Store found t
   it sampled the response as if it were a request. *Fixed:* a status documented without a body is sent without one,
   and response samples include read-only values and leave out write-only ones.
 
+- **A declaration replaced owned code.** The Pet Store's unique name was hand-written in the twin's owned code. Declared
+  once (`x-matchmark-unique`), the twin from the spec alone scores what the owned code did (93.2%), the suite checks
+  the real service refuses duplicates, case variants and renames into a taken name, and the audit suggests the
+  declaration where a create documents 409. Its first run flagged the Orders sample too, wrongly: a create that takes an
+  Idempotency-Key documents 409 for a request still being processed, so the rule now leaves those out.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
