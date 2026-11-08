@@ -54,6 +54,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Fakes` | `Matchmark.Fakes.Scenario` | The generated fake and scenario builder, in the `Contract` part. |
 | `Matchmark.Testing` | `Matchmark.Testing.RegressionSuite` | The `Regression` part. |
 | `Matchmark.Rules` | `Matchmark.Rules.Cel` | Enforcement of `x-matchmark-rules`, `x-matchmark-transitions` and `x-dependencies` in the server and client (`MM025` without it). |
+| `Microsoft.Extensions.Validation` | **Proposed** | Validation attributes on models, a generated `{Api}ValidationResolver`, and `AddValidation()` in place of Matchmark's own validator ([validation](validation.md)). |
 
 ## Packages
 
@@ -66,6 +67,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Conformance` | Built | `UseMatchmarkConformance(spec)` middleware, in observe or enforce mode. |
 | `Matchmark.Cli` | Built | The `matchmark` dotnet tool. |
 | Container image | Planned (Q17) | The CLI, for teams without the .NET SDK. |
+| `Matchmark.Validation` | Proposed (P2) | Validation attributes .NET lacks: `[MultipleOf]`, `[UniqueItems]`, `[PropertyCount]`. |
 
 Generated code depends on Resultful and OneOf today. Plain unions by default, with Resultful as an opt-in adapter, is
 planned (Q12, roadmap step 1).

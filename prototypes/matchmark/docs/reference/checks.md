@@ -67,6 +67,20 @@ These run when the spec, or an overlay on it, declares the behaviour ([extension
 | `WorkflowCriteria` | Each step of an Arazzo workflow meets its success criteria, or its failure is one the workflow handles. |
 | `MessageConforms` | A message in a workflow, sent by it or received from the API, conforms to its AsyncAPI message. |
 
+## Proposed
+
+From the [invariants across a collection](invariants.md), each proven by an injected fault before it counts:
+
+| Check | Proves |
+|:--|:--|
+| `UniqueEnforced` | A write that repeats another resource's unique key is refused with the documented status; a fresh key is accepted. |
+| `ReferenceHolds` | A reference to nothing is refused; a delete applies its `onDelete` (restrict, cascade, clear). |
+| `DerivedHolds` | A derived value equals its expression in every response that holds the resource. |
+| `TotalConserved` | A conserved total over the collection is the same before and after each operation that must keep it. |
+| `ScopeHolds` | Another principal can't list, read, change or delete a scoped resource. |
+| `LimitEnforced` | The create past a limit is refused with the documented status. |
+| `ListOrdered` | A list is in its declared order, page after page. |
+
 ## Sessions
 
 A hosted session's report ([sessions](sessions.md#the-report)) isn't a check of the engine's, but it judges the same way:

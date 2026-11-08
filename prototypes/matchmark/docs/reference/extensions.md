@@ -15,6 +15,20 @@ a spec you don't own needn't change ([LAYERS.md](../LAYERS.md)).
 All are **Built**. Without `Matchmark.Rules` referenced, the generator reports declared rules as not enforced
 (`MM025`).
 
+**Proposed:** a fifth scope, invariants across a whole collection ([invariants](invariants.md)):
+
+| Extension | On | Says |
+|:--|:--|:--|
+| `x-matchmark-unique` | a schema | no two resources share these values |
+| `x-matchmark-references` | a schema | a value names a resource that exists; what a delete does to it |
+| `x-matchmark-derived` | a schema | a value is computed (CEL over `request`, `self`, `oldSelf`) |
+| `x-matchmark-conserved` | a schema | a total over the collection doesn't change |
+| `x-matchmark-scoped` | a schema | a resource belongs to the principal that created it |
+| `x-matchmark-limit` | a schema | at most n resources per scope |
+| `x-matchmark-order` | a list operation | the list is sorted this way |
+
+And `x-matchmark-rules` moves onto .NET's validation layer as `IValidatableObject` ([validation](validation.md)).
+
 ## x-matchmark-rules
 
 A list of rules that must hold for every instance of the schema, in the subset of

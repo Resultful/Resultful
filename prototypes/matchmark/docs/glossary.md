@@ -13,6 +13,7 @@
 | **Forward port** | Converting an older version of a specification to the latest one Matchmark's model holds. |
 | **Gate** | `FidelityLoop.Judge`: keeps a change to a twin only when held-out fidelity rose and no operation fell. |
 | **Held out** | The share of recorded sequences a twin's writer never sees, on which changes are judged. |
+| **Invariant scope** | What an invariant spans: one payload, one request's parameters, a request and its response, two readings of a resource, or (proposed) a whole collection. |
 | **The model** | The semantic model every output is generated from (roadmap step 2, [the model](reference/model.md)). |
 | **Outcome** | A documented status (or range) of an operation, with its body. Each is a case of the operation's union. |
 | **Outcome coverage** | The share of documented outcomes a test suite reached. |
@@ -28,5 +29,6 @@
 | **Session host** | The C# server that hosts the sessions. |
 | **Spine** | The three steps the vision is built on: verify, test against a hosted copy, flip. |
 | **Suite** | The regression cases and workflows generated from a spec. |
+| **Trait** | A declared behaviour from a fixed vocabulary (unique, references, …), read by one implementation in Matchmark ([invariants](reference/invariants.md)). |
 | **Twin** | A stateful fake from the spec alone, measured against the real API ([twins](reference/twins.md)). |
 | **Writing down** | Writing a spec in an older version of its format than the model holds, for a consumer that needs it. |

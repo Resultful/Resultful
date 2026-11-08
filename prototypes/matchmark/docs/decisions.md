@@ -87,3 +87,12 @@ Q26's MSW part).
 |:--|:--|:--|
 | Q10 | One model behind every output, built before any new output. | Without it each output repeats the generator's decisions and drifts. |
 | Q27 | The roadmap is ordered: own home, the model, verify (alongside the model), hosted sessions, flip, later layers. | It follows verify, test, flip, and puts the model first. |
+
+## Proposed
+
+Proposed on 8 November 2026, after the review. Not decided until confirmed; then each moves into the tables above.
+
+| # | Proposal | Why |
+|:--|:--|:--|
+| P1 | A fifth scope of invariant, across a whole collection, declared as traits from a fixed vocabulary (unique, references, derived, conserved, scoped, limit, order), each built once and used by the twin, the suite, the audit, the generator and the fidelity loop ([invariants](reference/invariants.md)). If a behaviour is a property of data visible through the API, declare it; otherwise it is owned code or a service session. | Most of what twins get wrong is in this scope (the Pet Store's unique name, the Ledger's derived balance and transfers), and declarations are written once for every API, reviewable, and test the real service too. |
+| P2 | Per-object checks move onto .NET's validation layer: attributes on generated models, `IValidatableObject` for CEL rules, a generated `IValidatableInfoResolver`, and `AddValidation()`; Matchmark's own validator is retired once a spike proves it ([validation](reference/validation.md)). Collection invariants stay out of model validation. | One pipeline .NET teams know, attributes the OpenAPI document reads, and a smaller emitter. A generated resolver works around source generators not seeing each other's output. |

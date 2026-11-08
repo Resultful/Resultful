@@ -75,6 +75,10 @@ reads them rather than inventing one.
 | **Request to response:** postconditions | the created order has the lines sent; every result of `?status=paid` is paid; at most `limit` items | Arazzo's [Criterion Object](https://spec.openapis.org/arazzo/v1.1.0.html): simple conditions over runtime expressions (`$request.body#/…`, `$response.body#/…`), or JSONPath (RFC 9535 by default since Arazzo 1.1) | Arazzo `successCriteria`. Matchmark's engine already evaluates runtime expressions for links |
 | **Across calls:** state and time | GET changes nothing; PUT twice is PUT once; `shipped` only from `paid`; `?limit=2` is a prefix of `?limit=3` | HTTP's own semantics; CEL transition rules with `oldSelf`; metamorphic relations | [RFC 9110 §9.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.2) (safe and idempotent methods); Kubernetes transition rules; *Metamorphic Testing of RESTful Web APIs* (Segura et al., IEEE TSE 2018), which found 11 issues in Spotify and YouTube |
 
+**A fifth scope is proposed:** across a whole collection (no two pets share a name; a transfer refers to an account
+that exists; a ledger's total balance doesn't change). Its vocabulary is in
+[docs/reference/invariants.md](docs/reference/invariants.md).
+
 **Some invariants need declaring by no one.** HTTP already promises them, so Matchmark can check them on every API:
 
 - A safe method (`GET`, `HEAD`, `QUERY`) changes nothing: the collection reads the same before and after.
