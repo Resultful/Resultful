@@ -77,7 +77,7 @@ From the [invariants across a collection](invariants.md), each proven by an inje
 | `ReferenceHolds` (**Built**) | A reference to nothing is refused, and deleting what a restricting reference still refers to is refused. |
 | `DerivedHolds` (**Built**) | A derived value equals its expression in every response that holds the resource. |
 | `TotalConserved` (**Built**) | A conserved total over the collection is the same before and after each operation that must keep it. |
-| `ScopeHolds` | Another principal can't list, read, change or delete a scoped resource. |
+| `ScopeHolds` (**Built**) | Another principal can't list, read, change or delete a scoped resource. |
 | `LimitEnforced` (**Built**) | The create past a limit is refused with the documented status. |
 | `ListOrdered` (**Built**) | A list is in its declared order, page after page. |
 

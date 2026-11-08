@@ -217,6 +217,39 @@ namespace Matchmark.Generator
             }
         }
 
+        /// <summary>
+        /// MM027 for a scope declared wrongly (by anything but principal, visible to anyone but owner); MM028 for a read of a
+        /// scoped resource that documents neither 404 nor 403, unless the scope names its status.
+        /// </summary>
+        private void CheckScoped(List<Operation> operations)
+        {
+            foreach (var pair in _document.Components?.Schemas ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                if (!(Extension(pair.Value.Extensions, "x-matchmark-scoped") is JsonObject scoped))
+                {
+                    continue;
+                }
+
+                var by = scoped["by"]?.ToString() ?? "principal";
+                var visible = scoped["visible"]?.ToString() ?? "owner";
+                var wrong = by != "principal" ? $"an unknown by {by}" : visible != "owner" ? $"an unknown visible {visible}" : null;
+                if (wrong is not null)
+                {
+                    Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{pair.Key}'s x-matchmark-scoped", wrong));
+                    continue;
+                }
+
+                if (scoped["status"] is null)
+                {
+                    foreach (var operation in operations.Where(o => o.Method == "GET" && o.Path.EndsWith("}", StringComparison.Ordinal) && Creates(o, pair.Key)
+                                 && !o.Errors.Any(e => e.Status is 404 or 403)))
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantStatusMissing, _location, operation.Id, $"{pair.Key}'s scope", "404 or 403"));
+                    }
+                }
+            }
+        }
+
         private static IOpenApiSchema? Property(IOpenApiSchema schema, string name)
             => schema.Properties is not null && schema.Properties.TryGetValue(name, out var property) ? property
                : (schema.AllOf ?? new List<IOpenApiSchema>()).Select(part => Property(part, name)).FirstOrDefault(p => p is not null);
@@ -243,6 +276,7 @@ namespace Matchmark.Generator
             CheckDerivedAndOrder(operations);
             CheckLimits(operations);
             CheckConserved(operations);
+            CheckScoped(operations);
             var keys = UniqueKeys();
             var references = References();
             if (keys.Count == 0 && references.Count == 0)

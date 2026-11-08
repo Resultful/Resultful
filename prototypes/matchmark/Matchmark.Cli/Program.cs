@@ -18,7 +18,7 @@ const string Usage = """
                             spec change only adds what is new; the compiler then shows what no longer fits.
 
     matchmark regress <spec> <base url> [--arazzo <file>]... [--overlay <file>]... [--no-workflows] [--webhooks]
-                      [--random <n>] [--seed <n>] [--save <file>]
+                      [--random <n>] [--seed <n>] [--save <file>] [--principal <header>]...
 
       Runs the regression suite generated from the spec against any HTTP API. An AsyncAPI 3 document tests a consumer
       of its messages through a bridge.

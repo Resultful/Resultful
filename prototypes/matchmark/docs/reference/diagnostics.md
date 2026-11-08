@@ -56,8 +56,8 @@ own OpenAPI document reads them. Each is reported at the line that's wrong.
 
 | Id | Severity | Title | When |
 |:--|:--|:--|:--|
-| MM027 (**Built** for every trait but scoped) | Warning | Invariant declared wrongly | A trait names an unknown field or path, `clear` on a non-nullable field, a derived field that isn't `readOnly`, or a non-numeric conserved total ([invariants](invariants.md#diagnostics)). |
-| MM028 (**Built** for unique, references and limit) | Info | No status for an invariant | An operation that can break a trait documents none of the statuses it would answer with. |
+| MM027 (**Built** for every trait) | Warning | Invariant declared wrongly | A trait names an unknown field or path, `clear` on a non-nullable field, a derived field that isn't `readOnly`, or a non-numeric conserved total ([invariants](invariants.md#diagnostics)). |
+| MM028 (**Built** for unique, references, limit and scoped) | Info | No status for an invariant | An operation that can break a trait documents none of the statuses it would answer with. |
 | MM029 | Info | Matchmark's own validator kept | `Microsoft.Extensions.Validation` isn't referenced ([validation](validation.md#diagnostics)). |
 | MM030 | Warning | No attribute for a keyword | A schema keyword has no validation attribute; only the suite checks it. |
 

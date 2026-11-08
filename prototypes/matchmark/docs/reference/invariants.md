@@ -1,7 +1,7 @@
 # Invariants across a collection
 
-Decision Q44 ([decisions](../decisions.md#second-round)). **`unique`, `references`, `derived`, `order`, `limit` and
-`conserved` are Built**, end to end; `scoped` is **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
+Decision Q44 ([decisions](../decisions.md#second-round)). **All seven traits are Built**, end to end: `unique`,
+`references`, `derived`, `order`, `limit`, `conserved` and `scoped`. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
 and the vocabulary Matchmark reads for it.
 
 ## Why
@@ -45,7 +45,7 @@ fidelity it adds across the corpus.
 | [references](#references) (**Built**) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
 | [derived](#derived) (**Built**) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
 | [conserved](#conserved) (**Built**) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
-| [scoped](#scoped) | `x-matchmark-scoped` | a resource belongs to the principal that created it | filters by token | a second principal can't see or change it |
+| [scoped](#scoped) (**Built**) | `x-matchmark-scoped` | a resource belongs to the principal that created it | filters by token | a second principal can't see or change it |
 | [limit](#limit) (**Built**) | `x-matchmark-limit` | at most n resources per scope | enforces | the n + 1th create |
 | [order](#order) (**Built**) | `x-matchmark-order` | a list is sorted this way | sorts | checks order, across pages too |
 
@@ -259,12 +259,27 @@ x-matchmark-scoped:
 **Semantics.** A resource belongs to the principal whose credential created it. Others don't see it in lists, and get
 the scoped status when they read, change or delete it.
 
-**Twin.** Records the creating token and filters by it. In [sessions](sessions.md), each session's token is a principal;
-a session mints a second principal for a test with `POST /__fake/sessions/{id}/principals` (Q47).
+**Built.** `ScopedTests` shows the twin and the suite; `SessionTests` mints a second principal in a hosted session.
 
-**Suite.** Needs two credentials (`RegressionOptions.Principals`, `matchmark regress --principal <header>` twice, Q47). Creates
-as the first, then reads, lists, changes and deletes as the second. Checked as `ScopeHolds`. Without two principals, the
-cases are a gap, not a pass.
+**The principal** is the credential a request presents where the spec's first security scheme says (an API key's
+header, query parameter or cookie), else its `Authorization` header. The same principal is what a `limit` with
+`scope: principal` counts by.
+
+**Twin.** Records the creating principal and filters by it: another principal's read, change or delete is answered as
+if the resource weren't there (the first of 404, 403 the operation documents), and lists leave it out. Seeded resources
+belong to no one, so everyone sees them. In [sessions](sessions.md), each session's token is a principal; a session
+mints a second principal for a test with `POST /__fake/sessions/{id}/principals` (Q47), `MatchmarkSession.AddPrincipalAsync()`
+in .NET.
+
+**Suite.** Needs two credentials (`RegressionOptions.Principals`, `matchmark regress --principal <header>` twice, Q47):
+the first is sent with every request that doesn't set that header itself. After a create as the first, the second
+lists (the resource mustn't be in it), then reads, changes (with the create's body) and deletes it (each must be
+refused; a refusal with another status than documented is a warning, a 400 or 422 to the change is accepted); then the
+first reads it, and it must still be there. Checked as `ScopeHolds`. Without two principals, each scoped create is a
+warning that the scope went unchecked: a gap, not a pass.
+
+**Generator.** `MM027` for a `by` other than `principal` or a `visible` other than `owner` (the only values so far);
+`MM028` for an item read of the scoped schema that documents neither 404 nor 403, unless the scope names its `status`.
 
 ## limit
 
@@ -324,7 +339,7 @@ pages, and a `sort` parameter overriding it, are **Planned**. `MM027` reports an
 | references | 2 | the Ledger's transfers, and most APIs with child resources |
 | derived, order | 3 | small, and each removes a known mismatch |
 | conserved, limit | 4 | both Built |
-| scoped | 5 | needs a second principal in the suite and in sessions |
+| scoped | 5 | Built, with a second principal in the suite and in sessions |
 
 Each is done when the twin enforces it with no owned code, the suite catches a service that breaks it (an injected
 fault, as every check is proven), the audit suggests it, and the fidelity of the corpus samples that need it doesn't

@@ -115,6 +115,9 @@ public static class Checks
 
     /// <summary>A write that isn't excepted leaves a conserved total (x-matchmark-conserved) as it was.</summary>
     public const string TotalConserved = nameof(TotalConserved);
+
+    /// <summary>Another principal can't list, read, change or delete a scoped resource (x-matchmark-scoped).</summary>
+    public const string ScopeHolds = nameof(ScopeHolds);
 }
 
 public enum Severity

@@ -12,6 +12,13 @@ public sealed class RegressionOptions
     /// <summary>Which cases to run; all of them by default.</summary>
     public Func<RegressionCase, bool> Include { get; set; } = _ => true;
 
+    /// <summary>
+    /// Credentials, each a header (name and value), for the security principals the run acts as (Q47). The first is sent
+    /// with every request that doesn't set that header itself; the second is the other principal the scoped trait's
+    /// checks (<see cref="Checks.ScopeHolds"/>) act as. Without two, those checks are a gap the report notes.
+    /// </summary>
+    public IList<KeyValuePair<string, string>> Principals { get; } = new List<KeyValuePair<string, string>>();
+
     /// <summary>Checks not to make, by name (<see cref="Checks"/>).</summary>
     public ISet<string> Skip { get; } = new HashSet<string>(StringComparer.Ordinal);
 
@@ -697,6 +704,12 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
     private async Task<Exchange> SendOnceAsync(RegressionRequest request, CancellationToken cancellationToken)
     {
         using var message = request.ToMessage();
+        if (options.Principals.Count > 0 && !request.Headers.Any(h => string.Equals(h.Key, options.Principals[0].Key, StringComparison.OrdinalIgnoreCase)))
+        {
+            message.Headers.Remove(options.Principals[0].Key);
+            message.Headers.TryAddWithoutValidation(options.Principals[0].Key, options.Principals[0].Value);
+        }
+
         using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var headers = response.Headers.Concat(response.Content.Headers)

@@ -78,11 +78,89 @@ internal sealed partial class RegressionRunner
             await ReferencesAsync(@case, references, findings, cancellationToken).ConfigureAwait(false);
         }
 
+        if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.ScopeHolds)
+            && operation.Method == "POST" && Traits.ScopedOf(suite.Spec, Traits.CollectionSchema(suite.Spec, operation.Path)) is { } scoped
+            && _scopeChecked.Add(operation.Id))
+        {
+            await ScopeAsync(@case, exchange, scoped, findings, cancellationToken).ConfigureAwait(false);
+        }
+
         if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.LimitEnforced)
             && operation.Method == "POST" && Traits.LimitOf(suite.Spec, Traits.ResourceSchema(operation)) is { Max: <= MaxLimitExercised } limit
             && _limitChecked.Add(operation.Id))
         {
             await LimitAsync(@case, exchange, limit, findings, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private readonly HashSet<string> _scopeChecked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A scope (x-matchmark-scoped): as the second principal, the resource the first just created isn't in the list, and
+    /// reading, changing and deleting it are refused; then, as the first, it's still there. Without a second principal,
+    /// a warning that the scope is unchecked.
+    /// </summary>
+    private async Task ScopeAsync(RegressionCase @case, Exchange exchange, Scoped scoped, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        var subject = $"{@case.Name}, scoped to its principal";
+        if (options.Principals.Count < 2)
+        {
+            Add(findings, Checks.ScopeHolds, subject, exchange,
+                "the resource is scoped to its principal, but the run has no second principal to try it as, so the scope is unchecked (RegressionOptions.Principals, --principal twice)", Severity.Warning);
+            return;
+        }
+
+        var item = suite.Spec.Operations.Select(o => (Operation: o, Match: System.Text.RegularExpressions.Regex.Match(o.Path,
+                "^" + System.Text.RegularExpressions.Regex.Escape(operation.Path.TrimEnd('/')) + @"/\{(?<p>[^}]+)\}$")))
+            .Where(m => m.Match.Success).ToList();
+        if (item.Count == 0 || Id(exchange.Json(), item[0].Match.Groups["p"].Value) is not { } id)
+        {
+            return;
+        }
+
+        var other = options.Principals[1];
+        var prefix = @case.Request.Path.Split('?')[0].Trim('/');
+        var path = $"{prefix}/{Uri.EscapeDataString(id)}";
+        List<KeyValuePair<string, string>> As(KeyValuePair<string, string> principal) => [principal];
+
+        // The list, as the other principal: the resource isn't in it.
+        if (suite.Spec.Operations.FirstOrDefault(o => o.Method == "GET" && o.Path == operation.Path) is not null)
+        {
+            var listed = await SendAsync(new RegressionRequest("GET", prefix, [], As(other), null, null), cancellationToken).ConfigureAwait(false);
+            var parameter = item[0].Match.Groups["p"].Value;
+            if (listed.Status is >= 200 and < 300 && listed.Json() is { } body && Items(body).Any(i => Id(i, parameter) == id))
+            {
+                Add(findings, Checks.ScopeHolds, $"{subject}, listed", listed, $"another principal's list includes {path}, which belongs to the principal that created it");
+            }
+        }
+
+        // Read, change and delete, as the other principal: each refused.
+        foreach (var (target, _) in item.Where(i => i.Operation.Method is "GET" or "PUT" or "PATCH" or "DELETE").OrderBy(i => i.Operation.Method == "DELETE"))
+        {
+            var body = target.Method is "PUT" or "PATCH" ? @case.Request.Body : null;
+            var answer = await SendAsync(new RegressionRequest(target.Method, path.TrimStart('/'), [], As(other), body, body is null ? null : @case.Request.ContentType),
+                cancellationToken).ConfigureAwait(false);
+            var expected = Traits.Status(target, Traits.ScopedStatuses, scoped.Declared);
+            if (answer.Status is >= 200 and < 300)
+            {
+                Add(findings, Checks.ScopeHolds, $"{subject}, {target.Method}", answer,
+                    $"another principal's {target.Method} of {path} was accepted with {answer.Status}; it belongs to the principal that created it, so it must be refused ({expected})");
+            }
+            else if (answer.Status != expected && answer.Status is not (400 or 422))
+            {
+                Add(findings, Checks.ScopeHolds, $"{subject}, {target.Method}", answer, $"another principal's {target.Method} was refused with {answer.Status}; the spec documents {expected} for it", Severity.Warning);
+            }
+        }
+
+        // As its own principal, it's still there.
+        if (item.FirstOrDefault(i => i.Operation.Method == "GET").Operation is not null)
+        {
+            var mine = await SendAsync(new RegressionRequest("GET", path.TrimStart('/'), [], As(options.Principals[0]), null, null), cancellationToken).ConfigureAwait(false);
+            if (mine.Status == 404)
+            {
+                Add(findings, Checks.ScopeHolds, $"{subject}, still there", mine, $"{path} was gone for the principal that created it after another principal tried to delete it");
+            }
         }
     }
 
