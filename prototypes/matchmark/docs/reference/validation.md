@@ -1,8 +1,9 @@
 # Validation on .NET's validation layer
 
 **Planned** (decision Q45, [decisions](../decisions.md#second-round)): adopted now, with the spike as its first
-implementation step. The spike is **Built** ([what it found](#what-the-spike-found)); the generator's part is next. It
-specifies how
+implementation step. The spike is **Built** ([what it found](#what-the-spike-found)), and so are the attributes on
+models and the resolver, as an opt-in (`Add{Api}Validation()`); making it the default and retiring Matchmark's own
+validator is next ([status](#status)). It specifies how
 Matchmark's per-object checks move onto .NET's own validation layer (`Microsoft.Extensions.Validation`, .NET 10), so a
 generated service validates the way any .NET service does, and Matchmark stops maintaining a validator of its own.
 Invariants across a collection, such as uniqueness, are not model validation: see [invariants](invariants.md#common-rules).
@@ -83,18 +84,22 @@ fields the rule reads. Without Matchmark.Rules referenced, the rules aren't gene
 
 ### 3. The resolver
 
-`{Api}ValidationResolver : IValidatableInfoResolver`, generated into the `Contract` part when the project references
-`Microsoft.Extensions.Validation`. It describes every generated model and every generated endpoint parameter: its
-properties, their attributes, its nested types and collection items, and whether it is an `IValidatableObject`. It is
-what Microsoft's generator would have produced had it seen the types.
+**Built.** `{Api}ValidationResolver : IValidatableInfoResolver`, generated into the `Contract` part when the project
+references `Microsoft.Extensions.Validation` (every .NET 10 web project does: it's in the shared framework). It describes
+every generated model: each property by its C# name (the layer finds it by reflection), shown by its JSON name, with the
+same attributes the model carries; nested models and collection items are found through it. A body parameter of a
+generated type is validated, and its errors re-keyed from C# paths to the spec's JSON paths (`Details.LivesLeft` to
+`details.livesLeft`, `[0].name` for a list body). `IValidatableObject` for rules is **Planned** (step 2 above).
 
 ### 4. Registration
 
-`Add{Api}()` (the `Server` part) calls:
+**Built as an opt-in:** `services.Add{Api}Validation()`, generated beside the resolver, is
 
 ```csharp
 services.AddValidation(options => options.Resolvers.Insert(0, new PetStoreValidationResolver()));
 ```
+
+**Planned:** `Add{Api}()` calling it, the switch that makes it the default.
 
 Generated endpoints stop calling `{Api}Validation` and rely on the validation filter. **Error keys stay as they are:**
 JSON paths in the spec's names (`details.livesLeft`, `[0].name`), so the suite's `RejectionNamesTheValue` check and
@@ -115,11 +120,25 @@ The generated client validates before sending with the same resolver, through `M
 ASP.NET Core, so a bad request never leaves and returns the operation's validation case without a round trip, as today.
 A contract-only package (`MatchmarkProblems="Owned"`) takes the package as its one new dependency.
 
+## Status
+
+| Slice | State | Evidence |
+|:--|:--|:--|
+| The spike | **Built** | `ValidationSpikeTests`; decision Q54 |
+| 1. Attributes on generated models | **Built** | `ModelAttributeTests`; every suite and the round-trip check pass |
+| 2. The resolver, opt-in | **Built** | `ModelAttributeTests` sends the same bad bodies with and without it: the same statuses and error keys. `SpecRegressionTests` runs the Pet Store's whole suite, random requests included, with it registered, and .NET's layer answers some bad bodies itself |
+| 3. The default, and `{Api}Validation` retired | Planned | needs the rest of the attribute table (Matchmark.Validation), rules as `IValidatableObject`, endpoint parameters, and the client |
+
+What differs when .NET's layer answers, found by slice 2: the keys and statuses are the same, but the messages are
+.NET's (*The field sides must be between 3 and 12.*), the problem body has no `type` or `status`, and a field reports
+only its first broken attribute (Matchmark's validator reports each). The comparison also found two gaps in Matchmark's
+own validator, now fixed: it ignored `exclusiveMinimum` and `exclusiveMaximum`, and didn't check `format: byte`.
+
 ## Diagnostics
 
 | Id | Severity | When |
 |:--|:--|:--|
-| MM029 | Info | `Microsoft.Extensions.Validation` isn't referenced, so the contract keeps Matchmark's own validator. |
+| MM029 (Planned, with slice 3) | Info | `Microsoft.Extensions.Validation` isn't referenced, so the contract keeps Matchmark's own validator. |
 | MM030 | Warning | A schema keyword has no attribute (neither .NET's nor Matchmark.Validation's): it's checked by the suite only. |
 
 ## The spike

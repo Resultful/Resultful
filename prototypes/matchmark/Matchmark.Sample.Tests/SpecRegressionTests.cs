@@ -39,6 +39,24 @@ public sealed class SpecRegressionTests
         report.Outcomes.Where(o => !o.Reached).Should().BeEmpty("the suite reaches every documented outcome, conflicts and missing pets included");
     }
 
+    /// <summary>
+    /// Q45, slice 2: with .NET's validation layer registered (AddPetStoreValidation, the generated resolver first), which
+    /// answers a bad body before Matchmark's own validator does, the service still passes the whole suite, random requests
+    /// included: the same statuses, and errors keyed by the spec's names.
+    /// </summary>
+    [Test]
+    public async Task The_service_passes_the_suite_on_net_s_validation_layer()
+    {
+        await using var app = new PetStoreApp().WithWebHostBuilder(b => b.ConfigureServices(services => services.AddPetStoreValidation()));
+
+        var report = await Suite.RunAsync(app.CreateClient(), new RegressionOptions { Random = 25, Seed = 11 });
+
+        Write("service-net-validation", report);
+        report.Failures.Should().BeEmpty(report.ToString());
+        report.Cases.Should().Contain(c => c.Exchange.Status == 400 && c.Exchange.Body != null && c.Exchange.Body.Contains("The field ", StringComparison.Ordinal),
+            "some bad bodies are refused by .NET's layer, in its words, before the generated validator runs");
+    }
+
     [Test]
     public async Task The_service_passes_random_requests_too()
     {
