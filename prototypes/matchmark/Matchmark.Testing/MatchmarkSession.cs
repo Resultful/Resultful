@@ -34,11 +34,15 @@ public sealed class MatchmarkSession : IAsyncDisposable
     /// <summary>The session's own host, for a browser or any client that resolves <c>*.localhost</c>.</summary>
     public string? BaseUrl { get; }
 
-    /// <summary>Starts (or restarts) a session on the host <paramref name="control"/> points at.</summary>
+    /// <summary>
+    /// Starts (or restarts) a session on the host <paramref name="control"/> points at. Its <paramref name="copy"/> is the
+    /// built-in twin (seeded with collections of resources) or the real service (seeded however the service's start
+    /// hook reads it, such as a seed scenario's name).
+    /// </summary>
     public static async Task<MatchmarkSession> StartAsync(HttpClient control, string id, object? seed = null, IEnumerable<string>? pathways = null,
-        string prefix = "__fake", CancellationToken cancellationToken = default)
+        string copy = SessionCopy.Twin, string prefix = "__fake", CancellationToken cancellationToken = default)
     {
-        using var response = await control.PutAsJsonAsync($"{prefix}/sessions/{id}", new { seed, pathways }, Json, cancellationToken).ConfigureAwait(false);
+        using var response = await control.PutAsJsonAsync($"{prefix}/sessions/{id}", new { seed, pathways, copy }, Json, cancellationToken).ConfigureAwait(false);
         var started = await response.Content.ReadFromJsonAsync<JsonObject>(Json, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode || started is null)
         {

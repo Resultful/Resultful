@@ -1,3 +1,4 @@
+using Matchmark.Conformance;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,9 +31,19 @@ public static class PetStoreDatabase
         });
 
         services.AddSingleton(sp => new SqliteKeepAlive(ConnectionString(sp)));
+        services.AddSingleton<SessionDatabases>();
+        services.AddHttpContextAccessor();
 
         services.AddDbContext<PetStoreDb>((sp, options) =>
         {
+            // Sessions mode (PetStore:Sessions): each Matchmark session has its own database, created when it starts.
+            if (Sessions(sp))
+            {
+                var session = sp.GetRequiredService<IHttpContextAccessor>().HttpContext?.MatchmarkSession() ?? SessionDatabases.Default;
+                options.UseSqlite(sp.GetRequiredService<SessionDatabases>().ConnectionString(session));
+                return;
+            }
+
             var seed = sp.GetRequiredService<ChosenSeed>().Scenario;
             options
                 .UseSqlite(ConnectionString(sp))
@@ -43,13 +54,25 @@ public static class PetStoreDatabase
         return services;
     }
 
-    /// <summary>Creates the schema if needed, which runs the chosen seed scenario.</summary>
+    /// <summary>
+    /// Creates the schema if needed, which runs the chosen seed scenario. In sessions mode, that is the database of
+    /// requests with no session; each session's is created when it starts.
+    /// </summary>
     public static async Task EnsurePetStoreDatabaseAsync(this IServiceProvider services)
     {
+        if (Sessions(services))
+        {
+            await services.GetRequiredService<SessionDatabases>().StartAsync(SessionDatabases.Default, services.GetRequiredService<ChosenSeed>().Scenario.Name);
+            return;
+        }
+
         services.GetRequiredService<SqliteKeepAlive>();
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<PetStoreDb>().Database.EnsureCreatedAsync();
     }
+
+    private static bool Sessions(IServiceProvider sp)
+        => string.Equals(sp.GetRequiredService<IConfiguration>()["PetStore:Sessions"], "true", StringComparison.OrdinalIgnoreCase);
 
     private static string ConnectionString(IServiceProvider sp)
         => sp.GetRequiredService<IConfiguration>().GetConnectionString("PetStore") ?? DefaultConnectionString;

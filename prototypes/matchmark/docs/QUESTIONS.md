@@ -73,5 +73,19 @@ script it with `given` instead. *Built on this assumption.*
 
 **13. How is a pathway step judged when its criteria refer to an earlier step?** Arazzo criteria can use earlier steps'
 outputs (`$steps.register.outputs.petId`). Coverage judges one call at a time and doesn't carry outputs forward.
-*Assumption:* such a criterion counts as met by any 2xx. Carrying outputs through the session's calls, as the engine
+*Assumption:* such a criterion is left out, and the step's other criteria are judged; a step with none left is met by
+any 2xx. Carrying outputs through the session's calls, as the engine
 does when it runs a workflow, would make coverage exact. *Built on this assumption.*
+
+**14. How does a service in another process create and discard a session's data?** Service sessions call start and end
+hooks in the host's process, which suits an in-process service (`WebApplicationFactory`). A service running on its own
+needs the host to tell it over HTTP.
+*Assumption:* when that's needed, the service maps `PUT /__matchmark/sessions/{id}` and `DELETE /__matchmark/sessions/{id}`
+(a `MapMatchmarkSessionData` helper in Matchmark.Conformance calling the same `SessionDatabases`-style hooks), and
+`ServiceCopy` gets an HTTP form that calls them. Not built yet.
+
+**15. Should service sessions swap at the handler interface instead of HTTP?** Q43 said the real service, twin and fake
+meet at the generated handler interface. Forwarding over HTTP was simpler to build and works for services Matchmark
+didn't generate, and it tests the real endpoints too.
+*Assumption:* HTTP forwarding stays; an in-process handler-interface swap is only worth adding if a test needs to avoid
+HTTP entirely. *Built on this assumption.*

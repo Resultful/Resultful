@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Matchmark.Sample.Contract/Matchmark.Sample.Contract.csproj" />
+    <ProjectReference Include="../Matchmark.Conformance/Matchmark.Conformance.csproj" />
     <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />

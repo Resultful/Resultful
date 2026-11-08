@@ -31,10 +31,10 @@ Each session's copy is one implementation of the generated handler interface (`I
 
 | Copy | Behaviour | Status |
 |:--|:--|:--|
-| Twin | State inferred from the spec's paths, seeded per session: what is created can be read, listed, changed and deleted. | **Built**, one per session |
+| Twin (`"copy": "twin"`, the default) | The built-in store: state in memory, inferred from the spec's paths and seeded per session, so what is created can be read, listed, changed and deleted. Needs nothing but the spec. | **Built**, one per session |
+| The real service (`"copy": "service"`) | The service itself, with data of the session's own: an ephemeral database per session, created and seeded when it starts and discarded when it ends. See [service sessions](#service-sessions). | **Built** (the Pet Store, on EF Core and SQLite) |
 | Scripted fake | Answers scripted per operation (`Given`) and expected calls (`Should`). Only documented outcomes can be scripted. | **Built** as the generated fake, outside sessions |
 | Twin with a script on top | The default (Q37): the twin answers unless a script says otherwise, and expectations are checked against every call. | **Partial**: scripted answers are built; expected calls (`Should`) in a session are planned |
-| The real service | For a session that should hit the real implementation, in-process. | **Planned** |
 
 Every copy checks every request as the spec says and answers only documented outcomes, because all of them sit behind
 the same generated endpoints.
@@ -72,7 +72,8 @@ Content-Type: application/json
 
 | Field | Meaning |
 |:--|:--|
-| `seed` | Starting data for the twin, by collection path. Each item is checked against its schema. |
+| `copy` | `"twin"` (default) or `"service"`, when the host has a service ([service sessions](#service-sessions)). |
+| `seed` | For a twin: starting data by collection path. For a service: whatever its start hook reads, such as a seed scenario's name (`"Demo"`). |
 | `pathways` | The Arazzo workflow ids this consumer must cover, or `"all"`. Default: none. |
 | `scenario` | Expected calls, in the scenario format the fake already reads ([CONCEPT.md](../CONCEPT.md#scenarios-expected-calls-in-order-or-not)). **Planned.** |
 
@@ -176,6 +177,58 @@ Give the host its pathways with `--arazzo` (`matchmark host`), or as `new Sessio
   pathway the record doesn't include counts as not passed.
 - **`complete`** is true only when both halves pass. **`reasons`** says why not, one line each.
 
+## Service sessions
+
+**Built.** A session whose copy is the real service tests the actual handlers, storage and queries, where a twin only
+infers CRUD from the spec. The Pet Store shows it on EF Core and SQLite (`SessionCopyTests`).
+
+```mermaid
+flowchart LR
+    T["Consumer test"] -->|"X-Matchmark-Session: s1, token"| H["Session host<br/>token, scripts, coverage"]
+    H -->|"forwarded, tagged s1"| S["The service<br/>UseMatchmarkSessionScope"]
+    S --> D1[("SQLite in memory<br/>session s1")]
+    S -.-> D2[("SQLite in memory<br/>session s2")]
+```
+
+1. **The host forwards.** `new SessionHost(spec, pathways) { Service = new ServiceCopy(client, start, end) }`. For a
+   service session, the host checks the token and any script, then forwards the request to the service with
+   `X-Matchmark-Session` set. Scripts answer before the service is asked, so a test can still force a documented error.
+2. **The service knows the session.** `app.UseMatchmarkSessionScope()` (Matchmark.Conformance) makes each request's
+   session available as `HttpContext.MatchmarkSession()`.
+3. **Each session has its own database.** The service picks the session's connection when it builds its `DbContext`.
+   The Pet Store's `SessionDatabases` gives each session an in-memory SQLite database (`Mode=Memory;Cache=Shared`),
+   held open by one connection from start to end. Closing that connection discards the database, so nothing is left
+   between sessions.
+
+```csharp
+// The service: a database per session (sessions mode).
+services.AddDbContext<PetStoreDb>((sp, options) =>
+{
+    var session = sp.GetRequiredService<IHttpContextAccessor>().HttpContext?.MatchmarkSession() ?? SessionDatabases.Default;
+    options.UseSqlite(sp.GetRequiredService<SessionDatabases>().ConnectionString(session));
+});
+app.UseMatchmarkSessionScope();
+
+// The host: start creates and seeds the session's database; end discards it.
+var host = new SessionHost(spec, pathways)
+{
+    Service = new ServiceCopy(serviceClient,
+        (id, seed, cancellationToken) => databases.StartAsync(id, seed?.GetValue<string>(), cancellationToken),
+        id => { databases.End(id); return Task.CompletedTask; }),
+};
+```
+
+`SessionCopyTests` shows:
+- each service session has its own database, seeded by name, and gone when the session ends;
+- the whole suite generated from the spec passes through a service session;
+- a script answers before the service does;
+- the same pathway, run against both copies, shows where the built-in store stops. The Pet Store's
+  `register-and-rename` ends by registering a name that's taken: the service answers 409, the twin 201, so the twin's
+  report lists `name-taken` and the steps after it as missing.
+
+The start and end hooks run in the host's process, so the service is in-process here (`WebApplicationFactory`). A
+service in another process needs an HTTP hook to create and discard a session's data ([question 14](../QUESTIONS.md)).
+
 ## Ending a session
 
 `DELETE /__fake/sessions/{id}`: `204` when it ended, `404` when there was none. A session nobody ends is removed after
@@ -220,4 +273,5 @@ ASP.NET Core app.
 
 **Built, separately:** a project with `MatchmarkParts="Server,FakeServer"` gets the generated fake's hub
 (`Use{Api}FakeHub()`, sessions at `/sessions/{id}/` with server-chosen ids) and `Map{Api}FakeControl()`.
-**Planned:** a session whose copy is the real service, through the generated handler interface (Q43).
+A session whose copy is the real service is **Built** ([service sessions](#service-sessions)); it swaps at HTTP rather than
+at the generated handler interface (Q43), so it works for a service that isn't generated by Matchmark too.
