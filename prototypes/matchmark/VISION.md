@@ -164,7 +164,7 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 **1. Usable by someone else.**
 - ✓ A NuGet package that declares its build settings itself (`Matchmark.Generator`; the CLI as a dotnet tool).
 - Problem types the contract owns, so a client-only package doesn't need ASP.NET Core.
-- A lenient client mode that logs violations instead of throwing.
+- ✓ A lenient client mode that reports violations instead of throwing (`new {Api}Client(http, onViolation)`).
 - A run against a large real spec, fixing what it finds, growing into a corpus of real specs built in CI, with the
   share of operations generated without a diagnostic tracked as a number that only rises.
 

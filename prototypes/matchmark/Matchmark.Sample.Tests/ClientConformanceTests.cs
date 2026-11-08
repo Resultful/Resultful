@@ -72,8 +72,46 @@ public sealed class ClientConformanceTests
         client.Observed.Should().Equal([("getPet", 404)]);
     }
 
-    private static PetStoreClient Client(HttpStatusCode status, string mediaType, string body)
-        => new(new HttpClient(new Canned(status, mediaType, body)) { BaseAddress = new Uri("http://pets.test/") });
+    // ------------------------------------------------------------------ lenient: report and carry on
+
+    [Test]
+    public async Task A_lenient_client_reports_a_body_that_breaks_the_schema_and_returns_it()
+    {
+        var reported = new List<ContractViolationException>();
+        var client = Client(HttpStatusCode.OK, "application/json",
+            """{"id":1,"name":"Rex","status":"available","details":{"kind":"cat","livesLeft":12}}""", reported.Add);
+
+        var result = await client.GetPet(1, default);
+
+        result.ToOneOf().Value.Should().BeOfType<Pet>().Which.Name.Should().Be("Rex");
+        reported.Should().ContainSingle().Which.Message.Should().Be("getPet returned 200: the body breaks the schema: details.livesLeft: Must be at most 9.");
+    }
+
+    [Test]
+    public async Task A_lenient_client_reports_the_wrong_content_type_and_reads_the_body_anyway()
+    {
+        var reported = new List<ContractViolationException>();
+        var client = Client(HttpStatusCode.NotFound, "application/json", """{"title":"Not found","status":404}""", reported.Add);
+
+        var result = await client.GetPet(1, default);
+
+        result.ToOneOf().Value.Should().BeOfType<GetPetError>().Which.Value.Should().BeOfType<GetPetNotFound>();
+        reported.Select(r => r.Message).Should().Equal("getPet returned 404: the content type is 'application/json', the spec says 'application/problem+json'");
+    }
+
+    [Test]
+    public async Task A_lenient_client_reports_what_it_can_not_type_and_still_throws()
+    {
+        var reported = new List<ContractViolationException>();
+        var client = Client(HttpStatusCode.InternalServerError, "application/problem+json", """{"title":"boom"}""", reported.Add);
+
+        var act = () => client.GetPet(1, default);
+
+        (await act.Should().ThrowAsync<ContractViolationException>()).Which.Should().BeSameAs(reported.Single());
+    }
+
+    private static PetStoreClient Client(HttpStatusCode status, string mediaType, string body, Action<ContractViolationException>? onViolation = null)
+        => new(new HttpClient(new Canned(status, mediaType, body)) { BaseAddress = new Uri("http://pets.test/") }, onViolation);
 
     private sealed class Canned(HttpStatusCode status, string mediaType, string body) : HttpMessageHandler
     {
