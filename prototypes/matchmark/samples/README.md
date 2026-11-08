@@ -21,7 +21,7 @@ museum: generator skips 3; suite 100 cases, 0 workflows from links, 3 of 3 Arazz
 orders: generator skips 0; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps, 19 webhook cases; audit 3 warnings, 8 findings, 91%
 bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 catalogue: generator skips 0; suite 73 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 1 warnings, 2 findings, 97%
-payments: generator skips 0; suite 88 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
+payments: generator skips 0; suite 93 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%
 ```
 
 The Arazzo files are run by the regression engine: every workflow in the corpus is runnable, including the Museum's
