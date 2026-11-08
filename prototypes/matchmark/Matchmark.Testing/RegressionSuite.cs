@@ -248,7 +248,7 @@ public sealed class RegressionSuite
             foreach (var parameter in operation.Parameters)
             {
                 // A deep object takes every property, so its leaves have bounds and violations to vary.
-                var deep = parameter.In == "query" && SchemaValidator.Types(_suite.Spec.Resolve(parameter.Schema)).Contains("object");
+                var deep = parameter.In is "query" or "querystring" && SchemaValidator.Types(_suite.Spec.Resolve(parameter.Schema)).Contains("object");
                 if (Value(parameter.Example, parameter.Schema, full: deep) is { } value)
                 {
                     values[parameter] = value.Node;
@@ -370,12 +370,13 @@ public sealed class RegressionSuite
                     AddOnce(operation, CaseKind.Invalid, $"{BodyWhere(variant.Path)} {variant.Description}", required, variant.Value, BodyWhere(variant.Path));
                 }
 
-                if (!Forms.IsForm(invalidBody.MediaType))
+                if (!Forms.IsForm(invalidBody.MediaType) && !OpenApiSpec.IsText(invalidBody.MediaType))
                 {
                     Add(operation, CaseKind.Invalid, "body not JSON", required, null, "body", raw: "{\"", contentType: invalidBody.MediaType);
                 }
 
-                Add(operation, CaseKind.Invalid, $"body sent as text/plain, not {invalidBody.MediaType}", required, minimal, "body", contentType: "text/plain");
+                var wrong = OpenApiSpec.IsText(invalidBody.MediaType) ? "application/octet-stream" : "text/plain";
+                Add(operation, CaseKind.Invalid, $"body sent as {wrong}, not {invalidBody.MediaType}", required, minimal, "body", contentType: wrong);
                 if (invalidBody.Required)
                 {
                     Add(operation, CaseKind.Invalid, "body missing", required, null, "body", raw: string.Empty, contentType: invalidBody.MediaType);
@@ -573,10 +574,10 @@ public sealed class RegressionSuite
             var headers = new List<KeyValuePair<string, string>>();
             foreach (var (parameter, value) in parameters)
             {
-                // An object in the query is a deep object: created[gte]=1&created[lt]=9.
-                if (parameter.In == "query" && value is JsonObject deep)
+                // An object in the query is a deep object: created[gte]=1&created[lt]=9. A querystring is the whole query.
+                if (parameter.In is "query" or "querystring" && value is JsonObject deep)
                 {
-                    query.AddRange(Forms.Fields(deep, parameter.Name));
+                    query.AddRange(Forms.Fields(deep, parameter.In == "query" ? parameter.Name : null));
                     continue;
                 }
 
@@ -605,6 +606,14 @@ public sealed class RegressionSuite
 
             var hasBody = operation.Body is not null && (raw is not null || body is not null || kind == CaseKind.Invalid && location is not null && location.StartsWith("body", StringComparison.Ordinal));
             var form = operation.Body is not null && Forms.IsForm(contentType ?? operation.Body.MediaType) && raw is null;
+            var plain = operation.Body is not null && OpenApiSpec.IsText(operation.Body.MediaType) && raw is null;
+            if (plain && kind == CaseKind.Invalid && location?.StartsWith("body", StringComparison.Ordinal) == true
+                && (body is not JsonValue || _suite.Validator.IsValid(JsonValue.Create(Text(body)), operation.Body!.Schema)))
+            {
+                // Text carries only text: a number or an object sent for a string reads back as a valid string. Not a case.
+                return false;
+            }
+
             if (form && kind == CaseKind.Invalid && location?.StartsWith("body", StringComparison.Ordinal) == true
                 && _suite.Validator.IsValid(Forms.Decode(Forms.Encode(body), operation.Body!.Schema, _suite.Spec), operation.Body.Schema, Direction.Request))
             {
@@ -617,7 +626,7 @@ public sealed class RegressionSuite
                 path,
                 query,
                 headers,
-                hasBody ? raw ?? (form ? Forms.Encode(body) : (body ?? JsonValue.Create<string?>(null))?.ToJsonString() ?? "null") : null,
+                hasBody ? raw ?? (form ? Forms.Encode(body) : plain ? Text(body) : (body ?? JsonValue.Create<string?>(null))?.ToJsonString() ?? "null") : null,
                 hasBody ? contentType ?? operation.Body!.MediaType : null)
             {
                 PathParameters = pathParameters,
@@ -655,9 +664,10 @@ public sealed class RegressionSuite
 
         private static bool Opaque(SpecParameter parameter) => parameter.In == "query" && RegressionRunner.Cursors.Contains(parameter.Name.ToLowerInvariant());
 
-        /// <summary>A parameter, or a value inside a deep-object parameter (query.created.gte).</summary>
+        /// <summary>A parameter, or a value inside a deep-object parameter (query.created.gte), or a key of a querystring (query.limit).</summary>
         private static string Where(SpecParameter parameter, string path)
-            => path.Length == 0 ? Where(parameter) : path.StartsWith('[') ? Where(parameter) + path : $"{Where(parameter)}.{path}";
+            => parameter.In == "querystring" ? (path.Length == 0 ? "query" : $"query.{path}")
+               : path.Length == 0 ? Where(parameter) : path.StartsWith('[') ? Where(parameter) + path : $"{Where(parameter)}.{path}";
 
         private static string BodyWhere(string path) => path.Length == 0 ? "body" : path.StartsWith('[') ? "body" + path : $"body.{path}";
 
@@ -673,7 +683,9 @@ public sealed class RegressionSuite
 
         /// <summary>A parameter value can only be sent as text: a scalar, an array of scalars, or (in the query) a deep object.</summary>
         private static bool Serializable(SpecParameter parameter, JsonNode? value)
-            => value is JsonValue || value is JsonArray array && array.All(i => i is JsonValue) || value is JsonObject && parameter.In == "query";
+            => parameter.In == "querystring"
+                ? value is JsonObject // the whole query is keys and values: anything else can't be sent
+                : value is JsonValue || value is JsonArray array && array.All(i => i is JsonValue) || value is JsonObject && parameter.In == "query";
 
         private static IEnumerable<string> Texts(JsonNode? value) => value switch
         {

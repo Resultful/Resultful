@@ -91,7 +91,8 @@ public sealed class OpenApiSpec
                 p["name"]!.GetValue<string>(),
                 p["in"]!.GetValue<string>(),
                 p["required"]?.GetValue<bool>() == true || p["in"]!.GetValue<string>() == "path",
-                p["schema"] ?? new JsonObject(),
+                // A parameter described by its content (OpenAPI 3.2's querystring must be): its media type's schema.
+                p["schema"] ?? (p["content"] as JsonObject)?.Select(c => c.Value?["schema"]).FirstOrDefault(c => c is not null) ?? new JsonObject(),
                 p["example"] ?? FirstExample(p["examples"])))
             .ToList();
 
@@ -104,8 +105,10 @@ public sealed class OpenApiSpec
 
         var body = Resolve(node);
         // JSON, else a form (sent as form fields, nested values in brackets).
-        var (mediaType, content) = (body["content"]?.AsObject() ?? []).OrderBy(c => IsJson(c.Key) ? 0 : 1)
-            .FirstOrDefault(c => IsJson(c.Key) || Forms.IsForm(c.Key) && c.Value?["schema"] is JsonObject s && (Resolve(s)["properties"] is JsonObject { Count: > 0 } || s["$ref"] is not null));
+        // JSON, else a form (sent as form fields, nested values in brackets), else text (sent as it is).
+        var (mediaType, content) = (body["content"]?.AsObject() ?? []).OrderBy(c => IsJson(c.Key) ? 0 : Forms.IsForm(c.Key) ? 1 : 2)
+            .FirstOrDefault(c => IsJson(c.Key) || Forms.IsForm(c.Key) && c.Value?["schema"] is JsonObject s && (Resolve(s)["properties"] is JsonObject { Count: > 0 } || s["$ref"] is not null)
+                                 || IsText(c.Key));
         return content is null
             ? null
             : new SpecBody(body["required"]?.GetValue<bool>() == true, mediaType, content["schema"] ?? new JsonObject(),
@@ -143,6 +146,9 @@ public sealed class OpenApiSpec
 
     private static JsonNode? FirstExample(JsonNode? examples)
         => examples is JsonObject named ? named.Select(e => e.Value?["value"]).FirstOrDefault(v => v is not null) : null;
+
+    /// <summary>text/plain, text/markdown, any text: a body that is a string, sent as it is.</summary>
+    public static bool IsText(string mediaType) => mediaType.Split(';')[0].Trim().StartsWith("text/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>application/json, application/problem+json, anything +json.</summary>
     public static bool IsJson(string mediaType)

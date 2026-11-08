@@ -83,6 +83,60 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetails' }
+  /products/find:
+    get:
+      operationId: findProducts
+      description: A search whose whole query is one parameter (OpenAPI 3.2's querystring); any other client error is a 4XX.
+      parameters:
+        - name: filter
+          in: querystring
+          content:
+            application/x-www-form-urlencoded:
+              schema: { $ref: '#/components/schemas/ProductFilter' }
+      responses:
+        '200':
+          description: The products that match
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        '400':
+          description: The filter is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+        4XX:
+          description: Any other client error (429 when searching too often)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+  /products/{productId}/description:
+    put:
+      operationId: describeProduct
+      description: The product's description, as Markdown text.
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          text/markdown:
+            schema: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '204': { description: Described }
+        '400':
+          description: The id is invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/HttpValidationProblemDetails' }
+        '404':
+          description: No such product
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '415':
+          description: The body isn't Markdown
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
   /products/export:
     get:
       operationId: exportProducts
@@ -121,6 +175,14 @@ components:
         text: { type: string, minLength: 1, maxLength: 100 }
         maxPrice: { type: number, format: decimal, minimum: 0, maximum: 100000 }
         category: { $ref: '#/components/schemas/Category' }
+    ProductFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, minLength: 1, maxLength: 100 }
+        maxPrice: { type: number, format: decimal, minimum: 0, maximum: 100000 }
+        category: { $ref: '#/components/schemas/Category' }
+        limit: { type: integer, minimum: 1, maximum: 50 }
     ProblemDetails:
       type: object
       properties:

@@ -61,7 +61,7 @@ defines the behaviour precisely enough to generate the other three.
 | **Rate limits** | `429` with `Retry-After`; RateLimit headers ([draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/)) | a 429 carries `Retry-After`; the suite backs off rather than failing | the client waits and retries; the fake can be told to limit | Orders |
 | **Deprecation** | `deprecated: true`; `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)) and `Sunset` ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) headers | the headers are present, and Sunset isn't before Deprecation | the client warns; generated code is `[Obsolete]` | Orders |
 | **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). ✓ Callbacks, generated the same way as `{Api}Callbacks` (`RegressionSuite.ForCallbacks`; Notifications). AsyncAPI is next |
-| **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | ✓ `query` operations everywhere (a 3.2 spec is kept as 3.2), `additionalOperations` in the engine; ✓ JSON Lines as `IAsyncEnumerable<T>` (endpoint, client, fake, scaffold), and every streamed item checked by the engine (Catalogue); ✓ server-sent events too, each event's data typed by its `contentSchema` and checked against it (Notifications). `in: querystring` is next |
+| **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | ✓ `query` operations everywhere (a 3.2 spec is kept as 3.2), `additionalOperations` in the engine; ✓ JSON Lines as `IAsyncEnumerable<T>` (endpoint, client, fake, scaffold), and every streamed item checked by the engine (Catalogue); ✓ server-sent events too, each event's data typed by its `contentSchema` and checked against it (Notifications); ✓ `in: querystring`: the whole query as one typed object, read and validated by the endpoint, written by the client, sent and broken leaf by leaf by the engine, checked by the twin (Catalogue's `findProducts`) |
 
 ## What the corpus found
 
@@ -136,6 +136,15 @@ Running the generator and the engine over specs other than the Pet Store found t
   accepted work changes the resource as it finishes (pending, then settled); it now reads after a 202 without
   comparing, and the transition rule says how the resource may change.
 
+- **Catalogue's second round found three gaps a real spec has.** A response keyed `4XX` or `5XX` (a range, allowed
+  since OpenAPI 3.0) was skipped with its operation; a `text/plain` or `text/markdown` request body was skipped too
+  (GitHub's `/markdown/raw`); and OpenAPI 3.2's `in: querystring` wasn't read. *Done:* a range is an error case that
+  carries its status (`ClientError(int status, …)`), matched after every exact status and before `default`; a text body
+  is a `string`, read whole by the endpoint, checked against its schema's lengths and pattern (an empty required body
+  is missing), refused with 415 when sent as anything else, and sent by the client and engine as text; a querystring
+  parameter is the whole query as one object. Running the generated server against the suite caught the generator's
+  own first attempt: it accepted text shorter than `minLength` and an empty required body.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
@@ -160,8 +169,7 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    `MatchmarkOverlay="true"` item next to the spec, or `--overlay` to `scaffold` and `regress`. The invariants it carries
    (COMPLETENESS.md) are checked by the engine.
 5. **OpenAPI 3.2 and events.** ✓ Webhooks, ✓ callbacks, ✓ `QUERY`, ✓ streamed items (JSON Lines and server-sent
-   events). Then AsyncAPI. This waits on a reader that
-   understands 3.2.
+   events), ✓ `in: querystring`. Then AsyncAPI.
 
 ## Versions this is written against
 

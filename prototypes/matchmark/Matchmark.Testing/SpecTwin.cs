@@ -142,6 +142,18 @@ public sealed class SpecTwin : HttpMessageHandler
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var parameter in operation.Parameters)
         {
+            if (parameter.In == "querystring")
+            {
+                // The whole query, as the object it describes.
+                var whole = Forms.Decode(string.Join("&", query.Select(q => $"{Uri.EscapeDataString(q.Key)}={Uri.EscapeDataString(q.Value)}")), parameter.Schema, _spec);
+                foreach (var problem in query.Count == 0 && !parameter.Required ? [] : _validator.Validate(whole, parameter.Schema, direction: Direction.Request))
+                {
+                    Error(errors, problem);
+                }
+
+                continue;
+            }
+
             var text = parameter.In switch
             {
                 "path" => values.GetValueOrDefault(parameter.Name),
@@ -184,7 +196,9 @@ public sealed class SpecTwin : HttpMessageHandler
             {
                 try
                 {
-                    json = Forms.IsForm(schema.MediaType) ? Forms.Decode(body, schema.Schema, _spec) : JsonNode.Parse(body);
+                    json = Forms.IsForm(schema.MediaType) ? Forms.Decode(body, schema.Schema, _spec)
+                        : OpenApiSpec.IsText(schema.MediaType) ? JsonValue.Create(body)
+                        : JsonNode.Parse(body);
                 }
                 catch (JsonException)
                 {

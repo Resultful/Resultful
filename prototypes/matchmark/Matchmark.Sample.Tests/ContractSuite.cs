@@ -38,6 +38,7 @@ public sealed class ContractSuite(string target)
             lock (Reached)
             {
                 Reached.UnionWith(_client.Observed);
+                Reached.UnionWith(_client.Refused);
             }
         }
 
