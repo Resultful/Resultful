@@ -714,13 +714,13 @@ namespace Matchmark.Generator
                         // Optional, but never null: absent is left out, not written as null (and null is refused when read).
                         w.Line("[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]");
                     }
-                    foreach (var annotation in Annotations(property.Value, type, nullable))
+                    foreach (var annotation in Annotations(property.Value, type, nullable, ValidationAttributes))
                     {
                         w.Line(annotation);
                     }
 
                     w.Line($"public {(required ? "required " : string.Empty)}{type}{(nullable ? "?" : string.Empty)} {Member(name, schema, property.Key)} {{ get; init; }}");
-                    _modelProperties.Add((name, Member(name, schema, property.Key), $"{type}{(nullable ? "?" : string.Empty)}", property.Key, Annotations(property.Value, type, nullable).ToList()));
+                    _modelProperties.Add((name, Member(name, schema, property.Key), $"{type}{(nullable ? "?" : string.Empty)}", property.Key, Annotations(property.Value, type, nullable, ValidationAttributes).ToList()));
                     w.Line();
                 }
 
@@ -739,12 +739,28 @@ namespace Matchmark.Generator
         /// [Required]: it's a C# required member, and System.Text.Json refuses a body without it. A one-sided bound has
         /// no attribute (Range needs both), so it's checked by the generated validator only.
         /// </summary>
-        private static IEnumerable<string> Annotations(IOpenApiSchema schema, string type, bool nullable = false)
-            => AnnotationParts(schema, type, nullable).Select(a => $"[global::System.ComponentModel.DataAnnotations.{a.Name}{(a.Args.Length + a.Named.Length == 0 ? string.Empty : $"({string.Join(", ", new[] { a.Args, a.Named }.Where(x => x.Length > 0))})")}]");
+        private static IEnumerable<string> Annotations(IOpenApiSchema schema, string type, bool nullable = false, bool extras = false)
+            => AnnotationParts(schema, type, nullable, extras).Select(a => $"[{(a.Name.StartsWith("global::", StringComparison.Ordinal) ? string.Empty : "global::System.ComponentModel.DataAnnotations.")}{a.Name}{(a.Args.Length + a.Named.Length == 0 ? string.Empty : $"({string.Join(", ", new[] { a.Args, a.Named }.Where(x => x.Length > 0))})")}]");
 
         /// <summary>The attributes, as their names, positional arguments and named ones, so the resolver can construct them too.</summary>
-        private static IEnumerable<(string Name, string Args, string Named)> AnnotationParts(IOpenApiSchema schema, string type, bool nullable)
+        private static IEnumerable<(string Name, string Args, string Named)> AnnotationParts(IOpenApiSchema schema, string type, bool nullable, bool extras)
         {
+            // What .NET has no attribute for, from Matchmark.Validation when the project references it.
+            if (extras && schema.MultipleOf is { } step)
+            {
+                yield return ("global::Matchmark.Validation.MultipleOf", Double(step.ToString(CultureInfo.InvariantCulture)), string.Empty);
+            }
+
+            if (extras && schema.UniqueItems == true)
+            {
+                yield return ("global::Matchmark.Validation.UniqueItems", string.Empty, string.Empty);
+            }
+
+            if (extras && (schema.MinProperties is not null || schema.MaxProperties is not null))
+            {
+                yield return ("global::Matchmark.Validation.PropertyCount", $"{(schema.MinProperties ?? -1).Invariant()}, {(schema.MaxProperties ?? -1).Invariant()}", string.Empty);
+            }
+
             var array = (schema.Type ?? 0).HasFlag(JsonSchemaType.Array);
             if ((array ? schema.MinItems : schema.MinLength) is { } min)
             {

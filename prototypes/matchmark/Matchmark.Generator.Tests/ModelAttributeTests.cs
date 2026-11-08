@@ -44,7 +44,10 @@ public sealed class ModelAttributeTests
                   "kind": { "type": "string", "enum": ["flat", "solid"] },
                   "owner": { "type": "string", "format": "email" },
                   "home": { "type": "string", "format": "uri" },
-                  "icon": { "type": "string", "format": "byte" }
+                  "icon": { "type": "string", "format": "byte" },
+                  "step": { "type": "number", "multipleOf": 0.25 },
+                  "colours": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+                  "labels": { "type": "object", "minProperties": 1, "maxProperties": 2, "additionalProperties": { "type": "string" } }
                 }
               },
               "HttpValidationProblemDetails": { "type": "object", "properties": { "errors": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } }
@@ -157,6 +160,21 @@ public sealed class ModelAttributeTests
         (Convert.ToDouble(sides.Minimum), Convert.ToDouble(sides.Maximum), sides.MinimumIsExclusive).Should().Be((3d, 12d, false));
         var ratio = Attribute<System.ComponentModel.DataAnnotations.RangeAttribute>("Ratio");
         (Convert.ToDouble(ratio.Minimum), Convert.ToDouble(ratio.Maximum), ratio.MinimumIsExclusive, ratio.MaximumIsExclusive).Should().Be((0d, 1d, true, true));
+    }
+
+    [Test]
+    public void What_dotnet_has_no_attribute_for_comes_from_Matchmark_Validation()
+    {
+        Attribute<Matchmark.Validation.MultipleOfAttribute>("Step").Step.Should().Be(0.25);
+        Attribute<Matchmark.Validation.UniqueItemsAttribute>("Colours").Should().NotBeNull();
+        var labels = Attribute<Matchmark.Validation.PropertyCountAttribute>("Labels");
+        (labels.Minimum, labels.Maximum).Should().Be((1, 2));
+
+        new Matchmark.Validation.MultipleOfAttribute(0.1).IsValid(0.3m).Should().BeTrue("decimal arithmetic, not doubles");
+        new Matchmark.Validation.MultipleOfAttribute(0.25).IsValid(0.3).Should().BeFalse();
+        new Matchmark.Validation.UniqueItemsAttribute().IsValid(new[] { "red", "red" }).Should().BeFalse();
+        labels.IsValid(new Dictionary<string, string>()).Should().BeFalse();
+        labels.IsValid(new Dictionary<string, string> { ["a"] = "x" }).Should().BeTrue();
     }
 
     [Test]

@@ -37,7 +37,8 @@ namespace Matchmark.Generator
                     HasRegression: compilation.GetTypeByMetadataName("Matchmark.Testing.RegressionSuite") is not null,
                     HasRules: compilation.GetTypeByMetadataName("Matchmark.Rules.Cel") is not null,
                     HasEntityFramework: compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.ModelBuilder") is not null,
-                    HasValidation: compilation.GetTypeByMetadataName("Microsoft.Extensions.Validation.IValidatableInfoResolver") is not null));
+                    HasValidation: compilation.GetTypeByMetadataName("Microsoft.Extensions.Validation.IValidatableInfoResolver") is not null,
+                    HasValidationAttributes: compilation.GetTypeByMetadataName("Matchmark.Validation.MultipleOfAttribute") is not null));
 
             // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
             // AdditionalFiles joined to a spec by MatchmarkApiName.
@@ -47,7 +48,7 @@ namespace Matchmark.Generator
             context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays), static (spc, pair) =>
                 Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
                     pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules,
-                    pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation));
+                    pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation, pair.Left.Left.Right.HasValidationAttributes));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -162,7 +163,7 @@ namespace Matchmark.Generator
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
-            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false)
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false, bool hasValidationAttributes = false)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
@@ -177,7 +178,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
