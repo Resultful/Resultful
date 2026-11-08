@@ -168,39 +168,37 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
     /// whose body matches once volatile values are left out (ids, anything ending in Id or At, ETags, trace ids, and
     /// <paramref name="volatileNames"/>). Per operation and overall (GAPS.md, gap 2).
     /// </summary>
-    public FidelityReport Fidelity(RegressionReport real, params string[] volatileNames)
+    public FidelityReport Fidelity(RegressionReport real, params string[] volatileNames) => Fidelity(Record(real), volatileNames);
+
+    /// <summary>
+    /// The fidelity of this run to a recording of the real API's (<see cref="Record"/>): what PR builds compare against,
+    /// so they need neither the real API nor its credentials.
+    /// </summary>
+    public FidelityReport Fidelity(FidelityRecording real, params string[] volatileNames)
     {
         var ignored = new HashSet<string>(volatileNames, StringComparer.OrdinalIgnoreCase) { "id", "traceId", "etag", "createdAt", "updatedAt" };
-        var steps = new List<(string Operation, string Subject, Exchange Mine, Exchange Theirs)>();
-        var theirs = real.Cases.ToDictionary(c => c.Case.Name, StringComparer.Ordinal);
-        foreach (var mine in Cases.Where(c => theirs.ContainsKey(c.Case.Name)))
-        {
-            steps.Add((mine.Case.Operation.Id, mine.Case.Name, mine.Exchange, theirs[mine.Case.Name].Exchange));
-        }
-
-        var theirFlows = real.Workflows.ToDictionary(w => w.Name, StringComparer.Ordinal);
-        foreach (var mine in Workflows.Where(w => theirFlows.ContainsKey(w.Name)))
-        {
-            var match = theirFlows[mine.Name];
-            for (var i = 0; i < Math.Min(mine.Exchanges.Count, match.Exchanges.Count); i++)
-            {
-                steps.Add((mine.Name, $"{mine.Name}, step {i + 1} ({mine.Exchanges[i].Request.Method} {mine.Exchanges[i].Request.Path})", mine.Exchanges[i], match.Exchanges[i]));
-            }
-        }
+        // The real API's steps are what's measured: one the fake never reached (a workflow it stopped early) doesn't match.
+        var mine = Record(this).Steps.GroupBy(s => s.Subject, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var steps = real.Steps.GroupBy(s => s.Subject, StringComparer.Ordinal).Select(g => g.First())
+            .Select(s => (s.Operation, s.Subject, Mine: mine.GetValueOrDefault(s.Subject)?.Exchange(), Theirs: s.Exchange())).ToList();
 
         var mismatches = new List<string>();
         var operations = steps.GroupBy(s => s.Operation, StringComparer.Ordinal).Select(group =>
         {
             var matched = 0;
-            foreach (var (_, subject, mine, other) in group)
+            foreach (var (_, subject, here, other) in group)
             {
-                if (mine.Status != other.Status)
+                if (here is null)
                 {
-                    mismatches.Add($"{subject}: {mine.Status} here, {other.Status} from the real API");
+                    mismatches.Add($"{subject}: not reached here; the real API answered {other.Status}");
                 }
-                else if (!JsonNode.DeepEquals(Normalized(mine, ignored), Normalized(other, ignored)))
+                else if (here.Status != other.Status)
                 {
-                    mismatches.Add($"{subject}: the bodies differ at {FirstDifference(Normalized(mine, ignored), Normalized(other, ignored), string.Empty)}");
+                    mismatches.Add($"{subject}: {here.Status} here, {other.Status} from the real API");
+                }
+                else if (!JsonNode.DeepEquals(Normalized(here, ignored), Normalized(other, ignored)))
+                {
+                    mismatches.Add($"{subject}: the bodies differ at {FirstDifference(Normalized(here, ignored), Normalized(other, ignored), string.Empty)}");
                 }
                 else
                 {
@@ -211,6 +209,20 @@ public sealed class RegressionReport(IReadOnlyList<CaseResult> cases, IReadOnlyL
             return new OperationFidelity(group.Key, group.Count(), matched);
         }).OrderBy(o => o.Operation, StringComparer.Ordinal).ToList();
         return new FidelityReport(operations, mismatches);
+    }
+
+    /// <summary>A run's steps (each case, each workflow step) and their answers: a recording to replay a fidelity run against.</summary>
+    public static FidelityRecording Record(RegressionReport report)
+    {
+        var steps = report.Cases.Select(c => RecordedStep.Of(c.Case.Operation.Id, c.Case.Name, c.Exchange)).ToList();
+        foreach (var workflow in report.Workflows)
+        {
+            // Named without the ids in their paths, which differ between the two runs.
+            steps.AddRange(workflow.Exchanges.Select((e, i) => RecordedStep.Of(workflow.Name,
+                $"{workflow.Name}, step {i + 1} ({e.Request.Method} {System.Text.RegularExpressions.Regex.Replace(e.Request.Path, "/(?:[0-9]+|[0-9a-fA-F-]{36})(?=/|$)", "/{}")})", e)));
+        }
+
+        return new FidelityRecording(steps);
     }
 
     /// <summary>
@@ -434,4 +446,25 @@ public sealed record FidelityReport(IReadOnlyList<OperationFidelity> Operations,
         => $"Fidelity: {Matched}/{Steps} steps match the real API ({Score * 100:0.#}%).\n"
            + string.Join("\n", Operations.Select(o => $"  {o}"))
            + (Mismatches.Count == 0 ? string.Empty : "\nMismatches:\n" + string.Join("\n", Mismatches.Select(m => $"  {m}")));
+}
+
+/// <summary>One step of a recorded run: which operation, which case or workflow step, and the answer.</summary>
+public sealed record RecordedStep(string Operation, string Subject, int Status, string? ContentType, string Body)
+{
+    public static RecordedStep Of(string operation, string subject, Exchange exchange)
+        => new(operation, subject, exchange.Status, exchange.ContentType, exchange.Body);
+
+    internal Exchange Exchange()
+        => new(new RegressionRequest(string.Empty, string.Empty, [], [], null, null), Status, ContentType, Body, new Dictionary<string, string>());
+}
+
+/// <summary>A recording of the real API's answers to the suite, saved as JSON, for fidelity runs that don't call it.</summary>
+public sealed record FidelityRecording(IReadOnlyList<RecordedStep> Steps)
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true };
+
+    public string ToJson() => System.Text.Json.JsonSerializer.Serialize(this, Json);
+
+    public static FidelityRecording FromJson(string json)
+        => System.Text.Json.JsonSerializer.Deserialize<FidelityRecording>(json, Json) ?? throw new ArgumentException("The recording is empty.", nameof(json));
 }

@@ -42,8 +42,37 @@ public sealed class TwinTests
         var fidelity = actual.Fidelity(expected);
 
         File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "twin-fidelity.txt"), fidelity.ToString());
+        actual.Fidelity(FidelityRecording.FromJson(RegressionReport.Record(expected).ToJson())).Should().BeEquivalentTo(fidelity,
+            "a recording of the real API, replayed in a PR build, scores the same as the live run");
         fidelity.Score.Should().BeInRange(0.8, 0.99, fidelity.ToString());
         fidelity.Mismatches.Should().Contain(m => m.StartsWith("Pet Store: register-and-rename, step 5 (POST /pets): 201 here, 409 from the real API", StringComparison.Ordinal),
             "a unique name is behaviour the spec doesn't state, so the twin doesn't have it");
+
+        // Owned behaviour (GAPS.md, gap 3): a name already taken is a conflict. It's kept because the score rises.
+        var owned = await Measure(twin => twin
+            .On("createPet", call => Taken(call, except: null))
+            .On("upsertPet", call => Taken(call, except: call.Path["petId"])));
+        File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "twin-fidelity-owned.txt"), owned.ToString());
+        owned.Score.Should().BeGreaterThan(fidelity.Score, owned.ToString());
+        owned.Mismatches.Should().NotContain(m => m.Contains("409 from the real API", StringComparison.Ordinal), owned.ToString());
+    }
+
+    /// <summary>The Pet Store's unique names, as the real service has them: another pet with the name is a 409.</summary>
+    private static TwinAnswer? Taken(TwinCall call, string? except)
+        => call.Resources.GetValueOrDefault("/pets") is { } pets && call.Body?["name"]?.GetValue<string>() is { } name
+           && pets.Any(p => p["name"]?.GetValue<string>() == name && p["id"]?.ToJsonString() != except)
+            ? new TwinAnswer(409, new JsonObject { ["title"] = "A pet with that name exists", ["status"] = 409 })
+            : null;
+
+    private static async Task<FidelityReport> Measure(Action<SpecTwin> behaviours)
+    {
+        await using var app = new PetStoreApp();
+        var real = app.CreateClient();
+        var twin = new SpecTwin(PetStoreRegression.Spec);
+        behaviours(twin);
+        twin.Seed("/pets", (await real.GetFromJsonAsync<JsonArray>("pets?limit=100"))!.OfType<JsonObject>());
+        using var fake = new HttpClient(twin) { BaseAddress = new Uri("http://twin/") };
+        var expected = await PetStoreRegression.Suite.RunAsync(real);
+        return (await PetStoreRegression.Suite.RunAsync(fake)).Fidelity(expected);
     }
 }
