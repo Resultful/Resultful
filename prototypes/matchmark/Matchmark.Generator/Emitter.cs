@@ -270,7 +270,7 @@ namespace Matchmark.Generator
                 }
 
                 var schema = pair.Value;
-                if (schema.OneOf is { Count: > 0 })
+                if (IsUnion(schema))
                 {
                     if (!TryCollectUnion(pair.Key, schema))
                     {
@@ -458,6 +458,34 @@ namespace Matchmark.Generator
         private static bool IsEnum(IOpenApiSchema schema)
             => schema.Enum is { Count: > 0 } && Has(schema, JsonSchemaType.String);
 
+        /// <summary>
+        /// A union the generator writes as a record hierarchy: a oneOf with a discriminator. A oneOf beside an object's
+        /// properties without one (GitHub: "one of these fields is required") only constrains the object, and it is the
+        /// object that's generated.
+        /// </summary>
+        /// <summary>
+        /// The C# name of an object's property: Pascal case; a leading + or - before a digit spelled out (GitHub's
+        /// reactions "+1" and "-1" are Plus1 and Minus1); "Value" added to a name its type has (Email.email); and a
+        /// number added to a later property whose name would repeat an earlier one's. The JSON name is kept by
+        /// [JsonPropertyName].
+        /// </summary>
+        internal static string Member(string type, IOpenApiSchema owner, string key)
+        {
+            static string Basic(string type, string key)
+            {
+                var spelled = key.Length > 1 && char.IsDigit(key[1]) && key[0] is '+' or '-' ? (key[0] == '+' ? "Plus" : "Minus") + key.Substring(1) : key;
+                var name = Naming.Pascal(spelled);
+                return name == type ? name + "Value" : name;
+            }
+
+            var basic = Basic(type, key);
+            var earlier = (owner.Properties ?? new Dictionary<string, IOpenApiSchema>()).Keys.TakeWhile(k => k != key).Count(k => Basic(type, k) == basic);
+            return earlier == 0 ? basic : basic + (earlier + 1).ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static bool IsUnion(IOpenApiSchema schema)
+            => schema.OneOf is { Count: > 0 } && !(schema.Discriminator?.PropertyName is null && IsObject(schema));
+
         private static bool IsObject(IOpenApiSchema schema)
             => (schema.Type is null || Has(schema, JsonSchemaType.Object)) && schema.Properties is { Count: > 0 };
 
@@ -595,7 +623,7 @@ namespace Matchmark.Generator
                     continue;
                 }
 
-                if (schema.OneOf is { Count: > 0 })
+                if (IsUnion(schema))
                 {
                     w.Line($"[JsonPolymorphic(TypeDiscriminatorPropertyName = {Naming.Literal(schema.Discriminator!.PropertyName!)})]");
                     foreach (var member in _unionMembers.Where(m => m.Value.Base == pair.Key))
@@ -643,7 +671,7 @@ namespace Matchmark.Generator
                         w.Line(annotation);
                     }
 
-                    w.Line($"public {(required ? "required " : string.Empty)}{type}{(nullable ? "?" : string.Empty)} {Naming.Pascal(property.Key)} {{ get; init; }}");
+                    w.Line($"public {(required ? "required " : string.Empty)}{type}{(nullable ? "?" : string.Empty)} {Member(name, schema, property.Key)} {{ get; init; }}");
                     w.Line();
                 }
 
@@ -778,7 +806,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 var schema = pair.Value;
                 w.Open($"private static void Check({name} value, string path, Errors errors)");
 
-                if (schema.OneOf is { Count: > 0 })
+                if (IsUnion(schema))
                 {
                     w.Open("switch (value)");
                     foreach (var member in _unionMembers.Where(m => m.Value.Base == pair.Key))
@@ -800,11 +828,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         continue;
                     }
 
-                    var member = "value." + Naming.Pascal(property.Key);
+                    var member = "value." + Member(name, schema, property.Key);
                     var jsonPath = $"path + {Naming.Literal(property.Key)}";
                     var required = schema.Required?.Contains(property.Key) == true;
                     var prop = property.Value;
-                    var local = "v" + Naming.Pascal(property.Key);
+                    var local = "v" + Member(name, schema, property.Key);
 
                     if (required && !Has(prop, JsonSchemaType.Null) && !IsValueType(type) && !IsEnumRef(prop))
                     {
@@ -1626,7 +1654,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
             w.Line($"/// <summary>Calls <c>{_apiName}</c> over HTTP through the same interfaces its handlers implement. Relative to the HttpClient's BaseAddress.</summary>");
-            w.Open($"public sealed partial class {_apiName}Client : {interfaces}");
+            w.Open(interfaces.Length == 0 ? $"public sealed partial class {_apiName}Client" : $"public sealed partial class {_apiName}Client : {interfaces}");
             w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)");
             w.Line("{");
             w.Line("    NumberHandling = JsonNumberHandling.Strict,");
@@ -2107,7 +2135,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             w.Line("/// sample built to pass the schema) until scripted with <c>On{Operation}</c>, <see cref=\"Respond\"/> or");
             w.Line("/// <see cref=\"UseScenario\"/>. Only documented outcomes, with bodies that pass the schema, can be scripted.");
             w.Line("/// </summary>");
-            w.Open($"public sealed class {name} : {interfaces}");
+            w.Open(interfaces.Length == 0 ? $"public sealed class {name}" : $"public sealed class {name} : {interfaces}");
             w.Line("private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)");
             w.Line("{");
             w.Line("    NumberHandling = JsonNumberHandling.Strict,");

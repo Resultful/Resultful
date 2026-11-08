@@ -27,4 +27,14 @@ The Arazzo files are run by the regression engine: every workflow in the corpus 
 and the engine. The Orders overlay carries one example of each kind of invariant from
 [COMPLETENESS.md](../COMPLETENESS.md), and the Bookings overlay the invariants its generated server enforces.
 COMPLETENESS.md proposes the next samples (Ledger, Feature flags, Notifications).
-Large public specs (GitHub, Stripe) belong in a separate, fetched-not-committed run, for scale rather than design.
+Large public specs (GitHub, Stripe) are fetched, not committed (`samples/large/fetch.sh`), and run for scale by
+`LargeSpecTests` when `MATCHMARK_LARGE_SPECS` names where they were fetched to. Their ledger (November 2026):
+
+```
+github: 1272 operations, 1209 generated (95%), 0 compile errors
+stripe: 612 operations, 0 generated (0%), 0 compile errors
+```
+
+The first run found that the generator failed outright on GitHub's spec, and that what it wrote didn't compile; both
+are fixed (LAYERS.md). Stripe sends every request body as `application/x-www-form-urlencoded` and its list filters as
+deep-object query parameters, neither of which is generated yet.
