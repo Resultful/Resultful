@@ -319,7 +319,7 @@ namespace Matchmark.Generator
                    || type == JsonSchemaType.Array && schema.Items is not null
                    // Any JSON value: an object with no properties, no type at all, or an anyOf nothing tells apart. Each is
                    // JsonElement where it's used, so what refers to it isn't skipped.
-                   || type == JsonSchemaType.Object && schema.Properties is not { Count: > 0 } && schema.AdditionalProperties is null
+                   || type == JsonSchemaType.Object && schema.Properties is not { Count: > 0 }
                    || type == 0 && schema.Properties is not { Count: > 0 } && schema.AllOf is not { Count: > 0 }
                    || schema.AnyOf is { Count: > 0 } && schema.Properties is not { Count: > 0 };
         }
@@ -1298,6 +1298,9 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public bool IsStream => ItemType is not null;
 
+            /// <summary>A redirect (301, 302, 307, 308): its value is the Location, a string; it has no body.</summary>
+            public bool IsRedirect { get; set; }
+
             /// <summary>The body's schema, for turning a sample into C#.</summary>
             public IOpenApiSchema? Schema { get; set; }
 
@@ -1313,7 +1316,8 @@ public static (string Key, string Message) BindingError(string? key, string mess
             public bool IsProblem => BodyType is { } type && WellKnownSchemas.ContainsValue(type);
 
             /// <summary>The <c>Microsoft.AspNetCore.Http.HttpResults</c> type this response is written as.</summary>
-            public string ResultType => IsStream ? "PushStreamHttpResult"
+            public string ResultType => IsRedirect ? "RedirectHttpResult"
+                : IsStream ? "PushStreamHttpResult"
                 : Status == 401 && BodyType is null
                 ? "UnauthorizedHttpResult"
                 : IsValidation ? "ValidationProblem"
@@ -1322,7 +1326,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 : BodyType is null ? CaseName : $"{CaseName}<{BodyType}>";
 
             /// <summary>A status with a TypedResults factory of its own (TypedResults.Conflict); the rest go out by number.</summary>
-            public bool HasFactory => !IsStream && !IsDefault && (Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null);
+            public bool HasFactory => !IsStream && !IsDefault && !IsRedirect && (Status is 200 or 201 or 202 or 204 or 400 or 404 or 409 or 422 or 500 || Status == 401 && BodyType is null);
 
             /// <summary>
             /// Written by number (TypedResults.Json or StatusCode), so the result type carries no response metadata: the
@@ -1336,6 +1340,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
             public string Factory(string body) => (Status, BodyType is null) switch
             {
+                _ when IsRedirect => $"TypedResults.Redirect({body}, permanent: {(Status is 301 or 308 ? "true" : "false")}, preserveMethod: {(Status is 307 or 308 ? "true" : "false")})",
                 _ when IsDefault => BodyType is null ? $"TypedResults.StatusCode({StatusOf(body)})"
                     : IsProblem ? $"Problem({body}, {StatusOf(body)})"
                     : $"TypedResults.Json({body}, statusCode: {StatusOf(body)})",
@@ -1650,7 +1655,11 @@ public static (string Key, string Message) BindingError(string? key, string mess
 
                 // An object in the query (style: deepObject) gets a type of its own, named for the operation and parameter.
                 var hint = parameter.In == ParameterLocation.Query ? operation.Name + Naming.Pascal(parameter.Name!) : null;
-                if (attribute is null || parameter.Schema is null || TypeOf(parameter.Schema, $"{context} parameter '{parameter.Name}'", hint) is not { } type)
+
+                // A oneOf or anyOf of scalars (GitHub's workflow_id: an integer or a file name) travels as text: a string.
+                var scalars = parameter.Schema is { } union && (union.OneOf ?? union.AnyOf) is { Count: > 0 } members
+                              && members.All(m => ((m.Type ?? 0) & ~JsonSchemaType.Null) is JsonSchemaType.String or JsonSchemaType.Integer or JsonSchemaType.Number or JsonSchemaType.Boolean);
+                if (attribute is null || parameter.Schema is null || (scalars ? "string" : TypeOf(parameter.Schema, $"{context} parameter '{parameter.Name}'", hint)) is not { } type)
                 {
                     Unsupported($"{context} parameter '{parameter.Name}'", $"{parameter.In} parameters");
                     return false;
@@ -1755,6 +1764,17 @@ public static (string Key, string Message) BindingError(string? key, string mess
                         SampleJson = sample,
                         Schema = JsonSchema(pair.Value.Content),
                     });
+            }
+
+            // An operation whose answer is a redirect (GitHub's downloads: a 302 to the file): the redirect is its success,
+            // and its value the Location.
+            if (operation.Successes.Count == 0 && operation.Errors.Where(e => e.Status is 301 or 302 or 307 or 308).ToList() is { Count: > 0 } redirects)
+            {
+                foreach (var redirect in redirects)
+                {
+                    operation.Errors.Remove(redirect);
+                    operation.Successes.Add(new Response(redirect.Status, "string") { IsRedirect = true, SampleJson = "\"https://example.com/\"" });
+                }
             }
 
             if (operation.Successes.Count == 0)
@@ -2344,6 +2364,12 @@ public static (string Key, string Message) BindingError(string? key, string mess
             if (response.BodyType is null)
             {
                 return null;
+            }
+
+            if (response.IsRedirect)
+            {
+                // The client must not follow redirects itself (HttpClientHandler.AllowAutoRedirect = false) to see this.
+                return "(__response.Headers.Location?.ToString() ?? string.Empty)";
             }
 
             var validate = response.SchemaName is null
@@ -3485,7 +3511,7 @@ private static (string Key, string Message)? BindingError(Exception exception) =
             foreach (var response in operation.Successes.Concat(operation.Errors).Where(r => r.NeedsProduces || operation.Untyped && !r.IsProblem && !r.IsValidation))
             {
                 // Written by number, so documented here: TypedResults.Json and StatusCode declare nothing themselves.
-                w.Line(response.BodyType is null
+                w.Line(response.BodyType is null || response.IsRedirect
                     ? $"    .Produces({response.Status.Invariant()})"
                     : $"    .Produces<{response.BodyType}>({response.Status.Invariant()}, {Naming.Literal(response.MediaType ?? "application/json")})");
             }

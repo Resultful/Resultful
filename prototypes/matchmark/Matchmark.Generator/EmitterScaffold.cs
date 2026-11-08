@@ -346,6 +346,10 @@ namespace Matchmark.Generator
         private string Action(Response response, string body) => response switch
         {
             { IsStream: true } => $"new {_apiName}JsonLines<{response.ItemType}>({body}, {Naming.Literal(response.MediaType!)})",
+            { IsRedirect: true, Status: 301 } => $"RedirectPermanent({body})",
+            { IsRedirect: true, Status: 307 } => $"RedirectPreserveMethod({body})",
+            { IsRedirect: true, Status: 308 } => $"RedirectPermanentPreserveMethod({body})",
+            { IsRedirect: true } => $"Redirect({body})",
             { IsDefault: true, BodyType: null } => $"StatusCode({Response.StatusOf(body)})",
             { IsDefault: true, IsProblem: true } => $"ProblemResponse({body}, {Response.StatusOf(body)})",
             { IsDefault: true } => $"StatusCode({Response.StatusOf(body)}, {body})",

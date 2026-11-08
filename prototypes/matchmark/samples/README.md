@@ -10,7 +10,7 @@ sample changes the ledger; so does breaking something that worked.
 | `museum/` | A real-world OpenAPI 3.1 document written by someone else (Redocly, MIT). Uses what the Pet Store doesn't: primitive component schemas, `allOf`, named arrays. | Arazzo workflows |
 | `orders/` | Written to exercise behaviour across calls and over time: an Idempotency-Key, ETag and If-Match, a cursor, a 202 and an operation to poll, rate limits, deprecation, webhooks. | Overlay, Arazzo |
 | `catalogue/` | OpenAPI 3.2: a search sent as a QUERY (RFC 10008) and an export streamed as JSON Lines (`itemSchema`), with a declared prefix relation and postconditions in its overlay. Its generated server runs against the suite (`CatalogueTests`). | Overlay |
-| `payments/` | Request bodies as forms, the way Stripe takes them (nested values in brackets, numbers and true or false as text), and a `default` error response carrying its status (a declined card is a 402), and a list filtered by a deep-object query parameter. Its generated server runs against the suite, random requests included (`FormTests`). | |
+| `payments/` | Request bodies as forms, the way Stripe takes them (nested values in brackets, numbers and true or false as text), and a `default` error response carrying its status (a declined card is a 402), a list filtered by a deep-object query parameter, and a receipt that is a redirect. Its generated server runs against the suite, random requests included (`FormTests`). | |
 | `bookings/` | Written for invariants the schema can't state, in its overlay: a booking ends after it starts and is for a room or a desk, not both (CEL); a search's filters depend on each other (IDL); a new booking is booked (a postcondition). Its generated server enforces them (`GeneratedRulesTests`). | Overlay |
 
 Today's ledger:
@@ -33,7 +33,7 @@ Large public specs (GitHub, Stripe) are fetched, not committed (`samples/large/f
 `LargeSpecTests` when `MATCHMARK_LARGE_SPECS` names where they were fetched to. Their ledger (November 2026):
 
 ```
-github: 1272 operations, 1244 generated (97.8%), 0 compile errors
+github: 1272 operations, 1255 generated (98.7%), 0 compile errors
 stripe: 612 operations, 611 generated (99.8%), 0 compile errors
 ```
 
@@ -42,4 +42,6 @@ are fixed (LAYERS.md). Stripe was at 0%: it sends every request body as `applica
 documents its errors only as a `default` response. Both are generated now (the Payments sample). Component schemas
 that are any JSON value (an object with no properties, an anyOf nothing tells apart) were skipped, and with them
 everything that referred to them; they're `JsonElement` now. Stripe's list filters are deep-object query parameters
-(`created[gte]=…`), generated now too. What's left of GitHub is mostly operations whose only answers are redirects.
+(`created[gte]=…`), generated now too. GitHub's downloads answer only with a redirect, which is now their success (its
+value the Location); its path parameters that are an integer or a string are strings; its dictionaries are typed.
+What's left are endpoints that answer only 410 (gone, so rightly skipped) and two `text/plain` request bodies.

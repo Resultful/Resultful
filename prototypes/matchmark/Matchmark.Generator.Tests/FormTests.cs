@@ -65,6 +65,11 @@ public sealed class FormTests
                 return Task.FromResult(Result.Ok<IReadOnlyList<Charge>, ListChargesError>(found));
             }
 
+            public Task<Result<string, GetReceiptError>> GetReceipt(string chargeId, CancellationToken cancellationToken)
+                => Task.FromResult(_charges.ContainsKey(chargeId)
+                    ? Result.Ok<string, GetReceiptError>($"https://pay.example/receipts/{chargeId}")
+                    : Result.Fail<string, GetReceiptError>(GetReceiptError.NotFound(new ProblemDetails { Title = "No such charge" })));
+
             public Task<Result<Charge, GetChargeError>> GetCharge(string chargeId, CancellationToken cancellationToken)
                 => Task.FromResult(_charges.TryGetValue(chargeId, out var charge)
                     ? Result.Ok<Charge, GetChargeError>(charge)
@@ -115,6 +120,15 @@ public sealed class FormTests
                 return $"{declined.Status} {declined.Body.ErrorValue.Code}";
             }
 
+            /// <summary>A redirect: the client, not following it, reads where it goes.</summary>
+            public static async Task<string> ReceiptAsync(string url)
+            {
+                using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(url) };
+                var client = new PaymentsClient(http);
+                var charge = (Charge)(await client.CreateCharge(new NewCharge { Amount = 900, Currency = Currency.Eur, Card = new Card { Number = "4242424242424242", ExpMonth = 2, ExpYear = 2032 } }, default)).ToOneOf().Value;
+                return (string)(await client.GetReceipt(charge.Id, default)).ToOneOf().Value;
+            }
+
             /// <summary>The client sends the deep-object filter; the server reads it.</summary>
             public static async Task<int> ListedAsync(string url, long from)
             {
@@ -135,7 +149,7 @@ public sealed class FormTests
         try
         {
             var url = app.Urls.Single() + "/";
-            using var client = new HttpClient { BaseAddress = new Uri(url) };
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(url) };
             var suite = RegressionSuite.FromJson(SpecJson.Normalize(File.ReadAllText(Path.Combine(Samples, "openapi.yaml")), "openapi.yaml"));
 
             var report = await suite.RunAsync(client, new RegressionOptions { Random = 10 });
@@ -146,6 +160,8 @@ public sealed class FormTests
                 .And.Contain(c => c.Case.Kind == CaseKind.Invalid && c.Case.Request.Body != null && c.Case.Request.Body.Contains("card%5Bexp_month%5D=13", StringComparison.Ordinal) && c.Exchange.Status == 400);
             (await (Task<string>)server.GetMethod("ChargeAsync")!.Invoke(null, [url])!).Should().Be("1250 Gbp False 5556 o-17");
             (await (Task<string>)server.GetMethod("DeclineAsync")!.Invoke(null, [url])!).Should().Be("402 card_declined");
+            (await (Task<string>)server.GetMethod("ReceiptAsync")!.Invoke(null, [url])!).Should().MatchRegex(@"^https://pay\.example/receipts/ch_\d+$");
+            report.Cases.Should().Contain(c => c.Case.Operation.Id == "getReceipt" && c.Exchange.Status == 302);
             var all = await (Task<int>)server.GetMethod("ListedAsync")!.Invoke(null, [url, 0L])!;
             (await (Task<int>)server.GetMethod("ListedAsync")!.Invoke(null, [url, 1_700_000_000L + 1_000_000])!).Should().Be(0);
             all.Should().BePositive();
