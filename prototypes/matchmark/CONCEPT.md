@@ -616,8 +616,10 @@ reads raw JSON and status codes, so it can.
 
 ## Limits
 
-- The Contract part uses ASP.NET Core's `ProblemDetails` types, so a contract package needs the ASP.NET Core shared
-  framework. A client-only package should generate its own problem types.
+- The Contract part uses ASP.NET Core's `ProblemDetails` types by default, so a contract package needs the ASP.NET Core
+  shared framework. ✓ With `MatchmarkProblems="Owned"` it generates the spec's own problem types instead, and a
+  client-only package needs no ASP.NET Core (`OwnedProblemsTests` compiles the Pet Store contract with none). The
+  Server part writes ASP.NET Core's problem results, so it refuses owned problems (`MM026`).
 - The generator's spec coverage is the README's *Not supported yet* list: no `allOf`, no inline objects, no form
   bodies, at most six responses per operation.
 - `PetStoreContract` and `ContractViolationException` are generated per API into its namespace. Two specs sharing a
@@ -634,6 +636,6 @@ In order of value for each mode:
 | Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | ✓ **Parameter constraints in the generated server.** Endpoints check bounds, lengths and patterns; the Bookings sample's suite caught the gap, as predicted. |
 
 One step serves both modes and comes first: **packaging.** That means a NuGet package with a `.props` file declaring
-the build metadata (✓ done; see README.md), problem types the contract owns, and a lenient client mode (✓ done: given
+the build metadata (✓ done; see README.md), problem types the contract owns (✓ done), and a lenient client mode (✓ done: given
 `onViolation`, the client reports what it can read past and carries on). The prototype
 can't be adopted without it.
