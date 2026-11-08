@@ -125,7 +125,7 @@ invariant scope above, in its overlay.
 | **Ledger** | conservation: a transfer leaves the total balance unchanged, and a balance never goes negative; money as decimal strings; an Idempotency-Key where a retry must not pay twice; settlement as a 202 |
 | **Catalogue search** (in the corpus) | OpenAPI 3.2's `query` operations (the QUERY method, RFC 10008); filters, sorting and paging as metamorphic relations (results are a subset, ordered, and a prefix); facet counts that agree with the results |
 | **Feature flags** | JSON Merge Patch and JSON Patch; a version that only goes up; `ETag` on every read; `readOnly` and `writeOnly` |
-| **Notifications** | webhooks and callbacks (subscribe, then receive); a signature header; an SSE stream with OpenAPI 3.2's `itemSchema` |
+| **Notifications** (in the corpus) | webhooks and callbacks (subscribe, then receive); a signature header; an SSE stream with OpenAPI 3.2's `itemSchema` |
 | **Train Travel** (Bump.sh; licence to confirm) | a third-party spec Matchmark can't read today: the robustness target from LAYERS.md |
 | **GitHub, Stripe** (fetched, not committed) | scale: thousands of operations, measured in the ledger, not hand-checked |
 

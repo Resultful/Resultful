@@ -60,8 +60,8 @@ defines the behaviour precisely enough to generate the other three.
 | **Work that finishes later** | `202` with `Location`; `Retry-After` on the status | polling reaches a final state within a bound; never a 5xx while running | the client polls until done | Orders |
 | **Rate limits** | `429` with `Retry-After`; RateLimit headers ([draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/)) | a 429 carries `Retry-After`; the suite backs off rather than failing | the client waits and retries; the fake can be told to limit | Orders |
 | **Deprecation** | `deprecated: true`; `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)) and `Sunset` ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) headers | the headers are present, and Sunset isn't before Deprecation | the client warns; generated code is `[Obsolete]` | Orders |
-| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). Callbacks and AsyncAPI are next |
-| **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | ✓ `query` operations everywhere (a 3.2 spec is kept as 3.2), `additionalOperations` in the engine; ✓ JSON Lines as `IAsyncEnumerable<T>` (endpoint, client, fake, scaffold), and every streamed item checked by the engine, server-sent events included (Catalogue). Generating server-sent events and `in: querystring` are next |
+| **Events** | OpenAPI `webhooks` and `callbacks`; AsyncAPI 3 (which Arazzo 1.1 can sequence) | the receiver accepts each documented event; the sender's payloads conform | a typed receiver; the fake can send events | ✓ Webhooks: generated as `{Api}Webhooks` (a receiver interface and `Map{Api}Webhooks`, a sender client, a fake), and `RegressionSuite.ForWebhooks` (`regress --webhooks`) tests a receiver (`WebhookTests`). ✓ Callbacks, generated the same way as `{Api}Callbacks` (`RegressionSuite.ForCallbacks`; Notifications). AsyncAPI is next |
+| **New methods and streams** | OpenAPI 3.2 `query` operations (the QUERY method, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008)) and `additionalOperations`; `in: querystring`; `itemSchema` for `text/event-stream` and `application/jsonl` | each streamed item conforms, as it arrives | typed streams (`IAsyncEnumerable<T>`) | ✓ `query` operations everywhere (a 3.2 spec is kept as 3.2), `additionalOperations` in the engine; ✓ JSON Lines as `IAsyncEnumerable<T>` (endpoint, client, fake, scaffold), and every streamed item checked by the engine (Catalogue); ✓ server-sent events too, each event's data typed by its `contentSchema` and checked against it (Notifications). `in: querystring` is next |
 
 ## What the corpus found
 
@@ -117,6 +117,13 @@ Running the generator and the engine over specs other than the Pet Store found t
   the endpoint, written by the client, sent by the engine with a case for each leaf's bounds) and schemas that are any
   JSON value typed rather than skipped, it's at 99.8%.
 
+- **Notifications found four.** `format: uri` wasn't checked, so a bad callback URL was stored and failed later; enum
+  parameters were bound by `Enum.TryParse`, which refused the spec's own names and took a number; the client wrote
+  enum and date parameters with `ToString`, not as the spec writes them; and a missing header was named by its C#
+  parameter (`xSignature`), not the spec's (`X-Signature`). *Fixed:* `uri` and `email` formats are validated; enum
+  parameters are read by their JSON names; the client writes parameters as the spec does; binding errors use the
+  spec's names.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.
@@ -140,8 +147,8 @@ Each step is done when it is declared in a sample, it is in the ledger, and its 
    `update` (objects merged, arrays appended), `remove`, and `copy`; targets are JSONPath with filters. An overlay is a
    `MatchmarkOverlay="true"` item next to the spec, or `--overlay` to `scaffold` and `regress`. The invariants it carries
    (COMPLETENESS.md) are checked by the engine.
-5. **OpenAPI 3.2 and events.** ✓ Webhooks, ✓ `QUERY`, ✓ streamed items (JSON Lines generated; server-sent events checked).
-   Callbacks, then AsyncAPI. This waits on a reader that
+5. **OpenAPI 3.2 and events.** ✓ Webhooks, ✓ callbacks, ✓ `QUERY`, ✓ streamed items (JSON Lines and server-sent
+   events). Then AsyncAPI. This waits on a reader that
    understands 3.2.
 
 ## Versions this is written against

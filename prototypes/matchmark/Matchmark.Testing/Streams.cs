@@ -28,6 +28,27 @@ internal sealed partial class RegressionRunner
             {
                 Add(findings, Checks.BodyConforms, subject, exchange, $"item {index} of the {mediaType} stream breaks its itemSchema: {problem}");
             }
+
+            // A server-sent event's data, as its contentSchema says (JSON Schema's content vocabulary).
+            if (item?["data"] is JsonValue data && data.GetValueKind() == JsonValueKind.String
+                && suite.Spec.Resolve(itemSchema)["properties"]?["data"] is JsonObject dataSchema && dataSchema["contentSchema"] is { } contentSchema)
+            {
+                JsonNode? content = null;
+                try
+                {
+                    content = JsonNode.Parse(data.GetValue<string>());
+                }
+                catch (JsonException)
+                {
+                    Add(findings, Checks.BodyConforms, subject, exchange, $"event {index}'s data isn't JSON: {RegressionReport.Excerpt(data.GetValue<string>())}");
+                    continue;
+                }
+
+                foreach (var problem in suite.Validator.Validate(content, contentSchema, direction: Direction.Response).Take(5))
+                {
+                    Add(findings, Checks.BodyConforms, subject, exchange, $"event {index}'s data breaks its contentSchema: {problem}");
+                }
+            }
         }
     }
 
