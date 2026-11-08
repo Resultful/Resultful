@@ -343,7 +343,11 @@ public sealed class RegressionSuite
                     AddOnce(operation, CaseKind.Invalid, $"{BodyWhere(variant.Path)} {variant.Description}", required, variant.Value, BodyWhere(variant.Path));
                 }
 
-                Add(operation, CaseKind.Invalid, "body not JSON", required, null, "body", raw: "{\"", contentType: invalidBody.MediaType);
+                if (!Forms.IsForm(invalidBody.MediaType))
+                {
+                    Add(operation, CaseKind.Invalid, "body not JSON", required, null, "body", raw: "{\"", contentType: invalidBody.MediaType);
+                }
+
                 Add(operation, CaseKind.Invalid, $"body sent as text/plain, not {invalidBody.MediaType}", required, minimal, "body", contentType: "text/plain");
                 if (invalidBody.Required)
                 {
@@ -559,12 +563,20 @@ public sealed class RegressionSuite
             }
 
             var hasBody = operation.Body is not null && (raw is not null || body is not null || kind == CaseKind.Invalid && location is not null && location.StartsWith("body", StringComparison.Ordinal));
+            var form = operation.Body is not null && Forms.IsForm(contentType ?? operation.Body.MediaType) && raw is null;
+            if (form && kind == CaseKind.Invalid && location?.StartsWith("body", StringComparison.Ordinal) == true
+                && _suite.Validator.IsValid(Forms.Decode(Forms.Encode(body), operation.Body!.Schema, _suite.Spec), operation.Body.Schema, Direction.Request))
+            {
+                // A form carries only text: a number sent for a string, or a null (left out), reads back valid. Not a case.
+                return false;
+            }
+
             var request = new RegressionRequest(
                 operation.Method,
                 path,
                 query,
                 headers,
-                hasBody ? raw ?? (body ?? JsonValue.Create<string?>(null))?.ToJsonString() ?? "null" : null,
+                hasBody ? raw ?? (form ? Forms.Encode(body) : (body ?? JsonValue.Create<string?>(null))?.ToJsonString() ?? "null") : null,
                 hasBody ? contentType ?? operation.Body!.MediaType : null)
             {
                 PathParameters = pathParameters,

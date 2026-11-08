@@ -52,7 +52,7 @@ internal sealed partial class RegressionRunner
         for (var attempt = 0; attempt < 20; attempt++)
         {
             string? body = request.Body;
-            if (operation.Body is { } schema && OpenApiSpec.IsJson(schema.MediaType))
+            if (operation.Body is { } schema && (OpenApiSpec.IsJson(schema.MediaType) || Forms.IsForm(schema.MediaType)))
             {
                 if (Value(schema.Schema, random, 0) is not { } value || !suite.Validator.IsValid(value, schema.Schema, Direction.Request)
                     || SchemaRules.Broken(suite.Spec, value, schema.Schema).Any(b => b.Error is null))
@@ -60,7 +60,7 @@ internal sealed partial class RegressionRunner
                     continue;
                 }
 
-                body = value.ToJsonString();
+                body = Forms.IsForm(schema.MediaType) ? Forms.Encode(value) : value.ToJsonString();
             }
 
             var query = request.Query.ToList();
@@ -254,7 +254,7 @@ internal sealed partial class RegressionRunner
             yield return @case with { Request = request with { Query = request.Query.Where(q => !q.Equals(parameter)).ToList() } };
         }
 
-        if (request.Body is null || @case.Operation.Body is not { } schema || JsonNode.Parse(request.Body) is not { } body)
+        if (@case.Operation.Body is not { } schema || RequestJson(request, @case.Operation) is not { } body)
         {
             yield break;
         }
@@ -263,7 +263,7 @@ internal sealed partial class RegressionRunner
         {
             if (suite.Validator.IsValid(smaller, schema.Schema, Direction.Request) && !SchemaRules.Broken(suite.Spec, smaller, schema.Schema).Any(b => b.Error is null))
             {
-                yield return @case with { Request = request with { Body = smaller.ToJsonString() } };
+                yield return @case with { Request = request with { Body = RequestText(request, smaller) } };
             }
         }
     }

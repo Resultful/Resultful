@@ -390,9 +390,9 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
             };
         }
 
-        if (workflow.Start.Operation.Body is { } startBody && startRequest.Body is { } sent && JsonNode.Parse(sent) is { } json)
+        if (workflow.Start.Operation.Body is { } startBody && RequestJson(startRequest, workflow.Start.Operation) is { } json)
         {
-            startRequest = startRequest with { Body = suite.Samples.Unique(json, startBody.Schema, 20_000 + suite.Workflows.ToList().IndexOf(workflow))?.ToJsonString() };
+            startRequest = startRequest with { Body = RequestText(startRequest, suite.Samples.Unique(json, startBody.Schema, 20_000 + suite.Workflows.ToList().IndexOf(workflow))) };
         }
 
         var start = await SendAsync(startRequest, cancellationToken).ConfigureAwait(false);
@@ -597,7 +597,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
     }
 
     /// <summary>An OpenAPI runtime expression ($response.body#/id, $request.path.petId...), or a constant.</summary>
-    private static string? Evaluate(string expression, Exchange source)
+    private string? Evaluate(string expression, Exchange source)
     {
         if (!expression.StartsWith('$'))
         {
@@ -611,7 +611,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
 
         if (expression.StartsWith("$request.body", StringComparison.Ordinal))
         {
-            return Text(Pointer(source.Request.Body is { } b ? JsonNode.Parse(b) : null, expression["$request.body".Length..].TrimStart('#')));
+            return Text(Pointer(RequestJson(source.Request, Operation(source.Request)), expression["$request.body".Length..].TrimStart('#')));
         }
 
         var parts = expression.Split('.', 3);

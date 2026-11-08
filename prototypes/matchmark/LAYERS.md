@@ -109,6 +109,12 @@ Running the generator and the engine over specs other than the Pet Store found t
   property names spell out a leading `+`/`-`, take `Value` when they'd repeat the type's name, and are numbered when
   they'd repeat a sibling's. GitHub's spec now generates 95% of its operations, and all of it compiles.
 
+- **Stripe found the next three.** Form bodies (`application/x-www-form-urlencoded`, nested values in brackets) and the
+  `default` response weren't generated, so none of Stripe's 612 operations was; and the Payments sample written for
+  them found that arrays were never validated (`maxItems`, and each item's own constraints). *Done:* forms are read
+  and written by the generated server, client and engine; `default` is an error case that carries its status; arrays
+  are checked. Stripe went from 0% to 94%.
+
 ## The plan, in order
 
 Each step is done when it is declared in a sample, it is in the ledger, and its checks are proven by an injected fault.

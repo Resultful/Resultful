@@ -48,11 +48,11 @@ internal sealed partial class RegressionRunner
             }
         }
 
-        if (!options.Skip.Contains(Checks.IdempotencyKeyReuse) && @case.Operation.Body is { } body && @case.Request.Body is { } sent
-            && JsonNode.Parse(sent) is { } json && suite.Samples.Unique(json, body.Schema, 50_000 + _behaviour++) is { } other
+        if (!options.Skip.Contains(Checks.IdempotencyKeyReuse) && @case.Operation.Body is { } body
+            && RequestJson(@case.Request, @case.Operation) is { } json && suite.Samples.Unique(json, body.Schema, 50_000 + _behaviour++) is { } other
             && !JsonNode.DeepEquals(json, other))
         {
-            var reuse = await SendAsync(@case.Request with { Body = other.ToJsonString() }, cancellationToken).ConfigureAwait(false);
+            var reuse = await SendAsync(@case.Request with { Body = RequestText(@case.Request, other) }, cancellationToken).ConfigureAwait(false);
             Response(@case.Operation, reuse, requestValid: false, $"{@case.Name}, key reused with another body", findings);
             if (reuse.Status is >= 200 and < 300)
             {
