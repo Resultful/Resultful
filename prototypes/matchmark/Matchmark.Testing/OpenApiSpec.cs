@@ -63,9 +63,13 @@ public sealed class OpenApiSpec
         foreach (var (path, item) in _document["paths"]?.AsObject() ?? [])
         {
             var shared = Parameters(item?["parameters"]);
-            foreach (var (method, node) in item?.AsObject() ?? [])
+
+            // OpenAPI 3.2 adds query (the QUERY method, RFC 10008), and additionalOperations for any other method.
+            var additional = (item?["additionalOperations"] as JsonObject ?? []).Select(o => (Method: o.Key.ToLowerInvariant(), Node: o.Value));
+            foreach (var (method, node) in (item?.AsObject() ?? []).Select(o => (Method: o.Key, Node: o.Value)).Concat(additional))
             {
-                if (method is not ("get" or "put" or "post" or "delete" or "patch" or "head" or "options") || node is not JsonObject operation)
+                if (method is "parameters" or "summary" or "description" or "servers" or "$ref" or "additionalOperations" || method.StartsWith("x-", StringComparison.Ordinal)
+                    || node is not JsonObject operation || operation["responses"] is null)
                 {
                     continue;
                 }
@@ -127,7 +131,9 @@ public sealed class OpenApiSpec
                     (l.Link["parameters"]?.AsObject() ?? []).ToDictionary(p => p.Key, p => p.Value!.ToJsonString().Trim('"'), StringComparer.Ordinal),
                     l.Link["requestBody"]))
                 .ToList();
-            responses[status] = new SpecResponse(status, content, headers, links);
+            var items = (response["content"]?.AsObject() ?? []).Where(c => c.Value?["itemSchema"] is not null)
+                .ToDictionary(c => c.Key, c => c.Value!["itemSchema"]!, StringComparer.OrdinalIgnoreCase);
+            responses[status] = new SpecResponse(status, content, headers, links) { ItemSchemas = items };
         }
 
         return responses;
@@ -181,7 +187,11 @@ public sealed record SpecParameter(string Name, string In, bool Required, JsonNo
 public sealed record SpecBody(bool Required, string MediaType, JsonNode Schema, JsonNode? Example);
 
 public sealed record SpecResponse(
-    string Status, IReadOnlyDictionary<string, JsonNode?> Content, IReadOnlyList<SpecHeader> Headers, IReadOnlyList<SpecLink> Links);
+    string Status, IReadOnlyDictionary<string, JsonNode?> Content, IReadOnlyList<SpecHeader> Headers, IReadOnlyList<SpecLink> Links)
+{
+    /// <summary>OpenAPI 3.2's itemSchema, by media type: the schema of each item of a sequential body (JSON Lines, server-sent events).</summary>
+    public IReadOnlyDictionary<string, JsonNode> ItemSchemas { get; init; } = new Dictionary<string, JsonNode>();
+}
 
 public sealed record SpecHeader(string Name, bool Required, JsonNode Schema);
 

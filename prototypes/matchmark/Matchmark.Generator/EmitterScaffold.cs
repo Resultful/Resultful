@@ -33,7 +33,7 @@ namespace Matchmark.Generator
 
             if (controllers)
             {
-                files[$"{_apiName}Conventions.cs"] = Owned(EmitConventions(), header, contractNamespace);
+                files[$"{_apiName}Conventions.cs"] = Owned(EmitConventions(operations.Any(o => o.Successes.Concat(o.Errors).Any(r => r.IsStream))), header, contractNamespace);
             }
             else
             {
@@ -94,7 +94,9 @@ namespace Matchmark.Generator
                 string? value = null;
                 if (response.BodyType is not null && response.SampleJson is { } sample)
                 {
-                    w.Line($"{response.BodyType} answer = {CSharp(JsonNode.Parse(sample), response.Schema, response.BodyType)};");
+                    w.Line(response.IsStream
+                        ? $"{response.BodyType} answer = System.Text.Json.JsonSerializer.Deserialize<global::System.Collections.Generic.List<{response.ItemType}>>({Naming.Literal(sample)}, System.Text.Json.JsonSerializerOptions.Web)!.ToAsyncEnumerable();"
+                        : $"{response.BodyType} answer = {CSharp(JsonNode.Parse(sample), response.Schema, response.BodyType)};");
                     value = "answer";
                 }
 
@@ -307,14 +309,15 @@ namespace Matchmark.Generator
             return w.ToString();
         }
 
-        private static string ActionSuccess(Operation operation, string value)
+        private string ActionSuccess(Operation operation, string value)
             => operation.SuccessIsUnion
                 ? $"{value}.Match<IActionResult>({string.Join(", ", operation.Successes.Select(s => $"@case => {Action(s, "@case.Body")}"))})"
                 : Action(operation.Successes[0], value);
 
         /// <summary>The ControllerBase result for a documented response, given its body.</summary>
-        private static string Action(Response response, string body) => response switch
+        private string Action(Response response, string body) => response switch
         {
+            { IsStream: true } => $"new {_apiName}JsonLines<{response.ItemType}>({body}, {Naming.Literal(response.MediaType!)})",
             { IsValidation: true } => $"ValidationProblem(detail: {body}.Detail, title: {body}.Title, modelStateDictionary: Invalid({body}.Errors))",
             { IsProblem: true } => $"ProblemResponse({body}, {response.Status.Invariant()})",
             { BodyType: null, Status: 204 } => "NoContent()",
@@ -326,7 +329,7 @@ namespace Matchmark.Generator
         };
 
         /// <summary>The JSON and MVC conventions the spec implies, for controllers.</summary>
-        private string EmitConventions()
+        private string EmitConventions(bool streams = false)
         {
             var w = new CodeWriter(_namespace);
             w.Usings("System", "System.Linq", "System.Text.Json.Serialization", "System.Text.RegularExpressions", "Microsoft.AspNetCore.Mvc",
@@ -381,6 +384,22 @@ namespace Matchmark.Generator
             w.Line();
             w.Block(ConventionsProblems.Replace("{Validation}", ValidationClass));
             w.Close();
+            if (streams)
+            {
+                w.Line();
+                w.Line("/// <summary>A JSON Lines body (OpenAPI 3.2's itemSchema): each item written as one line, as it comes.</summary>");
+                w.Open($"public sealed class {_apiName}JsonLines<T>(IAsyncEnumerable<T> items, string mediaType) : IActionResult");
+                w.Open("public async Task ExecuteResultAsync(ActionContext context)");
+                w.Line("var response = context.HttpContext.Response;");
+                w.Line("response.ContentType = mediaType;");
+                w.Open("await foreach (var item in items.WithCancellation(context.HttpContext.RequestAborted))");
+                w.Line("await System.Text.Json.JsonSerializer.SerializeAsync(response.Body, item, System.Text.Json.JsonSerializerOptions.Web);");
+                w.Line("await response.Body.WriteAsync(new byte[] { 10 });");
+                w.Close();
+                w.Close();
+                w.Close();
+            }
+
             return w.ToString();
         }
 
