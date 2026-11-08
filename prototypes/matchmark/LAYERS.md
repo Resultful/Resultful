@@ -156,6 +156,15 @@ Running the generator and the engine over specs other than the Pet Store found t
   kept. The last training tasks were the real API's empty-bodied 415, which owned behaviour couldn't reach, as the
   twin rejects before behaviours run; `SpecTwin.OnRejected` is that seam now. Attempt 3 used it: training reached
   100% but held out didn't rise, so it was rejected, which is the gate refusing a change it can't see pay off.
+  Then an independent agent (a separate session, given only `LedgerOwned.cs` to edit, the gate's training tasks and
+  held-out score, the spec and the twin's API, and barred from the real server's code, these attempts and the docs)
+  ran the loop from an empty `LedgerOwned`. Its first attempt rewrote the opening into the balance as the twin
+  stores an account, and answered 415 with no body: training 100%, held out 61.9% to 85.7%, kept. Four guesses about
+  transfers (409 on insufficient funds, 404 on unknown accounts, balances moving) were kept by the gate but moved
+  nothing, and one (empty 404s) was rejected because `getTransfer` fell to 0%; it went back to its first attempt as the
+  one with measured gain. It relied on a behaviour changing the request body and stored resources, which `TwinCall`
+  now documents. `The_owned_behaviour_passes_the_gate` holds what it wrote; `matchmark-agent-loop.yml` runs the same
+  loop unattended where an `ANTHROPIC_API_KEY` secret is set, uploading the behaviour and verdict rather than pushing.
 
 ## The plan, in order
 

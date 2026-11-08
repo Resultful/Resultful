@@ -85,6 +85,25 @@ public sealed class AgentLoopTests
     }
 
     /// <summary>
+    /// The loop's gate over <see cref="LedgerOwned"/>: writes the training tasks it leaves (ledger-owned.txt) and the
+    /// verdict against the twin without it, and never the held-out mismatches.
+    /// </summary>
+    [Test]
+    public async Task The_owned_behaviour_passes_the_gate()
+    {
+        var real = RegressionReport.Record(await RealAsync());
+        var (training, heldOut) = FidelityLoop.Split(real, HeldOutPercent);
+        var before = (await TwinAsync(_ => { })).Fidelity(heldOut);
+        var run = await TwinAsync(LedgerOwned.Apply);
+        var seen = run.Fidelity(training);
+        var verdict = FidelityLoop.Judge(before, run.Fidelity(heldOut));
+        File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "ledger-owned.txt"),
+            $"Training: {seen.Matched}/{seen.Steps} ({seen.Score:P1}). {verdict}\n"
+            + string.Join("\n", seen.Tasks.Select(t => $"TASK {t.Subject} | differs at: {t.Difference}\n  twin {t.Status}: {t.Body}\n  real {t.RealStatus}: {t.RealBody}")) + "\n");
+        verdict.Keep.Should().BeTrue(verdict.ToString());
+    }
+
+    /// <summary>
     /// Attempts 1 and 2, from the training tasks: the real ledger keeps an account as its id, owner and balance; the
     /// opening amount isn't stored, it's the balance. Kept in the behaviour's own state, ids in the order accounts are
     /// opened, and (attempt 2) in the twin's, for what refers to accounts.

@@ -1,0 +1,98 @@
+name: matchmark-agent-loop
+
+# The Matchmark fidelity loop with an agent writing, unattended (prototypes/matchmark, GAPS.md gap 3): an agent edits
+# only the Ledger twin's owned behaviour (LedgerOwned.cs) from the training tasks the gate prints, and the gate judges it
+# on held-out sequences the agent can't see. Nothing is pushed: the behaviour and the gate's verdict are uploaded for a
+# person to review. It needs an ANTHROPIC_API_KEY secret, and skips itself without one.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    name: loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check for the API key
+        id: key
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::No ANTHROPIC_API_KEY secret, so the agent loop doesn't run."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET SDK
+        if: steps.key.outputs.present == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Start from no owned behaviour
+        if: steps.key.outputs.present == 'true'
+        working-directory: prototypes/matchmark
+        run: |
+          cat > Matchmark.Generator.Tests/LedgerOwned.cs <<'EOF'
+          using Matchmark.Testing;
+
+          namespace Matchmark.Generator.Tests;
+
+          internal static class LedgerOwned
+          {
+              public static void Apply(SpecTwin twin)
+              {
+              }
+          }
+          EOF
+          dotnet build Matchmark.Generator.Tests --configuration Release
+
+      - name: The agent writes, the gate judges
+        if: steps.key.outputs.present == 'true'
+        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The agent may run the gate, read its output, the spec and the twin's API, and edit the owned file; the real
+          # server's code, the earlier attempts and the docs that describe them are denied.
+          claude_args: >-
+            --max-turns 60
+            --allowedTools "Bash(dotnet test:*),Bash(cat Matchmark.Generator.Tests/bin/Release/net10.0/ledger-owned.txt),Read,Edit(prototypes/matchmark/Matchmark.Generator.Tests/LedgerOwned.cs)"
+            --disallowedTools "Read(prototypes/matchmark/Matchmark.Generator.Tests/AgentLoopTests.cs),Read(prototypes/matchmark/Matchmark.Generator.Tests/LedgerTests.cs),Read(prototypes/matchmark/*.md),Read(.git/**),Grep,Glob"
+          prompt: |
+            You are the writer in a fidelity loop for a twin (a fake) of the Ledger API in prototypes/matchmark. Edit only
+            Matchmark.Generator.Tests/LedgerOwned.cs. Run the gate from prototypes/matchmark with
+            `dotnet test Matchmark.Generator.Tests -c Release --filter The_owned_behaviour_passes_the_gate` and read
+            `cat Matchmark.Generator.Tests/bin/Release/net10.0/ledger-owned.txt`: the training score, the verdict on the
+            held-out sequences (kept only if the held-out score rises and no operation falls), and each training TASK
+            with both answers. The twin's API is in Matchmark.Testing/SpecTwin.cs (On, OnRejected, Seed, TwinCall,
+            TwinAnswer, TwinRejection); the spec is samples/ledger/openapi.yaml with ledger.overlay.yaml. Iterate at most
+            six times, keep the best kept state, and restore the empty Apply if nothing is kept.
+
+      - name: The gate, run again by the workflow
+        if: steps.key.outputs.present == 'true'
+        working-directory: prototypes/matchmark
+        run: dotnet test Matchmark.Generator.Tests --configuration Release --filter The_owned_behaviour_passes_the_gate
+
+      - name: Upload the behaviour and the verdict
+        if: always() && steps.key.outputs.present == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ledger-owned
+          path: |
+            prototypes/matchmark/Matchmark.Generator.Tests/LedgerOwned.cs
+            prototypes/matchmark/Matchmark.Generator.Tests/bin/Release/net10.0/ledger-owned.txt

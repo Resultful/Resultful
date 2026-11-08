@@ -590,7 +590,11 @@ public sealed class SpecTwin : HttpMessageHandler
             .ToList();
 }
 
-/// <summary>A request the twin received, for a behaviour of its own: the path values, query, body and what it holds.</summary>
+/// <summary>
+/// A request the twin received, for a behaviour of its own: the path values, query, body and what it holds. The body is
+/// what the twin stores when the behaviour lets the request through, and the resources are the stored ones themselves:
+/// a behaviour that changes either changes what the twin keeps (an agent's Ledger behaviour relies on both).
+/// </summary>
 public sealed record TwinCall(
     string OperationId,
     IReadOnlyDictionary<string, string> Path,
