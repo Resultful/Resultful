@@ -24,6 +24,17 @@ namespace Matchmark.Generator
 
         private const string ValidationSchema = "HttpValidationProblemDetails";
 
+        /// <summary>The framework types the schemas map onto: none when the contract owns its problem types.</summary>
+        private Dictionary<string, string> Mapped => _ownProblems ? NoMapping : WellKnownSchemas;
+
+        private static readonly Dictionary<string, string> NoMapping = new();
+
+        /// <summary>
+        /// MatchmarkProblems="Owned": the spec's problem schemas are generated like any other, so the contract needs no
+        /// ASP.NET Core (a client-only package). The Server part writes ASP.NET Core's problem results, so it needs them.
+        /// </summary>
+        private readonly bool _ownProblems;
+
         private readonly OpenApiDocument _document;
         private readonly string _namespace;
         private readonly string _apiName;
@@ -56,8 +67,9 @@ namespace Matchmark.Generator
         private bool _rulesReported;
 
         public Emitter(OpenApiDocument document, string ns, string apiName, Location location, bool describesItself = false, bool hasFakes = false,
-            bool hasRules = false)
+            bool hasRules = false, bool ownProblems = false)
         {
+            _ownProblems = ownProblems;
             _hasRules = hasRules;
             _describesItself = describesItself;
             _hasFakes = hasFakes;
@@ -77,6 +89,11 @@ namespace Matchmark.Generator
             CollectSchemas();
             var operations = CollectOperations();
             var files = new Dictionary<string, string>();
+            if (_ownProblems && (server || fakeServer))
+            {
+                Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.OwnedProblemsNeedNoServer, _location));
+                server = fakeServer = false;
+            }
 
             if (contract)
             {
@@ -126,7 +143,7 @@ namespace Matchmark.Generator
                 }
 
                 var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = paths },
-                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules) { _shared = true };
+                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true };
                 foreach (var file in receiver.Emit(contract, server))
                 {
                     files["Webhooks." + file.Key] = file.Value;
@@ -247,7 +264,7 @@ namespace Matchmark.Generator
 
             foreach (var pair in components)
             {
-                if (WellKnownSchemas.ContainsKey(pair.Key))
+                if (Mapped.ContainsKey(pair.Key))
                 {
                     continue;
                 }
@@ -456,7 +473,7 @@ namespace Matchmark.Generator
         {
             if (RefId(schema) is { } id)
             {
-                if (WellKnownSchemas.TryGetValue(id, out var wellKnown))
+                if (Mapped.TryGetValue(id, out var wellKnown))
                 {
                     return wellKnown;
                 }
@@ -1535,7 +1552,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
                 }
 
                 var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
-                var problem = $"new {validation.BodyType}(errors) {{ Title = \"One or more validation errors occurred.\", Status = 400 }}";
+                var problem = ValidationProblem(validation.BodyType!, "errors");
                 var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
                 var failed = hasValue
                     ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
@@ -1741,6 +1758,13 @@ public static (string Key, string Message) BindingError(string? key, string mess
             return w.ToString();
         }
 
+        private string TypeOfValidationProblem => Mapped.TryGetValue(ValidationSchema, out var mapped) ? mapped : Naming.Pascal(ValidationSchema);
+
+        /// <summary>A validation problem of these errors (a Dictionary of string[]): ASP.NET Core's, or the contract's own record.</summary>
+        private string ValidationProblem(string type, string errors) => _ownProblems
+            ? $"new {type} {{ Title = \"One or more validation errors occurred.\", Status = 400, Errors = global::System.Linq.Enumerable.ToDictionary({errors}, e => e.Key, e => (global::System.Collections.Generic.IReadOnlyList<string>)e.Value) }}"
+            : $"new {type}({errors}) {{ Title = \"One or more validation errors occurred.\", Status = 400 }}";
+
         /// <summary>
         /// The request checked before it's sent, as the server would check it: parameter bounds, x-dependencies (with
         /// Matchmark.Rules) and the body's schema and rules. A bad request never leaves: it is the spec's validation 400
@@ -1774,7 +1798,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             }
 
             w.Open("if (__invalid.Count > 0)");
-            var validation = operation.Errors.FirstOrDefault(e => e.Status == 400 && e.BodyType == WellKnownSchemas[ValidationSchema]);
+            var validation = operation.Errors.FirstOrDefault(e => e.Status == 400 && (e.IsValidation || e.BodyType == TypeOfValidationProblem));
             if (validation is null)
             {
                 w.Line($"throw new ArgumentException({Naming.Literal(operation.Id + ": the request breaks the spec: ")} + string.Join(\"; \", __invalid.Select(e => $\"{{e.Key}}: {{string.Join(\" \", e.Value)}}\")));");
@@ -1782,7 +1806,7 @@ public static (string Key, string Message) BindingError(string? key, string mess
             else
             {
                 var hasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
-                var problem = $"new {validation.BodyType}(__invalid) {{ Title = \"One or more validation errors occurred.\", Status = 400 }}";
+                var problem = ValidationProblem(validation.BodyType!, "__invalid");
                 var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
                 w.Line(hasValue
                     ? $"return global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error});"

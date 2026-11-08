@@ -136,8 +136,11 @@ namespace Matchmark.Generator
 
             // MatchmarkAudit="true": what the spec leaves out (matchmark audit's static rules), one MM024 each.
             var audit = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkAudit", out var audited) && string.Equals(audited, "true", StringComparison.OrdinalIgnoreCase);
+
+            // MatchmarkProblems="Owned": the contract generates its own problem types, so it needs no ASP.NET Core.
+            var owned = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkProblems", out var problems) && string.Equals(problems, "Owned", StringComparison.OrdinalIgnoreCase);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
-                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit);
+                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned };
         }
 
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
@@ -171,7 +174,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules);
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems);
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
@@ -237,6 +240,9 @@ namespace Matchmark.Generator
         /// <summary>Report what the spec leaves out (MM024).</summary>
         public bool Audit { get; }
 
+        /// <summary>Generate the spec's problem types instead of using ASP.NET Core's (MatchmarkProblems="Owned").</summary>
+        public bool OwnProblems { get; set; }
+
         public string Content { get; }
 
         public string Namespace { get; }
@@ -247,11 +253,11 @@ namespace Matchmark.Generator
         public IReadOnlyList<(string Text, string Path)> Overlays { get; private set; } = Array.Empty<(string, string)>();
 
         public SpecInput WithOverlays(IReadOnlyList<(string Text, string Path)> overlays)
-            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays };
+            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays, OwnProblems = OwnProblems };
 
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit && OwnProblems == other.OwnProblems
                && Overlays.SequenceEqual(other.Overlays);
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);
@@ -379,6 +385,11 @@ namespace Matchmark.Generator
             "MM025", "Invariants declared but not enforced",
             "The spec declares {0}, which the generated server doesn't enforce: reference Matchmark.Rules to make a broken rule the spec's 400",
             Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor OwnedProblemsNeedNoServer = new(
+            "MM026", "Owned problem types are for a contract without a server",
+            "MatchmarkProblems=\"Owned\" generates the spec's problem types so the contract needs no ASP.NET Core; the Server and FakeServer parts write ASP.NET Core's problem results, so they weren't generated. Generate them in a project without it.",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor Incomplete = new(
             "MM024", "The spec leaves out something the suite would use",
