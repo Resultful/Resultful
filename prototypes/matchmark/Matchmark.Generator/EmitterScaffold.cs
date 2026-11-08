@@ -95,7 +95,7 @@ namespace Matchmark.Generator
                 if (response.BodyType is not null && response.SampleJson is { } sample)
                 {
                     w.Line(response.IsStream
-                        ? $"{response.BodyType} answer = System.Text.Json.JsonSerializer.Deserialize<global::System.Collections.Generic.List<{response.ItemType}>>({Naming.Literal(sample)}, System.Text.Json.JsonSerializerOptions.Web)!.ToAsyncEnumerable();"
+                        ? $"{response.BodyType} answer = global::System.Linq.AsyncEnumerable.ToAsyncEnumerable(System.Text.Json.JsonSerializer.Deserialize<global::System.Collections.Generic.List<{response.ItemType}>>({Naming.Literal(sample)}, System.Text.Json.JsonSerializerOptions.Web)!);"
                         : $"{response.BodyType} answer = {CSharp(JsonNode.Parse(sample), response.Schema, response.BodyType)};");
                     value = "answer";
                 }
@@ -261,7 +261,7 @@ namespace Matchmark.Generator
                     w.Line();
                     w.Line($"{form.Type} body;");
                     w.Open("try");
-                    w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>((await Request.ReadFormAsync(cancellationToken)).SelectMany(f => f.Value.Select(v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
+                    w.Line($"body = {ValidationClass}.ReadForm<{form.Type}>(global::System.Linq.Enumerable.SelectMany(await Request.ReadFormAsync(cancellationToken), f => global::System.Linq.Enumerable.Select(f.Value, v => new KeyValuePair<string, string>(f.Key, v ?? string.Empty))));");
                     w.Close();
                     w.Open("catch (System.Text.Json.JsonException e)");
                     w.Line($"var (key, message) = {ValidationClass}.BindingError(e.Path ?? \"$\", e.Message);");
@@ -423,11 +423,11 @@ namespace Matchmark.Generator
             {
                 w.Line();
                 w.Line("/// <summary>A JSON Lines body (OpenAPI 3.2's itemSchema): each item written as one line, as it comes.</summary>");
-                w.Open($"public sealed class {_apiName}JsonLines<T>(IAsyncEnumerable<T> items, string mediaType) : IActionResult");
-                w.Open("public async Task ExecuteResultAsync(ActionContext context)");
+                w.Open($"public sealed class {_apiName}JsonLines<T>(global::System.Collections.Generic.IAsyncEnumerable<T> items, string mediaType) : IActionResult");
+                w.Open("public async global::System.Threading.Tasks.Task ExecuteResultAsync(ActionContext context)");
                 w.Line("var response = context.HttpContext.Response;");
                 w.Line("response.ContentType = mediaType;");
-                w.Open("await foreach (var item in items.WithCancellation(context.HttpContext.RequestAborted))");
+                w.Open("await foreach (var item in global::System.Threading.Tasks.TaskAsyncEnumerableExtensions.WithCancellation(items, context.HttpContext.RequestAborted))");
                 w.Line("await System.Text.Json.JsonSerializer.SerializeAsync(response.Body, item, System.Text.Json.JsonSerializerOptions.Web);");
                 w.Line("await response.Body.WriteAsync(new byte[] { 10 });");
                 w.Close();
