@@ -1,8 +1,14 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
   <PropertyGroup>
-    <!-- Prototype: nothing here is packed or published. -->
+    <!--
+      Prototype: nothing is published. The generator, the runtimes (Rules, Fakes, Testing) and the CLI (a dotnet tool)
+      can be packed to a local feed to try them as a consumer would; everything else isn't packable.
+    -->
     <IsPackable>false</IsPackable>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>prototype</VersionSuffix>
+    <Authors>Ryan Kelly</Authors>
   </PropertyGroup>
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <!-- Sentence-style test names; NUnit disposes fixtures' fields in TearDown. -->

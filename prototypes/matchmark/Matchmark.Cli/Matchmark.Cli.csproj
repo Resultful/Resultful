@@ -8,6 +8,11 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>matchmark</AssemblyName>
     <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>matchmark</ToolCommandName>
+    <PackageId>Matchmark.Cli</PackageId>
+    <Description>matchmark: scaffold, regress and audit from an OpenAPI document.</Description>
   </PropertyGroup>
 
   <ItemGroup>

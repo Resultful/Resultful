@@ -4,7 +4,8 @@ Spec-first ASP.NET Core on .NET 10. The OpenAPI document is the source of truth.
 build time and writes the server's contracts, and the hand-written code returns Resultful types. A regression suite and
 a round-trip check against the spec decide whether the server is done.
 
-This is a prototype. Nothing here is packed or published, and the `Resultful` package is unchanged.
+This is a prototype. Nothing here is published, and the `Resultful` package is unchanged. The generator, its runtimes
+and the CLI can be packed to a local feed and used as a consumer would (see *Trying it as a package*).
 
 **The name.** *Match marks* are lines scored across two parts before they're separated, so they can be put back
 together exactly as they fitted. Here the OpenAPI document makes the marks. The server, the client, the fake and the
@@ -213,8 +214,29 @@ Supported since the corpus showed they were needed:
 `CorpusTests` compile the Contract and Server parts generated for every sample with no errors. Bump.sh's Train Travel
 API (not vendored) compiles too.
 
-A generator package would also need a `.props` file declaring the `CompilerVisibleItemMetadata`; the sample declares
-it by hand.
+## Trying it as a package
+
+`dotnet pack` on `Matchmark.Generator`, `Matchmark.Rules`, `Matchmark.Fakes`, `Matchmark.Testing` and `Matchmark.Cli`
+(and `Resultful`) writes them to a local feed, at version `0.1.0-prototype`.
+
+- **Matchmark.Generator** is an analyzer package. It carries the spec reader the generator loads beside it, and
+  `build/Matchmark.Generator.props`, which declares every item metadata name the generator reads (`PackagingTests`
+  keeps the two in step). A project then only marks its spec:
+
+  ```xml
+  <PackageReference Include="Matchmark.Generator" Version="0.1.0-prototype" />
+  <PackageReference Include="Resultful" Version="1.0.0" />
+  <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkParts="Contract,Server" />
+  ```
+
+  The sample projects import the same props file instead of declaring the metadata themselves.
+- **Matchmark.Cli** is a dotnet tool: `dotnet tool install Matchmark.Cli --add-source <feed> --version 0.1.0-prototype`,
+  then `matchmark audit petstore.yaml`.
+- **Matchmark.Rules**, **Matchmark.Fakes** and **Matchmark.Testing** are the runtimes the generated code uses when
+  they're referenced.
+
+A consumer outside this repository, built against such a feed, compiled the Pet Store contract and server from the
+spec alone, and the installed tool ran its audit.
 
 ## Next steps, if this goes further
 

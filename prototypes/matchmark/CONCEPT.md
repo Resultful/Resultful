@@ -631,8 +631,8 @@ In order of value for each mode:
 |:--|:--|:--|
 | Next | **Runtime conformance middleware.** The regression engine's response checks, run on the server's own responses. *Observe* mode logs undocumented responses in production, *enforce* mode fails tests. | **Arazzo workflows.** Call sequences beyond what `links` can say, run as stateful tests from the seed scenarios. |
 | Then | **Spec diff in CI.** Classify spec changes as additive or breaking, and fail a breaking change that isn't versioned. | **Random inputs.** Schema-derived generators (CsCheck) on top of the deterministic cases, shrinking each failure to its smallest request. |
-| Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | **Parameter constraints in the generated server.** It validates bodies; the suite will catch the gap as soon as a spec constrains a parameter. |
+| Later | **More inputs and hosts.** AsyncAPI for events, other hosts such as Functions or Lambda, through one small internal model of operations and outcomes. | ✓ **Parameter constraints in the generated server.** Endpoints check bounds, lengths and patterns; the Bookings sample's suite caught the gap, as predicted. |
 
 One step serves both modes and comes first: **packaging.** That means a NuGet package with a `.props` file declaring
-the build metadata, problem types the contract owns, and a lenient client mode. The prototype can't be adopted without
-it.
+the build metadata (✓ done; see README.md), problem types the contract owns, and a lenient client mode. The prototype
+can't be adopted without it.

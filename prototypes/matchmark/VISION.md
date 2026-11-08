@@ -162,7 +162,7 @@ Each stage is useful on its own. Items marked ✓ exist in the prototype.
 - ✓ A differential run: the generated endpoints and the scaffolded controllers answer every generated case alike.
 
 **1. Usable by someone else.**
-- A NuGet package that declares its build settings itself.
+- ✓ A NuGet package that declares its build settings itself (`Matchmark.Generator`; the CLI as a dotnet tool).
 - Problem types the contract owns, so a client-only package doesn't need ASP.NET Core.
 - A lenient client mode that logs violations instead of throwing.
 - A run against a large real spec, fixing what it finds, growing into a corpus of real specs built in CI, with the

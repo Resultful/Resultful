@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- What the generator package declares: the build metadata the generator reads, made visible to it. -->
+  <Import Project="../Matchmark.Generator/build/Matchmark.Generator.props" />
   <!--
     The contract: everything the spec defines that a caller needs too. Types, response unions, the handler interfaces,
     validation, and PetStoreClient, which implements the handler interfaces over HTTP. The service and any consumer or
@@ -13,10 +15,6 @@
 
   <ItemGroup>
     <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Contract" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Matchmark" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkNamespace" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkApiName" />
-    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkParts" />
   </ItemGroup>
 
   <ItemGroup>
