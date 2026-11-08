@@ -260,6 +260,8 @@ flowchart LR
 - A small semantic model of operations, outcomes, schemas and traits, at the latest version of each format.
 - Parsing as its own incremental step, with output per tag, so one edit doesn't regenerate everything.
 - The model tested directly, independent of any output. The emitter (3,979 lines in one class today) is split onto it.
+- *Proposed (P2):* per-object checks on .NET's own validation layer, through a generated resolver, as the first slice:
+  Matchmark's own validator retired once a spike proves it ([docs/reference/validation.md](docs/reference/validation.md)).
 
 **3. Verify.** Alongside step 2: it lives in the engine, which is separate from the generator.
 - Every version in the table above read, through the standard libraries and their Oxbow forks.
@@ -267,6 +269,10 @@ flowchart LR
 - ✓ The support matrix, generated from the tests ([docs/reference/support-matrix.md](docs/reference/support-matrix.md)).
 - Support measured against the official example sets.
 - The CLI as a dotnet tool and a container image.
+
+*Proposed (P1), alongside steps 3 and 4:* invariants across a collection, declared as traits (unique, references,
+derived, conserved, scoped, limit, order), each built once and used by the twin, the suite, the audit and the generator,
+starting with `unique` ([docs/reference/invariants.md](docs/reference/invariants.md)).
 
 **4. Hosted sessions.**
 - ✓ Host-based routing, consumer-chosen session ids and session tokens in the spec's security scheme

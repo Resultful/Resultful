@@ -27,6 +27,8 @@ description of the code today and of the design ahead.
 | [Checks](reference/checks.md) | Every check the regression engine runs, and what each proves. |
 | [Diagnostics](reference/diagnostics.md) | Every `MM` diagnostic the generator reports. |
 | [Extensions](reference/extensions.md) | The `x-matchmark-*` and `x-dependencies` extensions, their grammars and where they apply. |
+| [Invariants across a collection](reference/invariants.md) | Proposed: unique, references, derived, conserved, scoped, limit and order, each declared once and used by the twin, the suite, the audit and the generator. |
+| [Validation](reference/validation.md) | Proposed: per-object checks on .NET's own validation layer, with a generated resolver. |
 | [Hosted sessions](reference/sessions.md) | A copy of the API per test session: routing, ids, tokens, pathways and the report. |
 | [Twins and fidelity](reference/twins.md) | The stateful twin, fidelity runs, recordings and the gated loop. |
 | [The model](reference/model.md) | The semantic model every output is generated from (roadmap step 2). |

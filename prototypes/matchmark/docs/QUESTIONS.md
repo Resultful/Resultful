@@ -89,3 +89,24 @@ meet at the generated handler interface. Forwarding over HTTP was simpler to bui
 didn't generate, and it tests the real endpoints too.
 *Assumption:* HTTP forwarding stays; an in-process handler-interface swap is only worth adding if a test needs to avoid
 HTTP entirely. *Built on this assumption.*
+
+## Invariants and validation (proposals P1 and P2)
+
+**16. Are P1 and P2 decided?** Both are written up as proposals ([decisions](decisions.md#proposed)).
+*Assumption:* nothing is built until they're confirmed.
+
+**17. How is a second principal provided for `scoped`?** The suite needs two credentials to test that one principal
+can't see another's resources. A real API's second credential is the team's to provide; in sessions it could be minted.
+*Assumption:* `matchmark regress --principal <header>` given twice, and `POST /__fake/sessions/{id}/principals` in
+sessions.
+
+**18. Should the generator apply unique keys and references to EF Core itself?** The stored entity and the API model are
+different types (the Pet Store's `PetRecord` and `Pet`), so the mapping from JSON field to entity property is the
+service's.
+*Assumption:* the generator emits `{Api}Invariants` as metadata, and Matchmark.Conformance offers
+`ApplyMatchmarkUnique<TEntity>(keys, map)`; it doesn't generate entity configuration.
+
+**19. Will .NET's validations generator see types in a referenced contract project?** The design doesn't depend on it
+(Matchmark generates the resolver), but if it does, the resolver may be needed only for the generated endpoints'
+parameters.
+*Assumption:* the spike's first step finds out.
