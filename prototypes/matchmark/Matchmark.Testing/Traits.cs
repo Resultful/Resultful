@@ -74,6 +74,74 @@ public static class Traits
         return references;
     }
 
+    /// <summary>The derived fields declared on a schema (<c>x-matchmark-derived</c>): field, when (create, update, always), CEL expression.</summary>
+    public static IReadOnlyList<Derived> DerivedFields(OpenApiSpec spec, JsonNode? schemaNode)
+    {
+        if (schemaNode is null)
+        {
+            return [];
+        }
+
+        var schema = spec.Resolve(schemaNode);
+        var derived = (schema["x-matchmark-derived"] as JsonObject ?? []).Where(p => p.Value?["value"] is JsonValue)
+            .Select(p => new Derived(p.Key, p.Value!["on"]?.GetValue<string>() ?? "create", p.Value!["value"]!.GetValue<string>())).ToList();
+        foreach (var part in (schema["allOf"] as JsonArray ?? []).OfType<JsonNode>())
+        {
+            derived.AddRange(DerivedFields(spec, part));
+        }
+
+        return derived;
+    }
+
+    /// <summary>A list operation's declared order (<c>x-matchmark-order</c>): fields, each ascending unless marked <c>desc</c>.</summary>
+    public static IReadOnlyList<(string Field, bool Descending)> Order(SpecOperation operation)
+        => (operation.Json["x-matchmark-order"]?["by"] as JsonArray ?? []).Select(b => b?.GetValue<string>()).OfType<string>()
+            .Select(b => b.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Select(parts => (parts[0], parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase))).ToList();
+
+    /// <summary>Compares two resources by a declared order; numbers as numbers, strings ordinally, a missing value first.</summary>
+    public static int Compare(JsonObject a, JsonObject b, IReadOnlyList<(string Field, bool Descending)> order)
+    {
+        foreach (var (field, descending) in order)
+        {
+            var x = Node(a, field);
+            var y = Node(b, field);
+            var result = x is null && y is null ? 0 : x is null ? -1 : y is null ? 1
+                : SchemaValidator.NumberOf(x) is { } m && SchemaValidator.NumberOf(y) is { } n ? m.CompareTo(n)
+                : string.CompareOrdinal(Text(a, field), Text(b, field));
+            if (result != 0)
+            {
+                return descending ? -result : result;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>A derived field's value: the expression over the request, the resource and its earlier reading; null when it can't be evaluated.</summary>
+    public static JsonNode? Evaluate(Derived derived, JsonNode? request, JsonObject self, JsonObject? oldSelf)
+    {
+        var variables = new Dictionary<string, JsonNode?>(StringComparer.Ordinal) { ["request"] = request?.DeepClone() ?? new JsonObject(), ["self"] = self.DeepClone() };
+        if (oldSelf is not null)
+        {
+            variables["oldSelf"] = oldSelf.DeepClone();
+        }
+
+        var (value, error) = Matchmark.Rules.Cel.Evaluate(derived.Expression, variables);
+        return error is null ? value : null;
+    }
+
+    private static JsonNode? Node(JsonObject resource, string field)
+    {
+        JsonNode? node = resource;
+        foreach (var segment in field.Split('.'))
+        {
+            node = node?[segment];
+        }
+
+        return node;
+    }
+
     /// <summary>A status the declaration names (<c>status: 400</c>), which wins over the order statuses are looked for in.</summary>
     private static int? DeclaredStatus(JsonObject declaration)
         => declaration["status"] is JsonValue status && status.GetValueKind() == JsonValueKind.Number ? status.GetValue<int>() : null;
@@ -156,4 +224,12 @@ public sealed record Reference(string Field, string Target, string Collection, s
     public int? Declared { get; init; }
 
     public override string ToString() => $"{Field} → {Target}";
+}
+
+/// <summary>A derived field: its name, when it's set (create, update, always), and the CEL expression over request, self and oldSelf.</summary>
+public sealed record Derived(string Field, string On, string Expression)
+{
+    public bool OnCreate => On is "create" or "always";
+
+    public bool OnUpdate => On is "update" or "always";
 }

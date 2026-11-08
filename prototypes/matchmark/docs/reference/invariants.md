@@ -1,7 +1,7 @@
 # Invariants across a collection
 
-Decision Q44 ([decisions](../decisions.md#second-round)). **`unique` and `references` are Built**, end to end; the
-other traits are **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
+Decision Q44 ([decisions](../decisions.md#second-round)). **`unique`, `references`, `derived` and `order` are Built**,
+end to end; `conserved`, `scoped` and `limit` are **Planned**. This page specifies a fifth scope of invariant, the rules that hold across every resource in a collection,
 and the vocabulary Matchmark reads for it.
 
 ## Why
@@ -43,11 +43,11 @@ fidelity it adds across the corpus.
 |:--|:--|:--|:--|:--|
 | [unique](#unique) (**Built**) | `x-matchmark-unique` | no two resources share these values | enforces | duplicates, case variants, renames into a taken value |
 | [references](#references) (**Built**) | `x-matchmark-references` | this value names a resource that exists | enforces, and on delete restricts, cascades or clears | references to nothing; deleting what's referenced |
-| [derived](#derived) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
+| [derived](#derived) (**Built**) | `x-matchmark-derived` | this value is computed from the request or the resource | computes it | checks each response's value |
 | [conserved](#conserved) | `x-matchmark-conserved` | a total over the collection doesn't change | checks only; the change itself is owned code | reads the total before and after |
 | [scoped](#scoped) | `x-matchmark-scoped` | a resource belongs to the principal that created it | filters by token | a second principal can't see or change it |
 | [limit](#limit) | `x-matchmark-limit` | at most n resources per scope | enforces | the n + 1th create |
-| [order](#order) | `x-matchmark-order` | a list is sorted this way | sorts | checks order, across pages too |
+| [order](#order) (**Built**) | `x-matchmark-order` | a list is sorted this way | sorts | checks order, across pages too |
 
 Rules that span a collection but fit no trait are not given a general escape hatch yet (a CEL rule over the whole
 collection was considered: it can be checked, but neither the twin nor the suite can act on it). Immutable fields need
@@ -204,16 +204,20 @@ x-matchmark-derived:
     value: self.lines.map(l, l.quantity * l.unitPrice).sum()
 ```
 
+**Built.** The Ledger derives an account's balance from its opening amount, which the independent agent had had to
+write as owned code; `DerivedAndOrderTests` shows the twin computing a field and the suite catching a twin without the
+declaration.
+
 **Semantics.** The field's value is the CEL expression, evaluated over `request` (the request body), `self` (the
 resource as stored, before the field is set) and `oldSelf` (on update, the resource before the change). `create` sets it
-once; `update` sets it on each change; `always` holds whenever the resource is read. A derived field should be
-`readOnly`; if not, `MM027`.
+once; `update` sets it on each change; `always` does both. A derived field on a schema a request body also uses must be
+`readOnly`, or a request could set it; if not, `MM027`, as for a field the schema doesn't have.
 
 **Twin.** Computes the field as it stores the resource. Replaces owned code such as the Ledger's opening-to-balance
 behaviour, which the independent agent wrote.
 
-**Suite.** Checks each success response holding the resource: the field equals the expression. Checked as
-`DerivedHolds`.
+**Suite.** Checks each create's response: the field equals the expression over the request sent and the response's
+other fields. Checked as `DerivedHolds`. Checking updates, which needs the reading before, is **Planned**.
 
 ## conserved
 
@@ -275,8 +279,10 @@ x-matchmark-order:
 **Semantics.** The list is sorted by the fields in order. A sort parameter the operation takes (`?sort=name`) overrides
 it, when the parameter's values are field names.
 
-**Twin.** Sorts lists; today it lists in insertion order. **Suite.** Checks every
-list response, and across pages that each page continues the order. Checked as `ListOrdered`.
+**Built.** The Pet Store lists pets in id order. **Twin.** Sorts lists by the declared fields (numbers as numbers,
+strings ordinally, missing values first). **Suite.** Checks every list response is in the declared order: an array body,
+or the first array property of an object body. Checked as `ListOrdered`. Checking that pages continue the order across
+pages, and a `sort` parameter overriding it, are **Planned**. `MM027` reports an order field the items don't have.
 
 ## Diagnostics
 

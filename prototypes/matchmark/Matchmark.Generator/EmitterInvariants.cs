@@ -94,6 +94,60 @@ namespace Matchmark.Generator
             return references;
         }
 
+        /// <summary>
+        /// MM027 for derived fields and list orders that name what isn't there: a derived field that isn't a property, or one
+        /// that a request can set (not readOnly, on a schema a request body uses); an order field the list's items don't have.
+        /// </summary>
+        private void CheckDerivedAndOrder(List<Operation> operations)
+        {
+            var requestSchemas = new HashSet<string>(operations.Where(o => o.Body is not null).Select(o => o.Body!.Type.TrimEnd('?')), StringComparer.Ordinal);
+            foreach (var pair in _document.Components?.Schemas ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                if (!(Extension(pair.Value.Extensions, "x-matchmark-derived") is JsonObject derived))
+                {
+                    continue;
+                }
+
+                var properties = AllProperties(pair.Value);
+                foreach (var field in derived.Select(d => d.Key))
+                {
+                    var wrong = !properties.Contains(field) ? $"an unknown field {field}"
+                        : requestSchemas.Contains(pair.Key) && pair.Value.Properties?.TryGetValue(field, out var property) == true && property.ReadOnly != true
+                            ? $"{field}, which a request can set: derive it on a readOnly field"
+                        : null;
+                    if (wrong is not null)
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{pair.Key}'s x-matchmark-derived", wrong));
+                    }
+                }
+            }
+
+            foreach (var path in _document.Paths ?? new OpenApiPaths())
+            {
+                foreach (var operation in path.Value.Operations ?? new Dictionary<HttpMethod, OpenApiOperation>())
+                {
+                    if (!(Extension(operation.Value.Extensions, "x-matchmark-order")?["by"] is JsonArray by))
+                    {
+                        continue;
+                    }
+
+                    var items = operation.Value.Responses?.Where(r => r.Key.StartsWith("2", StringComparison.Ordinal))
+                        .Select(r => r.Value.Content?.Values.FirstOrDefault()?.Schema).FirstOrDefault(s => s is not null);
+                    var item = items?.Items ?? items?.Properties?.Values.FirstOrDefault(p => p.Items is not null)?.Items;
+                    if (item is null)
+                    {
+                        continue;
+                    }
+
+                    var properties = AllProperties(item);
+                    foreach (var field in by.Select(b => b?.GetValue<string>()?.Split(' ')[0]).OfType<string>().Where(f => !properties.Contains(f.Split('.')[0])))
+                    {
+                        Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.InvariantDeclaredWrongly, _location, $"{operation.Value.OperationId}'s x-matchmark-order", $"an unknown field {field}"));
+                    }
+                }
+            }
+        }
+
         /// <summary>Whether a property's type allows null, so a reference to a deleted resource can be cleared.</summary>
         private static bool Nullable(IOpenApiSchema schema, string property)
             => schema.Properties is not null && schema.Properties.TryGetValue(property, out var value) && (value.Type ?? 0).HasFlag(JsonSchemaType.Null)
@@ -113,6 +167,7 @@ namespace Matchmark.Generator
         /// <summary>The Contract part's <c>{Api}Invariants</c>, or null when the spec declares none; MM028 for creates with no status to refuse with.</summary>
         private string? EmitInvariants(List<Operation> operations)
         {
+            CheckDerivedAndOrder(operations);
             var keys = UniqueKeys();
             var references = References();
             if (keys.Count == 0 && references.Count == 0)

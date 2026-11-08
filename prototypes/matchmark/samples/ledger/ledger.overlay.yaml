@@ -27,3 +27,8 @@ actions:
       x-matchmark-references:
         from: { target: '/accounts/{accountId}', status: 400 }
         to: { target: '/accounts/{accountId}', status: 400 }
+  - target: $.components.schemas.Account
+    description: An account's balance starts as its opening amount (invariants.md, derived).
+    update:
+      x-matchmark-derived:
+        balance: { on: create, value: request.opening }

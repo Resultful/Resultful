@@ -40,6 +40,37 @@ internal sealed partial class RegressionRunner
             await UniqueAsync(@case, keys, findings, cancellationToken).ConfigureAwait(false);
         }
 
+        // Derived fields (x-matchmark-derived): a create's response holds each one as its expression gives it.
+        if (success && operation.Method == "POST" && !options.Skip.Contains(Checks.DerivedHolds) && exchange.Json() is JsonObject made)
+        {
+            foreach (var derived in Traits.DerivedFields(suite.Spec, Traits.ResourceSchema(operation)).Where(d => d.OnCreate))
+            {
+                var self = (JsonObject)made.DeepClone();
+                self.Remove(derived.Field);
+                if (Traits.Evaluate(derived, RequestJson(@case.Request, operation), self, null) is { } expected
+                    && !JsonNode.DeepEquals(expected, made[derived.Field]))
+                {
+                    Add(findings, Checks.DerivedHolds, @case.Name, exchange,
+                        $"{derived.Field} is {made[derived.Field]?.ToJsonString() ?? "missing"}; the spec derives it as {derived.Expression}, which gives {expected.ToJsonString()}");
+                }
+            }
+        }
+
+        // A declared order (x-matchmark-order): every list is in it.
+        if (success && operation.Method == "GET" && !options.Skip.Contains(Checks.ListOrdered) && Traits.Order(operation) is { Count: > 0 } order
+            && exchange.Json() is { } listed && Items(listed) is { Count: > 1 } items)
+        {
+            for (var i = 1; i < items.Count; i++)
+            {
+                if (Traits.Compare(items[i - 1], items[i], order) > 0)
+                {
+                    Add(findings, Checks.ListOrdered, @case.Name, exchange,
+                        $"item {i} comes before item {i - 1} in the declared order ({string.Join(", ", order.Select(o => o.Field + (o.Descending ? " desc" : string.Empty)))})");
+                    break;
+                }
+            }
+        }
+
         if (success && options.Workflows && @case.Kind is CaseKind.Valid or CaseKind.Example or CaseKind.Boundary && !options.Skip.Contains(Checks.ReferenceHolds)
             && operation.Method == "POST" && Traits.References(suite.Spec, Traits.ResourceSchema(operation)) is { Count: > 0 } references
             && _referencesChecked.Add(operation.Id))
@@ -48,6 +79,10 @@ internal sealed partial class RegressionRunner
         }
 
     }
+
+    /// <summary>A list's items: the body when it's an array, else its first array property (items, data…).</summary>
+    private static List<JsonObject> Items(JsonNode body)
+        => (body as JsonArray ?? (body as JsonObject)?.Select(p => p.Value).OfType<JsonArray>().FirstOrDefault() ?? []).OfType<JsonObject>().ToList();
 
     private readonly HashSet<string> _uniqueChecked = new(StringComparer.Ordinal);
     private readonly HashSet<string> _referencesChecked = new(StringComparer.Ordinal);
