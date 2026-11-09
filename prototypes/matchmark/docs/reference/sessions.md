@@ -34,7 +34,7 @@ Each session's copy is one implementation of the generated handler interface (`I
 | Twin (`"copy": "twin"`, the default) | The built-in store: state in memory, inferred from the spec's paths and seeded per session, so what is created can be read, listed, changed and deleted. Needs nothing but the spec. | **Built**, one per session |
 | The real service (`"copy": "service"`) | The service itself, with data of the session's own: an ephemeral database per session, created and seeded when it starts and discarded when it ends. See [service sessions](#service-sessions). | **Built** (the Pet Store, on EF Core and SQLite) |
 | Scripted fake | Answers scripted per operation (`Given`) and expected calls (`Should`). Only documented outcomes can be scripted. | **Built** as the generated fake, outside sessions |
-| Twin with a script on top | The default (Q37): the twin answers unless a script says otherwise, and expectations are checked against every call. | **Partial**: scripted answers are built; expected calls (`Should`) in a session are planned |
+| Twin with a script on top | The default (Q37): the twin answers unless a script says otherwise, and expectations are checked against every call. | **Built**: scripted answers, and expected calls as the session's `scenario` |
 
 Every copy checks every request as the spec says and answers only documented outcomes, because all of them sit behind
 the same generated endpoints.
@@ -75,7 +75,7 @@ Content-Type: application/json
 | `copy` | `"twin"` (default) or `"service"`, when the host has a service ([service sessions](#service-sessions)). |
 | `seed` | For a twin: starting data by collection path. For a service: whatever its start hook reads, such as a seed scenario's name (`"Demo"`). |
 | `pathways` | The Arazzo workflow ids this consumer must cover, or `"all"`. Default: none. |
-| `scenario` | Expected calls, in the scenario format the fake already reads ([CONCEPT.md](../CONCEPT.md#scenarios-expected-calls-in-order-or-not)). **Planned.** |
+| `scenario` | Expected calls, in the scenario format the fake already reads ([CONCEPT.md](../CONCEPT.md#scenarios-expected-calls-in-order-or-not)), checked against every call. A step with a `body` scripts the answer; one without lets the copy answer, and its `status` must match. Each step's operation and status must be documented, or it's a `400`. How the calls kept to it is the report's `consumer.scenario`, and each failure is a reason. **Built** (`SessionTests`; `MatchmarkSession.StartAsync(…, scenario)`). |
 
 `201 Created` for a new session, `200 OK` when the id existed and was replaced: a rerun starts clean. The answer:
 

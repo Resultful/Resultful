@@ -41,8 +41,20 @@ public sealed class MatchmarkSession : IAsyncDisposable
     /// </summary>
     public static async Task<MatchmarkSession> StartAsync(HttpClient control, string id, object? seed = null, IEnumerable<string>? pathways = null,
         string copy = SessionCopy.Twin, string prefix = "__fake", CancellationToken cancellationToken = default)
+        => await StartAsync(control, id, seed, pathways, copy, scenario: null, prefix, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Starts a session as above, with expected calls (a scenario, as Matchmark.Fakes builds or reads one).</summary>
+    public static async Task<MatchmarkSession> StartAsync(HttpClient control, string id, object? seed, IEnumerable<string>? pathways, string copy,
+        Matchmark.Fakes.Scenario? scenario, string prefix = "__fake", CancellationToken cancellationToken = default)
     {
-        using var response = await control.PutAsJsonAsync($"{prefix}/sessions/{id}", new { seed, pathways, copy }, Json, cancellationToken).ConfigureAwait(false);
+        var start = new JsonObject
+        {
+            ["seed"] = seed is null ? null : JsonSerializer.SerializeToNode(seed, Json),
+            ["pathways"] = pathways is null ? null : JsonSerializer.SerializeToNode(pathways, Json),
+            ["copy"] = copy,
+            ["scenario"] = scenario is null ? null : JsonNode.Parse(scenario.ToJson()),
+        };
+        using var response = await control.PutAsJsonAsync($"{prefix}/sessions/{id}", start, Json, cancellationToken).ConfigureAwait(false);
         var started = await response.Content.ReadFromJsonAsync<JsonObject>(Json, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode || started is null)
         {

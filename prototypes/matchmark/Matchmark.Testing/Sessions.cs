@@ -58,6 +58,15 @@ public sealed partial class SessionHost
     /// </summary>
     public async Task<(Session Session, bool Created)> StartAsync(string id, JsonNode? seed = null, IEnumerable<string>? pathways = null,
         string copy = SessionCopy.Twin, CancellationToken cancellationToken = default)
+        => await StartAsync(id, seed, pathways, copy, scenario: null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Starts a session as above, with expected calls: a <paramref name="scenario"/> in the fakes' format (Matchmark.Fakes),
+    /// checked against every call the session receives. A step with a body scripts the answer; one without lets the copy
+    /// answer, and its status must be the step's. What breaks it is in the consumer's half of the report.
+    /// </summary>
+    public async Task<(Session Session, bool Created)> StartAsync(string id, JsonNode? seed, IEnumerable<string>? pathways, string copy,
+        Matchmark.Fakes.Scenario? scenario, CancellationToken cancellationToken = default)
     {
         if (!SessionId().IsMatch(id))
         {
@@ -100,7 +109,17 @@ public sealed partial class SessionHost
                 throw new ArgumentException($"'{copy}' isn't a copy: use '{SessionCopy.Twin}' or '{SessionCopy.Service}'.", nameof(copy));
         }
 
-        var session = new Session(id, twin, _scheme?.NewToken(id), required, copy);
+        foreach (var step in scenario?.Steps ?? [])
+        {
+            var operation = _parsed.Operations.FirstOrDefault(o => o.Id == step.Operation)
+                            ?? throw new ArgumentException($"The scenario names '{step.Operation}', which the spec doesn't have.", nameof(scenario));
+            if (operation.Response(step.Status) is null)
+            {
+                throw new ArgumentException($"The scenario expects {step.Operation} to answer {step.Status}, which it doesn't document.", nameof(scenario));
+            }
+        }
+
+        var session = new Session(id, twin, _scheme?.NewToken(id), required, copy) { Expected = scenario is null ? null : new Matchmark.Fakes.ScenarioRunner(scenario) };
         var created = !_sessions.ContainsKey(id);
         _sessions[id] = session;
         return (session, created);
@@ -192,12 +211,31 @@ public sealed partial class SessionHost
             }
         }
 
+        // Expected calls (a scenario): the step this call is, which may script its answer.
+        (int Status, string? Body)? step = null;
+        if (operation is not null && session.Expected is { } expected)
+        {
+            try
+            {
+                step = expected.Next(new Matchmark.Fakes.FakeCall(operation.Id, new Dictionary<string, object?>()), Arguments(operation, path, queryString, body));
+            }
+            catch (Matchmark.Fakes.FakeExpectationException)
+            {
+                // Recorded by the runner; the copy still answers, so the consumer sees what it would have.
+            }
+        }
+
         int status;
         string? type;
         string? answer;
         IReadOnlyDictionary<string, string> answerHeaders;
         bool scripted;
-        if (session.Twin is { } twin)
+        if (step is { Body: { } stepBody } && operation is not null)
+        {
+            (status, type, answer, answerHeaders) = (step.Value.Status, Media(operation, step.Value.Status), stepBody, new Dictionary<string, string>());
+            scripted = true;
+        }
+        else if (session.Twin is { } twin)
         {
             (status, type, answer, answerHeaders) = twin.Answer(method, path, queryString, headers, body, contentType);
             scripted = session.TakeScripted();
@@ -216,6 +254,12 @@ public sealed partial class SessionHost
             scripted = false;
         }
 
+        if (step is { Body: null } expectedStep && expectedStep.Status != status && operation is not null)
+        {
+            session.Unexpected($"{operation.Id} was answered {status}, but the scenario expects {expectedStep.Status}: script it with Given, or change the step");
+        }
+
+        session.Expected?.Answered(answer);
         session.Record(new SessionCall(operation?.Id, method, path, status, scripted, Request(method, path, queryString, headers, body, contentType), answer));
         return new SessionAnswer(status, type, answer, answerHeaders);
     }
@@ -278,7 +322,11 @@ public sealed partial class SessionHost
         var invalid = calls.Count(c => !c.Scripted && c.Status is 400 or 415 or 422 or 401);
         var documented = _parsed.Operations.SelectMany(o => o.Responses.Keys.Select(k => (o.Id, k))).Count();
         var reached = calls.Where(c => c.OperationId is not null).Select(c => (c.OperationId, c.Status)).Distinct().Count();
-        var consumer = new ConsumerHalf(pathways.All(p => p.Completed) && invalid == 0, pathways, calls.Count, invalid, documented, reached);
+        var scenario = session.ScenarioOutcome();
+        var consumer = new ConsumerHalf(pathways.All(p => p.Completed) && invalid == 0 && scenario?.Passed != false, pathways, calls.Count, invalid, documented, reached)
+        {
+            Scenario = scenario,
+        };
 
         ProviderHalf? provider = null;
         if (Provider is { } recorded && session.Pathways.Count > 0)
@@ -291,6 +339,7 @@ public sealed partial class SessionHost
         var reasons = new List<string>();
         reasons.AddRange(pathways.Where(p => !p.Completed).Select(p => $"the consumer didn't complete {p.WorkflowId}: missing {string.Join(", ", p.Missing)}"));
         reasons.AddRange(calls.Where(c => !c.Scripted && c.Status is 400 or 415 or 422 or 401).Select(c => $"the consumer sent an invalid call: {c.Method} {c.Path} was {c.Status}"));
+        reasons.AddRange((scenario?.Failures ?? []).Select(f => $"the consumer didn't keep to the scenario: {f}"));
         if (session.Pathways.Count > 0 && provider is null)
         {
             reasons.Add("there are no provider results for the pathways: record them with matchmark regress --save, and give them to the host (--provider)");
@@ -365,6 +414,48 @@ public sealed partial class SessionHost
     {
         var requirements = operation.Json["security"] as JsonArray ?? _parsed.Find("#/security") as JsonArray;
         return requirements is { Count: > 0 } && requirements.Any(r => r is JsonObject { Count: > 0 });
+    }
+
+    /// <summary>A call's arguments as a scenario's expect reads them: path and query values by name, typed by their schemas, and the body under body.</summary>
+    private static JsonObject Arguments(SpecOperation operation, string path, string queryString, string? body)
+    {
+        var arguments = new JsonObject();
+        var names = Regex.Matches(operation.Path, @"\{([^}]+)\}").Select(m => m.Groups[1].Value).ToList();
+        var values = Regex.Match(path, "^" + Regex.Replace(Regex.Escape(operation.Path), @"\\\{([^}]+)}", "([^/]+)") + "/?$");
+        for (var i = 0; i < names.Count && i + 1 < values.Groups.Count; i++)
+        {
+            arguments[names[i]] = Typed(operation, names[i], Uri.UnescapeDataString(values.Groups[i + 1].Value));
+        }
+
+        foreach (var (name, value) in SpecTwin.Query(queryString))
+        {
+            arguments[name] = Typed(operation, name, value);
+        }
+
+        if (!string.IsNullOrEmpty(body))
+        {
+            try
+            {
+                arguments["body"] = JsonNode.Parse(body);
+            }
+            catch (JsonException)
+            {
+                arguments["body"] = body;
+            }
+        }
+
+        return arguments;
+    }
+
+    private static JsonValue Typed(SpecOperation operation, string name, string text)
+    {
+        var type = operation.Parameters.FirstOrDefault(p => p.Name == name)?.Schema["type"]?.ToString();
+        return type switch
+        {
+            "integer" or "number" when decimal.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number) => JsonValue.Create(number),
+            "boolean" when bool.TryParse(text, out var flag) => JsonValue.Create(flag),
+            _ => JsonValue.Create(text),
+        };
     }
 
     private static RegressionRequest Request(string method, string path, string queryString, IReadOnlyDictionary<string, string> headers, string? body, string? contentType)
@@ -529,6 +620,37 @@ public sealed class Session
 
     internal void Touch() => LastUsed = DateTimeOffset.UtcNow;
 
+    /// <summary>The session's expected calls, when it was started with a scenario.</summary>
+    internal Matchmark.Fakes.ScenarioRunner? Expected { get; init; }
+
+    private readonly List<string> _unexpected = [];
+
+    internal void Unexpected(string failure)
+    {
+        lock (_unexpected)
+        {
+            _unexpected.Add(failure);
+        }
+    }
+
+    /// <summary>How the calls kept to the scenario: null without one.</summary>
+    public ScenarioOutcome? ScenarioOutcome()
+    {
+        if (Expected is null)
+        {
+            return null;
+        }
+
+        var verified = Expected.Verify();
+        List<string> failures;
+        lock (_unexpected)
+        {
+            failures = [.. verified.Failures, .. _unexpected];
+        }
+
+        return new ScenarioOutcome(failures.Count == 0, failures);
+    }
+
     internal void Record(SessionCall call)
     {
         lock (_calls)
@@ -615,7 +737,14 @@ public sealed record SessionReport(string Session, bool Complete, ConsumerHalf C
     public IReadOnlyList<string> Reasons { get; init; } = [];
 }
 
-public sealed record ConsumerHalf(bool Passed, IReadOnlyList<PathwayCoverage> Pathways, int Calls, int Invalid, int DocumentedOutcomes, int OutcomesReached);
+public sealed record ConsumerHalf(bool Passed, IReadOnlyList<PathwayCoverage> Pathways, int Calls, int Invalid, int DocumentedOutcomes, int OutcomesReached)
+{
+    /// <summary>How the calls kept to the session's scenario (expected calls); null when it has none.</summary>
+    public ScenarioOutcome? Scenario { get; init; }
+}
+
+/// <summary>Whether a session's calls kept to its scenario, and each way they didn't.</summary>
+public sealed record ScenarioOutcome(bool Passed, IReadOnlyList<string> Failures);
 
 public sealed record PathwayCoverage(string WorkflowId, bool Completed, IReadOnlyList<string> Missing);
 

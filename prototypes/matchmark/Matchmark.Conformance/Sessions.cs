@@ -82,7 +82,9 @@ public static class SessionHosting
                             JsonValue all when all.GetValueKind() == JsonValueKind.String => [all.GetValue<string>()],
                             _ => null,
                         },
-                        start?["copy"]?.GetValue<string>() ?? SessionCopy.Twin, context.RequestAborted).ConfigureAwait(false);
+                        start?["copy"]?.GetValue<string>() ?? SessionCopy.Twin,
+                        start?["scenario"] is JsonObject scenario ? Matchmark.Fakes.Scenario.FromJson(scenario.ToJsonString()) : null,
+                        context.RequestAborted).ConfigureAwait(false);
                     var hostName = context.Request.Host;
                     // An IP address has no subdomains: a session's own host is then {id}.localhost, which browsers resolve to loopback.
                     var name = System.Net.IPAddress.TryParse(hostName.Host, out _) ? "localhost" : hostName.Host;
