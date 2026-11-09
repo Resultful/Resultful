@@ -101,6 +101,40 @@ public sealed class SessionTests
         (await one.Client.PostAsJsonAsync("pets", new { name = "Rex" })).StatusCode.Should().Be(HttpStatusCode.Created, "its own token is accepted");
     }
 
+    /// <summary>
+    /// Expected calls in a session (the twin with a script on top, Q37): a scenario checked against every call. A step
+    /// with a body scripts the answer; one without lets the twin answer, and its status must match.
+    /// </summary>
+    [Test]
+    public async Task A_session_s_scenario_is_checked_against_every_call()
+    {
+        var scenario = Matchmark.Fakes.Scenario.FromJson("""
+            { "order": "InOrder", "steps": [
+              { "operation": "createPet", "expect": { "body": { "name": "Rex" } }, "status": 201 },
+              { "operation": "getPet", "expect": { "petId": 1 }, "status": 200 },
+              { "operation": "createPet", "expect": { "body": { "name": "Rex" } }, "status": 409, "body": { "title": "A pet with that name exists" } } ] }
+            """);
+
+        await using (var keeps = await MatchmarkSession.StartAsync(_control, "keeps", seed: null, pathways: null, copy: SessionCopy.Twin, scenario))
+        {
+            (await keeps.Client.PostAsJsonAsync("pets", new { name = "Rex" })).StatusCode.Should().Be(HttpStatusCode.Created);
+            (await keeps.Client.GetAsync("pets/1")).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await keeps.Client.PostAsJsonAsync("pets", new { name = "Rex" })).StatusCode.Should().Be(HttpStatusCode.Conflict, "the step scripts the answer");
+
+            var report = await keeps.ReportAsync();
+            report.Consumer.Scenario!.Passed.Should().BeTrue(string.Join("; ", report.Consumer.Scenario.Failures));
+            report.Consumer.Passed.Should().BeTrue(string.Join("; ", report.Reasons));
+        }
+
+        await using var strays = await MatchmarkSession.StartAsync(_control, "strays", seed: null, pathways: null, copy: SessionCopy.Twin, scenario);
+        await strays.Client.PostAsJsonAsync("pets", new { name = "Tom" });
+        await strays.Client.GetAsync("pets/1");
+        var strayed = await strays.ReportAsync();
+        strayed.Consumer.Passed.Should().BeFalse();
+        strayed.Reasons.Should().Contain(r => r.Contains("body.name expected \"Rex\", got \"Tom\"", StringComparison.Ordinal), string.Join("; ", strayed.Reasons));
+        strayed.Reasons.Should().Contain(r => r.Contains("step 3", StringComparison.Ordinal) && r.Contains("0 of 1", StringComparison.Ordinal));
+    }
+
     /// <summary>A second principal minted for a session (Q47): accepted by that session only, and someone else to the twin.</summary>
     [Test]
     public async Task A_session_mints_a_second_principal_that_the_scoped_trait_keeps_apart()

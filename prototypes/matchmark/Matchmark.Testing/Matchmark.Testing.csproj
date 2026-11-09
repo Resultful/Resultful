@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Matchmark.Rules/Matchmark.Rules.csproj" />
+    <ProjectReference Include="../Matchmark.Fakes/Matchmark.Fakes.csproj" />
   </ItemGroup>
 
   <ItemGroup>
