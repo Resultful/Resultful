@@ -7,6 +7,7 @@ using Matchmark.Conformance;
 using Matchmark.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using NUnit.Framework;
 
 namespace Matchmark.Generator.Tests;
@@ -133,6 +134,39 @@ public sealed class SessionTests
         strayed.Consumer.Passed.Should().BeFalse();
         strayed.Reasons.Should().Contain(r => r.Contains("body.name expected \"Rex\", got \"Tom\"", StringComparison.Ordinal), string.Join("; ", strayed.Reasons));
         strayed.Reasons.Should().Contain(r => r.Contains("step 3", StringComparison.Ordinal) && r.Contains("0 of 1", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A service in another process (ServiceCopy.Http): the host forwards a service session's requests to it, and starts
+    /// and ends the session's data through its hooks, which it answers with MapMatchmarkSessionHooks.
+    /// </summary>
+    [Test]
+    public async Task A_service_in_another_process_is_reached_through_its_HTTP_hooks()
+    {
+        var data = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        var serviceBuilder = WebApplication.CreateBuilder();
+        serviceBuilder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var service = serviceBuilder.Build();
+        service.UseMatchmarkSessionScope();
+        service.MapMatchmarkSessionHooks((id, seed, _) => { data[id] = seed?["name"]?.GetValue<string>() ?? "nobody"; return Task.CompletedTask; },
+            id => { data.TryRemove(id, out _); return Task.CompletedTask; });
+        service.MapGet("/pets", (HttpContext context) => Results.Json(new[] { new { id = 1, name = data[context.MatchmarkSession()!] } }));
+        await service.StartAsync();
+
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.UseMatchmarkSessions(new SessionHost(Spec, [Pathways]) { Service = ServiceCopy.Http(new Uri(service.Urls.Single() + "/")) });
+        await app.StartAsync();
+        using var control = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+
+        await using (var session = await MatchmarkSession.StartAsync(control, "remote", seed: new { name = "Rex" }, copy: SessionCopy.Service))
+        {
+            data.Should().ContainKey("remote").WhoseValue.Should().Be("Rex", "the hook started the session's data with its seed");
+            (await Names(session.Client, "pets")).Should().Equal("Rex");
+        }
+
+        data.Should().NotContainKey("remote", "ending the session ended its data");
     }
 
     /// <summary>A second principal minted for a session (Q47): accepted by that session only, and someone else to the twin.</summary>

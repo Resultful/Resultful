@@ -718,7 +718,35 @@ public static class SessionCopy
 /// when it starts (given the session's seed) and remove it when it ends. Requests carry <c>X-Matchmark-Session</c>, which
 /// <c>UseMatchmarkSessionScope</c> (Matchmark.Conformance) makes the request's session in the service.
 /// </summary>
-public sealed record ServiceCopy(HttpClient Client, Func<string, JsonNode?, CancellationToken, Task> Start, Func<string, Task> End);
+public sealed record ServiceCopy(HttpClient Client, Func<string, JsonNode?, CancellationToken, Task> Start, Func<string, Task> End)
+{
+    /// <summary>The hooks' path on a service, by default: <c>PUT {path}/{id}</c> starts a session's data, <c>DELETE</c> ends it.</summary>
+    public const string HooksPath = "__matchmark/sessions";
+
+    /// <summary>
+    /// A service in another process, reached over HTTP at <paramref name="service"/>: requests are forwarded to it, and a
+    /// session's data is started with <c>PUT {hooks}/{id}</c> (the seed as the body) and ended with <c>DELETE</c>, which
+    /// the service answers with MapMatchmarkSessionHooks (Matchmark.Conformance).
+    /// </summary>
+    public static ServiceCopy Http(Uri service, string hooks = HooksPath)
+    {
+        var client = new HttpClient { BaseAddress = service };
+        return new ServiceCopy(client,
+            async (id, seed, cancellationToken) =>
+            {
+                using var content = new StringContent(seed?.ToJsonString() ?? "null", Encoding.UTF8, "application/json");
+                using var response = await client.PutAsync($"{hooks.Trim('/')}/{id}", content, cancellationToken).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException($"The service didn't start session '{id}': {(int)response.StatusCode} {await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)}");
+                }
+            },
+            async id =>
+            {
+                using var _ = await client.DeleteAsync($"{hooks.Trim('/')}/{id}").ConfigureAwait(false);
+            });
+    }
+}
 
 /// <summary>A session's token: its value, and where a request sends it (header, query or cookie, by name, as written).</summary>
 public sealed record SessionToken(string Value, string In, string Name, string Sent);

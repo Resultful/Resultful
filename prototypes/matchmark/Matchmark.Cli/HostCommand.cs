@@ -10,7 +10,7 @@ namespace Matchmark.Cli;
 public static class HostCommand
 {
     public const string Usage = """
-        usage: matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>]
+        usage: matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>] [--service <url>]
 
           Serves a copy of the API per test session, from the spec alone. A consumer starts a session with
           PUT /__fake/sessions/{id} and calls it at {id}.localhost (or with the header X-Matchmark-Session: {id}).
@@ -19,6 +19,8 @@ public static class HostCommand
           --overlay   an OpenAPI Overlay applied to the spec first (repeat for more)
           --provider  the provider's results for the pathways, from matchmark regress --save, for the report
           --urls      where to listen (default http://localhost:8080)
+          --service   the real service, in another process, for sessions started with "copy": "service": requests are
+                      forwarded to it, and it starts and ends each session's data at PUT and DELETE /__matchmark/sessions/{id}
         """;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, CancellationToken cancellationToken = default)
@@ -46,13 +48,14 @@ public static class HostCommand
                 }
             }
 
-            host = new SessionHost(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out _, overlays), arazzo);
+            var service = Option(args, "--service") is { } url ? ServiceCopy.Http(new Uri(url.EndsWith('/') ? url : url + "/")) : null;
+            host = new SessionHost(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out _, overlays), arazzo) { Service = service };
             if (Option(args, "--provider") is { } provider)
             {
                 host.Provider = ProviderResults.FromJson(await File.ReadAllTextAsync(provider, cancellationToken));
             }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or SharpYaml.YamlException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or UriFormatException or SharpYaml.YamlException or System.Text.Json.JsonException)
         {
             await output.WriteLineAsync($"error: {e.Message}");
             return 2;
