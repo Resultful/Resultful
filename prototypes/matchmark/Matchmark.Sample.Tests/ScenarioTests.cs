@@ -220,6 +220,29 @@ public sealed class ScenarioTests
             .Split('\n').Should().HaveCount(5);
     }
 
+    /// <summary>The fake server's hub on the session host's protocol: the consumer names the session, and reaches it by header.</summary>
+    [Test]
+    public async Task A_fake_session_is_named_by_the_consumer_and_reached_by_header()
+    {
+        await using var server = new WebApplicationFactory<FakeServer>();
+        var http = server.CreateClient();
+        var scenario = await File.ReadAllTextAsync(ScenarioPath("adopt-rex.json"));
+
+        var started = await http.PutAsync("/__fake/sessions/adopt", new StringContent($$"""{ "scenario": {{scenario}} }""", System.Text.Encoding.UTF8, "application/json"));
+        started.StatusCode.Should().Be(HttpStatusCode.Created, await started.Content.ReadAsStringAsync());
+        (await started.Content.ReadFromJsonAsync<JsonObject>())!["baseUrl"]!.GetValue<string>().Should().StartWith("http://adopt.localhost");
+        (await http.PutAsync("/__fake/sessions/Not_A_Label", null)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        using var unknown = new HttpRequestMessage(HttpMethod.Get, "/pets");
+        unknown.Headers.Add("X-Matchmark-Session", "nobody");
+        (await http.SendAsync(unknown)).StatusCode.Should().Be(HttpStatusCode.NotFound, "a named session that doesn't exist is never the default fake");
+
+        using var unexpected = new HttpRequestMessage(HttpMethod.Delete, "/pets/99");
+        unexpected.Headers.Add("X-Matchmark-Session", "adopt");
+        var answer = await http.SendAsync(unexpected);
+        answer.StatusCode.Should().Be(HttpStatusCode.InternalServerError, "the session's scenario didn't expect it: " + await answer.Content.ReadAsStringAsync());
+    }
+
     private static async Task<string> Start(HttpClient http, string? scenario)
     {
         var response = await http.PostAsync("/__fake/sessions", scenario is null ? null : new StringContent(scenario, System.Text.Encoding.UTF8, "application/json"));

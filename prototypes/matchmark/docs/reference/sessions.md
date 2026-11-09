@@ -95,8 +95,11 @@ spec declares no security scheme. An id that isn't a valid host label, or an unk
 Ids are 1 to 63 characters of lower-case letters, digits and hyphens, starting with a letter, so each is a valid host
 label.
 
-The generated fake server's hub (`MatchmarkParts="FakeServer"`) still starts sessions with `POST /__fake/sessions` and a
-server-chosen id; moving it onto `SessionHost` is planned.
+The generated fake server's hub (`MatchmarkParts="FakeServer"`) speaks the same protocol (**Built**): `PUT
+/__fake/sessions/{id}` with `{"scenario": …}` starts a scripted fake under the consumer's id, answered with its
+`baseUrl` and header, and it's reached by host or `X-Matchmark-Session` as well as by path prefix; a session named that
+doesn't exist is a `404`, never the default fake. Its sessions stay scripted fakes, not twins: the generated fake
+depends on Matchmark.Fakes alone. `POST /__fake/sessions` with a server-chosen id still works.
 
 ## The session token
 
