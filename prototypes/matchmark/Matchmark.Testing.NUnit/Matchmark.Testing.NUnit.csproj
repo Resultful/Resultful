@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The NUnit wrapper for hosted sessions (docs/reference/sessions.md, For .NET tests): a session per test, named after it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>NUnit fixtures for Matchmark hosted sessions: each test gets its own copy of the API, named after the test.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NUnit" />
+    <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+  </ItemGroup>
+</Project>

@@ -76,6 +76,19 @@ public sealed class MatchmarkSession : IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// A session id from a test's name, for a framework fixture to name each test's session after it: lower case, runs of
+    /// anything but letters and digits as one hyphen, starting with a letter, cut to fit a host label with a short hash of
+    /// the whole name, so two long names that share a start still differ.
+    /// </summary>
+    public static string IdFor(string testName)
+    {
+        var id = System.Text.RegularExpressions.Regex.Replace(testName.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        id = id.Length == 0 || !char.IsAsciiLetterLower(id[0]) ? "t-" + id : id;
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(testName)))[..8];
+        return id.Length <= 63 ? id : id[..54].TrimEnd('-') + "-" + hash;
+    }
+
     /// <summary>Scripts the copy's answers for an operation: only a status the spec documents for it.</summary>
     public async Task GivenAsync(string operationId, int status, object? body = null, int? times = null, CancellationToken cancellationToken = default)
     {

@@ -234,7 +234,11 @@ var host = new SessionHost(spec, pathways)
 
 The start and end hooks run in the host's process, so the service is in-process here (`WebApplicationFactory`). A
 service in another process needs an HTTP hook to create and discard a session's data; in-process hooks are decided (Q53),
-and an HTTP form is **Planned** for when a service needs it.
+and the HTTP form is **Built** for a service in another process: the host is given `ServiceCopy.Http(serviceUrl)`
+(`matchmark host --service <url>`), forwards each service session's requests to it, and starts and ends the session's
+data with `PUT /__matchmark/sessions/{id}` (the seed as the body) and `DELETE`. The service answers them with
+`app.MapMatchmarkSessionHooks(start, end)` (Matchmark.Conformance), beside `UseMatchmarkSessionScope()`
+(`SessionTests`).
 
 ## Ending a session
 
@@ -267,7 +271,23 @@ var report = await session.ReportAsync();
 report.Consumer.Passed.Should().BeTrue(string.Join("; ", report.Reasons));
 ```
 
-A per-framework wrapper (an NUnit or xUnit fixture that names the session after the test) is **Planned**.
+**Built for NUnit:** `MatchmarkSessionFixture` (Matchmark.Testing.NUnit) starts a session named after each test
+(`MatchmarkSession.IdFor(test name)`, a valid host label) with the seed, pathways, copy and scenario the fixture
+overrides, exposes it as `Session`, and ends it after the test; with `RequireComplete`, a test whose session report isn't
+complete fails with its reasons (`SessionFixtureTests`). Other frameworks use `MatchmarkSession` and `IdFor` directly;
+an xUnit wrapper is **Planned** when a consumer needs one.
+
+```csharp
+public sealed class AdoptionTests : MatchmarkSessionFixture
+{
+    protected override HttpClient Control { get; } = new() { BaseAddress = new Uri("http://localhost:8080/") };
+    protected override IEnumerable<string> Pathways => ["adopt-a-pet"];
+    protected override bool RequireComplete => true;
+
+    [Test]
+    public async Task A_visitor_adopts_a_pet() => await new Adoption(new ShelterClient(Session.Client)).RunAsync();
+}
+```
 
 **Built today:** the fluent fake server (`server.Given.GetPet(petId: 7).Returns.NotFound()`,
 `server.Should().HaveReceived.GetPet(petId: 7).Once()`), on a real port, typed from the spec.

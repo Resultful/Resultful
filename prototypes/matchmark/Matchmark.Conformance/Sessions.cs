@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Matchmark.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace Matchmark.Conformance;
 
@@ -177,6 +178,27 @@ public static class SessionHosting
 
             await next(context).ConfigureAwait(false);
         });
+
+    /// <summary>
+    /// In a service in another process: the hooks a session host calls (ServiceCopy.Http) to start a session's data, with
+    /// its seed as the body (<c>PUT /__matchmark/sessions/{id}</c>, answered 204), and to end it (<c>DELETE</c>, 204).
+    /// </summary>
+    public static IEndpointRouteBuilder MapMatchmarkSessionHooks(this IEndpointRouteBuilder app, Func<string, JsonNode?, CancellationToken, Task> start,
+        Func<string, Task> end, string path = "/" + ServiceCopy.HooksPath)
+    {
+        app.MapPut(path.TrimEnd('/') + "/{id}", async (string id, HttpContext context) =>
+        {
+            var text = await new StreamReader(context.Request.Body, Encoding.UTF8).ReadToEndAsync(context.RequestAborted).ConfigureAwait(false);
+            await start(id, string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text), context.RequestAborted).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        app.MapDelete(path.TrimEnd('/') + "/{id}", async (string id) =>
+        {
+            await end(id).ConfigureAwait(false);
+            return Results.NoContent();
+        });
+        return app;
+    }
 
     /// <summary>The session this request belongs to, set by <see cref="UseMatchmarkSessionScope"/>; null when none.</summary>
     public static string? MatchmarkSession(this HttpContext context) => context.Items.TryGetValue(SessionKey, out var id) ? id as string : null;
