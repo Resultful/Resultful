@@ -25,7 +25,7 @@ its files. Inside this repository the samples reference the generator project di
 | `MatchmarkApiName` | a spec, or a companion | a name | from the file name, in Pascal case | Prefixes generated type names (`PetStoreClient`, `IPetStoreWebhooksHandlers`). Companions join the spec with the same name. |
 | `MatchmarkNamespace` | a spec | a namespace | the project's `RootNamespace`, else `Generated` | Where the generated code lives. |
 | `MatchmarkParts` | a spec | comma-separated parts | `Contract,Server` | What to generate (see below). Separate with commas: the value reaches the generator through an `.editorconfig`, where `;` starts a comment. |
-| `MatchmarkOutcomes` | a spec | `Plain` (default), `Resultful` | `Plain` | The contract's own outcome types, or Resultful's and OneOf's (Q12). Every project generating from the spec gives the same value. |
+| `MatchmarkOutcomes` | a spec | `Plain`, `Union`, `Resultful` | by language version: `Union` on C# 15, `Plain` before | The contract's own outcome classes (Q12), C# 15 unions (Q55), or Resultful's and OneOf's. Unset, the project's language version decides. Every project generating from the spec, or sharing its contract, gives the same value. |
 | `MatchmarkSpecPart` | a companion | `true` | | Another file of a spec split across files, joined by `MatchmarkApiName`: the generator bundles the spec from its parts before reading it ([cli: bundle](cli.md#bundle) does the same on the command line). |
 | `MatchmarkClientValidation` | a spec | `Net` | Matchmark's own | The generated client checks requests on .NET's validation layer, with the same keys as the server ([validation](validation.md), question 3). |
 | `MatchmarkProblems` | a spec | `Owned` | | The contract generates its own problem types, so a contract-only (client) project needs no ASP.NET Core. Reported as `MM026` alongside a server part. |
@@ -79,6 +79,14 @@ The generator looks for these types in the compilation, so a feature is on exact
 `VoidResult<TError>`, `Unit`, `Result.Ok` and `Result.Fail`, and each operation's union as a class with `Match`,
 `Switch`, `Value` and `Index`, so it depends on neither Resultful nor OneOf (`ApiModelTests` compiles a contract and
 server with neither referenced). The members keep those libraries' names, so a handler reads the same either way.
+**C# 15 unions by language version (Q55, Built).** On C# 15 (.NET 11), each operation's outcomes are a C# 15 union over
+its case records (`public union GetPetError(GetPetNotFound)`), so a consumer's `switch` over them needs no default arm,
+and the compiler warns when a case is missing. The union keeps the class's factories (`GetPetError.NotFound(...)`),
+`Match`, `Switch` and `Index`, so handlers, clients and fakes read the same in both shapes. On a runtime without the
+union types (.NET 10, with `LangVersion` set to `preview`), the generator writes `UnionAttribute` and `IUnion`, internal,
+once per project. `UnionOutcomeTests` proves the shape (with Roslyn 5.9). `EmittedCodeTests` compiles every sample in all
+three shapes with no warning, and `LedgerTests` runs the Ledger's generated server through its suite in both.
+
 `MatchmarkOutcomes="Resultful"` generates onto Resultful and OneOf instead, the adapter, for code that uses their wider
 API (`ToOneOf`, `Map`, `Bind`): the Pet Store sample does. `matchmark scaffold --outcomes resultful` writes owned code
 to match.

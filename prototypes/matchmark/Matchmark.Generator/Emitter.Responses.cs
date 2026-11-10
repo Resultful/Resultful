@@ -60,7 +60,11 @@ namespace Matchmark.Generator
 
             var caseTypes = string.Join(", ", cases.Select(c => operation.Name + c.CaseName));
             w.Line($"/// <summary>{summary} of <c>{operation.Id}</c>, from the spec.</summary>");
-            if (PlainOutcomes)
+            if (PlainOutcomes && NativeUnions)
+            {
+                EmitNativeUnion(w, unionName, cases.Select(c => operation.Name + c.CaseName).ToList());
+            }
+            else if (PlainOutcomes)
             {
                 EmitPlainUnion(w, unionName, cases.Select(c => operation.Name + c.CaseName).ToList());
             }
@@ -74,8 +78,13 @@ namespace Matchmark.Generator
             {
                 var caseName = operation.Name + response.CaseName;
                 w.Line();
-                w.Line($"public static implicit operator {unionName}({caseName} value) => new(value);");
-                w.Line();
+                if (!(PlainOutcomes && NativeUnions))
+                {
+                    // A C# 15 union converts from each case itself.
+                    w.Line($"public static implicit operator {unionName}({caseName} value) => new(value);");
+                    w.Line();
+                }
+
                 w.Line((response.CarriesStatus, response.BodyType is null) switch
                 {
                     (true, true) => $"public static {unionName} {response.CaseName}(int status) => new {caseName}(status);",

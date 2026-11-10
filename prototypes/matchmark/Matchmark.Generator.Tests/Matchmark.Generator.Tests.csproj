@@ -25,7 +25,11 @@
 
   <ItemGroup>
     <!-- The generator's own dependencies are private to it; the tests load it in-process, so they need them too. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!--
+      The tests compile generated code with a newer Roslyn than the generator's floor (4.14): 5.9 knows C# 15's unions, at
+      the preview language version, so UnionOutcomeTests can prove that shape; the generator itself still builds on 4.14.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
     <PackageReference Include="Microsoft.OpenApi.YamlReader" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NUnit" />
