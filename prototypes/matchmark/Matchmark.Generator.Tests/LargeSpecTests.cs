@@ -47,6 +47,10 @@ public sealed partial class LargeSpecTests
         var line = $"{Path.GetFileNameWithoutExtension(path)}: {operations} operations, {operations - skipped} generated ({100.0 * (operations - skipped) / operations:0.#}%), {errors.Count} compile errors";
         TestContext.Out.WriteLine(line);
         File.AppendAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "large-ledger.txt"), line + Environment.NewLine);
+        // Every compile error by file and code, with one example each, so a regression shows its kind at once.
+        File.WriteAllLines(Path.Combine(TestContext.CurrentContext.WorkDirectory, $"large-errors-{Path.GetFileNameWithoutExtension(path)}.txt"),
+            errors.GroupBy(e => $"{Path.GetFileName(e.Location.SourceTree?.FilePath)} {e.Id}").OrderByDescending(g => g.Count())
+                .Select(g => $"{g.Count(),5} {g.Key}: {g.First().GetMessage(System.Globalization.CultureInfo.InvariantCulture)} at {g.First().Location.GetLineSpan().StartLinePosition}"));
 
         diagnostics.Should().NotContain(d => d.Id == "CS8785", "the generator doesn't fail");
         errors.Select(e => e.ToString()).Take(20).Should().BeEmpty();

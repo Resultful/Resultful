@@ -160,32 +160,33 @@ namespace Matchmark.Generator
 
                 w.Line();
                 w.Open($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args.Append("CancellationToken cancellationToken"))})");
-                w.Line($"var call = new FakeCall({Naming.Literal(operation.Id)}, new Dictionary<string, object?> {{ {string.Join(", ", recorded)} }});");
-                w.Line("_calls.Enqueue(call);");
-                w.Open("if (_scenario is { } scenario)");
-                w.Line("var (status, json) = scenario.Next(call, Arguments(call));");
-                w.Line($"var answer = Answer({Naming.Literal(operation.Id)}, status, json);");
-                w.Line($"scenario.Answered(json ?? SampleJson({Naming.Literal(operation.Id)}, status));");
+                // Locals are prefixed, so a parameter called status, json or call (Stripe has them) doesn't clash.
+                w.Line($"var __call = new FakeCall({Naming.Literal(operation.Id)}, new Dictionary<string, object?> {{ {string.Join(", ", recorded)} }});");
+                w.Line("_calls.Enqueue(__call);");
+                w.Open("if (_scenario is { } __scenario)");
+                w.Line("var (__status, __json) = __scenario.Next(__call, Arguments(__call));");
+                w.Line($"var __answer = Answer({Naming.Literal(operation.Id)}, __status, __json);");
+                w.Line($"__scenario.Answered(__json ?? SampleJson({Naming.Literal(operation.Id)}, __status));");
                 w.Line(operation.HandlerResultType is { } r
-                    ? $"return Task.FromResult(({r})answer!);"
+                    ? $"return Task.FromResult(({r})__answer!);"
                     : "return Task.CompletedTask;");
                 w.Close();
                 w.Line();
-                w.Open("if (Rules.Find(call) is { } rule)");
+                w.Open("if (Rules.Find(__call) is { } __rule)");
                 if (operation.HandlerResultType is { } rr)
                 {
-                    w.Line($"return Task.FromResult(({rr})rule.Next()!);");
+                    w.Line($"return Task.FromResult(({rr})__rule.Next()!);");
                 }
                 else
                 {
-                    w.Line("rule.Next();");
+                    w.Line("__rule.Next();");
                     w.Line("return Task.CompletedTask;");
                 }
 
                 w.Close();
                 w.Line();
                 w.Open("if (Rules.NothingElse)");
-                w.Line("throw new FakeExpectationException($\"{FakeCallMatcher.Describe(call)} matched no Given, and the fake was told to expect nothing else\");");
+                w.Line("throw new FakeExpectationException($\"{FakeCallMatcher.Describe(__call)} matched no Given, and the fake was told to expect nothing else\");");
                 w.Close();
                 w.Line();
                 w.Line($"return {field}({string.Join(", ", names.Append("cancellationToken"))});");
@@ -199,7 +200,7 @@ namespace Matchmark.Generator
 
                 if (operation.HandlerResultType is { } result)
                 {
-                    var sync = $"Func<{string.Join(", ", types.Append(result))}>";
+                    var sync = Callable($"{operation.Name}Answer", types.Append(result).ToList());
                     var lambdaArgs = names.Count == 0 ? "_" : $"({string.Join(", ", names.Append("_"))})";
                     w.Line();
                     w.Open($"public {name} On{operation.Name}({sync} respond)");
@@ -318,6 +319,12 @@ namespace Matchmark.Generator
             EmitScenarioBuilder(w, operations, name);
             w.Line();
             EmitFluentFake(w, operations, name);
+            foreach (var declaration in _delegates.Values)
+            {
+                w.Line();
+                w.Line(declaration);
+            }
+
             return w.ToString();
         }
 
@@ -409,7 +416,7 @@ namespace Matchmark.Generator
                 w.Line($"    => new({id}, FakeCallMatcher.Describe({id}, {describe}), {test});");
                 if (args.Count > 0)
                 {
-                    var func = $"Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}>";
+                    var func = Callable($"{operation.Name}Where", args.Select(a => a.Type).Append("bool").ToList());
                     var cast = string.Join(", ", args.Select(a => $"({a.Type})call.Arguments[{Naming.Literal(a.Name)}]!"));
                     w.Line();
                     w.Line($"/// <summary><c>{operation.Id}</c> whose arguments ({string.Join(", ", args.Select(a => a.Name))}) satisfy <paramref name=\"where\"/>.</summary>");
@@ -440,7 +447,7 @@ namespace Matchmark.Generator
                 if (args.Count > 0)
                 {
                     w.Line();
-                    w.Line($"public {rule} {operation.Name}(Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}> where)");
+                    w.Line($"public {rule} {operation.Name}({Callable($"{operation.Name}Where", args.Select(a => a.Type).Append("bool").ToList())} where)");
                     w.Line($"    => new(_fake.Rules.Add(new {calls}().{operation.Name}(where)));");
                 }
             }
@@ -514,7 +521,7 @@ namespace Matchmark.Generator
                 if (args.Count > 0)
                 {
                     w.Line();
-                    w.Line($"public FakeCallAssertion {operation.Name}(Func<{string.Join(", ", args.Select(a => a.Type).Append("bool"))}> where)");
+                    w.Line($"public FakeCallAssertion {operation.Name}({Callable($"{operation.Name}Where", args.Select(a => a.Type).Append("bool").ToList())} where)");
                     w.Line($"    => new(_log, new {calls}().{operation.Name}(where));");
                 }
             }
@@ -631,7 +638,23 @@ namespace Matchmark.Generator
             w.Line();
         }
 
-        private static string Responder(Operation operation)
+        /// <summary>Delegates for callables too long for Func (more than 16 arguments), declared beside the fake.</summary>
+        private readonly Dictionary<string, string> _delegates = new(StringComparer.Ordinal);
+
+        /// <summary>A Func of these types (the last is the result), or a delegate of the fake's own when Func has too few type parameters.</summary>
+        private string Callable(string name, List<string> types)
+        {
+            if (types.Count <= 17)
+            {
+                return $"Func<{string.Join(", ", types)}>";
+            }
+
+            var type = $"{_apiName}Fake{name}";
+            _delegates[type] = $"public delegate {types[types.Count - 1]} {type}({string.Join(", ", types.Take(types.Count - 1).Select((t, i) => $"{t} arg{i.Invariant()}"))});";
+            return type;
+        }
+
+        private string Responder(Operation operation)
         {
             var types = operation.Parameters.Select(p => p.Type).ToList();
             if (operation.Body is not null)
@@ -641,7 +664,7 @@ namespace Matchmark.Generator
 
             types.Add("CancellationToken");
             types.Add(operation.HandlerReturnType);
-            return $"Func<{string.Join(", ", types)}>";
+            return Callable($"{operation.Name}Respond", types);
         }
 
         /// <summary>
