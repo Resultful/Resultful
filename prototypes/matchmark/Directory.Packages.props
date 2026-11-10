@@ -27,5 +27,13 @@
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- The independent oracle (OracleTests): a JSON Schema 2020-12 validator written apart from Matchmark. Apache-2.0. -->
     <PackageVersion Include="Corvus.Json.Validator" Version="5.8.8" />
+    <!--
+      The standard readers, measured against the corpus (ReaderLibraryTests, Q30 to Q32): test-only for now, since none
+      targets netstandard2.0 for the generator. The AsyncAPI SDK (Apache-2.0; its tree MIT and Apache-2.0) and BinkyLabs
+      Arazzo (MIT), pinned exactly. BinkyLabs Overlays is left out: it depends on JsonPath.Net 3 and JsonPointer.Net 7,
+      which carry the Open Source Maintenance Fee EULA.
+    -->
+    <PackageVersion Include="Neuroglia.AsyncApi.IO" Version="3.0.6" />
+    <PackageVersion Include="BinkyLabs.OpenApi.Arazzo" Version="1.0.0-preview.4" />
   </ItemGroup>
 </Project>
