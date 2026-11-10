@@ -49,14 +49,6 @@ jobs:
           MATCHMARK_LARGE_SPECS: ${{ github.workspace }}/samples/large
         run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter LargeSpecTests
 
-      - name: Fetch the specifications' own examples
-        run: sh samples/examples/fetch.sh
-
-      - name: Measure the specifications' own examples
-        env:
-          MATCHMARK_EXAMPLES: ${{ github.workspace }}/samples/examples
-        run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter OfficialExamplesTests
-
       - name: Ledgers
         if: always()
         run: |

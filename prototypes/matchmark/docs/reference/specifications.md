@@ -70,9 +70,9 @@ could take it and dropped once upstream releases it (Q33).
 
 ## Measured against the specifications' own examples
 
-**Built** (decisions Q20, Q51). `samples/examples/fetch.sh` fetches each specification's examples at a pinned commit, and
-`OfficialExamplesTests` measures them; CI runs both and puts the ledger in the run's summary. A pin moves in a change of
-its own, with the measurement before and after.
+**Built** (decisions Q20, Q51, Q56). Each specification's examples are vendored in `specs/` at a pinned commit
+(`specs/vendor.sh`, `specs/SOURCES.md`), and `OfficialExamplesTests` measures them in every test run; CI puts the ledger
+in the run's summary. A pin moves in a change of its own, with the measurement before and after.
 
 | Source, pinned | What passing means | 8 November 2026 |
 |:--|:--|:--|

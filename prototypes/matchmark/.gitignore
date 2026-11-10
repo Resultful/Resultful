@@ -1,6 +1,5 @@
-# Fetched, never committed: samples/large/fetch.sh and samples/examples/fetch.sh.
+# Fetched, never committed: samples/large/fetch.sh (the specifications' own examples are vendored in specs/).
 samples/large/*.json
-samples/examples/*/
 
 # Build output and local state
 bin/

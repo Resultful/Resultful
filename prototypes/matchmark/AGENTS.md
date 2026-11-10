@@ -49,7 +49,7 @@ From the repository root:
 |:--|:--|:--|
 | Everything | `dotnet test Matchmark.slnx -c Release` | Testing about 142, Generator about 228 (8 skipped), Sample about 121 |
 | Large specs | `sh samples/large/fetch.sh`, then `MATCHMARK_LARGE_SPECS=$PWD/samples/large dotnet test Matchmark.Generator.Tests -c Release --filter LargeSpecTests` | GitHub's and Stripe's specs, fetched and not committed. They must compile with 0 errors; the share generated (98.7%, 99.8%) should only rise |
-| The specifications' examples | `sh samples/examples/fetch.sh`, then `MATCHMARK_EXAMPLES=$PWD/samples/examples dotnet test Matchmark.Generator.Tests -c Release --filter OfficialExamplesTests` | Pinned commits; 57 of 57 |
+| The specifications' examples | part of `dotnet test` (`OfficialExamplesTests`) | Vendored in `specs/` at pinned commits; 57 of 57 |
 | Benchmarks | `dotnet run -c Release --project Matchmark.Benchmarks -- --filter '*'` (add `--job short` for a quick look) | BenchmarkDotNet over reading, normalising, the parse step, a whole generator run, the suite, samples and violations; GitHub and Stripe join when fetched. A performance claim cites these, run before and after ([testing.md](docs/reference/testing.md#benchmarks)) |
 | On a broker | `docker run -d --network host nats:2.10`, then `MATCHMARK_NATS_URL=nats://127.0.0.1:4222 dotnet test Matchmark.Generator.Tests -c Release --filter MessagingTests` | The generated AsyncAPI producer and consumer on NATS; CI runs a NATS service container |
 | More random specs | `MATCHMARK_RANDOM_SPECS=200 dotnet test Matchmark.Generator.Tests -c Release --filter RandomSpecTests` | 12 seeds by default. A failure prints a shrunk spec: commit it as a fixture |
@@ -86,7 +86,7 @@ Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.
   CI, `.github/workflows/ci.yml`, runs only once the folder is a repository's root, so none of its jobs has run on
   GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally, and the
   whole suite passes in a copy of this folder on its own.
-- **Questions 1 to 5** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
+- **Questions 1 to 4** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
 
 ## Blocked
 

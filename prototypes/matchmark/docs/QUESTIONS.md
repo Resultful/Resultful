@@ -2,7 +2,7 @@
 
 What is still open. Each question names the assumption work proceeds on until it's answered, so nothing waits on it.
 When one is answered, its answer moves to [decisions.md](decisions.md) with its date, and it's deleted here. Questions
-answered so far are decisions Q44 to Q55.
+answered so far are decisions Q44 to Q56.
 
 **1. Should the test engine keep working on normalised JSON, or take the standard libraries as dependencies?** Once
 Matchmark reads specs through Microsoft.OpenApi, the AsyncAPI SDK and BinkyLabs (Q28 to Q31), the engine
@@ -56,28 +56,3 @@ edit to one tag's operations regenerates only that file (`IncrementalityTests`, 
 components their tag reaches, so an edit to a component re-emits only the tags that use it). What's left to decide is whether the other per-operation outputs (handlers, client, fake) split the
 same way, which splits their classes into per-tag partials.
 *Assumption until then:* endpoints are per tag; the other outputs are one emission per spec.
-
-**5. Where do the standard readers run, now that none of them can run in the generator?** Q30 and Q31 chose the
-AsyncAPI SDK and BinkyLabs, and Q32 retires Matchmark's own readers once the libraries pass the same tests. Measuring
-them against the corpus (`ReaderLibraryTests`) found three things the decisions didn't foresee:
-- None targets netstandard2.0, so none can load in the source generator, which Visual Studio hosts on .NET Framework.
-  The AsyncAPI SDK 3.0.6 targets net8 and net9; BinkyLabs Arazzo preview.4 net8 and net10; BinkyLabs Overlays 3.0.0
-  net8.
-- BinkyLabs Overlays depends on JsonPath.Net 3 and JsonPointer.Net 7, which carry the Open Source Maintenance Fee EULA:
-  the same reason JsonSchema.Net was passed over for the oracle.
-- The AsyncAPI SDK reads every AsyncAPI document in the corpus, 2.6, 3.0 and 3.1 included. BinkyLabs Arazzo reads the
-  1.0 documents and refuses every 1.1 document. It also objects to Redocly's museum workflows, which write their
-  `operationPath`s and an external `workflowId` more loosely than the specification does, where Matchmark accepts them.
-
-*The options:* (a) the generator keeps Matchmark's own readers, and the engine and CLI (net10) read through the
-libraries, with `ReaderLibraryTests` keeping the two in agreement; (b) fork the libraries to target netstandard2.0 too
-(Oxbow), which is small for BinkyLabs Arazzo (Microsoft.OpenApi already targets it) and large for the AsyncAPI SDK
-(its Neuroglia dependencies target net8 and up); (c) keep Matchmark's own readers everywhere, and use the libraries
-only as a second opinion in tests, as the oracle does for schemas.
-*What it decides:* whether Q32's retirement can happen at all, and whether the engine and the generator may read a
-format differently. For Overlays, Q31's own fallback applies whichever option is chosen, because the library can't be
-taken on under the licence rule. That means Matchmark's own Overlay reader stays.
-*Built meanwhile:* `ReaderLibraryTests` reads every corpus document with the AsyncAPI SDK and BinkyLabs Arazzo,
-test-only, and pins what each refuses, so a release that gains Arazzo 1.1 or loses a document fails the test.
-*Assumption until then:* (c): Matchmark's own readers stay in the generator, the engine and the CLI, and the libraries
-are measured against them.
