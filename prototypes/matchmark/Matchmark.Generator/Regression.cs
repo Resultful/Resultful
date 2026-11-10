@@ -15,8 +15,65 @@ namespace Matchmark.Generator
 
         /// <summary>The spec, with any overlays applied, as OpenAPI 3.1 JSON, with what the reader objected to (and left out).</summary>
         public static string Normalize(string text, string path, out IReadOnlyList<string> problems, IEnumerable<(string Text, string Path)>? overlays = null)
-            => Write(SpecReader.Read(text, path, out problems, overlays)
+        {
+            var written = Write(SpecReader.Read(text, path, out problems, overlays)
                 ?? throw new InvalidOperationException($"{path} could not be read: {string.Join("; ", problems)}"), ThreeTwo.IsMatch(text));
+            return Before31.IsMatch(text) ? NullableEnums(written) : written;
+        }
+
+        /// <summary>An OpenAPI 3.0 or Swagger 2.0 document, whose <c>nullable</c> becomes a "null" type in 3.1.</summary>
+        private static readonly System.Text.RegularExpressions.Regex Before31 = new(@"^\s*[""']?(openapi[""']?\s*:\s*[""']?3\.0|swagger[""']?\s*:)", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        /// <summary>
+        /// A 3.0 schema that's <c>nullable</c> with an <c>enum</c> takes null as well (the 3.0-to-3.1 migration's rule: add null
+        /// to the enum); written as 3.1, its type gains "null" and its enum doesn't, which JSON Schema then refuses. Found by
+        /// the oracle over Stripe's spec (OracleTests).
+        /// </summary>
+        private static string NullableEnums(string json)
+        {
+            var root = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            var pending = new Stack<System.Text.Json.Nodes.JsonNode?>();
+            pending.Push(root);
+            while (pending.Count > 0)
+            {
+                switch (pending.Pop())
+                {
+                    case System.Text.Json.Nodes.JsonObject o:
+                        if (o["type"] is System.Text.Json.Nodes.JsonArray types && types.Any(t => t?.ToString() == "null"))
+                        {
+                            if (o["enum"] is System.Text.Json.Nodes.JsonArray values && !values.Any(v => v is null))
+                            {
+                                values.Add(null);
+                            }
+
+                            // nullable beside oneOf or anyOf: null is one more alternative (the migration's rule again).
+                            foreach (var union in new[] { "oneOf", "anyOf" })
+                            {
+                                if (o[union] is System.Text.Json.Nodes.JsonArray members && !members.Any(m => m?["type"]?.ToString() == "null"))
+                                {
+                                    members.Add(new System.Text.Json.Nodes.JsonObject { ["type"] = "null" });
+                                }
+                            }
+                        }
+
+                        foreach (var property in o)
+                        {
+                            pending.Push(property.Value);
+                        }
+
+                        break;
+                    case System.Text.Json.Nodes.JsonArray a:
+                        foreach (var item in a)
+                        {
+                            pending.Push(item);
+                        }
+
+                        break;
+                }
+            }
+
+            return root.ToJsonString();
+        }
 
         /// <summary>An OpenAPI 3.2 document: written as 3.2, so that what 3.1 can't say (query operations, itemSchema) is kept.</summary>
         private static readonly System.Text.RegularExpressions.Regex ThreeTwo = new(@"^\s*[""']?openapi[""']?\s*:\s*[""']?3\.2", System.Text.RegularExpressions.RegexOptions.Multiline);
@@ -30,14 +87,7 @@ namespace Matchmark.Generator
                 : AsyncApiUpgrade.Upgrade(json).Document.ToJsonString();
         }
 
-        private static System.Text.Json.Nodes.JsonNode Yaml(string text, string path)
-        {
-            var stream = new SharpYaml.Serialization.YamlStream();
-            stream.Load(new StringReader(text));
-            return stream.Documents.Count == 0
-                ? throw new InvalidOperationException($"{path} is empty.")
-                : Microsoft.OpenApi.YamlReader.YamlConverter.ToJsonNode(stream.Documents[0]);
-        }
+        private static System.Text.Json.Nodes.JsonNode Yaml(string text, string path) => Matchmark.Specs.Documents.Load(text, path);
 
         /// <summary>An Arazzo document (YAML or JSON) as JSON, for the regression engine.</summary>
         /// <summary>
