@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    What Matchmark's readers share (decision Q56): reading YAML or JSON into a JSON tree, problems at JSON pointers, and
+    the shape checks the readers make. netstandard2.0, so the generator loads it; System.Text.Json comes from the host.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <!-- CA1720: "pointer" is the JSON pointer of RFC 6901, the specifications' own term, not a type name. -->
+    <NoWarn>$(NoWarn);CA1720</NoWarn>
+    <Description>The shared core of Matchmark's AsyncAPI, Arazzo and Overlay readers.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpYaml" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+</Project>

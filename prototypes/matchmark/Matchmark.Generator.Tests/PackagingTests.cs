@@ -41,6 +41,8 @@ public sealed partial class PackagingTests
             "Microsoft.OpenApi.dll -> analyzers/dotnet/cs",
             "Microsoft.OpenApi.YamlReader.dll -> analyzers/dotnet/cs",
             "SharpYaml.dll -> analyzers/dotnet/cs",
+            "Matchmark.Specs.dll -> analyzers/dotnet/cs",
+            "Matchmark.Specs.Overlay.dll -> analyzers/dotnet/cs",
             "Matchmark.Generator.props -> build;buildTransitive");
     }
 

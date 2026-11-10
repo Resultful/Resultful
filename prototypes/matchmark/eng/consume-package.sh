@@ -13,6 +13,14 @@ dotnet pack "$here/Matchmark.Generator" -c Release -o "$work/feed" -p:PackageVer
 
 cd "$work/consumer"
 cp "$here/Matchmark.Sample.Contract/petstore.yaml" .
+# An overlay, so Matchmark's own readers (Matchmark.Specs, Matchmark.Specs.Overlay) are loaded from the package too.
+cat > petstore.overlay.yaml <<'YAML'
+overlay: 1.1.0
+info: { title: Consumed, version: 1.0.0 }
+actions:
+  - target: $.components.schemas.Pet.properties.name
+    update: { maxLength: 77 }
+YAML
 cat > nuget.config <<XML
 <configuration>
   <packageSources>
@@ -34,6 +42,7 @@ cat > Consumer.csproj <<'XML'
   <ItemGroup>
     <PackageReference Include="Matchmark.Generator" Version="0.0.0-local" PrivateAssets="all" />
     <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkParts="Contract,Server" />
+    <AdditionalFiles Include="petstore.overlay.yaml" MatchmarkOverlay="true" MatchmarkApiName="Petstore" />
   </ItemGroup>
 </Project>
 XML
@@ -49,3 +58,6 @@ dotnet build -c Release --nologo
 generated="$(find obj -path '*Matchmark.Generator.OpenApiSourceGenerator*' -name '*.g.cs' | wc -l)"
 echo "generated sources: $generated"
 test "$generated" -ge 5
+# And the overlay was read and applied by the readers in the package: the name's maxLength is the overlay's.
+grep -rq '77' obj/Release/net10.0/generated/Matchmark.Generator/Matchmark.Generator.OpenApiSourceGenerator/Petstore.Models.g.cs
+echo "overlay applied"
