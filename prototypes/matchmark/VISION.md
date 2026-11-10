@@ -281,7 +281,7 @@ flowchart LR
 - Every version in the table above read, through the standard libraries and their Oxbow forks.
 - ✓ `matchmark upgrade`, and forward porting on every read (AsyncAPI 2.x included), with losses reported.
 - ✓ The support matrix, generated from the tests ([docs/reference/support-matrix.md](docs/reference/support-matrix.md)).
-- ✓ Support measured against the official example sets, at pinned commits, in CI: 56 of 57.
+- ✓ Support measured against the official example sets, at pinned commits, in CI: 57 of 57.
 - ✓ The CLI as a dotnet tool and a container image.
 
 *Alongside steps 3 and 4 (Q44):* ✓ `unique`, ✓ `references`, ✓ `derived`, ✓ `order`, ✓ `limit`, ✓ `conserved`, ✓ `scoped`: the invariants across a collection, declared as traits (unique, references,
