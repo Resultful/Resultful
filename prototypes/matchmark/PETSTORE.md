@@ -8,7 +8,6 @@ run; long ones are abridged, marked with `...`.
 ## Run it
 
 ```bash
-cd prototypes/matchmark
 dotnet test Matchmark.slnx                           # 104 tests: generator and sample
 dotnet run --project Matchmark.Sample                # the real service (SQLite, Demo seed)
 dotnet run --project Matchmark.Sample.Fake           # the fake server, http://localhost:5080

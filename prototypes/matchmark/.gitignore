@@ -1,3 +1,14 @@
 # Fetched, never committed: samples/large/fetch.sh and samples/examples/fetch.sh.
 samples/large/*.json
 samples/examples/*/
+
+# Build output and local state
+bin/
+obj/
+TestResults/
+.vs/
+*.user
+# Scratch files, local databases and worktrees; a local task list
+temp/
+.temp/
+TODO.md

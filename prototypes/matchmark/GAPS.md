@@ -95,7 +95,7 @@ rises.
 *Status:* done. The corpus (samples/) holds six specs in its ledger, each compiled, scaffolded and, for four, run as
 a generated server against its suite; inline objects, `allOf`, `oneOf` without a discriminator, `default` responses,
 more than six responses, forms, deep-object parameters and redirects are all generated. GitHub's and Stripe's specs
-are fetched and generated in CI (`.github/workflows/matchmark.yml`): 98.7% and 99.8% of their operations, compiling.
+are fetched and generated in CI (`.github/workflows/ci.yml`): 98.7% and 99.8% of their operations, compiling.
 
 ## 5. The generator does more work than it needs to
 

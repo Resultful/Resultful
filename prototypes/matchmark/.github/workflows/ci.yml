@@ -1,15 +1,13 @@
-name: matchmark
+name: ci
 
-# The Matchmark prototype (prototypes/matchmark): its tests, then the large public specs (GitHub's and Stripe's,
+# Matchmark: its tests, then the large public specs (GitHub's and Stripe's,
 # fetched, not committed), whose share of operations generated is a number that should only rise, and the
 # specifications' own examples at pinned commits (decision Q51), measured the same way.
 on:
   push:
     branches: [ main ]
-    paths: [ 'prototypes/matchmark/**', 'Resultful/**', '.github/workflows/matchmark.yml' ]
   pull_request:
     branches: [ main ]
-    paths: [ 'prototypes/matchmark/**', 'Resultful/**', '.github/workflows/matchmark.yml' ]
   workflow_dispatch:
 
 permissions:
@@ -23,9 +21,6 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: prototypes/matchmark
 
     steps:
       - name: Checkout repository
@@ -44,7 +39,7 @@ jobs:
 
       - name: Generate and compile the large specs
         env:
-          MATCHMARK_LARGE_SPECS: ${{ github.workspace }}/prototypes/matchmark/samples/large
+          MATCHMARK_LARGE_SPECS: ${{ github.workspace }}/samples/large
         run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter LargeSpecTests
 
       - name: Fetch the specifications' own examples
@@ -52,7 +47,7 @@ jobs:
 
       - name: Measure the specifications' own examples
         env:
-          MATCHMARK_EXAMPLES: ${{ github.workspace }}/prototypes/matchmark/samples/examples
+          MATCHMARK_EXAMPLES: ${{ github.workspace }}/samples/examples
         run: dotnet test Matchmark.Generator.Tests --configuration Release --no-build --filter OfficialExamplesTests
 
       - name: Ledgers
@@ -82,14 +77,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the image
-        run: docker build --file prototypes/matchmark/Dockerfile --tag matchmark .
+        run: docker build --tag matchmark .
 
       - name: Audit a sample with it
-        run: docker run --rm --volume "$PWD/prototypes/matchmark/samples/ledger:/work" matchmark audit openapi.yaml
+        run: docker run --rm --volume "$PWD/samples/ledger:/work" matchmark audit openapi.yaml
 
       - name: Host sessions with it
         run: |
-          docker run --detach --name host --publish 8080:8080 --volume "$PWD/prototypes/matchmark/samples/sessions:/work" \
+          docker run --detach --name host --publish 8080:8080 --volume "$PWD/samples/sessions:/work" \
             matchmark host openapi.yaml --urls http://0.0.0.0:8080
           for i in $(seq 30); do curl --silent --fail --output /dev/null --request PUT http://localhost:8080/__fake/sessions/ci && break; sleep 1; done
           curl --silent --fail --header 'X-Matchmark-Session: ci' http://localhost:8080/pets
@@ -110,7 +105,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Pack and consume
-        run: prototypes/matchmark/eng/consume-package.sh "$RUNNER_TEMP/consume"
+        run: eng/consume-package.sh "$RUNNER_TEMP/consume"
 
   derived:
     name: derived evidence
@@ -118,9 +113,6 @@ jobs:
     # its merge-base and diffed, never committed. A change to the model or the public surface needs review; a change
     # only in generated bodies is information. A base that can't be derived is reported as unavailable, never a pass.
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: prototypes/matchmark
 
     steps:
       - name: Checkout repository
@@ -145,8 +137,8 @@ jobs:
         run: |
           base=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
           git worktree add "$RUNNER_TEMP/base" "$base"
-          if [ -f "$RUNNER_TEMP/base/prototypes/matchmark/Matchmark.Generator.Tests/DerivedEvidenceTests.cs" ]; then
-            (cd "$RUNNER_TEMP/base/prototypes/matchmark" && dotnet test Matchmark.Generator.Tests --configuration Release --filter DerivedEvidenceTests)
+          if [ -f "$RUNNER_TEMP/base/Matchmark.Generator.Tests/DerivedEvidenceTests.cs" ]; then
+            (cd "$RUNNER_TEMP/base" && dotnet test Matchmark.Generator.Tests --configuration Release --filter DerivedEvidenceTests)
           else
             echo "The base ($base) has no derived evidence: unavailable, not a pass." > "$RUNNER_TEMP/derived-unavailable"
           fi

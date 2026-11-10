@@ -9,8 +9,9 @@ and the CLI can be packed to a local feed and used as a consumer would (see *Try
 
 **The name.** *Match marks* are lines scored across two parts before they're separated, so they can be put back
 together exactly as they fitted. Here the OpenAPI document makes the marks. The server, the client, the fake and the
-tests each carry them, and the checks prove the marks still line up. Matchmark uses [Resultful](../../README.md) for its result
-types, and is otherwise its own project; it lives under Resultful's repository until it moves out.
+tests each carry them, and the checks prove the marks still line up. Its samples, and the opt-in adapter
+(`MatchmarkOutcomes="Resultful"`), use [Resultful](https://github.com/Resultful/Resultful)'s result types, from its NuGet
+package. Generated contracts use plain unions by default, so Matchmark itself doesn't depend on Resultful.
 
 **[VISION.md](VISION.md)** is where this is going and why, **[GAPS.md](GAPS.md)** is where the prototype falls short of it, and **[LAYERS.md](LAYERS.md)** is how behaviour beyond the OpenAPI document (Arazzo workflows, Overlays, idempotency, concurrency, paging and the rest) is taken on, measured against the [sample corpus](samples/README.md), and **[COMPLETENESS.md](COMPLETENESS.md)** proposes how to encourage a spec complete enough to test, and how to state the invariants a schema can't. **[PETSTORE.md](PETSTORE.md)** walks through the sample end to end. **[CONCEPT.md](CONCEPT.md)** sets out the idea and its three uses: the workflow for spec-first services, a testing
 framework that checks any API against its spec, and a generated fake server. This README covers the mechanics.
@@ -32,7 +33,6 @@ petstore.yaml ──[Matchmark.Generator]──▶ DTOs, response unions, IPetsH
 ## Run it
 
 ```bash
-cd prototypes/matchmark
 dotnet test Matchmark.slnx
 ```
 
@@ -224,7 +224,7 @@ API (not vendored) compiles too.
 ## Trying it as a package
 
 `dotnet pack` on `Matchmark.Generator`, `Matchmark.Rules`, `Matchmark.Fakes`, `Matchmark.Testing`, `Matchmark.Conformance` and `Matchmark.Cli`
-(and `Resultful`) writes them to a local feed, at version `0.1.0-prototype`.
+writes them to a local feed, at version `0.1.0-prototype`.
 
 - **Matchmark.Generator** is an analyzer package. It carries the spec reader the generator loads beside it, and
   `build/Matchmark.Generator.props`, which declares every item metadata name the generator reads (`PackagingTests`
@@ -232,7 +232,6 @@ API (not vendored) compiles too.
 
   ```xml
   <PackageReference Include="Matchmark.Generator" Version="0.1.0-prototype" />
-  <PackageReference Include="Resultful" Version="1.0.0" />
   <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkParts="Contract,Server" />
   ```
 
@@ -243,7 +242,7 @@ API (not vendored) compiles too.
   they're referenced.
 
 A consumer outside this repository, built against such a feed, compiled the Pet Store contract and server from the
-spec alone, and the installed tool ran its audit.
+spec alone, and the installed tool ran its audit. `eng/consume-package.sh` does this for the generator, and CI runs it.
 
 ## Next steps, if this goes further
 

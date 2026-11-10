@@ -2,5 +2,5 @@
 **/obj/
 **/.git/
 **/TestResults/
-prototypes/matchmark/samples/large/*.json
-prototypes/matchmark/samples/examples/*/
+samples/large/*.json
+samples/examples/*/

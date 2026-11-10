@@ -20,7 +20,7 @@
   <ItemGroup>
     <!-- ProblemDetails and HttpValidationProblemDetails are ASP.NET Core types; see the README's limits. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../../Resultful/Resultful.csproj" />
+    <PackageReference Include="Resultful" />
     <!-- Referencing the fakes runtime turns on the generated fake and scenario builder. -->
     <ProjectReference Include="../Matchmark.Fakes/Matchmark.Fakes.csproj" />
     <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
