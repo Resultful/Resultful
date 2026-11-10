@@ -33,7 +33,7 @@ public sealed class CoverageTests
                 '204': { description: gone }
         """;
 
-    private const string AspNet = """
+    internal const string AspNet = """
         global using Contract;
         namespace Contract { }
         namespace Microsoft.AspNetCore.Mvc

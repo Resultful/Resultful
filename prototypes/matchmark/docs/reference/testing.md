@@ -24,12 +24,15 @@ pins an implementation detail instead; new ones go here, or to the derived evide
 
 ## 2. Incrementality
 
-The pipeline's steps are named (`TrackingNames`: specs, references, referenced resolvers, tag slices). The tests reuse
+The pipeline's steps are named (`TrackingNames`: specs, shapes, references, referenced resolvers, tag slices). The tests reuse
 one driver across edits and assert what each step did:
 
 - an edit to C# that isn't a spec: every step and every output reused;
 - a spec with a comment or blank lines added: the text changed, the slices didn't, so no tag re-emits;
 - an edit to one tag's operation: exactly one slice modified, one reused, and only that tag's file re-emitted;
+- an edit to a component one tag uses: only that tag's slice and file change, because slices keep only what their tag reaches;
+- an edit to an endpoint, with Verify on: the comparison runs again, and the parse step (`Matchmark.Shapes`) is reused;
+- an edit to a summary, with Verify on: the spec's text changed, and its shape didn't, so nothing after the parse runs;
 - the same input twice: the same bytes (generated code is commit-deterministic).
 
 ## 3. Diagnostics

@@ -62,11 +62,10 @@ The ledgers (`corpus-ledger.txt`, `large-ledger.txt`, `examples-ledger.txt`) are
 
 Each item links to the page that defines it. Update that page as items are built.
 
-1. **The shapes refactor** (roadmap step 2): one parse step producing an equatable `ApiShape`, partitioned into a
-   `ComponentsShape` and one `TagShape` per tag, with emitters as pure functions of a shape. Endpoints first, then
-   handlers and client, then components. Each step adds an `IncrementalityTests` case.
-   [model.md: Its shape in the pipeline](docs/reference/model.md#its-shape-in-the-pipeline). This also closes
-   [GAPS.md 5](GAPS.md): Verify re-parsing, and `Endpoint` carrying a `Location`.
+1. **Emitters onto the shape** (roadmap step 2). The parse step (`ApiShape`), Verify on the shape, and the per-tag
+   partition are built. Next is moving the emitters to be pure functions of a shape: endpoints first, then handlers and
+   client, then components. Each step adds an `IncrementalityTests` case.
+   [model.md: Its shape in the pipeline](docs/reference/model.md#its-shape-in-the-pipeline).
 2. **The engine on the model**: once question 1 is decided. [model.md: Status](docs/reference/model.md#status).
 3. **Testing, next to take**: random specs regressed against the twin as well as compiled, and the oracle over the
    large specs' schemas. [testing.md](docs/reference/testing.md).

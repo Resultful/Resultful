@@ -84,10 +84,14 @@ namespace Matchmark.Generator
                 .SelectMany(static (endpoints, _) => endpoints);
             var endpoints = actions.Collect().Combine(maps.Collect())
                 .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
-            var verified = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)))
-                .Combine(overlays)
-                .Select(static (pair, _) => With(pair.Left, pair.Right));
-            context.RegisterSourceOutput(verified.Combine(endpoints), static (spc, pair) => Verify(spc, pair.Left, pair.Right));
+            // The parse step (model.md, its shape in the pipeline): the spec, with its overlays and parts, read once into an
+            // equatable ApiShape. Verify reads the shape, so an edit to a controller re-runs only the comparison, and an edit
+            // to the spec that leaves its shape equal re-runs nothing after this step.
+            var shapes = specs.Where(static spec => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Verify", StringComparison.OrdinalIgnoreCase)))
+                .Combine(overlays).Combine(specParts)
+                .Select(static (pair, _) => Parse(Bundled(With(pair.Left.Left, pair.Left.Right), pair.Right)))
+                .WithTrackingName(TrackingNames.Shapes);
+            context.RegisterSourceOutput(shapes.Combine(endpoints), static (spc, pair) => Verify(spc, pair.Left, pair.Right));
         }
 
         /// <summary>Each Arazzo document as JSON, for the regression suite; one that can't be read is a warning.</summary>
@@ -181,10 +185,91 @@ namespace Matchmark.Generator
 
                 slice["paths"] = paths;
                 slice.Remove("webhooks");
+                Prune(slice);
                 slices.Add(spec.Sliced(slice.ToJsonString(), tag));
             }
 
             return slices.ToImmutable();
+        }
+
+        /// <summary>
+        /// The slice's components cut to those its operations reach (model.md: a TagShape holds the component names it uses),
+        /// so an edit to a component re-emits only the tags that use it. Reached means referred to, directly or through
+        /// another reached component (a $ref or a discriminator mapping), or a schema that extends a reached one with allOf,
+        /// since a union's implicit members are found that way. Security schemes are kept whole.
+        /// </summary>
+        private static void Prune(JsonObject slice)
+        {
+            if (slice["components"] is not JsonObject components)
+            {
+                return;
+            }
+
+            const string Prefix = "#/components/";
+            var reached = new HashSet<string>(StringComparer.Ordinal);
+            var pending = new Stack<JsonNode?>();
+            pending.Push(slice["paths"]);
+            void Visit()
+            {
+                while (pending.Count > 0)
+                {
+                    switch (pending.Pop())
+                    {
+                        case JsonObject o:
+                            foreach (var property in o)
+                            {
+                                pending.Push(property.Value);
+                            }
+
+                            break;
+                        case JsonArray a:
+                            foreach (var item in a)
+                            {
+                                pending.Push(item);
+                            }
+
+                            break;
+                        case JsonValue v when v.TryGetValue<string>(out var text) && text.StartsWith(Prefix, StringComparison.Ordinal):
+                            var key = text.Substring(Prefix.Length);
+                            var parts = key.Split('/');
+                            if (parts.Length >= 2 && reached.Add(parts[0] + "/" + parts[1]) && components[parts[0]]?[parts[1]] is { } target)
+                            {
+                                pending.Push(target);
+                            }
+
+                            break;
+                    }
+                }
+            }
+
+            Visit();
+            for (var grew = true; grew;)
+            {
+                // A schema that extends a reached one is reached too: it may be a member of the reached union.
+                grew = false;
+                foreach (var schema in components["schemas"] as JsonObject ?? new JsonObject())
+                {
+                    var name = "schemas/" + schema.Key;
+                    if (!reached.Contains(name) && (schema.Value?["allOf"] as JsonArray ?? new JsonArray())
+                            .Any(m => m?["$ref"]?.GetValue<string>() is { } r && reached.Contains(r.Substring(Prefix.Length))))
+                    {
+                        reached.Add(name);
+                        pending.Push(schema.Value);
+                        grew = true;
+                    }
+                }
+
+                Visit();
+            }
+
+            foreach (var kind in components.Where(k => k.Key != "securitySchemes" && k.Value is JsonObject).Select(k => k.Key).ToList())
+            {
+                var section = (JsonObject)components[kind]!;
+                foreach (var name in section.Select(e => e.Key).Where(name => !reached.Contains(kind + "/" + name)).ToList())
+                {
+                    section.Remove(name);
+                }
+            }
         }
 
         private static string Tag(JsonObject operation) => (operation["tags"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? string.Empty;
@@ -286,16 +371,20 @@ namespace Matchmark.Generator
                 string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned, Resultful = resultful, ClientOnNet = clientOnNet };
         }
 
-        private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
+        /// <summary>The spec's shape, or null when it can't be read (Generate reports that, with what the reader objected to).</summary>
+        internal static ApiShape? Parse(SpecInput spec)
+            => SpecReader.Read(spec.Content, spec.Path, out _, spec.Overlays) is { } document
+                ? new Emitter(document, spec.Namespace, spec.ApiName, Location.None).Shape(spec.Path)
+                : null;
+
+        private static void Verify(SourceProductionContext context, ApiShape? spec, ImmutableArray<Endpoint> endpoints)
         {
-            var location = Location.Create(spec.Path, default, default);
-            if (SpecReader.Read(spec.Content, spec.Path, out _, spec.Overlays) is not { } document)
+            if (spec is null)
             {
-                return; // Generate reports the unreadable spec, and what the reader objected to.
+                return; // Generate reports the unreadable spec.
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location);
-            foreach (var diagnostic in CoverageVerifier.Verify(emitter, endpoints, location))
+            foreach (var diagnostic in CoverageVerifier.Verify(spec, endpoints, Location.Create(spec.Path, default, default)))
             {
                 context.ReportDiagnostic(diagnostic);
             }
@@ -375,6 +464,9 @@ namespace Matchmark.Generator
     {
         /// <summary>Each spec read from its AdditionalFile and metadata.</summary>
         public const string Specs = "Matchmark.Specs";
+
+        /// <summary>The parse step: each spec read once into its equatable shape.</summary>
+        public const string Shapes = "Matchmark.Shapes";
 
         /// <summary>What the compilation references (OpenAPI, fakes, rules, validation): a handful of bools.</summary>
         public const string References = "Matchmark.References";

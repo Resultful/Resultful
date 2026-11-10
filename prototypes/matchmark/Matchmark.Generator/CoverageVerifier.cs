@@ -12,7 +12,7 @@ namespace Matchmark.Generator
     /// <summary>An endpoint found in hand-written code: a controller action or a Minimal API Map call.</summary>
     internal sealed class Endpoint : IEquatable<Endpoint>
     {
-        public Endpoint(string method, string route, string? name, string display, Location location, bool excluded, ImmutableArray<int>? statuses,
+        public Endpoint(string method, string route, string? name, string display, LocationInfo location, bool excluded, ImmutableArray<int>? statuses,
             ImmutableArray<Binding>? bindings, ImmutableArray<(int Status, string Type)>? responseTypes = null, ImmutableArray<TypeShape>? shapes = null)
         {
             Bindings = bindings;
@@ -39,7 +39,8 @@ namespace Matchmark.Generator
         /// <summary>A Minimal API Map call, whose responses come from its return type and .Produces calls.</summary>
         public bool IsMap => Display.StartsWith("Map", StringComparison.Ordinal);
 
-        public Location Location { get; }
+        /// <summary>Where it's written, as data, so the endpoint is equal across edits that don't move it.</summary>
+        public LocationInfo Location { get; }
 
         /// <summary>Left out of the OpenAPI description on purpose, so not part of the spec.</summary>
         public bool Excluded { get; }
@@ -166,7 +167,7 @@ namespace Matchmark.Generator
                     ? template.TrimStart('~')
                     : Join(classRoute, template);
                 route = route.Replace("[controller]", controller).Replace("[action]", method.Name);
-                var location = (attribute.ApplicationSyntaxReference?.GetSyntax(ct) ?? context.Node).GetLocation();
+                var location = LocationInfo.From((attribute.ApplicationSyntaxReference?.GetSyntax(ct) ?? context.Node).GetLocation());
                 var normalized = Normalize(route);
                 var apiController = IsApiController(type);
                 var bindings = Bindings(method, normalized, complexFromBody: apiController);
@@ -296,7 +297,7 @@ namespace Matchmark.Generator
             foreach (var verb in verbs)
             {
                 yield return new Endpoint(verb.ToUpperInvariant(), route, endpointName,
-                    $"{name}(\"{pattern}\")", invocation.GetLocation(), excluded, statuses, bindings,
+                    $"{name}(\"{pattern}\")", LocationInfo.From(invocation.GetLocation()), excluded, statuses, bindings,
                     typed.Select(r => (r.Status, TypeShape.NameOf(r.Type!))).Distinct().ToImmutableArray(), shapes);
             }
         }
@@ -574,7 +575,7 @@ namespace Matchmark.Generator
 
         // ---------------------------------------------------------------- the check
 
-        private static IEnumerable<Diagnostic> VerifyBindings(Emitter emitter, SpecOperation operation, Endpoint endpoint, ImmutableArray<Binding> bindings, string where, bool checkRoute)
+        private static IEnumerable<Diagnostic> VerifyBindings(IReadOnlyDictionary<string, ComponentShape> components, OperationShape operation, Endpoint endpoint, ImmutableArray<Binding> bindings, string where, bool checkRoute)
         {
             var bound = new HashSet<Binding>();
             foreach (var parameter in operation.Parameters.Where(p => checkRoute || p.Source != "Route"))
@@ -582,7 +583,7 @@ namespace Matchmark.Generator
                 var binding = bindings.FirstOrDefault(b => b.Source == parameter.Source && string.Equals(b.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
                 if (binding is null)
                 {
-                    yield return Diagnostic.Create(Diagnostics.ParameterNotBound, endpoint.Location, where, parameter.Source.ToLowerInvariant(), parameter.Name,
+                    yield return Diagnostic.Create(Diagnostics.ParameterNotBound, endpoint.Location.ToLocation(), where, parameter.Source.ToLowerInvariant(), parameter.Name,
                         $"[From{parameter.Source}(Name = \"{parameter.Name}\")] {TypeName(parameter.Type)}{(parameter.Required ? string.Empty : "?")}");
                     continue;
                 }
@@ -590,23 +591,23 @@ namespace Matchmark.Generator
                 bound.Add(binding);
                 if (binding.Type != TypeName(parameter.Type))
                 {
-                    yield return Diagnostic.Create(Diagnostics.BindingTypeMismatch, endpoint.Location, where, $"'{parameter.Name}'", binding.Type, TypeName(parameter.Type));
+                    yield return Diagnostic.Create(Diagnostics.BindingTypeMismatch, endpoint.Location.ToLocation(), where, $"'{parameter.Name}'", binding.Type, TypeName(parameter.Type));
                 }
 
-                foreach (var difference in Constraints.Differences($"'{parameter.Name}'", parameter.Constraints, binding.Constraints))
+                foreach (var difference in Constraints.Differences($"'{parameter.Name}'", parameter.Constraints.Select(c => (c.Keyword, c.Value)).ToList(), binding.Constraints))
                 {
-                    yield return Diagnostic.Create(Diagnostics.ParameterConstraintDiffers, endpoint.Location, where, difference);
+                    yield return Diagnostic.Create(Diagnostics.ParameterConstraintDiffers, endpoint.Location.ToLocation(), where, difference);
                 }
 
                 if (!parameter.Required && !binding.Optional)
                 {
-                    yield return Diagnostic.Create(Diagnostics.OptionalParameterRequired, endpoint.Location, where, parameter.Name, binding.Type);
+                    yield return Diagnostic.Create(Diagnostics.OptionalParameterRequired, endpoint.Location.ToLocation(), where, parameter.Name, binding.Type);
                 }
             }
 
             foreach (var extra in bindings.Where(b => b.Source is "Query" or "Header" || (checkRoute && b.Source == "Route")).Where(b => !bound.Contains(b)))
             {
-                yield return Diagnostic.Create(Diagnostics.ParameterNotDocumented, endpoint.Location, where, extra.Source.ToLowerInvariant(), extra.Name, extra.Parameter);
+                yield return Diagnostic.Create(Diagnostics.ParameterNotDocumented, endpoint.Location.ToLocation(), where, extra.Source.ToLowerInvariant(), extra.Name, extra.Parameter);
             }
 
             var body = bindings.FirstOrDefault(b => b.Source == "Body");
@@ -615,13 +616,13 @@ namespace Matchmark.Generator
             {
                 if (body is null)
                 {
-                    yield return Diagnostic.Create(Diagnostics.BodyMismatch, endpoint.Location, where, model is null
+                    yield return Diagnostic.Create(Diagnostics.BodyMismatch, endpoint.Location.ToLocation(), where, model is null
                         ? $"the spec has a {TypeName(expected)} request body, but the endpoint binds none"
                         : $"the spec has a {TypeName(expected)} request body, but '{model.Parameter}' binds from the form and query: mark it [FromBody], or add [ApiController]");
                 }
-                else if (operation.BodySchema is { } schema)
+                else if (operation.Body is { } schema)
                 {
-                    foreach (var diagnostic in VerifyModel(emitter, schema, body.FullType, endpoint, where, "the request body"))
+                    foreach (var diagnostic in VerifyModel(components, schema, body.FullType, endpoint, where, "the request body"))
                     {
                         yield return diagnostic;
                     }
@@ -629,7 +630,7 @@ namespace Matchmark.Generator
             }
             else if (body is not null)
             {
-                yield return Diagnostic.Create(Diagnostics.BodyMismatch, endpoint.Location, where,
+                yield return Diagnostic.Create(Diagnostics.BodyMismatch, endpoint.Location.ToLocation(), where,
                     $"'{body.Parameter}' binds a {body.Type} request body, which the spec doesn't document");
             }
         }
@@ -638,31 +639,33 @@ namespace Matchmark.Generator
         /// A model is consistent by construction when it is the type generated from its schema. Any other type is compared
         /// with the schema as System.Text.Json would read and write it: consistent today (MM021), or each difference (MM022).
         /// </summary>
-        private static IEnumerable<Diagnostic> VerifyModel(Emitter emitter, IOpenApiSchema schema, string actual, Endpoint endpoint, string where, string what)
+        private static IEnumerable<Diagnostic> VerifyModel(IReadOnlyDictionary<string, ComponentShape> components, SchemaShape schema, string actual, Endpoint endpoint, string where, string what)
         {
             var shapes = endpoint.Shapes.ToDictionary(s => s.Name, StringComparer.Ordinal);
-            if (emitter.ByConstruction(schema, actual, shapes))
+            if (ModelCheck.ByConstruction(components, schema, actual, shapes))
             {
                 yield break;
             }
 
-            var differences = emitter.Differences(schema, actual, shapes);
+            var differences = ModelCheck.Differences(components, schema, actual, shapes);
             if (differences.Count == 0)
             {
-                yield return Diagnostic.Create(Diagnostics.ModelConsistent, endpoint.Location, where, what, TypeName(actual), Emitter.SchemaName(schema));
+                yield return Diagnostic.Create(Diagnostics.ModelConsistent, endpoint.Location.ToLocation(), where, what, TypeName(actual), schema.Name);
                 yield break;
             }
 
             foreach (var difference in differences)
             {
-                yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location, where,
-                    $"{what} is {TypeName(actual)}, which differs from the schema {Emitter.SchemaName(schema)}: {difference}");
+                yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location.ToLocation(), where,
+                    $"{what} is {TypeName(actual)}, which differs from the schema {schema.Name}: {difference}");
             }
         }
 
-        public static IEnumerable<Diagnostic> Verify(Emitter emitter, IReadOnlyList<Endpoint> endpoints, Location specLocation)
+        /// <summary>The project's endpoints against the spec, from its parsed shape alone: no spec is read here.</summary>
+        public static IEnumerable<Diagnostic> Verify(ApiShape spec, IReadOnlyList<Endpoint> endpoints, Location specLocation)
         {
-            var operations = emitter.Operations();
+            var operations = spec.Operations;
+            var components = spec.Components.ToDictionary(c => c.Id, StringComparer.Ordinal);
             var documented = endpoints.Where(e => !e.Excluded).ToList();
             var matched = new HashSet<Endpoint>();
             foreach (var operation in operations)
@@ -679,21 +682,21 @@ namespace Matchmark.Generator
                 var where = $"{endpoint.Display} ({operation.Method} {operation.Path})";
                 if (endpoint.Name != operation.Id)
                 {
-                    yield return Diagnostic.Create(Diagnostics.OperationNameMismatch, endpoint.Location, where, endpoint.Name ?? "none", operation.Id);
+                    yield return Diagnostic.Create(Diagnostics.OperationNameMismatch, endpoint.Location.ToLocation(), where, endpoint.Name ?? "none", operation.Id);
                 }
 
                 foreach (var (actual, expected) in ParameterNames(endpoint.Route).Zip(ParameterNames(route), (a, e) => (a, e)))
                 {
                     if (!string.Equals(actual, expected, StringComparison.Ordinal))
                     {
-                        yield return Diagnostic.Create(Diagnostics.RouteParameterMismatch, endpoint.Location, where, actual, expected);
+                        yield return Diagnostic.Create(Diagnostics.RouteParameterMismatch, endpoint.Location.ToLocation(), where, actual, expected);
                     }
                 }
 
                 var routeNamesMatch = ParameterNames(endpoint.Route).SequenceEqual(ParameterNames(route), StringComparer.Ordinal);
                 if (endpoint.Bindings is { } bindings)
                 {
-                    foreach (var diagnostic in VerifyBindings(emitter, operation, endpoint, bindings, where, checkRoute: routeNamesMatch))
+                    foreach (var diagnostic in VerifyBindings(components, operation, endpoint, bindings, where, checkRoute: routeNamesMatch))
                     {
                         yield return diagnostic;
                     }
@@ -703,31 +706,31 @@ namespace Matchmark.Generator
                 {
                     foreach (var status in operation.Statuses.Except(declared))
                     {
-                        yield return Diagnostic.Create(Diagnostics.ResponseNotDeclared, endpoint.Location, where, status,
+                        yield return Diagnostic.Create(Diagnostics.ResponseNotDeclared, endpoint.Location.ToLocation(), where, status,
                             endpoint.IsMap ? "a typed result or .Produces call" : "[ProducesResponseType]");
                     }
 
                     foreach (var status in declared.Except(operation.Statuses))
                     {
-                        yield return Diagnostic.Create(Diagnostics.ResponseNotDocumented, endpoint.Location, where, status);
+                        yield return Diagnostic.Create(Diagnostics.ResponseNotDocumented, endpoint.Location.ToLocation(), where, status);
                     }
                 }
 
                 foreach (var (status, type) in endpoint.ResponseTypes)
                 {
-                    if (!operation.ResponseSchemas.TryGetValue(status, out var schema))
+                    if (operation.Responses.FirstOrDefault(r => r.Status == status) is not { } response)
                     {
                         continue; // MM013 already reports it.
                     }
 
-                    if (schema is null)
+                    if (response.Schema is not { } schema)
                     {
-                        yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location, where,
+                        yield return Diagnostic.Create(Diagnostics.ModelDiffers, endpoint.Location.ToLocation(), where,
                             $"the {status} response is {TypeName(type)}, but the spec's {status} response has no body");
                         continue;
                     }
 
-                    foreach (var diagnostic in VerifyModel(emitter, schema, type, endpoint, where, $"the {status} response"))
+                    foreach (var diagnostic in VerifyModel(components, schema, type, endpoint, where, $"the {status} response"))
                     {
                         yield return diagnostic;
                     }
@@ -736,7 +739,7 @@ namespace Matchmark.Generator
 
             foreach (var endpoint in documented.Where(e => !matched.Contains(e)))
             {
-                yield return Diagnostic.Create(Diagnostics.EndpointNotInSpec, endpoint.Location, endpoint.Display, endpoint.Method, endpoint.Route);
+                yield return Diagnostic.Create(Diagnostics.EndpointNotInSpec, endpoint.Location.ToLocation(), endpoint.Display, endpoint.Method, endpoint.Route);
             }
         }
     }
