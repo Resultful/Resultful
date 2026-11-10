@@ -181,7 +181,7 @@ review and a body change not; derived outputs diffed against the base rather tha
 Taken since: the emitted-code gate (compiler warnings; analyzers treat generated code as generated, so the compiler's
 own checks are what a consumer can't opt out of); random specs, shrunk on failure; the packed-package consumption test; the independent oracle.
 
-Next to take: random specs regressed against the twin as well as compiled; the oracle over the large specs' schemas.
+Built since: random specs regressed against the twin as well as compiled (`RandomSpecTests`), and the oracle over the large specs' schemas (`OracleTests`, a stable share of each schema's values; Stripe agrees on all of them).
 
 Avoided: its 4.0.1 Roslyn floor (Matchmark is on 4.14, so steps carry tracking names); a parser and an emitter of 2,400
 lines each (Matchmark's emitter is split by output, the largest file under 900 lines).
