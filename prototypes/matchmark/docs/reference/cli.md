@@ -12,6 +12,7 @@ or a target that can't be reached.
 | [`audit`](#audit) | Built | What the spec leaves out, measured in the cases each fix would add. |
 | [`regress`](#regress) | Built | The suite the spec writes for itself, run against any API. |
 | [`diff`](#diff) | Built | What changed between two specs, and whom it breaks, judged by observed calls if given. |
+| [`bundle`](#bundle) | Built | One spec from a spec split across files. |
 | [`derive`](#derive) | Built | A starting spec from the document ASP.NET Core serves. |
 | [`scaffold`](#scaffold) | Built | The server side as ASP.NET source you own. |
 | [`twin`](#twin) | Built | A stateful fake of the API from the spec alone. |
@@ -84,6 +85,19 @@ With `--observed <calls.json>` (repeatable: a session's `GET /__fake/sessions/{i
 `{"operationId", "status"}`), each change is judged against what consumers were seen doing: a change to an existing
 response needs a call that got that status, any other change a call to the operation. A breaking change none reached is
 listed as unobserved and doesn't fail the run.
+
+## bundle
+
+```
+matchmark bundle <spec> [--output <file>]
+```
+
+Writes a spec split across files as one (question 2, option b). Each `$ref` to another file is resolved relative to the
+file that makes it, and its target becomes a component named after its pointer or its file, in the section its place
+calls for: a schema, a parameter, a response (`definitions`, `parameters` and `responses` for 2.0). References inside a
+referenced file are resolved the same way, and a cycle ends at the component's name. The generator reads one file, so a
+project generates from the bundle (`BundleTests`; the 2.0 `petstore-separate` example, read this way, generates code
+that compiles).
 
 ## derive
 

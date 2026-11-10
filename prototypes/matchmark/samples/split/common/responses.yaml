@@ -1,0 +1,5 @@
+Problem:
+  description: A problem
+  content:
+    application/problem+json:
+      schema: { $ref: 'schemas.yaml#/Problem' }

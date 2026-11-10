@@ -20,7 +20,8 @@ the files given to it as `AdditionalFiles`, so the other files have to reach it 
 *The options:* (a) the project lists every part as an `AdditionalFile`, marked as part of the spec
 (`MatchmarkSpecPart`), and Matchmark resolves references among them; (b) a `matchmark bundle` command writes one file
 that the project uses instead; (c) both, with (b) for CI and specs from elsewhere.
-*Assumption until then:* a split spec isn't read, and the measurement names it as the one OpenAPI example that fails.
+*Built meanwhile:* option (b), `matchmark bundle`, which the official-examples measurement uses for the split example.
+*Assumption until then:* the generator reads one file; a split spec is bundled first.
 
 **3. Should the generated client validate on .NET's layer too?** The server now validates on Microsoft.Extensions.Validation
 (Q45). The client checks a request before sending it, and a response after, with Matchmark's own `{Api}Validation`. It
