@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The readers' regression suite (decision Q56): every document vendored in specs/, read and judged against the
+    specification's own fixtures, its official schemas (JsonSchema.Net 7.3.3, as the oracle), and its compliant sets.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" />
+    <ProjectReference Include="../Matchmark.Specs.Overlay/Matchmark.Specs.Overlay.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="JsonSchema.Net" />
+    <!-- The YAML differential: Matchmark's own YAML reading against Microsoft.OpenApi's, over every vendored YAML file. -->
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" />
+  </ItemGroup>
+</Project>

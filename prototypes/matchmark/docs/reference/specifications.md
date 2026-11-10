@@ -14,7 +14,7 @@ examples, in a [support matrix](support-matrix.md) generated from the tests.
 | OpenAPI | 3.2 | 2.0, 3.0, 3.1 | 3.2, and 3.1 for ASP.NET Core 10 | **Partial.** 2.0 to 3.2 are read through Microsoft.OpenApi. The engine normalises to 3.1 JSON, and keeps 3.2 only when the input is 3.2. |
 | AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Built.** 2.x is forward-ported by Matchmark's port of the official migration guide; 3.x is read by Matchmark's own reader, to be replaced (Q30). |
 | Arazzo | 1.1 | 1.0 | 1.1 | **Built** by Matchmark's own reader, to be replaced (Q31, Q32). |
-| Overlay | 1.2 | 1.0, 1.1 | | **Built** by Matchmark's own implementation, to be replaced (Q31, Q32). |
+| Overlay | 1.2 | 1.0, 1.1 | | **Built** by Matchmark's own reader (`Matchmark.Specs.Overlay`, Q56), regressed against the specification in `specs/overlay`. |
 
 ## The version policy
 
@@ -66,7 +66,21 @@ could take it and dropped once upstream releases it (Q33).
   reads it directly for the consumer suite and for checking a producer's messages.
 - **Arazzo.** `ArazzoDocument` reads 1.0 and 1.1, runtime expressions, criteria (simple, regex, JSONPath subset),
   `retry`, `goto`, `end`, nested workflows and AsyncAPI message steps.
-- **Overlay.** `Overlay` applies 1.0 to 1.2: `update`, `remove`, `copy`, with RFC 9535 JSONPath targets and filters.
+- **Overlay.** `Matchmark.Specs.Overlay` (netstandard2.0, shipped in the generator's analyzer folder) reads 1.0, 1.1 and
+  1.2 into a typed `OverlayDocument`, with each problem at its JSON pointer. That covers 1.1's `copy` and
+  `info.description`, and 1.2's `$self`, `components.actions` and reusable action references, escaped keys included.
+  `OverlayApplier` applies `update`, `remove` and `copy` with RFC 9535 JSONPath targets and filters. The generator applies
+  overlays through it, and an overlay's problems are reported as reader problems (`MM007`). Its regression suite
+  (`Matchmark.Specs.Tests`) covers the vendored specification:
+  - all 132 pass and fail fixtures, each failing for the reason its name gives;
+  - the official 1.0 and 1.1 schemas, which agree with every fixture (JsonSchema.Net 7.3.3 as the oracle);
+  - the 8 compliant sets, each overlay applied to its input giving exactly its output;
+  - the 32 complete examples in the three specification texts.
+- **YAML.** `Matchmark.Specs` reads YAML by YAML 1.2's core schema, and `YamlTests` holds it to Microsoft.OpenApi's
+  reading over all 296 vendored YAML files. Two differences are kept, both where Microsoft.OpenApi departs from YAML: it
+  writes a null as a sentinel string (`openapi-json-null-sentinel-value-…`), and reads an empty value as an empty string.
+  The generator's AsyncAPI, Arazzo, Overlay and bundle reading now goes through `Matchmark.Specs`, so those nulls arrive
+  as nulls.
 
 ## Measured against the specifications' own examples
 

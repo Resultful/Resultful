@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Matchmark's Overlay reader (decision Q56): Overlay 1.0, 1.1 and 1.2 read into a typed document with every problem at
+    its JSON pointer, and applied to a document (update, remove, copy, and 1.2's reusable actions), with the RFC 9535
+    JSONPath its targets use. Built against the specification vendored in specs/overlay.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>Matchmark's Overlay 1.0 to 1.2 reader and applier.</Description>
+    <NoWarn>$(NoWarn);CA1720</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" />
+  </ItemGroup>
+</Project>

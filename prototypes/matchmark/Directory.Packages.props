@@ -9,6 +9,8 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
     <PackageVersion Include="Microsoft.OpenApi.YamlReader" Version="3.11.0" />
     <PackageVersion Include="SharpYaml" Version="2.1.5" />
+    <!-- Compiled against by the netstandard2.0 readers (Matchmark.Specs); the compiler or app host provides it at run time. -->
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
 
     <!-- Sample app and its tests -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />

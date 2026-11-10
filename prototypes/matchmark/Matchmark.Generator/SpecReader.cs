@@ -21,6 +21,7 @@ namespace Matchmark.Generator
             var settings = new OpenApiReaderSettings();
             settings.AddYamlReader();
             ReadResult read;
+            IReadOnlyList<string> overlayProblems = Array.Empty<string>();
             try
             {
                 if (AsyncApi.IsAsyncApi(text))
@@ -31,7 +32,7 @@ namespace Matchmark.Generator
 
                 if (overlays?.ToList() is { Count: > 0 } applied)
                 {
-                    text = Overlay.Apply(text, path, applied);
+                    text = Overlay.Apply(text, path, applied, out overlayProblems);
                     path = Path.ChangeExtension(path, ".json");
                 }
 
@@ -45,7 +46,7 @@ namespace Matchmark.Generator
                 return null;
             }
 
-            problems = read.Diagnostic?.Errors.Select(e => e.ToString()).ToList() ?? new List<string>();
+            problems = overlayProblems.Concat(read.Diagnostic?.Errors.Select(e => e.ToString()) ?? Enumerable.Empty<string>()).ToList();
             return read.Document;
         }
     }
