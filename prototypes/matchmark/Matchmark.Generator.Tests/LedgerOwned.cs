@@ -12,37 +12,31 @@ internal static class LedgerOwned
     public static void Apply(SpecTwin twin)
     {
         // An account opens with its opening as its balance; the opening itself isn't kept.
-        twin.On("openAccount", call =>
-        {
-            if (call.Body is JsonObject body)
-            {
-                Normalise(body);
-            }
+        twin.On("openAccount", call => call.Body is JsonObject body ? TwinAnswer.Continue(Normalised(body)) : null);
 
-            return null;
-        });
-
-        // Accounts stored before (seeded with an opening) read as their balance.
+        // Accounts stored before (seeded with an opening) read as their balance: each one, replaced as a declared effect.
         twin.On("getAccount", call =>
         {
-            foreach (var account in call.Resources.GetValueOrDefault("/accounts") ?? [])
-            {
-                Normalise(account);
-            }
-
-            return null;
+            var effects = (call.Resources.GetValueOrDefault("/accounts") ?? [])
+                .Where(a => a["opening"] is not null)
+                .Select(a => TwinEffect.Replace("/accounts", a["id"]!.ToString(), Normalised(a)))
+                .ToArray();
+            return effects.Length > 0 ? TwinAnswer.Continue(effects: effects) : null;
         });
 
         // A 415 has no body.
         twin.OnRejected(rejection => rejection.Status == 415 ? new TwinAnswer(415) : null);
     }
 
-    private static void Normalise(JsonObject account)
+    private static JsonObject Normalised(JsonObject account)
     {
-        if (account["opening"] is { } opening)
+        var copy = (JsonObject)account.DeepClone();
+        if (copy["opening"] is { } opening)
         {
-            account["balance"] = opening.DeepClone();
-            account.Remove("opening");
+            copy["balance"] = opening.DeepClone();
+            copy.Remove("opening");
         }
+
+        return copy;
     }
 }
