@@ -107,10 +107,16 @@ are fetched and generated in CI (`.github/workflows/matchmark.yml`): 98.7% and 9
 - All output is emitted together, so any change to the spec regenerates every file. Splitting the output per tag
   would keep the rest cached.
 
+*Status:* partly done. The emitter is split by output (its largest file is under 900 lines). Endpoints are emitted per
+tag, from equatable slices, and `IncrementalityTests` proves an edit re-emits only its tag. What remains is in the
+shapes refactor ([model.md](docs/reference/model.md#its-shape-in-the-pipeline)): parsing as its own step, and Verify
+reading the parsed shape rather than re-parsing, with no `Location` in `Endpoint`.
+
 ## 6. Smaller findings
 
 - **Coupling.** Generated contracts depend on Resultful and OneOf. That fits this repository, but it is a cost for a
   team that only wants the fake or the testing framework. A contract that doesn't depend on Resultful (plain unions,
-  with Resultful as an adapter) would widen who can adopt it.
+  with Resultful as an adapter) would widen who can adopt it. *Status:* done. Contracts use plain
+  unions by default, and `MatchmarkOutcomes="Resultful"` is the opt-in adapter.
 - **`default(Result<,>)`** reads as a success holding `null` (README, finding 6). That is a bug in Resultful itself,
   not in the prototype, and is worth an issue of its own.
