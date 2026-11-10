@@ -66,7 +66,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Rules` | Built | CEL and IDL evaluators. |
 | `Matchmark.Conformance` | Built | `UseMatchmarkConformance(spec)` middleware, in observe or enforce mode. |
 | `Matchmark.Cli` | Built | The `matchmark` dotnet tool. |
-| Container image | Planned (Q17) | The CLI, for teams without the .NET SDK. |
+| Container image | **Built** (Q17) | The CLI, for teams without the .NET SDK: `prototypes/matchmark/Dockerfile`, built from the repository root (`docker build -f prototypes/matchmark/Dockerfile -t matchmark .`), on ASP.NET Core's runtime image so `host` and `twin` serve HTTP; the working directory is `/work`, for a mounted spec. CI builds it, audits a sample with it and hosts a session. Publishing it to a registry waits on Matchmark's own repository (Q48). |
 | `Matchmark.Validation` | **Built** (Q45) | Validation attributes .NET lacks: `[MultipleOf]`, `[UniqueItems]`, `[PropertyCount]`. Generated onto models when referenced. |
 
 Generated code depends on Resultful and OneOf today. Plain unions by default, with Resultful as an opt-in adapter, is

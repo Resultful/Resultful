@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+**/.git/
+**/TestResults/
+prototypes/matchmark/samples/large/*.json
+prototypes/matchmark/samples/examples/*/
