@@ -26,6 +26,10 @@
     <None Include="build/Matchmark.Generator.props" Pack="true" PackagePath="build;buildTransitive" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The benchmarks time the parse step, which is internal. -->
+    <InternalsVisibleTo Include="Matchmark.Benchmarks" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" GeneratePathProperty="true" />

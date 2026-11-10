@@ -105,6 +105,36 @@ references only the package, marks the Pet Store spec, and treats warnings as er
 beside it, and the props that make the metadata visible. CI runs it as the `package` job, and the image job does the same
 for the container.
 
+## Benchmarks
+
+`Matchmark.Benchmarks` (BenchmarkDotNet) times the deterministic stages, so a slow test, or a claim about speed, is
+measured rather than guessed. `GeneratorStages` covers reading a spec, normalising it, the parse step's `ApiShape`, the
+read-only model, and a whole generator run. `EngineStages` covers the suite, sampling and validating every component
+schema, and the violations of every sample. Each runs on the Pet Store, and on GitHub's and Stripe's specs when they've
+been fetched. Run it with `dotnet run -c Release --project Matchmark.Benchmarks -- --filter '*'` (add `--job short` for a
+quick look).
+
+First numbers, from short jobs on this container's 4 cores, with tests running alongside, so take them as orders of
+magnitude:
+
+| Stage | Pet Store | GitHub (1,272 operations) | Stripe (612) |
+|:--|--:|--:|--:|
+| Read (Microsoft.OpenApi) | 0.65 ms | 0.37 s | 0.29 s |
+| Normalise | 1.1 ms | 0.49 s | 0.41 s |
+| Parse to `ApiShape` | 1.7 ms | 0.73 s | 0.38 s |
+| A whole generator run | 6.1 ms | 2.7 s | 2.1 s |
+| The suite (`RegressionSuite.FromJson`) | | 2.8 s | |
+| A sample of every schema, validated | | 1.8 s | |
+
+The violations were the outlier, and they're why the oracle over the large specs took so long. Each violation deep-copied
+every object above the change, then validated and serialised the whole value to drop duplicates. That is quadratic in a
+value's size: GitHub's `issue` sample is 19 KB, has 1,386 violations, and took 1.4 s alone. Now a violation is judged by
+the changed part alone when nothing above it judges the value as a whole (no `oneOf`, `anyOf`, `allOf`, `not`, `if`,
+`enum`, `const`, `uniqueItems`, `contains` or discriminator above it). It's told apart from others by its path and
+value, and the whole is built once, from one copy. The output is the same: a fingerprint of every violation and boundary
+is identical before and after over all the samples and GitHub's first 400 schemas (31,614 variants). Every violation
+and boundary of every GitHub schema (411,567) now takes 45 s, and Stripe's (58,040) 21 s.
+
 ## Learned from Parquet.SourceGenerator
 
 Taken: diagnostics as equatable data with positions; step-level incrementality tests on reused drivers; an "examined N"

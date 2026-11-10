@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    BenchmarkDotNet over the deterministic stages, so a claim about speed, or a slow test, is measured rather than
+    guessed: reading a spec, normalising it, parsing it to its shape and model, a whole generator run, and the engine's
+    suite, samples and validation. GitHub's and Stripe's specs join the Pet Store when fetched (samples/large/fetch.sh).
+    Run: dotnet run -c Release with this project, filtering with BenchmarkDotNet's filter option (see AGENTS.md).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <NoWarn>$(NoWarn);CA1822;CA1707;CA1515;CA1001;CA2007;CA1861</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" />
+    <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Microsoft.OpenApi.YamlReader" />
+  </ItemGroup>
+</Project>
