@@ -26,7 +26,7 @@ public sealed class DerivedEvidenceTests
         => System.IO.Directory.GetDirectories(Path.Combine(Root, "samples")).Where(d => File.Exists(Path.Combine(d, "openapi.yaml")))
             .Select(Path.GetFileName).OfType<string>().Order(StringComparer.Ordinal).Append("petstore");
 
-    private static (string Spec, string[] Overlays) Paths(string sample)
+    internal static (string Spec, string[] Overlays) Paths(string sample)
     {
         if (sample == "petstore")
         {
