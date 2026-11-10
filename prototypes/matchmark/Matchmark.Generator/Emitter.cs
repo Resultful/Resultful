@@ -110,6 +110,10 @@ namespace Matchmark.Generator
                     files["ValidationResolver"] = resolver;
                 }
                 files["Responses"] = EmitResponses(operations);
+                if (EmitOutcomes() is { } outcomes)
+                {
+                    files["Outcomes"] = outcomes;
+                }
                 files["Handlers"] = EmitHandlers(operations);
                 files["Client"] = EmitClient(operations);
                 if (EmitInvariants(operations) is { } invariants)
@@ -157,7 +161,7 @@ namespace Matchmark.Generator
                 }
 
                 var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = paths },
-                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true };
+                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes };
                 foreach (var file in receiver.Emit(contract, server))
                 {
                     files["Webhooks." + file.Key] = file.Value;
@@ -186,7 +190,7 @@ namespace Matchmark.Generator
             if (callbacks.Count > 0 && (contract || server))
             {
                 var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = callbacks },
-                    _namespace, _apiName + "Callbacks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true };
+                    _namespace, _apiName + "Callbacks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes };
                 foreach (var file in receiver.Emit(contract, server))
                 {
                     files["Callbacks." + file.Key] = file.Value;

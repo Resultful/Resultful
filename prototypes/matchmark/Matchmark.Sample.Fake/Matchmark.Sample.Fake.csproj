@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Server,FakeServer" />
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkOutcomes="Resultful" MatchmarkParts="Server,FakeServer" />
   </ItemGroup>
 
   <ItemGroup>

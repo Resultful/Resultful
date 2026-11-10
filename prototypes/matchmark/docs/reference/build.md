@@ -25,6 +25,7 @@ its files. Inside this repository the samples reference the generator project di
 | `MatchmarkApiName` | a spec, or a companion | a name | from the file name, in Pascal case | Prefixes generated type names (`PetStoreClient`, `IPetStoreWebhooksHandlers`). Companions join the spec with the same name. |
 | `MatchmarkNamespace` | a spec | a namespace | the project's `RootNamespace`, else `Generated` | Where the generated code lives. |
 | `MatchmarkParts` | a spec | comma-separated parts | `Contract,Server` | What to generate (see below). Separate with commas: the value reaches the generator through an `.editorconfig`, where `;` starts a comment. |
+| `MatchmarkOutcomes` | a spec | `Plain` (default), `Resultful` | `Plain` | The contract's own outcome types, or Resultful's and OneOf's (Q12). Every project generating from the spec gives the same value. |
 | `MatchmarkProblems` | a spec | `Owned` | | The contract generates its own problem types, so a contract-only (client) project needs no ASP.NET Core. Reported as `MM026` alongside a server part. |
 | `MatchmarkAudit` | a spec | `true` | | Report what the spec leaves out as `MM024` diagnostics, as `matchmark audit` does. |
 | `MatchmarkArazzo` | a companion | `true` | | An Arazzo document for the spec of the same `MatchmarkApiName`: its workflows join the generated regression suite. |
@@ -69,5 +70,10 @@ The generator looks for these types in the compilation, so a feature is on exact
 | Container image | **Built** (Q17) | The CLI, for teams without the .NET SDK: `prototypes/matchmark/Dockerfile`, built from the repository root (`docker build -f prototypes/matchmark/Dockerfile -t matchmark .`), on ASP.NET Core's runtime image so `host` and `twin` serve HTTP; the working directory is `/work`, for a mounted spec. CI builds it, audits a sample with it and hosts a session. Publishing it to a registry waits on Matchmark's own repository (Q48). |
 | `Matchmark.Validation` | **Built** (Q45) | Validation attributes .NET lacks: `[MultipleOf]`, `[UniqueItems]`, `[PropertyCount]`. Generated onto models when referenced. |
 
-Generated code depends on Resultful and OneOf today. Plain unions by default, with Resultful as an opt-in adapter, is
-planned (Q12, roadmap step 1).
+**Plain outcomes by default (Q12, Built).** A generated contract carries its own outcome types: `Result<T, TError>`,
+`VoidResult<TError>`, `Unit`, `Result.Ok` and `Result.Fail`, and each operation's union as a class with `Match`,
+`Switch`, `Value` and `Index`, so it depends on neither Resultful nor OneOf (`ApiModelTests` compiles a contract and
+server with neither referenced). The members keep those libraries' names, so a handler reads the same either way.
+`MatchmarkOutcomes="Resultful"` generates onto Resultful and OneOf instead, the adapter, for code that uses their wider
+API (`ToOneOf`, `Map`, `Bind`): the Pet Store sample does. `matchmark scaffold --outcomes resultful` writes owned code
+to match.

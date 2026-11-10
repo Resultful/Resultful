@@ -133,7 +133,7 @@ public sealed class FlagsTests
     [Test]
     public async Task ETags_merge_patches_and_versions_behave_as_the_spec_and_overlay_say()
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Flags", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "flags.overlay.yaml")], Source, withRules: true);
+        var (assembly, diagnostics) = GeneratedServer.Build("Flags", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "flags.overlay.yaml")], Source, withRules: true, resultful: true);
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty();
         var server = assembly.GetType("Flags.Api.Server")!;
         var app = await (Task<WebApplication>)server.GetMethod("StartAsync")!.Invoke(null, null)!;

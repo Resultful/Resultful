@@ -227,7 +227,10 @@ namespace Matchmark.Generator
 
             public bool SuccessIsUnion => Successes.Count > 1;
 
-            public string SuccessType => SuccessIsUnion ? Name + "Success" : Successes[0].BodyType ?? "global::Resultful.Unit";
+            public string SuccessType => SuccessIsUnion ? Name + "Success" : Successes[0].BodyType ?? UnitType;
+
+            /// <summary>The type of a success with no body: the contract's own Unit, or Resultful's.</summary>
+            public string UnitType { get; set; } = "global::Resultful.Unit";
 
             public string ErrorType => Name + "Error";
 
@@ -291,7 +294,7 @@ namespace Matchmark.Generator
                     }
 
                     var tag = _shared ? _apiName : spec.Tags?.FirstOrDefault()?.Name ?? _apiName;
-                    var operation = new Operation(spec.OperationId!, method, path.Key, tag);
+                    var operation = new Operation(spec.OperationId!, method, path.Key, tag) { UnitType = Outcomes + ".Unit" };
                     if (TryBuild(operation, spec, path.Value.Parameters))
                     {
                         operations.Add(operation);

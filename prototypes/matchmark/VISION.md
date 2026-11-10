@@ -254,7 +254,8 @@ flowchart LR
 
 **1. Own home.**
 - Matchmark moves to its own repository, with its history.
-- Generated contracts use plain unions by default; Resultful and OneOf become an opt-in adapter.
+- ✓ Generated contracts use plain unions by default; Resultful and OneOf are an opt-in adapter
+  (`MatchmarkOutcomes="Resultful"`).
 
 **2. The model.** Before any new output.
 - A small semantic model of operations, outcomes, schemas and traits, at the latest version of each format.

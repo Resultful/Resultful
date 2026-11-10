@@ -17,7 +17,7 @@ namespace Matchmark.Generator
         private string EmitHandlers(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Threading", "System.Threading.Tasks", "Resultful");
+            w.Usings(OutcomeUsings("System.Threading", "System.Threading.Tasks"));
 
             foreach (var group in operations.GroupBy(o => o.Tag))
             {
@@ -133,8 +133,8 @@ namespace Matchmark.Generator
                 var problem = ValidationProblem(validation.BodyType!, "errors");
                 var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
                 var failed = hasValue
-                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
-                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
+                    ? $"{Outcomes}.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
+                    : $"{Outcomes}.Result.Fail<{operation.ErrorType}>({error})";
                 w.Line($"public {operation.HandlerReturnType} {operation.Name}({string.Join(", ", args)})");
                 w.Line($"    => {ValidationClass}.Validate(body) is {{ }} errors");
                 w.Line($"        ? Task.FromResult({failed})");

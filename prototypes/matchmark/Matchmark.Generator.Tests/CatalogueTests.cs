@@ -158,7 +158,7 @@ public sealed class CatalogueTests
     {
         if (_assembly is null)
         {
-            var (assembly, diagnostics) = GeneratedServer.Build("Catalogue", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "catalogue.overlay.yaml")], Handlers, withRules: true);
+            var (assembly, diagnostics) = GeneratedServer.Build("Catalogue", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "catalogue.overlay.yaml")], Handlers, withRules: true, resultful: true);
             diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty("QUERY and JSON Lines are generated");
             _assembly = assembly;
         }

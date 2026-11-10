@@ -11,7 +11,7 @@ namespace Matchmark.Generator.Tests;
 /// <summary>A sample's generated Contract and Server parts, with its overlays, compiled with the given source and loaded.</summary>
 internal static class GeneratedServer
 {
-    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules)
+    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -25,7 +25,7 @@ internal static class GeneratedServer
         var compilation = CSharpCompilation.Create($"{api}{(withRules ? "WithRules" : "WithoutRules")}{Guid.NewGuid():N}", [CSharpSyntaxTree.ParseText(source, parse)], references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         var texts = new[] { spec }.Concat(overlays).Select(path => (AdditionalText)new Text(path, File.ReadAllText(path))).ToArray();
-        var driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api), parseOptions: parse);
+        var driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, resultful), parseOptions: parse);
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out var diagnostics);
 
@@ -43,10 +43,12 @@ internal static class GeneratedServer
         public override SourceText GetText(CancellationToken cancellationToken = default) => SourceText.From(text);
     }
 
-    private sealed class Options(string api) : AnalyzerConfigOptionsProvider
+    /// <summary>The spec's metadata: plain outcomes by default (Q12), or on Resultful and OneOf for a source written against them.</summary>
+    private sealed class Options(string api, bool resultful) : AnalyzerConfigOptionsProvider
     {
         private readonly AnalyzerConfigOptions _spec = new Values(new Dictionary<string, string>
         {
+            ["build_metadata.AdditionalFiles.MatchmarkOutcomes"] = resultful ? "Resultful" : "Plain",
             ["build_metadata.AdditionalFiles.Matchmark"] = "true",
             ["build_metadata.AdditionalFiles.MatchmarkApiName"] = api,
             ["build_metadata.AdditionalFiles.MatchmarkNamespace"] = $"{api}.Api",

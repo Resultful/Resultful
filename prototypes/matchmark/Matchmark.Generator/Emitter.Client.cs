@@ -22,7 +22,7 @@ namespace Matchmark.Generator
         private string EmitClient(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings(
+            w.Usings(OutcomeUsings(
                 "System",
                 "System.Collections.Concurrent",
                 "System.Collections.Generic",
@@ -33,8 +33,7 @@ namespace Matchmark.Generator
                 "System.Text.Json",
                 "System.Text.Json.Serialization",
                 "System.Threading",
-                "System.Threading.Tasks",
-                "Resultful");
+                "System.Threading.Tasks"));
 
             w.Line($"/// <summary>Every outcome the spec documents for <c>{_apiName}</c>: each operation with each of its response statuses.</summary>");
             w.Open($"public static class {_apiName}Contract");
@@ -280,8 +279,8 @@ namespace Matchmark.Generator
                 var error = $"{operation.ErrorType}.{validation.CaseName}({problem})";
                 w.Line($"_refused.TryAdd(({Naming.Literal(operation.Id)}, 400), 0);");
                 w.Line(hasValue
-                    ? $"return global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error});"
-                    : $"return global::Resultful.Result.Fail<{operation.ErrorType}>({error});");
+                    ? $"return {Outcomes}.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error});"
+                    : $"return {Outcomes}.Result.Fail<{operation.ErrorType}>({error});");
             }
 
             w.Close();
@@ -390,7 +389,7 @@ namespace Matchmark.Generator
         /// The handler's return value for a documented response, given an expression for its body (null when it has none).
         /// Empty for an operation whose handler returns a plain Task. Shared by the client and the fake.
         /// </summary>
-        private static string Outcome(Operation operation, Response response, string? value, string status = "0")
+        private string Outcome(Operation operation, Response response, string? value, string status = "0")
         {
             var hasErrors = operation.Errors.Count > 0;
             var successHasValue = operation.SuccessIsUnion || operation.Successes[0].BodyType is not null;
@@ -399,22 +398,22 @@ namespace Matchmark.Generator
                 var arguments = response.CarriesStatus ? (value is null ? status : $"{status}, {value}") : value ?? string.Empty;
                 var error = $"{operation.ErrorType}.{response.CaseName}({arguments})";
                 return successHasValue
-                    ? $"global::Resultful.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
-                    : $"global::Resultful.Result.Fail<{operation.ErrorType}>({error})";
+                    ? $"{Outcomes}.Result.Fail<{operation.SuccessType}, {operation.ErrorType}>({error})"
+                    : $"{Outcomes}.Result.Fail<{operation.ErrorType}>({error})";
             }
 
             if (operation.SuccessIsUnion)
             {
                 var union = $"{operation.SuccessType}.{response.CaseName}({value ?? string.Empty})";
-                return hasErrors ? $"global::Resultful.Result.Ok<{operation.SuccessType}, {operation.ErrorType}>({union})" : union;
+                return hasErrors ? $"{Outcomes}.Result.Ok<{operation.SuccessType}, {operation.ErrorType}>({union})" : union;
             }
 
             if (successHasValue)
             {
-                return hasErrors ? $"global::Resultful.Result.Ok<{response.BodyType}, {operation.ErrorType}>({value})" : value!;
+                return hasErrors ? $"{Outcomes}.Result.Ok<{response.BodyType}, {operation.ErrorType}>({value})" : value!;
             }
 
-            return hasErrors ? $"global::Resultful.Result.Ok<{operation.ErrorType}>()" : string.Empty;
+            return hasErrors ? $"{Outcomes}.Result.Ok<{operation.ErrorType}>()" : string.Empty;
         }
 
         private static void EmitCase(CodeWriter w, Operation operation, Response response, string result, bool observeHere)

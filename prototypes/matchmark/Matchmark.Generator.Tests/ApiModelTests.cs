@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.CodeAnalysis;
 using NUnit.Framework;
 
 namespace Matchmark.Generator.Tests;
@@ -79,5 +80,73 @@ public sealed class ApiModelTests
         var model = ApiModel.Read(Spec.Replace("      operationId: listPets\n", string.Empty, StringComparison.Ordinal), "shelter.yaml")!;
         model.Diagnostics.Should().Contain("MM003: GET /pets has no operationId; it was skipped");
         model.Operations.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Plain outcomes (Q12, the default): the generated contract and server compile, with a handler, without Resultful or
+    /// OneOf among the references at all.
+    /// </summary>
+    [Test]
+    public void A_plain_contract_needs_neither_Resultful_nor_OneOf()
+    {
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+            .Where(p => !Path.GetFileName(p).StartsWith("Resultful", StringComparison.Ordinal) && !Path.GetFileName(p).StartsWith("OneOf", StringComparison.Ordinal))
+            .Select(p => (Microsoft.CodeAnalysis.MetadataReference)Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(p));
+        const string Handler = """
+            using System.Threading;
+            using System.Threading.Tasks;
+
+            namespace Shelter.Api;
+
+            public sealed class Pets : IPetsHandlers
+            {
+                // No errors documented, so no Result: the list itself.
+                public Task<global::System.Collections.Generic.IReadOnlyList<Pet>> ListPets(int? limit, string? xTrace, CancellationToken cancellationToken)
+                    => Task.FromResult<global::System.Collections.Generic.IReadOnlyList<Pet>>(new[] { new Pet { Id = 1, Name = "Rex" } });
+
+                public Task<Result<Pet, CreatePetError>> CreatePet(NewPet body, CancellationToken cancellationToken)
+                    => Task.FromResult(Result.Fail<Pet, CreatePetError>(CreatePetError.Conflict()));
+
+                public Task<Result<Pet, GetPetError>> GetPet(long petId, CancellationToken cancellationToken)
+                    => Task.FromResult(Result.Fail<Pet, GetPetError>(GetPetError.NotFound()));
+            }
+            """;
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Plain", [Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(Handler)], references,
+            new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: Microsoft.CodeAnalysis.NullableContextOptions.Enable));
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shelter-plain.yaml");
+        File.WriteAllText(path, Spec);
+        var driver = Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], [new SpecText(path, Spec)], optionsProvider: new PlainOptions());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out _);
+
+        generated.GetDiagnostics().Where(d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).Select(d => d.ToString()).Take(10).Should().BeEmpty();
+    }
+
+    private sealed class SpecText(string path, string text) : Microsoft.CodeAnalysis.AdditionalText
+    {
+        public override string Path => path;
+
+        public override Microsoft.CodeAnalysis.Text.SourceText GetText(CancellationToken cancellationToken = default) => Microsoft.CodeAnalysis.Text.SourceText.From(text);
+    }
+
+    private sealed class PlainOptions : Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptionsProvider
+    {
+        private static readonly Values Spec = new(new Dictionary<string, string>
+        {
+            ["build_metadata.AdditionalFiles.Matchmark"] = "true",
+            ["build_metadata.AdditionalFiles.MatchmarkApiName"] = "Shelter",
+            ["build_metadata.AdditionalFiles.MatchmarkNamespace"] = "Shelter.Api",
+            ["build_metadata.AdditionalFiles.MatchmarkParts"] = "Contract,Server",
+        });
+
+        public override Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptions GlobalOptions { get; } = new Values([]);
+
+        public override Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptions GetOptions(Microsoft.CodeAnalysis.SyntaxTree tree) => GlobalOptions;
+
+        public override Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptions GetOptions(Microsoft.CodeAnalysis.AdditionalText textFile) => Spec;
+
+        private sealed class Values(Dictionary<string, string> values) : Microsoft.CodeAnalysis.Diagnostics.AnalyzerConfigOptions
+        {
+            public override bool TryGetValue(string key, out string value) => values.TryGetValue(key, out value!);
+        }
     }
 }

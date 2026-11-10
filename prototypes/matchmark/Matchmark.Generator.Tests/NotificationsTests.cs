@@ -151,7 +151,7 @@ public sealed class NotificationsTests
     [Test]
     public async Task Callbacks_and_an_event_stream_go_all_the_way_round()
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Notifications", Path.Combine(Samples, "openapi.yaml"), [], Source, withRules: false);
+        var (assembly, diagnostics) = GeneratedServer.Build("Notifications", Path.Combine(Samples, "openapi.yaml"), [], Source, withRules: false, resultful: true);
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty("callbacks and server-sent events are generated");
         var hosts = assembly.GetType("Notifications.Api.Hosts")!;
         var api = await (Task<WebApplication>)hosts.GetMethod("ApiAsync")!.Invoke(null, null)!;

@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <!-- Regression: the suite generated from the spec (PetStoreRegression), rebuilt whenever the spec changes. -->
-    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Regression" />
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkOutcomes="Resultful" MatchmarkParts="Regression" />
     <!-- The spec's Arazzo workflows join the suite (PetStoreRegression.Workflows). -->
     <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.arazzo.yaml" MatchmarkArazzo="true" MatchmarkApiName="PetStore" />
   </ItemGroup>

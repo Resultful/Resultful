@@ -142,7 +142,7 @@ public sealed class FormTests
     [Test]
     public async Task The_generated_server_reads_forms_the_suite_sends_and_the_client_writes()
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Payments", Path.Combine(Samples, "openapi.yaml"), [], Handlers, withRules: false);
+        var (assembly, diagnostics) = GeneratedServer.Build("Payments", Path.Combine(Samples, "openapi.yaml"), [], Handlers, withRules: false, resultful: true);
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty("form bodies are generated");
         var server = assembly.GetType("Payments.Api.Server")!;
         var app = await (Task<WebApplication>)server.GetMethod("StartAsync")!.Invoke(null, null)!;

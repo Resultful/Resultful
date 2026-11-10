@@ -23,9 +23,9 @@ namespace Matchmark.Generator
         private string EmitFake(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System", "System.Collections.Concurrent", "System.Collections.Generic", "System.Linq", "System.Text.Json",
+            w.Usings(OutcomeUsings("System", "System.Collections.Concurrent", "System.Collections.Generic", "System.Linq", "System.Text.Json",
                 "System.Text.Json.Nodes", "System.Text.Json.Serialization", "System.Threading", "System.Threading.Tasks",
-                "Resultful", "Matchmark.Fakes");
+                "Matchmark.Fakes"));
 
             var interfaces = string.Join(", ", operations.Select(o => HandlerInterface(o.Tag)).Distinct());
             var name = _apiName + "Fake";

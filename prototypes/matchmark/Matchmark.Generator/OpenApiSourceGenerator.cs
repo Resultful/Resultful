@@ -153,8 +153,11 @@ namespace Matchmark.Generator
 
             // MatchmarkProblems="Owned": the contract generates its own problem types, so it needs no ASP.NET Core.
             var owned = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkProblems", out var problems) && string.Equals(problems, "Owned", StringComparison.OrdinalIgnoreCase);
+
+            // MatchmarkOutcomes="Resultful": outcomes on Resultful and OneOf, the adapter; plain ones of the contract's own by default (Q12).
+            var resultful = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkOutcomes", out var outcomes) && string.Equals(outcomes, "Resultful", StringComparison.OrdinalIgnoreCase);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
-                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned };
+                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned, Resultful = resultful };
         }
 
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
@@ -188,7 +191,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver, PlainOutcomes = !spec.Resultful };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             if (parts.Contains("Server", StringComparer.OrdinalIgnoreCase) && !hasValidation && !referencedResolver)
             {
@@ -263,6 +266,9 @@ namespace Matchmark.Generator
         /// <summary>Generate the spec's problem types instead of using ASP.NET Core's (MatchmarkProblems="Owned").</summary>
         public bool OwnProblems { get; set; }
 
+        /// <summary>Outcomes on Resultful and OneOf (MatchmarkOutcomes="Resultful"), not the contract's own.</summary>
+        public bool Resultful { get; set; }
+
         public string Content { get; }
 
         public string Namespace { get; }
@@ -273,11 +279,11 @@ namespace Matchmark.Generator
         public IReadOnlyList<(string Text, string Path)> Overlays { get; private set; } = Array.Empty<(string, string)>();
 
         public SpecInput WithOverlays(IReadOnlyList<(string Text, string Path)> overlays)
-            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays, OwnProblems = OwnProblems };
+            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays, OwnProblems = OwnProblems, Resultful = Resultful };
 
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit && OwnProblems == other.OwnProblems
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit && OwnProblems == other.OwnProblems && Resultful == other.Resultful
                && Overlays.SequenceEqual(other.Overlays);
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);
