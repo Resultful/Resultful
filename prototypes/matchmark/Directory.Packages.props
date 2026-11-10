@@ -15,5 +15,7 @@
 
     <!-- Assertions: the Apache-2.0 fork of FluentAssertions, which needs a commercial licence from v8. -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
+    <!-- The independent oracle (OracleTests): a JSON Schema 2020-12 validator written apart from Matchmark. Apache-2.0. -->
+    <PackageVersion Include="Corvus.Json.Validator" Version="5.8.8" />
   </ItemGroup>
 </Project>
