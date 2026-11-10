@@ -167,6 +167,12 @@ namespace Matchmark.Generator
                     files["Webhooks." + file.Key] = file.Value;
                 }
 
+                // An AsyncAPI document's operations on a broker (with Matchmark.Messaging): a typed consumer and producer.
+                if (Messaging && contract && receiver.EmitMessaging(_apiName, webhooks) is { } messaging)
+                {
+                    files["Messaging"] = messaging;
+                }
+
                 Diagnostics.AddRange(receiver.Diagnostics.Where(d => !Diagnostics.Any(e => e.Id == d.Id && e.GetMessage(CultureInfo.InvariantCulture) == d.GetMessage(CultureInfo.InvariantCulture))));
             }
 

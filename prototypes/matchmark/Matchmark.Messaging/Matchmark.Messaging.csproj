@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The runtime of the generated AsyncAPI producers and consumers: a transport, the channel addresses, and an in-memory
+    transport for tests. Referencing it turns on the generated I{Api}Consumer, {Api}Producer and Subscribe{Api}.
+    A broker is an adapter on IMessageTransport (Matchmark.Messaging.Nats).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>The runtime of Matchmark's generated AsyncAPI producers and consumers: transports and channel addresses.</Description>
+  </PropertyGroup>
+</Project>

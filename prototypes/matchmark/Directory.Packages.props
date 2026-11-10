@@ -23,6 +23,9 @@
     <PackageVersion Include="NUnit" Version="4.3.2" />
     <PackageVersion Include="NUnit3TestAdapter" Version="5.0.0" />
 
+    <!-- The NATS transport for generated AsyncAPI producers and consumers (Matchmark.Messaging.Nats). Apache-2.0. -->
+    <PackageVersion Include="NATS.Client.Core" Version="3.3.2" />
+
     <!-- Assertions: the Apache-2.0 fork of FluentAssertions, which needs a commercial licence from v8. -->
     <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <!-- The independent oracle (OracleTests): a JSON Schema 2020-12 validator written apart from Matchmark. Apache-2.0. -->

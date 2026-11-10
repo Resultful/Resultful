@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- NATS as a transport for the generated AsyncAPI producers and consumers: an address is a subject, a parameter a token. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>NATS as the transport of Matchmark's generated AsyncAPI producers and consumers.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Messaging/Matchmark.Messaging.csproj" />
+    <PackageReference Include="NATS.Client.Core" />
+  </ItemGroup>
+</Project>
