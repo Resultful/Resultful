@@ -13,7 +13,7 @@ committed** (Diffra's approach to generated assets).
 | 4. Generated code is code | It parses, compiles and loads, for every sample and the large specs | `GeneratedServer`, the corpus, `LargeSpecTests` |
 | 5. Behaviour | The generated server, client and fake do what the spec says | the spec's own regression suite run against each generated server; the round-trip check of ASP.NET Core's served document |
 | 6. Derived evidence | What changed, for review, against the pull request's base | `DerivedEvidenceTests` and CI's `derived` job |
-| 7. Breadth | Every construct in every supported version | the official examples (57 of 57), GitHub's and Stripe's specs, the support matrix |
+| 7. Breadth | Every construct in every supported version | the official examples (57 of 57), GitHub's and Stripe's specs, the support matrix, `RandomSpecTests` |
 | 8. Consumption | It works as a package and an image | the container image job; a packed-package test is next |
 
 ## 1. The model
@@ -55,6 +55,22 @@ committed, so no golden file churns, and nothing compares the pull request again
 **Next** (Diffra's model): a required check bound to the digest of the reviewed change, so an approval goes stale when
 the output changes again; the derived files as Diffra evidence once its CLI is released.
 
+## 7. Breadth: random specs
+
+`RandomSpecTests` generates seeded specs and compiles what each one generates. The specs vary what broke GitHub's and
+Stripe's builds:
+
+- parameters named like the generated code's own names;
+- parameter lists longer than `Func` takes;
+- shared responses and request bodies;
+- enums, nested objects, unions and constraints;
+- several tags.
+
+When a spec fails, the test shrinks it to the fewest operations and parameters that still fail, and prints it so it can
+be committed as a fixture. `MATCHMARK_RANDOM_SPECS` sets how many seeds run (12 by default). Its first run found a query
+parameter named `body` clashing with the request body's parameter. Parameter names are now decided once, in the model,
+away from the generated signatures' own names and from each other. 200 seeds then passed.
+
 ## Learned from Parquet.SourceGenerator
 
 Taken: diagnostics as equatable data with positions; step-level incrementality tests on reused drivers; an "examined N"
@@ -63,8 +79,8 @@ review and a body change not; derived outputs diffed against the base rather tha
 
 Next to take: an emitted-code analyzer gate (generated code compiled under every analyzer, with a baseline that must stay
 empty); an **independent oracle** (Matchmark's generator, engine and twin all read specs through the same `SpecJson`, so
-a second, separately written schema validator would catch a misreading they share); random specs, generated, compiled
-and regressed against the twin, minimised fixtures committed; a packed-package consumption test.
+a second, separately written schema validator would catch a misreading they share); random specs regressed against the twin as
+well as compiled; a packed-package consumption test.
 
 Avoided: its 4.0.1 Roslyn floor (Matchmark is on 4.14, so steps carry tracking names); a parser and an emitter of 2,400
 lines each (Matchmark's emitter is split by output, the largest file under 900 lines).
