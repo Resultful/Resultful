@@ -172,7 +172,9 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                 {
                     // Read-only values are the server's to set; a request doesn't send them (the suite's read-only case does, on purpose).
                     // Write-only values are never sent back, so a response leaves them out.
-                    if (!required.Contains(name) && !full || validator.Flag(property!, direction == Direction.Response ? "writeOnly" : "readOnly"))
+                    // A minimal value still has minProperties properties: optional ones are added, in order, until it does.
+                    var short_ = !full && SchemaValidator.Count(schema, "minProperties") is { } least && result.Count + required.Count(r => !result.ContainsKey(r)) < least;
+                    if (!required.Contains(name) && !full && !short_ || validator.Flag(property!, direction == Direction.Response ? "writeOnly" : "readOnly"))
                     {
                         continue;
                     }
@@ -216,6 +218,8 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             "uuid" => "00000000-0000-4000-8000-000000000001",
             "email" => "someone@example.com",
             "uri" => "https://example.com/",
+            "uri-reference" => "/example",
+            "uri-template" => "https://example.com/{id}",
             _ => null,
         };
         if (formatted is not null)

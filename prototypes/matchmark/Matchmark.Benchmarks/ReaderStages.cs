@@ -34,7 +34,7 @@ public class ReaderStages
             var text = File.ReadAllText(file);
             var node = Documents.Load(text, file);
             var key = Format == "asyncapi" ? "asyncapi" : Format;
-            if (node[key] is not null && (Format != "overlay" || file.Contains("/pass/", StringComparison.Ordinal)))
+            if (node is JsonObject obj && obj[key] is not null && (Format != "overlay" || file.Contains("/pass/", StringComparison.Ordinal)))
             {
                 _texts.Add((text, file));
                 _documents.Add(node);

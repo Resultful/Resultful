@@ -89,8 +89,19 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             return;
         }
 
+        // Null is held to const and enum too: a type that allows null doesn't make null one of an enum's values.
         if (value is null)
         {
+            if (schema["const"] is { } nullConstant && nullConstant is not null)
+            {
+                errors.Add($"{at} is null; the schema says {nullConstant.ToJsonString()}");
+            }
+
+            if (schema["enum"] is JsonArray nullValues && !nullValues.Any(v => v is null))
+            {
+                errors.Add($"{at} is null, which is not one of {string.Join(", ", nullValues.Select(v => v?.ToJsonString()))}");
+            }
+
             return;
         }
 
@@ -131,7 +142,13 @@ public sealed class SchemaValidator(OpenApiSpec spec)
         {
             if (value is not JsonObject obj)
             {
-                return; // the type check reports it
+                // Not an object (null, where the type allows it): the discriminator can't pick, so exactly one member must take it.
+                if (members.Count(m => Validate(value, m!, path, DirectionOf(errors)).Count == 0) != 1)
+                {
+                    errors.Add($"{at} is {Describe(value)}, which isn't exactly one of {string.Join(", ", members.Select(m => OpenApiSpec.RefName(m) ?? "a schema"))}");
+                }
+
+                return;
             }
 
             if (obj[property]?.GetValueKind() != JsonValueKind.String)
@@ -149,6 +166,15 @@ public sealed class SchemaValidator(OpenApiSpec spec)
             }
 
             Check(value, member, path, errors, depth + 1);
+
+            // The discriminator picks whose errors to report, but it doesn't change the outcome (OpenAPI 3.2: it "MUST NOT
+            // change the validation outcome"): the oneOf still wants exactly one. Found by the oracle over GitHub's spec.
+            var others = members.Where(m => !ReferenceEquals(m, member) && Validate(value, m!, path, DirectionOf(errors)).Count == 0).Select(m => OpenApiSpec.RefName(m) ?? "a schema").ToList();
+            if (others.Count > 0)
+            {
+                errors.Add($"{at} is '{kind}' by its {property}, but it matches {string.Join(", ", others)} too; a oneOf must match exactly one");
+            }
+
             return;
         }
 
@@ -265,6 +291,17 @@ public sealed class SchemaValidator(OpenApiSpec spec)
     private void CheckObject(JsonObject obj, JsonObject schema, string path, List<string> errors, int depth)
     {
         var direction = DirectionOf(errors);
+        var at = path.Length == 0 ? "the body" : path;
+        if (Count(schema, "minProperties") is { } least && obj.Count < least)
+        {
+            errors.Add($"{at} has {obj.Count} properties; the schema wants at least {least}");
+        }
+
+        if (Count(schema, "maxProperties") is { } most && obj.Count > most)
+        {
+            errors.Add($"{at} has {obj.Count} properties; the schema allows at most {most}");
+        }
+
         var properties = schema["properties"]?.AsObject();
         foreach (var required in schema["required"] as JsonArray ?? [])
         {

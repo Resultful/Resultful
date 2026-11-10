@@ -156,6 +156,22 @@ writes YAML nulls as a sentinel string and reads empty values as empty strings, 
 AsyncAPI schema has two quirks the reader mirrors: a Parameter Object without `type: object`, and a non-empty, unique
 `enum`.
 
+### The readers' benchmarks
+
+`ReaderStages`, over every vendored document of each format (Overlay's pass fixtures, Arazzo's documents, AsyncAPI's
+examples), on a short job:
+
+| Format | Load the YAML | Read | The official schema (JsonSchema.Net) | Apply |
+|:--|--:|--:|--:|--:|
+| Overlay | 0.63 ms | 0.06 ms | 3.5 ms | 0.056 ms (the compliant sets) |
+| Arazzo | 3.6 ms | 0.50 ms | 93 ms | |
+| AsyncAPI | 4.5 ms | 0.50 ms | 184 ms | 0.56 ms (the upgrade) |
+
+Reading is cheap beside loading the YAML, and the official schema, judging the same documents, is 60 to 370 times the
+reader. That's the cost of the oracle, which is why the regression suite runs it in tests and never in the generator.
+It's also why the oracle over GitHub's and Stripe's schemas judges a deterministic share of each schema's values rather
+than all 411,567.
+
 ## Learned from Parquet.SourceGenerator
 
 Taken: diagnostics as equatable data with positions; step-level incrementality tests on reused drivers; an "examined N"

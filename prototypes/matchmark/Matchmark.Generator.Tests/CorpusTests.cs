@@ -56,7 +56,8 @@ public sealed class CorpusTests
 
         File.WriteAllLines(Path.Combine(TestContext.CurrentContext.WorkDirectory, "corpus-ledger.txt"), ledger);
         ledger.Should().Equal(
-            "petstore: generator skips 0; suite 90 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 79%",
+            // 94 from 90: a discriminated oneOf (PetDetails) now refuses a value that isn't an object, as JSON Schema does (OracleTests).
+            "petstore: generator skips 0; suite 94 cases, 1 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps; audit 6 warnings, 14 findings, 80%",
             "museum: generator skips 3; suite 100 cases, 0 workflows from links, 3 of 3 Arazzo workflows runnable, 0 gaps, 28 webhook cases; audit 12 warnings, 20 findings, 82%",
             "orders: generator skips 0; suite 90 cases, 2 workflows from links, 1 of 1 Arazzo workflows runnable, 0 gaps, 19 webhook cases; audit 3 warnings, 8 findings, 91%",
             "bookings: generator skips 0; suite 81 cases, 1 workflows from links, 0 of 0 Arazzo workflows runnable, 0 gaps; audit 0 warnings, 1 findings, 100%",

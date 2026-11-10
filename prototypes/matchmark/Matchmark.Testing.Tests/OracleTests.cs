@@ -32,7 +32,7 @@ public sealed class OracleTests
 
     [TestCaseSource(nameof(LargeSpecs))]
     public void Matchmark_and_an_independent_validator_agree_on_a_large_spec(string path)
-        => Agree(path, Path.GetFileNameWithoutExtension(path), corvus: false); // Corvus's code generation can't take them (testing.md)
+        => Agree(path, Path.GetFileNameWithoutExtension(path), corvus: false, perSchema: 12); // Corvus's code generation can't take them (testing.md)
 
     [TestCaseSource(nameof(Specs))]
     public void Matchmark_and_an_independent_validator_agree(string sample)
@@ -42,7 +42,9 @@ public sealed class OracleTests
     /// Matchmark's verdict on each value against the oracles': Corvus.Json.Validator, which compiles the schema to code,
     /// and JsonSchema.Net 7.3.3 (MIT, the last release before its maintenance-fee licence), which interprets it.
     /// </summary>
-    private static void Agree(string path, string sample, bool corvus)
+    /// <param name="perSchema">At most this many values per schema, in a stable order: the samples, then the first
+    /// boundaries and violations. JsonSchema.Net costs milliseconds a value (ReaderStages), so a large spec judges a share.</param>
+    private static void Agree(string path, string sample, bool corvus, int perSchema = int.MaxValue)
     {
         var json = SpecJson.Normalize(File.ReadAllText(path), path, out _);
         var spec = OpenApiSpec.Parse(json);
@@ -91,7 +93,7 @@ public sealed class OracleTests
                 values.AddRange(samples.Violations(root, reference).Select(v => ($"violation {v.Description}", v.Value, (bool?)false)));
             }
 
-            foreach (var (label, value, expected) in values)
+            foreach (var (label, value, expected) in values.Take(perSchema))
             {
                 examined++;
                 var ours = validator.IsValid(value, reference);
@@ -108,6 +110,11 @@ public sealed class OracleTests
 
         TestContext.Out.WriteLine($"{sample}: {schemas.Count} schemas, {examined} values, {string.Join(" and ", oracles.Select(o => o.Name))}");
         examined.Should().BeGreaterThan(schemas.Count, "every schema gave values to compare");
+        foreach (var disagreement in disagreements)
+        {
+            TestContext.Out.WriteLine("DISAGREE " + disagreement);
+        }
+
         disagreements.Should().BeEmpty();
     }
 
@@ -141,6 +148,38 @@ public sealed class OracleTests
 
         Json.Schema.Formats.Register(new RangeFormat("int32", node => Within(node, int.MinValue, int.MaxValue)));
         Json.Schema.Formats.Register(new RangeFormat("int64", node => Within(node, long.MinValue, long.MaxValue)));
+
+        // JsonSchema.Net 7.3.3 refuses every uri-template, even https://api.github.com/users/{user}: its check is replaced
+        // with RFC 6570's shape, braces balanced and not nested, so the oracle judges what Matchmark does.
+        Json.Schema.Formats.Register(new RangeFormat("uri-template", node => node is not JsonValue text || text.GetValueKind() != JsonValueKind.String || Template(text.GetValue<string>())));
+    }
+
+    private static bool Template(string text)
+    {
+        var open = false;
+        foreach (var c in text)
+        {
+            if (c == '{')
+            {
+                if (open)
+                {
+                    return false;
+                }
+
+                open = true;
+            }
+            else if (c == '}')
+            {
+                if (!open)
+                {
+                    return false;
+                }
+
+                open = false;
+            }
+        }
+
+        return !open;
     }
 
     private sealed class RangeFormat(string key, Func<JsonNode?, bool> valid) : Json.Schema.Format(key)

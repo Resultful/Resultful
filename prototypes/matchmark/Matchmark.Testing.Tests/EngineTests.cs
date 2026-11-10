@@ -77,7 +77,7 @@ public sealed class EngineTests
 
         Suite.Validator.Validate(JsonNode.Parse("""{ "id": 1, "label": null, "shape": { "kind": "square", "side": 2 } }"""), thing).Should().BeEmpty("3.0's nullable is understood");
         Suite.Validator.Validate(JsonNode.Parse("""{ "id": 1, "shape": { "kind": "square", "radius": 2 } }"""), thing)
-            .Should().Equal("shape.side is missing; the schema requires it");
+            .Should().Equal("shape.side is missing; the schema requires it", "shape is 'square' by its kind, but it matches Circle too; a oneOf must match exactly one");
         Suite.Validator.Validate(JsonNode.Parse("""{ "id": 1, "shape": { "kind": "hexagon" } }"""), thing)
             .Should().Equal("shape.kind is 'hexagon', which is not one of 'circle', 'square'");
     }
