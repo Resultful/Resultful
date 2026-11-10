@@ -106,40 +106,31 @@ public sealed class ModelAttributeTests
     }
 
     /// <summary>
-    /// Slice 2 of Q45: the same bad bodies, answered by Matchmark's validator alone and with .NET's layer registered
-    /// (Add{Api}Validation, which runs first), give the same status and the same error keys, in the spec's names.
+    /// Q45: .NET's validation layer answers bad bodies (Add{Api}() registers the resolver), with errors keyed by the spec's
+    /// names and Matchmark's own messages, as the generated validator answered them (the keys below are what it gave).
     /// </summary>
-    [TestCase("""{"name":"UPPER","sides":2,"ratio":0.5,"tags":["a"]}""")]
-    [TestCase("""{"name":"square","sides":4,"ratio":1,"tags":[]}""")]
-    [TestCase("""{"name":"","sides":13,"ratio":0,"tags":["a","b","c","d","e"],"kind":"liquid"}""")]
-    [TestCase("""{"name":"square","sides":4,"ratio":0.5,"tags":["a"],"owner":"not an address","icon":"%%%"}""")]
-    [TestCase("""{"name":"pentagon","sides":5,"ratio":0.5,"tags":["a"]}""")]
-    public async Task Net_s_layer_keys_errors_as_the_generated_validator_does(string body)
+    [TestCase("""{"name":"UPPER","sides":2,"ratio":0.5,"tags":["a"]}""", "name,sides")]
+    [TestCase("""{"name":"square","sides":4,"ratio":1,"tags":[]}""", "ratio,tags")]
+    [TestCase("""{"name":"","sides":13,"ratio":0,"tags":["a","b","c","d","e"],"kind":"liquid"}""", "kind,name,ratio,sides,tags")]
+    [TestCase("""{"name":"square","sides":4,"ratio":0.5,"tags":["a"],"owner":"not an address","icon":"%%%"}""", "icon,owner")]
+    [TestCase("""{"name":"pentagon","sides":5,"ratio":0.5,"tags":["a"]}""", "$")]
+    public async Task Net_s_layer_keys_errors_and_words_them_as_the_spec_s_validator_does(string body, string keys)
     {
-        async Task<(int Status, string[] Keys, string Text)> Post(bool net)
+        var app = await (Task<WebApplication>)Generated.GetType("Shapes.Api.Server")!.GetMethod("StartAsync")!.Invoke(null, [false])!;
+        try
         {
-            var app = await (Task<WebApplication>)Generated.GetType("Shapes.Api.Server")!.GetMethod("StartAsync")!.Invoke(null, [net])!;
-            try
-            {
-                using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
-                var response = await client.PostAsync("shapes", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
-                var text = await response.Content.ReadAsStringAsync();
-                var keys = (JsonNode.Parse(text)?["errors"] as JsonObject)?.Select(e => e.Key).Order(StringComparer.Ordinal).ToArray() ?? [];
-                return ((int)response.StatusCode, keys, text);
-            }
-            finally
-            {
-                await app.StopAsync();
-                await app.DisposeAsync();
-            }
+            using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+            var response = await client.PostAsync("shapes", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+            var errors = (JsonNode.Parse(await response.Content.ReadAsStringAsync())?["errors"] as JsonObject)!;
+            ((int)response.StatusCode).Should().Be(400);
+            string.Join(",", errors.Select(e => e.Key).Order(StringComparer.Ordinal)).Should().Be(keys);
+            errors.SelectMany(e => e.Value!.AsArray()).Select(m => m!.GetValue<string>()).Should().OnlyContain(m => m.StartsWith("Must ", StringComparison.Ordinal) || m.StartsWith("Pentagons", StringComparison.Ordinal));
         }
-
-        var own = await Post(net: false);
-        var net = await Post(net: true);
-        TestContext.Out.WriteLine($"own: {own.Text}\nnet: {net.Text}");
-        own.Status.Should().Be(400);
-        net.Status.Should().Be(own.Status);
-        net.Keys.Should().Equal(own.Keys);
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
     }
 
     private static T Attribute<T>(string property) where T : Attribute
@@ -177,6 +168,17 @@ public sealed class ModelAttributeTests
         new Matchmark.Validation.UniqueItemsAttribute().IsValid(new[] { "red", "red" }).Should().BeFalse();
         labels.IsValid(new Dictionary<string, string>()).Should().BeFalse();
         labels.IsValid(new Dictionary<string, string> { ["a"] = "x" }).Should().BeTrue();
+    }
+
+    /// <summary>MM030: a keyword nothing on .NET's layer checks, reported per property; with Matchmark.Validation, multipleOf is checked.</summary>
+    [Test]
+    public void A_keyword_no_attribute_checks_is_reported()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shapes-const.json");
+        File.WriteAllText(path, Spec.Replace("\"kind\": { \"type\": \"string\", \"enum\": [\"flat\", \"solid\"] }", "\"kind\": { \"type\": \"string\", \"const\": \"flat\" }", StringComparison.Ordinal));
+        var diagnostics = GeneratedServer.Build("Shapes", path, [], Source, withRules: true).Diagnostics;
+        diagnostics.Should().Contain(d => d.Id == "MM030" && d.GetMessage(null).StartsWith("Shape.kind has const", StringComparison.Ordinal));
+        diagnostics.Should().NotContain(d => d.Id == "MM030" && d.GetMessage(null).StartsWith("Shape.step", StringComparison.Ordinal), "Matchmark.Validation is referenced, so multipleOf is checked");
     }
 
     [Test]

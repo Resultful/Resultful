@@ -451,7 +451,14 @@ namespace Matchmark.Generator
                     }
 
                     w.Line($"public {(required ? "required " : string.Empty)}{type}{(nullable ? "?" : string.Empty)} {Member(name, schema, property.Key)} {{ get; init; }}");
-                    _modelProperties.Add((name, Member(name, schema, property.Key), $"{type}{(nullable ? "?" : string.Empty)}", property.Key, Annotations(property.Value, type, nullable, ValidationAttributes).ToList()));
+                    _modelProperties.Add((name, Member(name, schema, property.Key), $"{type}{(nullable ? "?" : string.Empty)}", property.Key, ResolverAttributes(property.Value, type, nullable).ToList()));
+                    if (NetValidation && !_shared)
+                    {
+                        foreach (var keyword in Unchecked(property.Value))
+                        {
+                            Diagnostics.Add(Diagnostic.Create(Generator.Diagnostics.KeywordUnchecked, _location, $"{pair.Key}.{property.Key}", keyword));
+                        }
+                    }
                     w.Line();
                 }
 
@@ -561,6 +568,119 @@ namespace Matchmark.Generator
             return number.Contains('.') || number.Contains('E') || number.Contains('e') ? number : number + ".0";
         }
 
+        /// <summary>
+        /// The attributes the resolver gives .NET's layer for a property, as expressions that construct them: the model's,
+        /// each with Matchmark's own message, so a bad request reads the same whichever validator answers it (validation.md).
+        /// A range is one attribute per bound, so each bound has its own message and a one-sided bound is checked too.
+        /// </summary>
+        private IEnumerable<string> ResolverAttributes(IOpenApiSchema schema, string type, bool nullable)
+        {
+            const string Ns = "global::System.ComponentModel.DataAnnotations.";
+            string Message(string text) => $"ErrorMessage = {Naming.Literal(text)}";
+            var array = (schema.Type ?? 0).HasFlag(JsonSchemaType.Array);
+            if ((array ? schema.MinItems : schema.MinLength) is { } min)
+            {
+                yield return $"new {Ns}MinLengthAttribute({min.Invariant()}) {{ {Message(array ? $"Must have at least {min.Invariant()} items." : $"Must be at least {min.Invariant()} characters.")} }}";
+            }
+
+            if ((array ? schema.MaxItems : schema.MaxLength) is { } max)
+            {
+                yield return $"new {Ns}MaxLengthAttribute({max.Invariant()}) {{ {Message(array ? $"Must have at most {max.Invariant()} items." : $"Must be at most {max.Invariant()} characters.")} }}";
+            }
+
+            if (schema.Pattern is { } pattern)
+            {
+                yield return $"new {Ns}RegularExpressionAttribute({Naming.Literal(pattern)}) {{ {Message($"Must match {pattern}.")} }}";
+            }
+
+            if (schema.Minimum is { } minimum)
+            {
+                yield return $"new {Ns}RangeAttribute({Double(minimum)}, double.MaxValue) {{ {Message($"Must be at least {Number(minimum)}.")} }}";
+            }
+
+            if (schema.Maximum is { } maximum)
+            {
+                yield return $"new {Ns}RangeAttribute(double.MinValue, {Double(maximum)}) {{ {Message($"Must be at most {Number(maximum)}.")} }}";
+            }
+
+            if (schema.ExclusiveMinimum is { } above)
+            {
+                yield return $"new {Ns}RangeAttribute({Double(above)}, double.MaxValue) {{ MinimumIsExclusive = true, {Message($"Must be more than {Number(above)}.")} }}";
+            }
+
+            if (schema.ExclusiveMaximum is { } below)
+            {
+                yield return $"new {Ns}RangeAttribute(double.MinValue, {Double(below)}) {{ MaximumIsExclusive = true, {Message($"Must be less than {Number(below)}.")} }}";
+            }
+
+            foreach (var extra in AnnotationParts(schema, type, nullable, ValidationAttributes).Where(a => a.Name.StartsWith("global::", StringComparison.Ordinal)))
+            {
+                yield return $"new {extra.Name}Attribute({extra.Args})";
+            }
+
+            if (type != "string")
+            {
+                yield break;
+            }
+
+            if (schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String))
+            {
+                var texts = values.Select(v => v!.GetValue<string>()).ToList();
+                var allowed = texts.Select(Naming.Literal).Concat(nullable ? NullValue : Array.Empty<string>());
+                yield return $"new {Ns}AllowedValuesAttribute({string.Join(", ", allowed)}) {{ {Message("Must be one of " + string.Join(", ", texts) + ".")} }}";
+            }
+
+            switch (schema.Format)
+            {
+                case "email":
+                    yield return $"new {Ns}EmailAddressAttribute {{ {Message("Must be an email address.")} }}";
+                    break;
+                case "uri":
+                    yield return $"new {Ns}UrlAttribute {{ {Message("Must be an absolute URI.")} }}";
+                    break;
+                case "byte":
+                    yield return $"new {Ns}Base64StringAttribute {{ {Message("Must be base64.")} }}";
+                    break;
+            }
+        }
+
+        /// <summary>The keywords on a property that no attribute on .NET's layer checks (MM030): only the suite does.</summary>
+        private IEnumerable<string> Unchecked(IOpenApiSchema schema)
+        {
+            if (!ValidationAttributes)
+            {
+                if (schema.MultipleOf is not null)
+                {
+                    yield return "multipleOf";
+                }
+
+                if (schema.UniqueItems == true)
+                {
+                    yield return "uniqueItems";
+                }
+
+                if (schema.MinProperties is not null || schema.MaxProperties is not null)
+                {
+                    yield return "minProperties or maxProperties";
+                }
+            }
+
+            if (schema.Const is not null)
+            {
+                yield return "const";
+            }
+
+            if (schema.Not is not null)
+            {
+                yield return "not";
+            }
+
+            if (schema.DependentRequired is { Count: > 0 })
+            {
+                yield return "dependentRequired";
+            }
+        }
+
         /// <summary>Each generated model property: its record, member, C# type, JSON name and attributes, for the resolver.</summary>
         private readonly List<(string Model, string Member, string Type, string Json, List<string> Attributes)> _modelProperties = new();
 
@@ -569,10 +689,12 @@ namespace Matchmark.Generator
         /// Microsoft.Extensions.Validation: every generated model by its properties' attributes, under the spec's names, and
         /// body parameters of those types, whose errors are keyed by the spec's JSON paths. Registered by Add{Api}Validation().
         /// </summary>
-        private string? EmitValidationResolver()
+        /// <summary>Whether this emission wrote the resolver, so the server part registers it.</summary>
+        private bool _resolverEmitted;
+
+        private string? EmitValidationResolver(List<Operation> operations)
         {
-            // MM029 (NetValidationMissing) is reported once .NET's layer is the default; until then, Matchmark's own validator
-            // is what every contract uses, and the resolver is an opt-in (Add{Api}Validation).
+            // Without the layer referenced, the server reports MM029 and keeps Matchmark's own validator alone.
             if (!NetValidation || _shared || _modelProperties.Count == 0)
             {
                 return null;
@@ -596,11 +718,30 @@ namespace Matchmark.Generator
                 w.Line("    {");
                 foreach (var property in model)
                 {
-                    var attributes = property.Attributes.Select(a => Construct(a));
+                    var attributes = property.Attributes;
                     w.Line($"        new Member(typeof({model.Key}), {Naming.Literal(property.Member)}, {Naming.Literal(property.Json)}{string.Concat(attributes.Select(a => ", " + a))}),");
                 }
 
                 w.Line("    }),");
+            }
+
+            w.Line("};");
+            w.Line();
+
+            // The generated endpoints' scalar parameters, by where they bind from and their name in the spec. A name two
+            // operations constrain differently is left to the endpoint's own check.
+            var scalars = operations.SelectMany(o => o.Parameters)
+                .Where(p => p.Schema is not null && !p.Deep && !p.Enum && p.Attribute is "FromHeader" or "FromQuery" or "FromRoute")
+                .Select(p => (Key: $"{p.Attribute.Substring(4).ToLowerInvariant()}:{p.Name}", Attributes: ResolverAttributes(p.Schema!, p.Type.TrimEnd('?'), nullable: true).ToList()))
+                .Where(p => p.Attributes.Count > 0)
+                .GroupBy(p => p.Key, StringComparer.Ordinal)
+                .Where(g => g.Select(p => string.Join("|", p.Attributes)).Distinct().Count() == 1)
+                .Select(g => g.First()).ToList();
+            w.Line("private static readonly Dictionary<string, global::System.ComponentModel.DataAnnotations.ValidationAttribute[]> Scalars = new()");
+            w.Line("{");
+            foreach (var (key, attributes) in scalars)
+            {
+                w.Line($"    [{Naming.Literal(key)}] = new global::System.ComponentModel.DataAnnotations.ValidationAttribute[] {{ {string.Join(", ", attributes)} }},");
             }
 
             w.Line("};");
@@ -612,7 +753,17 @@ namespace Matchmark.Generator
             w.Line();
             w.Open($"public bool TryGetValidatableParameterInfo(ParameterInfo parameterInfo, [global::System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {V}IValidatableInfo? validatableInfo)");
             w.Line("var type = parameterInfo.ParameterType;");
-            w.Line("validatableInfo = Types.ContainsKey(Element(type) ?? type) ? new Body(type, parameterInfo.Name ?? \"body\") : null;");
+            w.Line("if (Types.ContainsKey(Element(type) ?? type))");
+            w.Line("{");
+            w.Line("    validatableInfo = new Body(type, parameterInfo.Name ?? \"body\");");
+            w.Line("    return true;");
+            w.Line("}");
+            w.Line();
+            w.Line("// A path, query or header value, by its binding and its name in the spec, keyed as the spec names it.");
+            w.Line("var from = parameterInfo.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().Name is \"FromHeaderAttribute\" or \"FromQueryAttribute\" or \"FromRouteAttribute\");");
+            w.Line("var name = from?.GetType().GetProperty(\"Name\")?.GetValue(from) as string ?? parameterInfo.Name;");
+            w.Line("validatableInfo = from is not null && name is not null && Scalars.TryGetValue($\"{from.GetType().Name.Substring(4, from.GetType().Name.Length - 13).ToLowerInvariant()}:{name}\", out var attributes)");
+            w.Line("    ? new Scalar(type, name, attributes) : null;");
             w.Line("return validatableInfo is not null;");
             w.Close();
             w.Line();
@@ -632,7 +783,9 @@ namespace Matchmark.Generator
             w.Line("        continue;");
             w.Line("    }");
             w.Line();
-            w.Line("    var member = type is null ? null : Types.TryGetValue(Nullable.GetUnderlyingType(type) ?? type, out var info) ? info.Fields.FirstOrDefault(m => m.Clr == name) : null;");
+            w.Line("    // A union's member is found on the type that has it (Details is a CatDetails or a DogDetails).");
+            w.Line("    var declared = type is null ? null : Nullable.GetUnderlyingType(type) ?? type;");
+            w.Line("    var member = declared is null ? null : Types.Where(t => declared.IsAssignableFrom(t.Key)).SelectMany(t => t.Value.Fields).FirstOrDefault(m => m.Clr == name);");
             w.Line("    segments.Add((member?.Json ?? name) + (bracket < 0 ? string.Empty : segment.Substring(bracket)));");
             w.Line("    type = member?.Type;");
             w.Line("    if (bracket >= 0 && type is not null)");
@@ -667,6 +820,12 @@ namespace Matchmark.Generator
             w.Line();
             w.Line("    public Type Type { get; } = declaringType.GetProperty(name)!.PropertyType;");
             w.Line();
+            w.Line("    protected override global::System.ComponentModel.DataAnnotations.ValidationAttribute[] GetValidationAttributes() => attributes;");
+            w.Line("}");
+            w.Line();
+            w.Line("/// <summary>A path, query or header value, under its name in the spec, with the spec's constraints.</summary>");
+            w.Line($"private sealed class Scalar(Type type, string name, global::System.ComponentModel.DataAnnotations.ValidationAttribute[] attributes) : {V}ValidatableParameterInfo(type, name, name)");
+            w.Line("{");
             w.Line("    protected override global::System.ComponentModel.DataAnnotations.ValidationAttribute[] GetValidationAttributes() => attributes;");
             w.Line("}");
             w.Line();
@@ -708,25 +867,9 @@ namespace Matchmark.Generator
             w.Line($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{_apiName}Validation(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
             w.Line($"    => global::Microsoft.Extensions.DependencyInjection.ValidationServiceCollectionExtensions.AddValidation(services, options => options.Resolvers.Insert(0, new {_apiName}ValidationResolver()));");
             w.Close();
+            _resolverEmitted = true;
             return w.ToString();
         }
 
-        /// <summary>An attribute line, [global::…Range(1, 2, MinimumIsExclusive = true)], as an expression that constructs it.</summary>
-        private static string Construct(string attribute)
-        {
-            var inner = attribute.Substring(1, attribute.Length - 2);
-            var open = inner.IndexOf('(');
-            var name = (open < 0 ? inner : inner.Substring(0, open)) + "Attribute";
-            if (open < 0)
-            {
-                return $"new {name}()";
-            }
-
-            var args = inner.Substring(open + 1, inner.Length - open - 2);
-            var named = System.Text.RegularExpressions.Regex.Match(args, @"(, )?(?<named>[A-Z]\w+ = .*)$");
-            return named.Success
-                ? $"new {name}({args.Substring(0, named.Index)}) {{ {named.Groups["named"].Value} }}"
-                : $"new {name}({args})";
-        }
     }
 }

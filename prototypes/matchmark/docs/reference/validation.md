@@ -2,8 +2,8 @@
 
 **Planned** (decision Q45, [decisions](../decisions.md#second-round)): adopted now, with the spike as its first
 implementation step. The spike is **Built** ([what it found](#what-the-spike-found)), and so are the attributes on
-models and the resolver, as an opt-in (`Add{Api}Validation()`); making it the default and retiring Matchmark's own
-validator is next ([status](#status)). It specifies how
+models, the resolver, and .NET's layer as the default, endpoint parameters included; moving the client and retiring
+Matchmark's own validator wait on a question ([status](#status)). It specifies how
 Matchmark's per-object checks move onto .NET's own validation layer (`Microsoft.Extensions.Validation`, .NET 10), so a
 generated service validates the way any .NET service does, and Matchmark stops maintaining a validator of its own.
 Invariants across a collection, such as uniqueness, are not model validation: see [invariants](invariants.md#common-rules).
@@ -129,33 +129,23 @@ A contract-only package (`MatchmarkProblems="Owned"`) takes the package as its o
 | The spike | **Built** | `ValidationSpikeTests`; decision Q54 |
 | 1. Attributes on generated models | **Built** | `ModelAttributeTests`; every suite and the round-trip check pass |
 | 2. The resolver, opt-in | **Built** | `ModelAttributeTests` sends the same bad bodies with and without it: the same statuses and error keys. `SpecRegressionTests` runs the Pet Store's whole suite, random requests included, with it registered, and .NET's layer answers some bad bodies itself |
-| 3. The default, and `{Api}Validation` retired | Planned | **Built:** Matchmark.Validation, and rules as `IValidatableObject` (the same key, `$` for the body, and message). **Still needed:** see below |
+| 3. The default | **Built** | `Add{Api}()` registers the resolver: emitted in the same project, or found by the spec's type name (`{namespace}.{Api}ValidationResolver`) in a referenced contract project, the Pet Store's layout. Every suite passes on it. |
+| 3. Endpoint parameters | **Built** | The resolver describes the generated endpoints' path, query and header values (bound with `[FromRoute]`, `[FromQuery]`, `[FromHeader(Name = …)]`), keyed by their names in the spec, so one pass reports a bad header and a bad body together, as the Ledger's suite needs. A name two operations constrain differently is left to the endpoint's own check. |
+| 3. The client, and retiring `{Api}Validation` | Planned, on a question | The generated client runs outside ASP.NET; moving it means each client package depends on Microsoft.Extensions.Validation, still experimental ([question 3](../QUESTIONS.md)). Until then `{Api}Validation` stays: the client uses it, and the endpoints run it after .NET's layer, for what that layer doesn't see (forms, deep query objects, `x-dependencies`), and as the check when `Add{Api}()` isn't called. |
 
-What slice 3 still needs, each a change to generated code that every suite must pass:
-
-1. **The switch.** `Add{Api}()` calling `Add{Api}Validation()`. Within one project it's direct. Across a contract and a
-   server project (the Pet Store's layout), the server's generator must know the contract assembly has the resolver:
-   either the server part looks the type up among references by the spec's namespace, or the contract records it in an
-   assembly attribute the server part reads. The second keeps the generator incremental.
-2. **Endpoint parameters.** Path, query and header values are read and checked by the generated endpoint itself today;
-   on .NET's layer they become attributed handler parameters, with `x-dependencies` as an endpoint filter.
-3. **The client.** It validates before sending through `{Api}Validation`, and validates responses with it too; on
-   .NET's layer, a `ValidateContext` outside ASP.NET Core over the same resolver for requests. Responses stay with the
-   suite's checks.
-4. **Retirement.** `{Api}Validation` keeps only what the serializer needs (`RefuseNulls`, binding errors), and MM029 is
-   reported when the layer isn't referenced.
-
-What differs when .NET's layer answers, found by slice 2: the keys and statuses are the same, but the messages are
-.NET's (*The field sides must be between 3 and 12.*), the problem body has no `type` or `status`, and a field reports
-only its first broken attribute (Matchmark's validator reports each). The comparison also found two gaps in Matchmark's
+What differed when .NET's layer answered, found by slice 2, and how slice 3 closed it: the keys and statuses were the
+same, but the messages were .NET's (*The field sides must be between 3 and 12.*). The resolver now gives each attribute
+Matchmark's own message, and a range is one attribute per bound (so *Must be at least 3.*, and a one-sided bound is
+checked too); the scaffolded MVC controllers, which still answer with Matchmark's validator, read exactly the same.
+Without `AddProblemDetails()` the problem body has no `type` or `status`, as for any minimal API. The comparison also found two gaps in Matchmark's
 own validator, now fixed: it ignored `exclusiveMinimum` and `exclusiveMaximum`, and didn't check `format: byte`.
 
 ## Diagnostics
 
 | Id | Severity | When |
 |:--|:--|:--|
-| MM029 (Planned, with slice 3) | Info | `Microsoft.Extensions.Validation` isn't referenced, so the contract keeps Matchmark's own validator. |
-| MM030 | Warning | A schema keyword has no attribute (neither .NET's nor Matchmark.Validation's): it's checked by the suite only. |
+| MM029 (**Built**) | Info | `Microsoft.Extensions.Validation` isn't referenced, so the contract keeps Matchmark's own validator. |
+| MM030 (**Built**) | Info | A schema keyword has no attribute (neither .NET's nor Matchmark.Validation's): it's checked by the suite only. |
 
 ## The spike
 

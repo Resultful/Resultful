@@ -21,3 +21,12 @@ the files given to it as `AdditionalFiles`, so the other files have to reach it 
 (`MatchmarkSpecPart`), and Matchmark resolves references among them; (b) a `matchmark bundle` command writes one file
 that the project uses instead; (c) both, with (b) for CI and specs from elsewhere.
 *Assumption until then:* a split spec isn't read, and the measurement names it as the one OpenAPI example that fails.
+
+**3. Should the generated client validate on .NET's layer too?** The server now validates on Microsoft.Extensions.Validation
+(Q45). The client checks a request before sending it, and a response after, with Matchmark's own `{Api}Validation`. It
+runs outside ASP.NET, so moving it means every generated client package depends on the Microsoft.Extensions.Validation
+package, still marked experimental (`ASP0029`) in .NET 10, and a contract-only package (`MatchmarkProblems="Owned"`) would
+take it as its one new dependency.
+*What it decides:* whether `{Api}Validation` can be retired from generated code (validation.md, done when), or stays for
+the client and as the server's second pass.
+*Assumption until then:* the client keeps `{Api}Validation`; the server uses .NET's layer first and `{Api}Validation` after.

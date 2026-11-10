@@ -35,6 +35,12 @@ namespace Matchmark.Generator
             w.Open($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{_apiName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
             w.Line($"// A request that can't be bound throws, so Use{_apiName}Problems can answer it as the spec's validation problem.");
             w.Line("global::Microsoft.Extensions.DependencyInjection.OptionsServiceCollectionExtensions.Configure<RouteHandlerOptions>(services, options => options.ThrowOnBadRequest = true);");
+            if (_resolverEmitted || ReferencedResolver)
+            {
+                w.Line("// .NET's validation layer, with the spec's resolver first (validation.md): it answers a bad body before the handler runs.");
+                w.Line($"global::{_namespace}.{_apiName}ValidationExtensions.Add{_apiName}Validation(services);");
+            }
+
             w.Open("return global::Microsoft.Extensions.DependencyInjection.HttpJsonServiceExtensions.ConfigureHttpJsonOptions(services, options =>", braces: false);
             w.Line("{");
             w.Line("    options.SerializerOptions.NumberHandling = global::System.Text.Json.Serialization.JsonNumberHandling.Strict;");
