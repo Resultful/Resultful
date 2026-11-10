@@ -124,4 +124,5 @@ onto the shape is the model's next step ([model.md](docs/reference/model.md#its-
   with Resultful as an adapter) would widen who can adopt it. *Status:* done. Contracts use plain
   unions by default, and `MatchmarkOutcomes="Resultful"` is the opt-in adapter.
 - **`default(Result<,>)`** reads as a success holding `null` (README, finding 6). That is a bug in Resultful itself,
-  not in the prototype, and is worth an issue of its own.
+  not in the prototype, and is worth an issue of its own. *Status:* the issue is drafted in
+  [docs/resultful-default-issue.md](docs/resultful-default-issue.md); filing it on Resultful/Resultful is the maintainer's step.
