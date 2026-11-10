@@ -539,11 +539,12 @@ namespace Matchmark.Generator
                 yield break;
             }
 
-            // A string enum the model keeps as text (an enum schema of its own is a C# enum, which needs none).
-            if (schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String))
+            // A string enum the model keeps as text (an enum schema of its own is a C# enum, which needs none), or a const.
+            var values = Allowed(schema);
+            if (values.Count > 0)
             {
                 // An optional or nullable value may be absent: AllowedValues refuses null unless it's listed.
-                yield return ("AllowedValues", string.Join(", ", values.Select(v => Naming.Literal(v!.GetValue<string>())).Concat(nullable ? NullValue : Array.Empty<string>())), string.Empty);
+                yield return ("AllowedValues", string.Join(", ", values.Select(Naming.Literal).Concat(nullable ? NullValue : Array.Empty<string>())), string.Empty);
             }
 
             switch (schema.Format)
@@ -623,9 +624,8 @@ namespace Matchmark.Generator
                 yield break;
             }
 
-            if (schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String))
+            if (Allowed(schema) is { Count: > 0 } texts)
             {
-                var texts = values.Select(v => v!.GetValue<string>()).ToList();
                 var allowed = texts.Select(Naming.Literal).Concat(nullable ? NullValue : Array.Empty<string>());
                 yield return $"new {Ns}AllowedValuesAttribute({string.Join(", ", allowed)}) {{ {Message("Must be one of " + string.Join(", ", texts) + ".")} }}";
             }
@@ -643,6 +643,12 @@ namespace Matchmark.Generator
                     break;
             }
         }
+
+        /// <summary>The string values a property may take, from a string enum or a const; empty when it isn't so limited.</summary>
+        private static List<string> Allowed(IOpenApiSchema schema)
+            => schema.Enum is { Count: > 0 } values && values.All(v => v?.GetValueKind() == System.Text.Json.JsonValueKind.String)
+                ? values.Select(v => v!.GetValue<string>()).ToList()
+                : schema.Const is { } constant ? new List<string> { constant } : new List<string>();
 
         /// <summary>The keywords on a property that no attribute on .NET's layer checks (MM030): only the suite does.</summary>
         private IEnumerable<string> Unchecked(IOpenApiSchema schema)
@@ -663,11 +669,6 @@ namespace Matchmark.Generator
                 {
                     yield return "minProperties or maxProperties";
                 }
-            }
-
-            if (schema.Const is not null)
-            {
-                yield return "const";
             }
 
             if (schema.Not is not null)

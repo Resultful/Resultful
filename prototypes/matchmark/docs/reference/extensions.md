@@ -15,7 +15,7 @@ a spec you don't own needn't change ([LAYERS.md](../LAYERS.md)).
 All are **Built**. Without `Matchmark.Rules` referenced, the generator reports declared rules as not enforced
 (`MM025`).
 
-**Planned** (Q44): a fifth scope, invariants across a whole collection ([invariants](invariants.md)):
+**Built** (Q44): a fifth scope, invariants across a whole collection ([invariants](invariants.md)):
 
 | Extension | On | Says |
 |:--|:--|:--|
@@ -27,7 +27,7 @@ All are **Built**. Without `Matchmark.Rules` referenced, the generator reports d
 | `x-matchmark-limit` (**Built**) | a schema | at most n resources per scope |
 | `x-matchmark-order` (**Built**) | a list operation | the list is sorted this way |
 
-And `x-matchmark-rules` moves onto .NET's validation layer as `IValidatableObject` ([validation](validation.md)).
+And `x-matchmark-rules` runs on .NET's validation layer too, as `IValidatableObject` (**Built**, [validation](validation.md)).
 
 ## x-matchmark-rules
 

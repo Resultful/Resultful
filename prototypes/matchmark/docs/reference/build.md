@@ -54,7 +54,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Fakes` | `Matchmark.Fakes.Scenario` | The generated fake and scenario builder, in the `Contract` part. |
 | `Matchmark.Testing` | `Matchmark.Testing.RegressionSuite` | The `Regression` part. |
 | `Matchmark.Rules` | `Matchmark.Rules.Cel` | Enforcement of `x-matchmark-rules`, `x-matchmark-transitions` and `x-dependencies` in the server and client (`MM025` without it). |
-| `Microsoft.Extensions.Validation` | **Planned** (Q45) | Validation attributes on models, a generated `{Api}ValidationResolver`, and `AddValidation()` in place of Matchmark's own validator ([validation](validation.md)). |
+| `Microsoft.Extensions.Validation` | **Built** (Q45) | Validation attributes on models, a generated `{Api}ValidationResolver`, registered by `Add{Api}()` ahead of Matchmark's own validator ([validation](validation.md)). In the ASP.NET Core shared framework from .NET 10. |
 
 ## Packages
 
@@ -67,7 +67,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Conformance` | Built | `UseMatchmarkConformance(spec)` middleware, in observe or enforce mode. |
 | `Matchmark.Cli` | Built | The `matchmark` dotnet tool. |
 | Container image | Planned (Q17) | The CLI, for teams without the .NET SDK. |
-| `Matchmark.Validation` | Planned (Q45) | Validation attributes .NET lacks: `[MultipleOf]`, `[UniqueItems]`, `[PropertyCount]`. |
+| `Matchmark.Validation` | **Built** (Q45) | Validation attributes .NET lacks: `[MultipleOf]`, `[UniqueItems]`, `[PropertyCount]`. Generated onto models when referenced. |
 
 Generated code depends on Resultful and OneOf today. Plain unions by default, with Resultful as an opt-in adapter, is
 planned (Q12, roadmap step 1).

@@ -1,7 +1,7 @@
 # Validation on .NET's validation layer
 
-**Planned** (decision Q45, [decisions](../decisions.md#second-round)): adopted now, with the spike as its first
-implementation step. The spike is **Built** ([what it found](#what-the-spike-found)), and so are the attributes on
+**Built, but for the client** (decision Q45, [decisions](../decisions.md#second-round)): adopted, with the spike as its
+first implementation step. The spike is **Built** ([what it found](#what-the-spike-found)), and so are the attributes on
 models, the resolver, and .NET's layer as the default, endpoint parameters included; moving the client and retiring
 Matchmark's own validator wait on a question ([status](#status)). It specifies how
 Matchmark's per-object checks move onto .NET's own validation layer (`Microsoft.Extensions.Validation`, .NET 10), so a
@@ -68,7 +68,7 @@ already reads, written in the other direction:
 | `format: email` | `[EmailAddress]` | **Built**. .NET's check is looser than a full address grammar |
 | `format: uri` | `[Url]` | **Built** |
 | `format: byte` | `[Base64String]` | **Built** |
-| `const` | `[AllowedValues(value)]` | Planned |
+| `const` (string) | `[AllowedValues(value)]` | **Built**; with `null` too when the property may be absent |
 | `multipleOf` | `[MultipleOf(step)]` | **Built**; Matchmark.Validation, compared in decimal |
 | `uniqueItems` | `[UniqueItems]` | **Built**; Matchmark.Validation, items compared as JSON |
 | `minProperties`, `maxProperties` (maps) | `[PropertyCount(min, max)]` | **Built**; Matchmark.Validation, -1 for no bound |
@@ -101,7 +101,7 @@ generated type is validated, and its errors re-keyed from C# paths to the spec's
 services.AddValidation(options => options.Resolvers.Insert(0, new PetStoreValidationResolver()));
 ```
 
-**Planned:** `Add{Api}()` calling it, the switch that makes it the default.
+**Built:** `Add{Api}()` calls it, so it's the default ([status](#status)).
 
 Generated endpoints stop calling `{Api}Validation` and rely on the validation filter. **Error keys stay as they are:**
 JSON paths in the spec's names (`details.livesLeft`, `[0].name`), so the suite's `RejectionNamesTheValue` check and

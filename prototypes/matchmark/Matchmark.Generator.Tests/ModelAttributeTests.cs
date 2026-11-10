@@ -175,10 +175,19 @@ public sealed class ModelAttributeTests
     public void A_keyword_no_attribute_checks_is_reported()
     {
         var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shapes-const.json");
-        File.WriteAllText(path, Spec.Replace("\"kind\": { \"type\": \"string\", \"enum\": [\"flat\", \"solid\"] }", "\"kind\": { \"type\": \"string\", \"const\": \"flat\" }", StringComparison.Ordinal));
+        File.WriteAllText(path, Spec.Replace("\"kind\": { \"type\": \"string\", \"enum\": [\"flat\", \"solid\"] }", "\"kind\": { \"type\": \"string\", \"not\": { \"const\": \"liquid\" } }", StringComparison.Ordinal));
         var diagnostics = GeneratedServer.Build("Shapes", path, [], Source, withRules: true).Diagnostics;
-        diagnostics.Should().Contain(d => d.Id == "MM030" && d.GetMessage(null).StartsWith("Shape.kind has const", StringComparison.Ordinal));
+        diagnostics.Should().Contain(d => d.Id == "MM030" && d.GetMessage(null).StartsWith("Shape.kind has not", StringComparison.Ordinal));
         diagnostics.Should().NotContain(d => d.Id == "MM030" && d.GetMessage(null).StartsWith("Shape.step", StringComparison.Ordinal), "Matchmark.Validation is referenced, so multipleOf is checked");
+    }
+
+    [Test]
+    public void A_const_is_the_one_allowed_value()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shapes-only-flat.json");
+        File.WriteAllText(path, Spec.Replace("\"kind\": { \"type\": \"string\", \"enum\": [\"flat\", \"solid\"] }", "\"kind\": { \"type\": \"string\", \"const\": \"flat\" }", StringComparison.Ordinal));
+        var shape = GeneratedServer.Build("Shapes", path, [], Source, withRules: true).Assembly.GetTypes().Single(t => t.Name == "Shape");
+        shape.GetProperty("Kind")!.GetCustomAttribute<AllowedValuesAttribute>()!.Values.Should().Equal(new object?[] { "flat", null });
     }
 
     [Test]
