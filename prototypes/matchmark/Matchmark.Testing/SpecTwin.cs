@@ -208,7 +208,8 @@ public sealed class SpecTwin : HttpMessageHandler
 
             foreach (var problem in _validator.Validate(Typed(text, parameter.Schema), parameter.Schema, parameter.Name, Direction.Request))
             {
-                Error(errors, problem);
+                // Keyed by the parameter, whatever it's called: one named "value" or "the" isn't the body.
+                Error(errors, problem.StartsWith(parameter.Name, StringComparison.Ordinal) ? problem.Split(' ')[0] : parameter.Name, problem);
             }
         }
 

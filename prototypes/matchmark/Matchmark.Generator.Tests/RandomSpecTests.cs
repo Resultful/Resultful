@@ -34,6 +34,27 @@ public sealed class RandomSpecTests
         }
     }
 
+    [TestCaseSource(nameof(Seeds))]
+    public async Task A_random_spec_s_twin_passes_its_own_suite(int seed)
+    {
+        // The spec, exercised as well as compiled: its generated suite against the twin made from it alone. A failure is
+        // the engine and the twin disagreeing about the same document, which is a bug in one of them.
+        var json = Matchmark.Generator.SpecJson.Normalize(Random(new Random(seed)).ToJsonString(), "random.json");
+        if (Environment.GetEnvironmentVariable("MATCHMARK_RANDOM_DUMP") is { } dump)
+        {
+            File.WriteAllText(Path.Combine(dump, $"random-{seed}.json"), json);
+        }
+
+        var suite = Matchmark.Testing.RegressionSuite.FromJson(json);
+        using var client = new HttpClient(new Matchmark.Testing.SpecTwin(json)) { BaseAddress = new Uri("http://twin/") };
+
+        var report = await suite.RunAsync(client, new Matchmark.Testing.RegressionOptions());
+
+        TestContext.Out.WriteLine($"seed {seed}: {report.Cases.Count} cases");
+        report.Cases.Should().NotBeEmpty("the suite examined the spec");
+        report.Failures.Should().BeEmpty($"seed {seed}:\n{report}");
+    }
+
     /// <summary>A small, valid spec: 1 to 4 tags, a few operations each, components shared between them.</summary>
     private static JsonObject Random(Random random)
     {
@@ -79,9 +100,21 @@ public sealed class RandomSpecTests
 
         if (names.Count >= 2 && random.Next(2) == 0)
         {
+            // A union whose members are disjoint, each with its own required kind: members that overlap (one's every value
+            // also another's) make a oneOf no value satisfies, which is the spec's fault, not the engine's or the twin's.
+            foreach (var (member, kind) in new[] { ("EitherA", "a"), ("EitherB", "b") })
+            {
+                schemas[member] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["required"] = new JsonArray("kind"),
+                    ["properties"] = new JsonObject { ["kind"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(kind) }, [$"{Word()}1"] = Scalar() },
+                };
+            }
+
             schemas["Either"] = new JsonObject
             {
-                ["oneOf"] = new JsonArray(names.Take(2).Select(n => (JsonNode?)new JsonObject { ["$ref"] = $"#/components/schemas/{n}" }).ToArray()),
+                ["oneOf"] = new JsonArray(new[] { "EitherA", "EitherB" }.Select(n => (JsonNode?)new JsonObject { ["$ref"] = $"#/components/schemas/{n}" }).ToArray()),
             };
         }
 
