@@ -30,3 +30,13 @@ take it as its one new dependency.
 *What it decides:* whether `{Api}Validation` can be retired from generated code (validation.md, done when), or stays for
 the client and as the server's second pass.
 *Assumption until then:* the client keeps `{Api}Validation`; the server uses .NET's layer first and `{Api}Validation` after.
+
+**4. May the generated API split by tag, for incremental generation?** The model's last slice (model.md: an edit to one
+tag regenerates only that tag) needs each tag's output from an equatable per-tag model, so Roslyn can skip unchanged tags.
+Today one `Map{Api}()` maps every operation and one `{Api}Endpoints` class holds them; per-tag output means
+`Map{Api}{Tag}()` per tag, with `Map{Api}()` calling them, and the shared parts (models, validation, outcomes) emitted
+from the components alone.
+*What it decides:* whether generated servers gain per-tag registration methods (an addition to the generated API, not a
+removal), and whether the remaining outputs move onto the model as functions of it before or with this.
+*Assumption until then:* one emission per spec, as now; the model's other slices (split by output, `ApiModel`) stand.
+
