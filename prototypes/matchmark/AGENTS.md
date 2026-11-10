@@ -61,6 +61,7 @@ From the repository root:
 | Derived evidence | `MATCHMARK_DERIVED=<dir> dotnet test Matchmark.Generator.Tests -c Release --filter DerivedEvidenceTests` | Writes `{sample}.model.json`, `.api.txt`, `.g.cs`. Diff two runs to review a change |
 | The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors, applying an overlay through the readers in the package |
 | Refresh the specifications | `sh specs/vendor.sh` | Re-vendors `specs/` at the pins in the script and rewrites `specs/SOURCES.md`. Moving a pin is a change of its own, with the reader suite run before and after |
+| The agent loop | `.github/workflows/agent-loop.yml`, on GitHub with an `ANTHROPIC_API_KEY` secret | Runs the writer on the gate's training tasks. Locally, the gate alone: `dotnet test Matchmark.Generator.Tests -c Release --filter AgentLoopTests` |
 | The image | `docker build --tag matchmark .` | Then the smoke tests in the `image` job of `.github/workflows/ci.yml` |
 
 The ledgers (`corpus-ledger.txt`, `large-ledger.txt`, `examples-ledger.txt`) are written to
@@ -90,6 +91,7 @@ Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.
   CI, `.github/workflows/ci.yml`, runs only once the folder is a repository's root, so none of its jobs has run on
   GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally, and the
   whole suite passes in a copy of this folder on its own.
+- **The agent loop's key**: an `ANTHROPIC_API_KEY` secret in the new repository, for `agent-loop.yml`.
 - **Questions 1 to 4** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
 
 ## Blocked
