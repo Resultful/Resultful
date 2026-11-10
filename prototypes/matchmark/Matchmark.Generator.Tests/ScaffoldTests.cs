@@ -125,7 +125,7 @@ public sealed class ScaffoldTests
 
     private static IReadOnlyDictionary<string, string> Scaffold(bool controllers)
     {
-        var files = Scaffolder.Scaffold(File.ReadAllText(Spec), "petstore.yaml", "PetStore.Api", "PetStore.Scaffolded", "PetStore", controllers, out var warnings);
+        var files = Scaffolder.Scaffold(File.ReadAllText(Spec), "petstore.yaml", "PetStore.Api", "PetStore.Scaffolded", "PetStore", controllers, [], plainOutcomes: false, out var warnings);
         warnings.Should().BeEmpty();
         return files;
     }

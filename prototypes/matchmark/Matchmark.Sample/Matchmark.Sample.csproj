@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <!-- The service implements the contract: it generates only the endpoints and the OpenAPI configuration. -->
-    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Server" />
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkOutcomes="Resultful" MatchmarkParts="Server" />
   </ItemGroup>
 
   <ItemGroup>

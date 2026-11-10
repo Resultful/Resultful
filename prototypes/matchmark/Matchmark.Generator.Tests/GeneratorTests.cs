@@ -140,7 +140,11 @@ public sealed class GeneratorTests
 
         diagnostics.Should().BeEmpty();
         sources["T.Handlers.g.cs"].Should().Contain("Task<Result<Thing, GetThingError>> GetThing(global::System.Guid id, CancellationToken cancellationToken);");
-        sources["T.Responses.g.cs"].Should().Contain("public sealed class GetThingError : OneOfBase<GetThingNotFound, GetThingConflict>");
+        // Plain outcomes (Q12, the default): the union is the contract's own, with OneOf's Match, and Result is too.
+        sources["T.Responses.g.cs"].Should().Contain("public sealed class GetThingError").And.NotContain("OneOf")
+            .And.Contain("public TResult Match<TResult>(global::System.Func<GetThingNotFound, TResult> f0, global::System.Func<GetThingConflict, TResult> f1)");
+        sources["T.Outcomes.g.cs"].Should().Contain("public readonly struct Result<T, TError>").And.Contain("public static class Result");
+        string.Concat(sources.Values).Should().NotContain("Resultful", "a plain contract depends on neither Resultful nor OneOf");
         sources["T.Endpoints.g.cs"].Should().Contain("Results<Ok<Thing>, NotFound, Conflict>");
     }
 
@@ -194,8 +198,8 @@ public sealed class GeneratorTests
             .And.Contain("public static OpenApiOptions AddTSchemas(this OpenApiOptions options)");
     }
 
-    [TestCase(null, new[] { "Client", "Endpoints", "Fake", "Handlers", "Models", "Responses", "Validation" })]
-    [TestCase("Contract", new[] { "Client", "Fake", "Handlers", "Models", "Responses", "Validation" })]
+    [TestCase(null, new[] { "Client", "Endpoints", "Fake", "Handlers", "Models", "Outcomes", "Responses", "Validation" })]
+    [TestCase("Contract", new[] { "Client", "Fake", "Handlers", "Models", "Outcomes", "Responses", "Validation" })]
     [TestCase("Server", new[] { "Endpoints" })]
     [TestCase("Server,FakeServer", new[] { "Endpoints", "FakeHosting" })]
     [TestCase("Server;FakeServer", new[] { "Endpoints", "FakeHosting" })]

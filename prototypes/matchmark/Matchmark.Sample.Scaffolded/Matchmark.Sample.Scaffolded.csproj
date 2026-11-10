@@ -18,7 +18,7 @@
       its operationId, route and documented responses, and every other action must be left out of the OpenAPI description.
       Nothing is generated here.
     -->
-    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Verify" />
+    <AdditionalFiles Include="../Matchmark.Sample.Contract/petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkOutcomes="Resultful" MatchmarkParts="Verify" />
   </ItemGroup>
 
   <ItemGroup>

@@ -77,7 +77,7 @@ public sealed class AsyncApiGenerationTests
     [Test]
     public async Task Each_message_is_typed_and_a_generated_consumer_passes_the_suite_and_takes_what_the_sender_publishes()
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Events", Spec, [], Consumer, withRules: false);
+        var (assembly, diagnostics) = GeneratedServer.Build("Events", Spec, [], Consumer, withRules: false, resultful: true);
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty("every operation's message is generated");
         assembly.GetType("Events.Api.Redelivery")!.GetProperty("Attempts")!.PropertyType.Should().Be<int>();
         assembly.GetType("Events.Api.Notification")!.GetProperty("SentAt")!.PropertyType.Should().Be<DateTimeOffset>();

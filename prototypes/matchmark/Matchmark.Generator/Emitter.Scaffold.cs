@@ -62,8 +62,8 @@ namespace Matchmark.Generator
         private string EmitReferenceHandlers(string tag, List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System", "System.Collections.Generic", "System.Globalization", "System.Threading", "System.Threading.Tasks",
-                "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc", "Resultful");
+            w.Usings(OutcomeUsings("System", "System.Collections.Generic", "System.Globalization", "System.Threading", "System.Threading.Tasks",
+                "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc"));
             var name = $"{Naming.Pascal(tag)}Handlers";
             w.Line("/// <summary>");
             w.Line($"/// The reference implementation of <see cref=\"{HandlerInterface(tag)}\"/>: every operation answers with its first documented");
@@ -191,8 +191,8 @@ namespace Matchmark.Generator
         private string EmitController(string tag, List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("System.Collections.Generic", "System.Threading", "System.Threading.Tasks", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc",
-                "Microsoft.AspNetCore.Mvc.Infrastructure", "Microsoft.AspNetCore.Mvc.ModelBinding", "Microsoft.Extensions.DependencyInjection", "Resultful");
+            w.Usings(OutcomeUsings("System.Collections.Generic", "System.Threading", "System.Threading.Tasks", "Microsoft.AspNetCore.Http", "Microsoft.AspNetCore.Mvc",
+                "Microsoft.AspNetCore.Mvc.Infrastructure", "Microsoft.AspNetCore.Mvc.ModelBinding", "Microsoft.Extensions.DependencyInjection"));
             var name = $"{Naming.Pascal(tag)}Controller";
             w.Line("/// <summary>");
             w.Line($"/// The <c>{tag}</c> operations as an ASP.NET Core controller. Each action calls <see cref=\"{HandlerInterface(tag)}\"/> and turns");
@@ -549,20 +549,33 @@ private sealed class MissingDiscriminator : IExceptionFilter
             out IReadOnlyList<string> warnings)
             => Scaffold(specText, specName, contractNamespace, projectNamespace, apiName, controllers, Array.Empty<(string, string)>(), out warnings);
 
-        /// <summary>The same, with overlays applied to the spec first.</summary>
+        /// <summary>
+        /// The same, with overlays, for a contract whose outcomes are plain (its own, the default) or on Resultful
+        /// (MatchmarkOutcomes="Resultful"): the owned code uses whichever the contract has.
+        /// </summary>
         public static IReadOnlyDictionary<string, string> Scaffold(
             string specText, string specName, string contractNamespace, string projectNamespace, string apiName, bool controllers,
-            IEnumerable<(string Text, string Path)> overlays, out IReadOnlyList<string> warnings)
+            IEnumerable<(string Text, string Path)> overlays, bool plainOutcomes, out IReadOnlyList<string> warnings)
         {
             var document = SpecReader.Read(specText, specName, out var problems, overlays)
                 ?? throw new InvalidOperationException($"{specName} could not be read: {string.Join("; ", problems)}");
-            var emitter = new Emitter(document, projectNamespace, apiName, Microsoft.CodeAnalysis.Location.None, describesItself: true);
+            var emitter = new Emitter(document, projectNamespace, apiName, Microsoft.CodeAnalysis.Location.None, describesItself: true)
+            {
+                PlainOutcomes = plainOutcomes,
+                OutcomesNamespace = contractNamespace,
+            };
             var files = emitter.Scaffold(contractNamespace, specName, controllers);
             warnings = problems.Select(p => $"the reader objected: {p}")
                 .Concat(emitter.Diagnostics.Select(d => d.GetMessage(CultureInfo.InvariantCulture)))
                 .ToList();
             return files;
         }
+
+        /// <summary>The same, with overlays applied to the spec first.</summary>
+        public static IReadOnlyDictionary<string, string> Scaffold(
+            string specText, string specName, string contractNamespace, string projectNamespace, string apiName, bool controllers,
+            IEnumerable<(string Text, string Path)> overlays, out IReadOnlyList<string> warnings)
+            => Scaffold(specText, specName, contractNamespace, projectNamespace, apiName, controllers, overlays, plainOutcomes: true, out warnings);
     }
 }
 

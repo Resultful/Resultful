@@ -17,7 +17,8 @@ namespace Matchmark.Generator
         private string EmitResponses(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings("OneOf");
+            // Usings also writes the namespace: none for plain unions, which are self-contained.
+            w.Usings(PlainOutcomes ? System.Array.Empty<string>() : OneOfUsing);
 
             foreach (var operation in operations)
             {
@@ -35,7 +36,7 @@ namespace Matchmark.Generator
             return w.ToString();
         }
 
-        private static void EmitUnion(CodeWriter w, Operation operation, string unionName, List<Response> cases, string summary)
+        private void EmitUnion(CodeWriter w, Operation operation, string unionName, List<Response> cases, string summary)
         {
             foreach (var response in cases)
             {
@@ -59,8 +60,16 @@ namespace Matchmark.Generator
 
             var caseTypes = string.Join(", ", cases.Select(c => operation.Name + c.CaseName));
             w.Line($"/// <summary>{summary} of <c>{operation.Id}</c>, from the spec.</summary>");
-            w.Open($"public sealed class {unionName} : OneOfBase<{caseTypes}>");
-            w.Line($"private {unionName}(OneOf<{caseTypes}> value) : base(value) {{ }}");
+            if (PlainOutcomes)
+            {
+                EmitPlainUnion(w, unionName, cases.Select(c => operation.Name + c.CaseName).ToList());
+            }
+            else
+            {
+                w.Open($"public sealed class {unionName} : OneOfBase<{caseTypes}>");
+                w.Line($"private {unionName}(OneOf<{caseTypes}> value) : base(value) {{ }}");
+            }
+
             foreach (var response in cases)
             {
                 var caseName = operation.Name + response.CaseName;

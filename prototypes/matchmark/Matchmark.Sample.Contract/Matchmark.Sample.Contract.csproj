@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkParts="Contract" />
+    <AdditionalFiles Include="petstore.yaml" Matchmark="true" MatchmarkNamespace="PetStore.Api" MatchmarkApiName="PetStore" MatchmarkOutcomes="Resultful" MatchmarkParts="Contract" />
   </ItemGroup>
 
   <ItemGroup>

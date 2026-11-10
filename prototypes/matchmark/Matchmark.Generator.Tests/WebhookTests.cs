@@ -71,7 +71,7 @@ public sealed class WebhookTests
     [Test]
     public async Task A_generated_receiver_passes_the_webhook_suite_and_receives_what_the_sender_sends()
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Orders", Path.Combine(Samples, "openapi.yaml"), [], Receiver, withRules: false);
+        var (assembly, diagnostics) = GeneratedServer.Build("Orders", Path.Combine(Samples, "openapi.yaml"), [], Receiver, withRules: false, resultful: true);
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty("webhooks are generated, not skipped, and this one documents its 400");
         var consumer = assembly.GetType("Orders.Api.Consumer")!;
         var app = await (Task<WebApplication>)consumer.GetMethod("StartAsync")!.Invoke(null, null)!;
