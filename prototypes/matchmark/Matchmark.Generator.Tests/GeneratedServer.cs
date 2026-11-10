@@ -21,6 +21,17 @@ internal static class GeneratedServer
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources) BuildWithSources(
         string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
     {
+        var (assembly, diagnostics, sources, _) = BuildWithWarnings(api, spec, overlays, source, withRules, resultful, clientOnNet);
+        return (assembly, diagnostics, sources);
+    }
+
+    /// <summary>
+    /// As <see cref="BuildWithSources"/>, with the compiler's warnings in the generated sources too, at every warning level
+    /// (nullable included): the emitted-code gate's input.
+    /// </summary>
+    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources, IReadOnlyList<Diagnostic> Warnings) BuildWithWarnings(
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
+    {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
             .Append(typeof(Resultful.Unit).Assembly.Location)
@@ -31,7 +42,7 @@ internal static class GeneratedServer
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path));
         var parse = new CSharpParseOptions(LanguageVersion.Latest);
         var compilation = CSharpCompilation.Create($"{api}{(withRules ? "WithRules" : "WithoutRules")}{Guid.NewGuid():N}", [CSharpSyntaxTree.ParseText(source, parse)], references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable, warningLevel: 9999));
         var texts = new[] { spec }.Concat(overlays).Select(path => (AdditionalText)new Text(path, File.ReadAllText(path))).ToArray();
         GeneratorDriver driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, resultful, clientOnNet), parseOptions: parse);
 
@@ -43,7 +54,8 @@ internal static class GeneratedServer
         var emitted = generated.Emit(stream);
         emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString()).Should().BeEmpty();
         stream.Position = 0;
-        return (AssemblyLoadContext.Default.LoadFromStream(stream), diagnostics.ToList(), sources);
+        var warnings = emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Warning && d.Location.SourceTree is { } tree && !compilation.SyntaxTrees.Contains(tree)).ToList();
+        return (AssemblyLoadContext.Default.LoadFromStream(stream), diagnostics.ToList(), sources, warnings);
     }
 
     private sealed class Text(string path, string text) : AdditionalText
