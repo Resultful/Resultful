@@ -3,4 +3,3 @@
 **/.git/
 **/TestResults/
 samples/large/*.json
-samples/examples/*/

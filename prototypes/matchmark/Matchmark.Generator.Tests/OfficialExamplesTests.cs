@@ -6,24 +6,26 @@ using NUnit.Framework;
 namespace Matchmark.Generator.Tests;
 
 /// <summary>
-/// Full support, measured (decisions Q20, Q51): the specifications' own examples, fetched at pinned commits by
-/// samples/examples/fetch.sh, read, generated and compiled. Each kind writes its line to examples-ledger.txt: the numbers
-/// should only rise, and what doesn't pass is named. Runs when MATCHMARK_EXAMPLES names the fetched directory.
+/// Full support, measured (decisions Q20, Q51, Q56): the specifications' own examples, vendored at pinned commits in
+/// specs/ (specs/SOURCES.md), read, generated and compiled. Each kind writes its line to examples-ledger.txt: the numbers
+/// should only rise, and what doesn't pass is named.
 /// </summary>
 [TestFixture]
 public sealed class OfficialExamplesTests
 {
-    private static readonly string? Root = Environment.GetEnvironmentVariable("MATCHMARK_EXAMPLES");
+    private static readonly string Specs = Path.GetFullPath(Path.Combine(Here(), "..", "specs"));
 
-    private static string Folder(string repository, string path)
+    /// <summary>A vendored folder, by the repository it came from and its path there.</summary>
+    private static string Folder(string repository, string path) => repository switch
     {
-        if (Root is null || !Directory.Exists(Path.Combine(Root, repository)))
-        {
-            Assert.Ignore("Set MATCHMARK_EXAMPLES to a directory fetched by samples/examples/fetch.sh.");
-        }
+        "OAI_learn.openapis.org" => Path.Combine(Specs, "openapi", path),
+        "asyncapi_spec" => Path.Combine(Specs, "asyncapi", path),
+        "OAI_Arazzo-Specification" => Path.Combine(Specs, "arazzo", path),
+        "OAI_Overlay-Specification" => Path.Combine(Specs, "overlay", path),
+        _ => throw new ArgumentException($"No vendored {repository}.", nameof(repository)),
+    };
 
-        return Path.Combine(Root!, repository, path);
-    }
+    private static string Here([System.Runtime.CompilerServices.CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 
     private static void Ledger(string kind, int passed, int total, IEnumerable<string> failures)
     {
