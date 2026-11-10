@@ -42,9 +42,9 @@ could take it and dropped once upstream releases it (Q33).
 | Format | Library | Licence | Covers | Fork adds | Status |
 |:--|:--|:--|:--|:--|:--|
 | OpenAPI | [Microsoft.OpenApi](https://github.com/microsoft/OpenAPI.NET) 3.11 | MIT | 2.0 to 3.2 | nothing | **Built** |
-| AsyncAPI | [`asyncapi/net-sdk`](https://github.com/asyncapi/net-sdk) 3.0.6 (formerly Neuroglia.AsyncApi) | Apache 2.0 | v2, v3.0 | 3.1 | **Planned** (Q30) |
-| Arazzo | [BinkyLabs.OpenApi.Arazzo](https://github.com/BinkyLabs/openapi-arazzo-dotnet) 1.0.0-preview.4 | MIT | 1.0 | 1.1 | **Planned** (Q31) |
-| Overlay | [BinkyLabs.OpenApi.Overlays](https://github.com/BinkyLabs/openapi-overlays-dotnet) 3.0.0-preview.8 | MIT | 1.0, 1.1 | 1.2 | **Planned** (Q31) |
+| AsyncAPI | [`asyncapi/net-sdk`](https://github.com/asyncapi/net-sdk) 3.0.6 (formerly Neuroglia.AsyncApi) | Apache 2.0 | v2, v3.0; reads the corpus's 3.1 document too | 3.1 | **Measured** (`ReaderLibraryTests`): reads every corpus document. Not adopted: net8 and up only (question 5) |
+| Arazzo | [BinkyLabs.OpenApi.Arazzo](https://github.com/BinkyLabs/openapi-arazzo-dotnet) 1.0.0-preview.4 | MIT | 1.0 | 1.1 | **Measured** (`ReaderLibraryTests`): reads the 1.0 documents, refuses every 1.1 one. Not adopted: net8 and up only, no 1.1 (question 5) |
+| Overlay | [BinkyLabs.OpenApi.Overlays](https://github.com/BinkyLabs/openapi-overlays-dotnet) 3.0.0 | MIT, but depends on JsonPath.Net 3 and JsonPointer.Net 7 (Open Source Maintenance Fee EULA) | 1.0, 1.1 | 1.2 | **Set aside** under the licence rule: Matchmark's own reader stays (Q31's fallback; question 5) |
 
 - The AsyncAPI SDK reads v2 and v3 but doesn't convert between them, and the official converter is a JavaScript
   package. AsyncAPI 2.x is forward-ported by `AsyncApiUpgrade`, Matchmark's C# port of the official guide *Migrating to

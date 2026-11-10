@@ -69,8 +69,9 @@ Each item links to the page that defines it. Update that page as items are built
 2. **The engine on the model**: once question 1 is decided. [model.md: Status](docs/reference/model.md#status).
 3. **Testing, next to take**: random specs regressed against the twin as well as compiled, and the oracle over the
    large specs' schemas. [testing.md](docs/reference/testing.md).
-4. **Verify** (roadmap step 3): every version read through the standard libraries' forks. This is blocked on the forks
-   (below).
+4. **Verify** (roadmap step 3): every version read through the standard libraries. The libraries are measured against
+   the corpus (`ReaderLibraryTests`). Where they can run is question 5: none targets netstandard2.0 for the generator,
+   BinkyLabs Arazzo has no 1.1, and BinkyLabs Overlays fails the licence rule.
 5. **Flip** (roadmap step 5): AsyncAPI consumers and producers as typed interfaces with one broker adapter, then a
    trial end to end on a real service with a frontend.
 6. **Later layers** (roadmap step 6), as `VISION.md` lists them.
@@ -83,7 +84,7 @@ Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.
   CI, `.github/workflows/ci.yml`, runs only once the folder is a repository's root, so none of its jobs has run on
   GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally, and the
   whole suite passes in a copy of this folder on its own.
-- **Questions 1 to 4** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
+- **Questions 1 to 5** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
 
 ## Blocked
 
