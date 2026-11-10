@@ -288,10 +288,23 @@ public sealed class SpecTwin : HttpMessageHandler
         var totals = conserved.Count > 0 && (_behaviours.GetValueOrDefault(operation.Id)?.Count ?? 0) > 0 ? Totals() : null;
         foreach (var behaviour in _behaviours.GetValueOrDefault(operation.Id) ?? [])
         {
-            var call = new TwinCall(operation.Id, values, query, json, _collections.ToDictionary(c => c.Key,
-                c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => i.Resource).ToList(), StringComparer.Ordinal));
+            // Copies: owned code reads what the twin holds, and changes it only by the effects its answer declares.
+            var call = new TwinCall(operation.Id, values, query, json?.DeepClone(), _collections.ToDictionary(c => c.Key,
+                c => (IReadOnlyList<JsonObject>)c.Value.Items.Values.Select(i => (JsonObject)i.Resource.DeepClone()).ToList(), StringComparer.Ordinal));
             if (behaviour(call) is { } owned)
             {
+                if (owned.Effects.Count > 0 && (owned.Continues || owned.Status is >= 200 and < 300) && Apply(operation, owned.Effects) is { } refused)
+                {
+                    return refused;
+                }
+
+                if (owned.Continues)
+                {
+                    // Let through, with the body the behaviour gave: the twin's own behaviour runs on it.
+                    json = owned.Body ?? json;
+                    continue;
+                }
+
                 if (totals is not null && owned.Status is >= 200 and < 300 && Totals() is var after
                     && conserved.Select((c, i) => (c, i)).FirstOrDefault(p => totals[p.i] != after[p.i]) is { c: { } broken } changed)
                 {
@@ -307,6 +320,16 @@ public sealed class SpecTwin : HttpMessageHandler
             }
         }
 
+        if (totals is not null && Totals() is var afterEffects
+            && conserved.Select((c, i) => (c, i)).FirstOrDefault(p => totals[p.i] != afterEffects[p.i]) is { c: { } brokenByEffects } changedByEffects)
+        {
+            return new Reply(500, "application/problem+json", new JsonObject
+            {
+                ["title"] = $"Owned behaviour for {operation.Id} broke a conserved total: {brokenByEffects} went from {totals[changedByEffects.i]} to {afterEffects[changedByEffects.i]}",
+                ["status"] = 500,
+            }.ToJsonString(), []);
+        }
+
         var answer = Behave(operation, values, query, headers, json);
         if (key is not null && answer.Status is >= 200 and < 300)
         {
@@ -314,6 +337,54 @@ public sealed class SpecTwin : HttpMessageHandler
         }
 
         return answer;
+    }
+
+    /// <summary>
+    /// A behaviour's declared effects, applied once each is checked: the resource it replaces or removes exists, and a
+    /// replacement fits its collection's schema as a response would. Null when they're applied; a 500 naming the first
+    /// one refused, with nothing applied, otherwise.
+    /// </summary>
+    private Reply? Apply(SpecOperation operation, IReadOnlyList<TwinEffect> effects)
+    {
+        string? Refusal(TwinEffect effect)
+        {
+            if (!_collections.TryGetValue(effect.Collection, out var held) || !held.Items.ContainsKey(effect.Id))
+            {
+                return $"{effect.Collection} has no {effect.Id}";
+            }
+
+            if (effect is TwinEffect.Replacement { Resource: var resource } && Traits.CollectionSchema(_spec, effect.Collection) is { } schema
+                && _validator.Validate(resource, schema, direction: Direction.Response) is { Count: > 0 } errors)
+            {
+                return $"the {effect.Collection} {effect.Id} it stores breaks the schema: {string.Join("; ", errors)}";
+            }
+
+            return null;
+        }
+
+        if (effects.Select(e => (Effect: e, Why: Refusal(e))).FirstOrDefault(r => r.Why is not null) is { Why: { } why })
+        {
+            return new Reply(500, "application/problem+json", new JsonObject
+            {
+                ["title"] = $"Owned behaviour for {operation.Id} declared an effect the twin refused: {why}",
+                ["status"] = 500,
+            }.ToJsonString(), []);
+        }
+
+        foreach (var effect in effects)
+        {
+            var items = _collections[effect.Collection].Items;
+            if (effect is TwinEffect.Replacement replacement)
+            {
+                items[effect.Id] = ((JsonObject)replacement.Resource.DeepClone(), items[effect.Id].Version + 1);
+            }
+            else
+            {
+                items.Remove(effect.Id);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>What the operation does to its collection, by its method and path.</summary>
@@ -787,9 +858,9 @@ public sealed class SpecTwin : HttpMessageHandler
 }
 
 /// <summary>
-/// A request the twin received, for a behaviour of its own: the path values, query, body and what it holds. The body is
-/// what the twin stores when the behaviour lets the request through, and the resources are the stored ones themselves:
-/// a behaviour that changes either changes what the twin keeps (an agent's Ledger behaviour relies on both).
+/// A request the twin received, for a behaviour of its own: the path values, query, body and what it holds, all copies.
+/// Changing them changes nothing: a behaviour changes the twin only by what its <see cref="TwinAnswer"/> declares, a
+/// body to let through (<see cref="TwinAnswer.Continue"/>) and the <see cref="TwinAnswer.Effects"/> on what's stored.
 /// </summary>
 public sealed record TwinCall(
     string OperationId,
@@ -798,8 +869,37 @@ public sealed record TwinCall(
     JsonNode? Body,
     IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> Resources);
 
+/// <summary>
+/// A change a behaviour makes to what the twin stores, declared so the twin can check it: the resource must exist, and a
+/// replacement must fit its collection's schema. <c>Id</c> is the resource's id as its path has it (<c>/wallets/{id}</c>).
+/// </summary>
+public abstract record TwinEffect(string Collection, string Id)
+{
+    public static TwinEffect Replace(string collection, string id, JsonObject resource) => new Replacement(collection, id, resource);
+
+    public static TwinEffect Remove(string collection, string id) => new Removal(collection, id);
+
+    public sealed record Replacement(string Collection, string Id, JsonObject Resource) : TwinEffect(Collection, Id);
+
+    public sealed record Removal(string Collection, string Id) : TwinEffect(Collection, Id);
+}
+
 /// <summary>A rejection the twin is about to answer: its status, the request, and the problem it would send.</summary>
 public sealed record TwinRejection(int Status, string Method, string Path, JsonNode? Problem);
 
-/// <summary>A behaviour's answer: the status, and a body (the media type is the spec's for that status unless given).</summary>
-public sealed record TwinAnswer(int Status, JsonNode? Body = null, string? ContentType = null);
+/// <summary>
+/// A behaviour's answer: the status, and a body (the media type is the spec's for that status unless given), with the
+/// effects it has on what's stored. Or, from <see cref="Continue"/>, no answer of its own: the request goes on to the
+/// twin's own behaviour, with the body given in place of the one sent, and the effects applied first.
+/// </summary>
+public sealed record TwinAnswer(int Status, JsonNode? Body = null, string? ContentType = null)
+{
+    public IReadOnlyList<TwinEffect> Effects { get; init; } = [];
+
+    /// <summary>Whether the request goes on to the twin's own behaviour.</summary>
+    public bool Continues { get; private init; }
+
+    /// <summary>Let the request through, with <paramref name="body"/> in place of the one sent when given, after <paramref name="effects"/>.</summary>
+    public static TwinAnswer Continue(JsonNode? body = null, params TwinEffect[] effects)
+        => new(0, body) { Continues = true, Effects = effects };
+}

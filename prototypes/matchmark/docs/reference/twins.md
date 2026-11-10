@@ -20,12 +20,22 @@ Behaviour the spec doesn't state is added in owned code (decision Q4):
 
 | Method | Runs | Answer |
 |:--|:--|:--|
-| `twin.On(operationId, call => TwinAnswer?)` | after the request is checked, before what the twin infers | replaces the inferred answer; `null` lets it through |
+| `twin.On(operationId, call => TwinAnswer?)` | after the request is checked, before what the twin infers | replaces the inferred answer; `null` lets it through; `TwinAnswer.Continue(body, effects)` lets it through with a rewritten body |
 | `twin.OnRejected(rejection => TwinAnswer?)` | on every 4xx the twin answers, its own checks included | replaces it; a `null` body is an empty one |
 
-`TwinCall` gives the operation, path values, query, body and the twin's stored resources. The body is what the twin
-stores when a behaviour lets the request through, and the resources are the stored ones themselves, so a behaviour that
-changes either changes what the twin keeps.
+`TwinCall` gives the operation, path values, query, body and the twin's stored resources, all as copies. Changing them
+changes nothing. A behaviour changes the twin only by what its answer declares (**Built**: the seam narrowed to declared
+effects, `TwinSeamTests`):
+
+- `TwinAnswer.Continue(body)` lets the request through to the twin's own behaviour, with `body` in place of the one
+  sent: what's stored is what the behaviour gave.
+- `Effects` (on any 2xx answer, or a `Continue`) are `TwinEffect.Replace(collection, id, resource)` and
+  `TwinEffect.Remove(collection, id)`. The twin checks each one before applying any of them. The resource must exist,
+  and a replacement must fit its collection's schema as a response would. Conserved totals must still hold
+  (`x-matchmark-conserved`). If any check fails, the answer is a 500 naming the refused effect, and nothing is applied.
+
+That keeps code an agent writes in the fidelity loop inside what the spec allows the twin to hold. The Ledger behaviour
+the agents wrote (`LedgerOwned`) is written this way, and still passes the held-out gate.
 
 ## Fidelity
 

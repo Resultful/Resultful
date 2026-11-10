@@ -159,11 +159,14 @@ public sealed class ConservedTests
 
         var amount = decimal.Parse(call.Body!["amount"]!.GetValue<string>(), CultureInfo.InvariantCulture);
         from["balance"] = (decimal.Parse(from["balance"]!.GetValue<string>(), CultureInfo.InvariantCulture) - amount).ToString("0.00", CultureInfo.InvariantCulture);
+        var effects = new List<TwinEffect> { TwinEffect.Replace("/wallets", from["id"]!.ToString(), from) };
         if (credits)
         {
             to["balance"] = (decimal.Parse(to["balance"]!.GetValue<string>(), CultureInfo.InvariantCulture) + amount).ToString("0.00", CultureInfo.InvariantCulture);
+            effects.Add(TwinEffect.Replace("/wallets", to["id"]!.ToString(), to));
         }
 
-        return new TwinAnswer(201, call.Body!.DeepClone());
+        // The resources are copies: the debit and credit change the twin only as the effects they're declared as.
+        return new TwinAnswer(201, call.Body!.DeepClone()) { Effects = effects };
     }
 }
