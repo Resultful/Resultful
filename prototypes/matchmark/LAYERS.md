@@ -163,8 +163,8 @@ Running the generator and the engine over specs other than the Pet Store found t
   transfers (409 on insufficient funds, 404 on unknown accounts, balances moving) were kept by the gate but moved
   nothing, and one (empty 404s) was rejected because `getTransfer` fell to 0%; it went back to its first attempt as the
   one with measured gain. It relied on a behaviour changing the request body and stored resources, which `TwinCall`
-  now documents. `The_owned_behaviour_passes_the_gate` holds what it wrote. The loop runs unattended in
-  `.github/workflows/agent-loop.yml` once the repository has an `ANTHROPIC_API_KEY` secret.
+  now documents. `The_owned_behaviour_passes_the_gate` holds what it wrote. An agent session runs the loop, not CI
+  (Q57).
 
 - **The support matrix found two in the twin.** Run over one document per format version (samples/versions), the
   twin answered a 404 the spec documents without a body with a problem body anyway, and answered an operation it

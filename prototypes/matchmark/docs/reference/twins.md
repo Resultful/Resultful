@@ -68,11 +68,10 @@ the gate; any writer, a person or an agent, fills it (Q5).
 `LedgerOwned.cs` to edit, raised held-out fidelity from 61.9% to 85.7% with its first attempt; four later guesses were
 kept but moved nothing, and one was rejected because `getTransfer` fell.
 
-## The unattended loop
+## Who runs the loop
 
-`.github/workflows/agent-loop.yml` runs the loop unattended, weekly and on demand, once the repository has an
-`ANTHROPIC_API_KEY` secret: the writer may edit only `LedgerOwned.cs`, the gate judges its change on the held-out
-sequences, and a kept change is uploaded as a patch, never pushed.
+An agent session runs the loop, not CI (Q57): the repository holds no model key. The writer may edit only
+`LedgerOwned.cs`, and the gate (`AgentLoopTests`) judges its change on the held-out sequences.
 
 ## Planned
 
