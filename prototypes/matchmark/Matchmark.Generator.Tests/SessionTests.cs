@@ -169,6 +169,88 @@ public sealed class SessionTests
         data.Should().NotContainKey("remote", "ending the session ended its data");
     }
 
+    /// <summary>
+    /// Events per session (Q39), the broker bridge's HTTP form: a message delivered on a session's channel is checked
+    /// against its AsyncAPI message, kept for that session alone, and received by correlation id; one that doesn't conform
+    /// is refused and fails the consumer's half of the report.
+    /// </summary>
+    [Test]
+    public async Task Each_session_has_its_own_checked_message_channels()
+    {
+        var notifications = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "notifications", "asyncapi.yaml"));
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.UseMatchmarkSessions(new SessionHost(Spec, [Pathways]) { Events = AsyncApiDocument.Parse(SpecJson.AsyncApi(File.ReadAllText(notifications), notifications)) });
+        await app.StartAsync();
+        using var control = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+        await using var one = await MatchmarkSession.StartAsync(control, "one");
+        await using var two = await MatchmarkSession.StartAsync(control, "two");
+
+        var correlation = Guid.NewGuid().ToString();
+        await one.SendMessageAsync("publishNotification", new { id = Guid.NewGuid(), topic = "orders", sentAt = DateTimeOffset.UtcNow },
+            new Dictionary<string, string> { ["x-correlation-id"] = correlation }, correlation);
+
+        (await two.ReceiveMessageAsync("publishNotification")).Should().BeNull("a session's messages are its own");
+        (await one.ReceiveMessageAsync("publishNotification", correlation))!["payload"]!["topic"]!.GetValue<string>().Should().Be("orders");
+        (await one.ReceiveMessageAsync("publishNotification")).Should().BeNull("a message is received once");
+
+        var refused = async () => await one.SendMessageAsync("publishNotification", new { topic = "weather" }, new Dictionary<string, string> { ["x-correlation-id"] = correlation });
+        (await refused.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("weather");
+        var report = await one.ReportAsync();
+        (report.Consumer.Messages, report.Consumer.InvalidMessages, report.Consumer.Passed).Should().Be((2, 1, false));
+        report.Reasons.Should().Contain(r => r.StartsWith("a message on publishNotification doesn't conform", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A session's WebSocket on a channel (Q39): what the API sends on it is pushed to the socket, and what the client sends
+    /// is the message the API receives there, checked, with what's wrong sent back on the socket.
+    /// </summary>
+    [Test]
+    public async Task A_session_s_WebSocket_pushes_what_the_API_sends_and_checks_what_it_receives()
+    {
+        var notifications = Path.GetFullPath(Path.Combine(ThisDirectory(), "..", "samples", "notifications", "asyncapi.yaml"));
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        await using var app = builder.Build();
+        app.UseMatchmarkSessions(new SessionHost(Spec, [Pathways]) { Events = AsyncApiDocument.Parse(SpecJson.AsyncApi(File.ReadAllText(notifications), notifications)) });
+        await app.StartAsync();
+        using var control = new HttpClient { BaseAddress = new Uri(app.Urls.Single() + "/") };
+        await using var session = await MatchmarkSession.StartAsync(control, "sockets");
+        var ws = new Uri(app.Urls.Single().Replace("http://", "ws://", StringComparison.Ordinal) + "/");
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        async Task<System.Net.WebSockets.ClientWebSocket> Connect(string address)
+        {
+            var socket = new System.Net.WebSockets.ClientWebSocket();
+            socket.Options.SetRequestHeader("X-Matchmark-Session", "sockets");
+            await socket.ConnectAsync(new Uri(ws, address), cancel.Token);
+            return socket;
+        }
+
+        async Task<JsonNode> Next(System.Net.WebSockets.ClientWebSocket socket)
+        {
+            var buffer = new byte[16 * 1024];
+            var received = await socket.ReceiveAsync(buffer, cancel.Token);
+            return JsonNode.Parse(System.Text.Encoding.UTF8.GetString(buffer, 0, received.Count))!;
+        }
+
+        using var listening = await Connect("notifications.orders");
+        var correlation = Guid.NewGuid().ToString();
+        await session.SendMessageAsync("publishNotification", new { id = Guid.NewGuid(), topic = "orders", sentAt = DateTimeOffset.UtcNow },
+            new Dictionary<string, string> { ["x-correlation-id"] = correlation }, correlation);
+        var pushed = await Next(listening);
+        (pushed["operation"]!.GetValue<string>(), pushed["correlationId"]!.GetValue<string>()).Should().Be(("publishNotification", correlation));
+
+        using var sending = await Connect("notifications.redeliver");
+        var bad = System.Text.Encoding.UTF8.GetBytes("""{ "payload": { "notificationId": "not-a-uuid", "attempts": 9 }, "headers": { "x-correlation-id": "x" } }""");
+        await sending.SendAsync(bad, System.Net.WebSockets.WebSocketMessageType.Text, true, cancel.Token);
+        (await Next(sending))["errors"]!.AsArray().Should().NotBeEmpty();
+
+        var report = await session.ReportAsync();
+        (report.Consumer.Messages, report.Consumer.InvalidMessages).Should().Be((2, 1));
+    }
+
     /// <summary>A second principal minted for a session (Q47): accepted by that session only, and someone else to the twin.</summary>
     [Test]
     public async Task A_session_mints_a_second_principal_that_the_scoped_trait_keeps_apart()

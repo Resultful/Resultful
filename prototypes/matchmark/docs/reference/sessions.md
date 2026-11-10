@@ -250,12 +250,17 @@ data with `PUT /__matchmark/sessions/{id}` (the seed as the body) and `DELETE`. 
 
 ## Events
 
-**Planned (Q39).** Each session has its own event channels, and every message is checked against its AsyncAPI message:
+**Built (Q39)** when the host is given the API's AsyncAPI document (`SessionHost.Events`, `matchmark host --events
+<asyncapi>`). Each session has its own event channels, and every message is checked against its AsyncAPI message:
 
 | Channel | Reached at |
 |:--|:--|
-| WebSocket | `ws://test1.localhost:8080/{channel address}` |
-| Broker (Kafka, AMQP, MQTT) | the broker bridge, per session: `POST /__fake/sessions/test1/messages/{operationId}` to deliver, `GET …/messages/{operationId}?correlationId=…` to receive |
+| WebSocket | `ws://test1.localhost:8080/{channel address}`, parameters filled in (`/notifications.orders` for `notifications.{topic}`; a literal address wins over a template it also matches). What the API sends on the channel is pushed as `{"operation", "payload", "headers", "correlationId"}`; what the client sends (`{"payload", "headers"}`, or the bare payload) is the message the API receives there, and one that doesn't conform is answered on the socket with `{"errors": […]}`. |
+| Broker bridge, over HTTP | `POST /__fake/sessions/test1/messages/{operationId}` with `{"payload", "headers", "correlationId"}` delivers (`202`, or `400` with the errors); `GET …/messages/{operationId}?correlationId=…` receives the oldest accepted one once (`200`, or `204` when there's none). `MatchmarkSession.SendMessageAsync` and `ReceiveMessageAsync` in .NET. |
+
+A session's messages are its own. The report's consumer half counts them, and a message that didn't conform fails it,
+with the errors as a reason (`SessionTests`). Bridging a real broker (Kafka, AMQP, MQTT) to these channels is the
+transport adapters' work ([flip](flip.md)).
 
 ## For .NET tests
 
