@@ -105,7 +105,7 @@ sequenceDiagram
 - **Each copy is a twin with a script on top.** State comes from a twin inferred from the spec and seeded per test, so a
   `POST` followed by a `GET` round-trips. Scripted outcomes (`Given`) force the errors a test wants, and expected calls
   (`Should`) fail the first wrong one. Only documented outcomes can be scripted.
-- **Events per session too.** WebSocket channels (`ws://test1.localhost:8080/...`) and broker channels are separate for
+- ✓ **Events per session too.** WebSocket channels (`ws://test1.localhost:8080/...`) and broker channels are separate for
   each session, and every message is checked against its AsyncAPI message.
 - **Pathways are the contract between teams.** Server engineers publish Arazzo workflows next to the spec: the journeys
   a consumer must support. The session counts which workflows, steps and outcomes its traffic completed.

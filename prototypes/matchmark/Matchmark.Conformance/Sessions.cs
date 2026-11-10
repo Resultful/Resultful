@@ -23,6 +23,7 @@ public static class SessionHosting
 
     public static SessionHost UseMatchmarkSessions(this IApplicationBuilder app, SessionHost host, string control = "/__fake")
     {
+        app.UseWebSockets();
         app.Run(async context =>
         {
             var request = context.Request;
@@ -44,6 +45,12 @@ public static class SessionHosting
             if (host.Find(id) is not { } session)
             {
                 await Problem(context, 404, $"There is no session '{id}'.").ConfigureAwait(false);
+                return;
+            }
+
+            if (context.WebSockets.IsWebSocketRequest && host.Channel(rest) is { } channel)
+            {
+                await Socket(context, host, session, channel).ConfigureAwait(false);
                 return;
             }
 
@@ -114,6 +121,30 @@ public static class SessionHosting
                     host.Given(scripted, operationId, given["status"]?.GetValue<int>() ?? 200, given["body"], given["times"]?.GetValue<int>());
                     context.Response.StatusCode = 204;
                     return;
+                case [var id, "messages", var operationId] when method == HttpMethods.Post && host.Find(id) is { } delivering:
+                    var envelope = await Read(context).ConfigureAwait(false) ?? [];
+                    var errors = host.Deliver(delivering, operationId, envelope["payload"], envelope["headers"] as JsonObject, envelope["correlationId"]?.ToString());
+                    if (errors.Count == 0)
+                    {
+                        context.Response.StatusCode = 202;
+                    }
+                    else
+                    {
+                        await Write(context, 400, new { title = $"The message doesn't conform to {operationId}'s AsyncAPI message.", status = 400, errors }).ConfigureAwait(false);
+                    }
+
+                    return;
+                case [var id, "messages", var operationId] when method == HttpMethods.Get && host.Find(id) is { } receiving:
+                    if (host.Receive(receiving, operationId, context.Request.Query["correlationId"].FirstOrDefault()) is { } message)
+                    {
+                        await Write(context, 200, new { payload = message.Payload, headers = message.Headers, correlationId = message.CorrelationId }).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = 204;
+                    }
+
+                    return;
                 case [var id, "principals"] when method == HttpMethods.Post && host.Find(id) is { } minting:
                     if (host.MintPrincipal(minting) is { } minted)
                     {
@@ -138,6 +169,97 @@ public static class SessionHosting
             // An argument's message without .NET's "(Parameter 'x')" suffix: it's for the consumer, not a debugger.
             var message = e is ArgumentException { ParamName: { } name } ? e.Message.Replace($" (Parameter '{name}')", string.Empty, StringComparison.Ordinal) : e.Message;
             await Problem(context, 400, message).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// A session's WebSocket on a channel (Q39): what the API sends on it is pushed, and what the client sends is the
+    /// message the API receives there, checked like any other ({"payload", "headers"}, or the bare payload). A message
+    /// that doesn't conform is answered on the socket with {"errors": […]}.
+    /// </summary>
+    private static async Task Socket(HttpContext context, SessionHost host, Session session, string channel)
+    {
+        using var socket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+        var gate = new SemaphoreSlim(1, 1);
+        async Task Send(object value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value, Json));
+            await gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (socket.State == System.Net.WebSockets.WebSocketState.Open)
+                {
+                    await socket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        void Push(SessionMessage message)
+        {
+            if (host.Sends(message.OperationId, channel))
+            {
+                _ = Send(new { operation = message.OperationId, payload = message.Payload, headers = message.Headers, correlationId = message.CorrelationId });
+            }
+        }
+
+        session.Delivered += Push;
+        try
+        {
+            var buffer = new byte[64 * 1024];
+            while (socket.State == System.Net.WebSockets.WebSocketState.Open && !context.RequestAborted.IsCancellationRequested)
+            {
+                using var frame = new MemoryStream();
+                System.Net.WebSockets.WebSocketReceiveResult received;
+                do
+                {
+                    received = await socket.ReceiveAsync(buffer, context.RequestAborted).ConfigureAwait(false);
+                    frame.Write(buffer, 0, received.Count);
+                }
+                while (!received.EndOfMessage);
+
+                if (received.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                {
+                    await socket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).ConfigureAwait(false);
+                    break;
+                }
+
+                if (host.Receiving(channel) is not { } operation)
+                {
+                    await Send(new { errors = new[] { $"The API receives nothing on {channel}." } }).ConfigureAwait(false);
+                    continue;
+                }
+
+                JsonNode? message;
+                try
+                {
+                    message = JsonNode.Parse(frame.ToArray());
+                }
+                catch (JsonException e)
+                {
+                    await Send(new { errors = new[] { "Not JSON: " + e.Message } }).ConfigureAwait(false);
+                    continue;
+                }
+
+                var envelope = message is JsonObject o && o.ContainsKey("payload") ? o : null;
+                var errors = host.Deliver(session, operation, envelope is null ? message : envelope["payload"], envelope?["headers"] as JsonObject, envelope?["correlationId"]?.ToString());
+                if (errors.Count > 0)
+                {
+                    await Send(new { operation, errors }).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (Exception e) when (e is System.Net.WebSockets.WebSocketException or OperationCanceledException)
+        {
+            // The client went away.
+        }
+        finally
+        {
+            session.Delivered -= Push;
+            gate.Dispose();
         }
     }
 

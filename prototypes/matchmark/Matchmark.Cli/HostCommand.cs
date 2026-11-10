@@ -10,7 +10,7 @@ namespace Matchmark.Cli;
 public static class HostCommand
 {
     public const string Usage = """
-        usage: matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>] [--service <url>]
+        usage: matchmark host <spec> [--arazzo <file>]... [--overlay <file>]... [--provider <file>] [--urls <url>] [--service <url>] [--events <asyncapi>]
 
           Serves a copy of the API per test session, from the spec alone. A consumer starts a session with
           PUT /__fake/sessions/{id} and calls it at {id}.localhost (or with the header X-Matchmark-Session: {id}).
@@ -19,6 +19,8 @@ public static class HostCommand
           --overlay   an OpenAPI Overlay applied to the spec first (repeat for more)
           --provider  the provider's results for the pathways, from matchmark regress --save, for the report
           --urls      where to listen (default http://localhost:8080)
+          --events    the API's AsyncAPI document: each session gets its own message channels, every message checked,
+                      at POST and GET /__fake/sessions/{id}/messages/{operationId}
           --service   the real service, in another process, for sessions started with "copy": "service": requests are
                       forwarded to it, and it starts and ends each session's data at PUT and DELETE /__matchmark/sessions/{id}
         """;
@@ -49,7 +51,7 @@ public static class HostCommand
             }
 
             var service = Option(args, "--service") is { } url ? ServiceCopy.Http(new Uri(url.EndsWith('/') ? url : url + "/")) : null;
-            host = new SessionHost(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out _, overlays), arazzo) { Service = service };
+            host = new SessionHost(SpecJson.Normalize(await File.ReadAllTextAsync(args[0], cancellationToken), args[0], out _, overlays), arazzo) { Service = service, Events = Option(args, "--events") is { } events ? AsyncApiDocument.Parse(SpecJson.AsyncApi(await File.ReadAllTextAsync(events, cancellationToken), events)) : null };
             if (Option(args, "--provider") is { } provider)
             {
                 host.Provider = ProviderResults.FromJson(await File.ReadAllTextAsync(provider, cancellationToken));

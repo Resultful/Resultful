@@ -115,6 +115,28 @@ public sealed class MatchmarkSession : IAsyncDisposable
         return new KeyValuePair<string, string>(token["name"]!.GetValue<string>(), token["value"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// Delivers a message on this session's channel for an AsyncAPI operation (Q39). Throws, with what's wrong, when it
+    /// doesn't conform to the operation's message.
+    /// </summary>
+    public async Task SendMessageAsync(string operationId, object? payload, object? headers = null, string? correlationId = null, CancellationToken cancellationToken = default)
+    {
+        using var response = await _control.PostAsJsonAsync($"{_prefix}/sessions/{Id}/messages/{operationId}", new { payload, headers, correlationId }, Json, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"The message on {operationId} wasn't accepted: {await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)}");
+        }
+    }
+
+    /// <summary>The oldest message on this session's channel for an operation (with the correlation id, if given), or null when there's none.</summary>
+    public async Task<JsonObject?> ReceiveMessageAsync(string operationId, string? correlationId = null, CancellationToken cancellationToken = default)
+    {
+        var query = correlationId is null ? string.Empty : "?correlationId=" + Uri.EscapeDataString(correlationId);
+        using var response = await _control.GetAsync($"{_prefix}/sessions/{Id}/messages/{operationId}{query}", cancellationToken).ConfigureAwait(false);
+        return response.StatusCode == System.Net.HttpStatusCode.OK ? await response.Content.ReadFromJsonAsync<JsonObject>(Json, cancellationToken).ConfigureAwait(false) : null;
+    }
+
     /// <summary>The session's own credential, as the header it's sent in; null when the spec declares no security scheme.</summary>
     public KeyValuePair<string, string>? Credential { get; private init; }
 

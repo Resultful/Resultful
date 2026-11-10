@@ -32,6 +32,59 @@ public sealed partial class SessionHost
         _scheme = SecurityScheme.Of(_parsed);
     }
 
+    /// <summary>
+    /// The API's events (an AsyncAPI document), for each session's own message channels (Q39): a message posted to an
+    /// operation is checked against its messages and kept for that session only, until it's received.
+    /// </summary>
+    public AsyncApiDocument? Events { get; init; }
+
+    /// <summary>
+    /// Delivers a message on a session's channel for an operation: checked against the operation's messages, and kept
+    /// for <see cref="Receive"/> when it conforms. Returns what's wrong with it; empty when it was accepted.
+    /// </summary>
+    public IReadOnlyList<string> Deliver(Session session, string operationId, JsonNode? payload, JsonObject? headers, string? correlationId)
+    {
+        var events = Events ?? throw new InvalidOperationException("This host has no AsyncAPI document, so its sessions have no message channels.");
+        if (events.Operations.All(o => o.Id != operationId))
+        {
+            throw new ArgumentException($"The AsyncAPI document has no operation '{operationId}'. Its operations are: {string.Join(", ", events.Operations.Select(o => o.Id))}.", nameof(operationId));
+        }
+
+        session.Touch();
+        var errors = events.Check(operationId, payload, headers);
+        session.Message(new SessionMessage(operationId, payload?.DeepClone(), headers?.DeepClone() as JsonObject,
+            correlationId ?? headers?["correlationId"]?.ToString(), errors));
+        return errors;
+    }
+
+    /// <summary>
+    /// The channel of the API's events a path names (its address, with parameters filled in: <c>/notifications.orders</c>
+    /// for <c>notifications.{topic}</c>), for a session's WebSocket; null when it names none.
+    /// </summary>
+    public string? Channel(string path)
+    {
+        var address = path.Trim('/');
+        // A literal address wins over a template it also matches (notifications.redeliver, not notifications.{topic}).
+        return Events?.Operations.Select(o => o.Channel).Distinct().OrderBy(c => c.Count(ch => ch == '{'))
+            .FirstOrDefault(c => Regex.IsMatch(address, "^" + Regex.Replace(Regex.Escape(c), @"\\\{[^}]+}", "[^/]+") + "$"));
+    }
+
+    /// <summary>The operation a client's message on a channel is: the one the API receives on it.</summary>
+    public string? Receiving(string channel)
+        => Events?.Operations.FirstOrDefault(o => o.Channel == channel && o.Action == "receive")?.Id;
+
+    /// <summary>Whether an operation is one the API sends on a channel, so its messages go to the channel's sockets.</summary>
+    public bool Sends(string operationId, string channel)
+        => Events?.Operations.Any(o => o.Id == operationId && o.Channel == channel && o.Action == "send") == true;
+
+    /// <summary>The oldest accepted message on a session's channel for an operation (with the correlation id, if given), taken off it; null when there's none.</summary>
+    public SessionMessage? Receive(Session session, string operationId, string? correlationId = null)
+    {
+        _ = Events ?? throw new InvalidOperationException("This host has no AsyncAPI document, so its sessions have no message channels.");
+        session.Touch();
+        return session.Take(operationId, correlationId);
+    }
+
     /// <summary>How long a session lives without a request before it is removed (docs/QUESTIONS.md, question 4).</summary>
     public TimeSpan Idle { get; init; } = TimeSpan.FromMinutes(30);
 
@@ -323,9 +376,14 @@ public sealed partial class SessionHost
         var documented = _parsed.Operations.SelectMany(o => o.Responses.Keys.Select(k => (o.Id, k))).Count();
         var reached = calls.Where(c => c.OperationId is not null).Select(c => (c.OperationId, c.Status)).Distinct().Count();
         var scenario = session.ScenarioOutcome();
-        var consumer = new ConsumerHalf(pathways.All(p => p.Completed) && invalid == 0 && scenario?.Passed != false, pathways, calls.Count, invalid, documented, reached)
+        var messages = session.Messages;
+        var invalidMessages = messages.Where(m => m.Errors.Count > 0).ToList();
+        var consumer = new ConsumerHalf(pathways.All(p => p.Completed) && invalid == 0 && scenario?.Passed != false && invalidMessages.Count == 0,
+            pathways, calls.Count, invalid, documented, reached)
         {
             Scenario = scenario,
+            Messages = messages.Count,
+            InvalidMessages = invalidMessages.Count,
         };
 
         ProviderHalf? provider = null;
@@ -340,6 +398,7 @@ public sealed partial class SessionHost
         reasons.AddRange(pathways.Where(p => !p.Completed).Select(p => $"the consumer didn't complete {p.WorkflowId}: missing {string.Join(", ", p.Missing)}"));
         reasons.AddRange(calls.Where(c => !c.Scripted && c.Status is 400 or 415 or 422 or 401).Select(c => $"the consumer sent an invalid call: {c.Method} {c.Path} was {c.Status}"));
         reasons.AddRange((scenario?.Failures ?? []).Select(f => $"the consumer didn't keep to the scenario: {f}"));
+        reasons.AddRange(invalidMessages.Select(m => $"a message on {m.OperationId} doesn't conform: {string.Join("; ", m.Errors)}"));
         if (session.Pathways.Count > 0 && provider is null)
         {
             reasons.Add("there are no provider results for the pathways: record them with matchmark regress --save, and give them to the host (--provider)");
@@ -620,6 +679,43 @@ public sealed class Session
 
     internal void Touch() => LastUsed = DateTimeOffset.UtcNow;
 
+    private readonly List<SessionMessage> _messages = [];
+    private readonly HashSet<SessionMessage> _taken = [];
+
+    /// <summary>Every message delivered on the session's channels, accepted or not.</summary>
+    public IReadOnlyList<SessionMessage> Messages { get { lock (_messages) { return [.. _messages]; } } }
+
+    internal void Message(SessionMessage message)
+    {
+        lock (_messages)
+        {
+            _messages.Add(message);
+        }
+
+        if (message.Errors.Count == 0)
+        {
+            Delivered?.Invoke(message);
+        }
+    }
+
+    /// <summary>Raised for each accepted message, so a session's open WebSockets can push it.</summary>
+    public event Action<SessionMessage>? Delivered;
+
+    internal SessionMessage? Take(string operationId, string? correlationId)
+    {
+        lock (_messages)
+        {
+            var found = _messages.FirstOrDefault(m => m.OperationId == operationId && m.Errors.Count == 0 && !_taken.Contains(m)
+                                                      && (correlationId is null || m.CorrelationId == correlationId));
+            if (found is not null)
+            {
+                _taken.Add(found);
+            }
+
+            return found;
+        }
+    }
+
     /// <summary>The session's expected calls, when it was started with a scenario.</summary>
     internal Matchmark.Fakes.ScenarioRunner? Expected { get; init; }
 
@@ -769,7 +865,15 @@ public sealed record ConsumerHalf(bool Passed, IReadOnlyList<PathwayCoverage> Pa
 {
     /// <summary>How the calls kept to the session's scenario (expected calls); null when it has none.</summary>
     public ScenarioOutcome? Scenario { get; init; }
+
+    /// <summary>Messages delivered on the session's channels, and how many didn't conform to their AsyncAPI message.</summary>
+    public int Messages { get; init; }
+
+    public int InvalidMessages { get; init; }
 }
+
+/// <summary>A message on a session's channel: its operation, payload, headers, correlation id, and what's wrong with it (empty when it conforms).</summary>
+public sealed record SessionMessage(string OperationId, JsonNode? Payload, JsonObject? Headers, string? CorrelationId, IReadOnlyList<string> Errors);
 
 /// <summary>Whether a session's calls kept to its scenario, and each way they didn't.</summary>
 public sealed record ScenarioOutcome(bool Passed, IReadOnlyList<string> Failures);
