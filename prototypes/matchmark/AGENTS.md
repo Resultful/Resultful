@@ -1,0 +1,96 @@
+# AGENTS.md: Matchmark
+
+Start here to continue work on the Matchmark prototype. This page has the working rules, every check and how to run it,
+the backlog in order, and what's waiting or blocked. The why is in the pages it links to. Don't repeat it here; link to it.
+
+## Read first
+
+| Page | For |
+|:--|:--|
+| [VISION.md](VISION.md) | Where it's going: the roadmap (steps 1 to 6) and the principles every change follows |
+| [docs/decisions.md](docs/decisions.md) | What's decided (Q-numbers), and why |
+| [docs/QUESTIONS.md](docs/QUESTIONS.md) | What's open, and the assumption work proceeds on meanwhile |
+| [docs/reference/model.md](docs/reference/model.md) | The model and its shape in the pipeline: the next big refactor |
+| [docs/reference/testing.md](docs/reference/testing.md) | The test layers, and what's next to take |
+| [README.md](README.md) | The projects, and the mechanics |
+| [GAPS.md](GAPS.md) | Where the prototype falls short, each with its status |
+
+## Working rules
+
+- **Questions don't block.** A decision that's the maintainer's goes in `docs/QUESTIONS.md`: the question, what decides
+  it, and the assumption work proceeds on. Then carry on under the assumption. When it's answered, the answer moves to
+  `docs/decisions.md` with its date and number, and the question is deleted.
+- **Reference pages say built or planned.** Every item in `docs/reference/` is marked one or the other, so a page
+  describes the code as it is. When something is built, update its page, its `Status` row, and the roadmap tick in
+  `VISION.md` in the same commit.
+- **Every check is checked.** A gate counts only if breaking what it guards makes it fail. Every test asserts what it
+  examined ("examined N", `NotBeEmpty`), so an empty run can't pass. A new check is shown failing on an injected fault
+  (see `SpecRegressionTests`).
+- **Generated output is never committed.** It's derived and diffed (`DerivedEvidenceTests`, CI's `derived` job). There
+  are no golden files: a model or surface change shows in the diff.
+- **Decided once.** A naming, typing or support decision lives in the model (`Emitter.Operations`, `ApiModel`), and no
+  output re-derives it. An output that needs something new adds it to the model and to `ApiModelTests`.
+- **No behaviour change on a move.** A refactor keeps every test green, one output at a time.
+- **Diagnostics are documented.** A new `MM` descriptor gets a row in `docs/reference/diagnostics.md`. `DiagnosticDocsTests`
+  fails otherwise.
+- **Licences.** Dependencies are permissive (MIT, Apache-2.0, BSD). AwesomeAssertions was chosen over FluentAssertions,
+  and Corvus.Json.Validator over JsonSchema.Net, for this reason. Add every package to `Directory.Packages.props` with
+  a comment saying why.
+- **Git.** Commit subjects are conventional (`feat(prototype): …`, `test(prototype): …`, `docs(prototype): …`). Work goes
+  on the session's branch, rebased and never merged. Open a pull request only when the maintainer asks. The repository's
+  rules are in [../../AGENTS.md](../../AGENTS.md); scratch files go in the root `temp/`.
+
+## Checks
+
+From `prototypes/matchmark`:
+
+| Check | Command | Notes |
+|:--|:--|:--|
+| Everything | `dotnet test Matchmark.slnx -c Release` | Testing about 142, Generator about 228 (8 skipped), Sample about 121 |
+| Large specs | `sh samples/large/fetch.sh`, then `MATCHMARK_LARGE_SPECS=$PWD/samples/large dotnet test Matchmark.Generator.Tests -c Release --filter LargeSpecTests` | GitHub's and Stripe's specs, fetched and not committed. They must compile with 0 errors; the share generated (98.7%, 99.8%) should only rise |
+| The specifications' examples | `sh samples/examples/fetch.sh`, then `MATCHMARK_EXAMPLES=$PWD/samples/examples dotnet test Matchmark.Generator.Tests -c Release --filter OfficialExamplesTests` | Pinned commits; 57 of 57 |
+| More random specs | `MATCHMARK_RANDOM_SPECS=200 dotnet test Matchmark.Generator.Tests -c Release --filter RandomSpecTests` | 12 seeds by default. A failure prints a shrunk spec: commit it as a fixture |
+| Derived evidence | `MATCHMARK_DERIVED=<dir> dotnet test Matchmark.Generator.Tests -c Release --filter DerivedEvidenceTests` | Writes `{sample}.model.json`, `.api.txt`, `.g.cs`. Diff two runs to review a change |
+| The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors |
+| The image | `docker build --file prototypes/matchmark/Dockerfile --tag matchmark .` (from the repository root) | Then the smoke tests in the `image` job of `.github/workflows/matchmark.yml` |
+
+The ledgers (`corpus-ledger.txt`, `large-ledger.txt`, `examples-ledger.txt`) are written to
+`Matchmark.Generator.Tests/bin/Release/net10.0/`.
+
+## Backlog, in order
+
+Each item links to the page that defines it. Update that page as items are built.
+
+1. **The shapes refactor** (roadmap step 2): one parse step producing an equatable `ApiShape`, partitioned into a
+   `ComponentsShape` and one `TagShape` per tag, with emitters as pure functions of a shape. Endpoints first, then
+   handlers and client, then components. Each step adds an `IncrementalityTests` case.
+   [model.md: Its shape in the pipeline](docs/reference/model.md#its-shape-in-the-pipeline). This also closes
+   [GAPS.md 5](GAPS.md): Verify re-parsing, and `Endpoint` carrying a `Location`.
+2. **The engine on the model**: once question 1 is decided. [model.md: Status](docs/reference/model.md#status).
+3. **Testing, next to take**: random specs regressed against the twin as well as compiled, and the oracle over the
+   large specs' schemas. [testing.md](docs/reference/testing.md).
+4. **Verify** (roadmap step 3): every version read through the standard libraries' forks. This is blocked on the forks
+   (below).
+5. **Flip** (roadmap step 5): AsyncAPI consumers and producers as typed interfaces with one broker adapter, then a
+   trial end to end on a real service with a frontend.
+6. **Later layers** (roadmap step 6), as `VISION.md` lists them.
+
+Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.md`, `sessions.md`, `twins.md`.
+
+## Waiting on the maintainer
+
+- **A pull request to main.** None has been opened; it needs the maintainer's word. Until `.github/workflows/matchmark.yml`
+  is on main, GitHub can't dispatch it by hand (404). It runs on pull requests to main, so none of its jobs has run on
+  GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally.
+- **Questions 1 to 4** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
+
+## Blocked
+
+These need access or decisions this repository can't give:
+
+- **Its own home** (roadmap step 1): moving to `rtkelly-labs/matchmark` with its history. A session can't create
+  repositories.
+- **The Oxbow forks** of the standard readers (roadmap step 3).
+- **Publishing**: packages, the dotnet tool, and the image to a registry.
+- **The trial**: a real service with a frontend for the flip trial, a broker for AsyncAPI channels, and a sandbox with
+  credentials for scheduled fidelity runs.
