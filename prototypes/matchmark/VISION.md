@@ -38,6 +38,16 @@ the consumers all match it:
 The contract is an interface (`IPetsHandlers`), not an HTTP surface. The service, the HTTP client, the twin, test fakes
 and adapters to legacy systems are all implementations of it. One test suite runs against any of them.
 
+## Three things it gives you
+
+One spec, three uses. Each stands on its own, and each is a step in [what it becomes](#what-it-becomes):
+
+| | What it is | Built as | Step |
+|:--|:--|:--|:--|
+| **A spec-driven API server** | The spec generates the server's contract (types, outcome unions, handler interfaces, endpoints, validation), and the compiler holds the code to it: a missing outcome doesn't compile, and hand-written endpoints are checked against the spec at build time. | `Matchmark.Generator`, `matchmark scaffold`, `matchmark derive` | [3 · Flip](#3-flip-the-spec-leads-the-application-follows), though a new service starts here |
+| **A fake test harness** | A copy of the API for every test: in process (the generated fake, `Given` and `Should`), or hosted for tests in any language (one session per test, seeded, scripted, with expected calls, event channels and pathway reports). | the generated fake, `matchmark host`, `MatchmarkSession`, `MatchmarkSessionFixture` | [2 · Hosted copy](#2-test-against-a-hosted-copy-of-the-api) |
+| **Regression testing of a real server** | The suite the spec writes for itself, run against any running API in any language, on every change: examples, bounds, one broken constraint at a time, workflows, invariants across collections, with recordings so pull requests need no credentials, and floors that only rise. | `matchmark regress`, `matchmark audit`, `matchmark diff`, `matchmark fidelity` | [1 · Verify](#1-verify-a-spec-you-already-have) |
+
 ## What it becomes
 
 Matchmark starts where most teams are: with a spec they already have. It builds outwards in three steps, each useful

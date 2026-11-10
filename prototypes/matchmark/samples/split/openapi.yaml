@@ -1,0 +1,28 @@
+openapi: 3.1.1
+info:
+  title: Split
+  version: 1.0.0
+  description: A spec split across files, as many teams keep theirs; matchmark bundle makes it one (QUESTIONS.md, question 2).
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      parameters:
+        - $ref: 'common/parameters.yaml#/limit'
+      responses:
+        '200':
+          description: The pets
+          content: { application/json: { schema: { type: array, items: { $ref: 'pet.yaml' } } } }
+        default:
+          $ref: 'common/responses.yaml#/Problem'
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      parameters:
+        - { name: petId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: The pet
+          content: { application/json: { schema: { $ref: 'pet.yaml' } } }
+        '404':
+          $ref: 'common/responses.yaml#/Problem'

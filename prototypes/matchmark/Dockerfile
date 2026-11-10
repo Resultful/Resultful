@@ -8,7 +8,11 @@ WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY Resultful/ Resultful/
 COPY prototypes/matchmark/ prototypes/matchmark/
-RUN dotnet publish prototypes/matchmark/Matchmark.Cli/Matchmark.Cli.csproj --configuration Release --output /out
+# Behind a TLS-inspecting proxy, give its certificate as a build secret (--secret id=ca,src=proxy.crt) and the proxy as
+# the usual HTTPS_PROXY build argument; without them, nothing changes.
+RUN --mount=type=secret,id=ca,required=false \
+    if [ -f /run/secrets/ca ]; then cp /run/secrets/ca /usr/local/share/ca-certificates/proxy.crt && update-ca-certificates; fi \
+    && dotnet publish prototypes/matchmark/Matchmark.Cli/Matchmark.Cli.csproj --configuration Release --output /out
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 COPY --from=build /out /matchmark

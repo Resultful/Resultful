@@ -48,7 +48,17 @@ public sealed class OfficialExamplesTests
         foreach (var spec in specs)
         {
             var name = Path.GetRelativePath(folder, spec);
+            var target = spec;
             var document = SpecReader.Read(File.ReadAllText(spec), spec, out var problems);
+            if (document is null && File.ReadAllText(spec).Contains(".yaml", StringComparison.Ordinal))
+            {
+                // Split across files: read as matchmark bundle makes it one (question 2), and say so.
+                target = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"bundled-{Path.GetFileNameWithoutExtension(spec)}-{Math.Abs(spec.GetHashCode(StringComparison.Ordinal))}.json");
+                File.WriteAllText(target, Matchmark.Cli.BundleCommand.Bundle(spec).ToJsonString());
+                document = SpecReader.Read(File.ReadAllText(target), target, out problems);
+                TestContext.Out.WriteLine($"{name}: split across files, read after matchmark bundle");
+            }
+
             if (document is null)
             {
                 failures.Add($"{name}: not read: {string.Join("; ", problems)}");
@@ -57,7 +67,7 @@ public sealed class OfficialExamplesTests
 
             try
             {
-                var (_, diagnostics) = GeneratedServer.Build("Example", spec, [], string.Empty, withRules: false);
+                var (_, diagnostics) = GeneratedServer.Build("Example", target, [], string.Empty, withRules: false);
                 if (diagnostics.FirstOrDefault(d => d.Id == "CS8785") is { } crashed)
                 {
                     failures.Add($"{name}: the generator failed: {crashed.GetMessage(null)}");

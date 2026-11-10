@@ -28,6 +28,10 @@ const string Usage = """
 
       Reports what the spec leaves out, each finding measured in the cases and workflows its change would add.
 
+    matchmark bundle <spec> [--output <file>]
+
+      One spec from a spec split across files: each referenced schema, parameter or response becomes a component.
+
     matchmark derive <url or file> [--output <file>]
 
       A starting spec from the document an ASP.NET Core application serves, with what to review before the flip.
@@ -75,6 +79,11 @@ if (args.Length > 0 && args[0] == "host")
 if (args.Length > 0 && args[0] == "upgrade")
 {
     return await UpgradeCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "bundle")
+{
+    return await BundleCommand.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length > 0 && args[0] == "derive")
