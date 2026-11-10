@@ -16,6 +16,8 @@
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkAudit" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkProblems" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkOutcomes" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkSpecPart" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="MatchmarkClientValidation" />
     <CompilerVisibleProperty Include="RootNamespace" />
   </ItemGroup>
 </Project>

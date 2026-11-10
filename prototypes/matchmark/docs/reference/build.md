@@ -26,6 +26,8 @@ its files. Inside this repository the samples reference the generator project di
 | `MatchmarkNamespace` | a spec | a namespace | the project's `RootNamespace`, else `Generated` | Where the generated code lives. |
 | `MatchmarkParts` | a spec | comma-separated parts | `Contract,Server` | What to generate (see below). Separate with commas: the value reaches the generator through an `.editorconfig`, where `;` starts a comment. |
 | `MatchmarkOutcomes` | a spec | `Plain` (default), `Resultful` | `Plain` | The contract's own outcome types, or Resultful's and OneOf's (Q12). Every project generating from the spec gives the same value. |
+| `MatchmarkSpecPart` | a companion | `true` | | Another file of a spec split across files, joined by `MatchmarkApiName`: the generator bundles the spec from its parts before reading it ([cli: bundle](cli.md#bundle) does the same on the command line). |
+| `MatchmarkClientValidation` | a spec | `Net` | Matchmark's own | The generated client checks requests on .NET's validation layer, with the same keys as the server ([validation](validation.md), question 3). |
 | `MatchmarkProblems` | a spec | `Owned` | | The contract generates its own problem types, so a contract-only (client) project needs no ASP.NET Core. Reported as `MM026` alongside a server part. |
 | `MatchmarkAudit` | a spec | `true` | | Report what the spec leaves out as `MM024` diagnostics, as `matchmark audit` does. |
 | `MatchmarkArazzo` | a companion | `true` | | An Arazzo document for the spec of the same `MatchmarkApiName`: its workflows join the generated regression suite. |

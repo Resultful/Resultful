@@ -261,7 +261,12 @@ namespace Matchmark.Generator
                 w.Line($"foreach (var __error in {ValidationClass}.Broken{operation.Name}Dependencies(new Dictionary<string, string?> {{ {string.Join(", ", given)} }}) ?? new()) __invalid[__error.Key] = __error.Value;");
             }
 
-            if (body)
+            if (body && ClientOnNet && NetValidation && !_shared)
+            {
+                // Question 3, opted in: the request checked on .NET's layer, with the contract's resolver.
+                w.Line($"foreach (var __error in await {_apiName}ValidationResolver.ValidateAsync(body, cancellationToken).ConfigureAwait(false)) __invalid[__error.Key] = __error.Value;");
+            }
+            else if (body)
             {
                 w.Line($"foreach (var __error in {ValidationClass}.Validate(body) ?? new()) __invalid[__error.Key] = __error.Value;");
             }
