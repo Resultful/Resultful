@@ -10,6 +10,7 @@
     <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" />
     <ProjectReference Include="../Matchmark.Specs.Overlay/Matchmark.Specs.Overlay.csproj" />
     <ProjectReference Include="../Matchmark.Specs.Arazzo/Matchmark.Specs.Arazzo.csproj" />
+    <ProjectReference Include="../Matchmark.Specs.AsyncApi/Matchmark.Specs.AsyncApi.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -26,13 +26,15 @@ namespace Matchmark.Generator
             {
                 if (AsyncApi.IsAsyncApi(text))
                 {
+                    overlayProblems = AsyncApi.Problems(text, path);
                     text = AsyncApi.ToOpenApi(text, path);
                     path = Path.ChangeExtension(path, ".json");
                 }
 
                 if (overlays?.ToList() is { Count: > 0 } applied)
                 {
-                    text = Overlay.Apply(text, path, applied, out overlayProblems);
+                    text = Overlay.Apply(text, path, applied, out var applying);
+                    overlayProblems = overlayProblems.Concat(applying).ToList();
                     path = Path.ChangeExtension(path, ".json");
                 }
 

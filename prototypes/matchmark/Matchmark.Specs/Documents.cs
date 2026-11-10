@@ -236,9 +236,51 @@ namespace Matchmark.Specs
         /// <summary>A problem for each field that's neither one of <paramref name="allowed"/> nor an <c>x-</c> extension.</summary>
         public void Only(JsonObject obj, string pointer, string what, params string[] allowed)
         {
-            foreach (var field in obj.Select(p => p.Key).Where(k => !k.StartsWith("x-", StringComparison.Ordinal) && Array.IndexOf(allowed, k) < 0))
+            foreach (var field in obj.Select(p => p.Key).Where(k => !k.StartsWith("x-", StringComparison.Ordinal) && System.Array.IndexOf(allowed, k) < 0))
             {
                 Add(Pointer.Join(pointer, field), $"{what} has no field '{field}'.");
+            }
+        }
+
+        /// <summary>A problem for each field that isn't one of <paramref name="allowed"/>: an object that takes no extensions.</summary>
+        public void Exactly(JsonObject obj, string pointer, string what, params string[] allowed)
+        {
+            foreach (var field in obj.Select(p => p.Key).Where(k => System.Array.IndexOf(allowed, k) < 0))
+            {
+                Add(Pointer.Join(pointer, field), $"{what} has no field '{field}'.");
+            }
+        }
+
+        /// <summary>An array field; a problem when it's there and isn't one.</summary>
+        public JsonArray? Array(JsonObject obj, string field, string pointer)
+        {
+            if (!obj.TryGetPropertyValue(field, out var value))
+            {
+                return null;
+            }
+
+            if (value is JsonArray array)
+            {
+                return array;
+            }
+
+            Add(Pointer.Join(pointer, field), $"'{field}' must be an array.");
+            return null;
+        }
+
+        /// <summary>A problem for each item that repeats an earlier one.</summary>
+        public void Unique(JsonArray array, string pointer, string field)
+        {
+            for (var i = 1; i < array.Count; i++)
+            {
+                for (var j = 0; j < i; j++)
+                {
+                    if (JsonNode.DeepEquals(array[i], array[j]))
+                    {
+                        Add(Pointer.Join(pointer, i), $"'{field}' repeats item {j}: each must be unique.");
+                        break;
+                    }
+                }
             }
         }
 

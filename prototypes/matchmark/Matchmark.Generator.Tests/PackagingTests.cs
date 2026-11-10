@@ -44,6 +44,7 @@ public sealed partial class PackagingTests
             "Matchmark.Specs.dll -> analyzers/dotnet/cs",
             "Matchmark.Specs.Overlay.dll -> analyzers/dotnet/cs",
             "Matchmark.Specs.Arazzo.dll -> analyzers/dotnet/cs",
+            "Matchmark.Specs.AsyncApi.dll -> analyzers/dotnet/cs",
             "Matchmark.Generator.props -> build;buildTransitive");
     }
 

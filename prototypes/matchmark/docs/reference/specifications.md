@@ -12,7 +12,7 @@ examples, in a [support matrix](support-matrix.md) generated from the tests.
 | Format | The model holds | Read by forward porting | Written | Status today |
 |:--|:--|:--|:--|:--|
 | OpenAPI | 3.2 | 2.0, 3.0, 3.1 | 3.2, and 3.1 for ASP.NET Core 10 | **Partial.** 2.0 to 3.2 are read through Microsoft.OpenApi. The engine normalises to 3.1 JSON, and keeps 3.2 only when the input is 3.2. |
-| AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Built.** 2.x is forward-ported by Matchmark's port of the official migration guide; 3.x is read by Matchmark's own reader, to be replaced (Q30). |
+| AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Built** by Matchmark's own reader (`Matchmark.Specs.AsyncApi`, Q56), regressed against the specification in `specs/asyncapi`. 2.x is forward-ported by `AsyncApiUpgrade`, Matchmark's port of the official migration guide (Q52). |
 | Arazzo | 1.1 | 1.0 | 1.1 | **Built** by Matchmark's own reader (`Matchmark.Specs.Arazzo`, Q56), regressed against the specification in `specs/arazzo`. |
 | Overlay | 1.2 | 1.0, 1.1 | | **Built** by Matchmark's own reader (`Matchmark.Specs.Overlay`, Q56), regressed against the specification in `specs/overlay`. |
 
@@ -60,7 +60,26 @@ could take it and dropped once upstream releases it (Q33).
 
 - **OpenAPI.** `SpecReader` reads YAML or JSON through Microsoft.OpenApi, applies any overlays first, and treats reader
   objections as warnings (`MM007`) when a document was built. The engine reads the normalised JSON.
-- **AsyncAPI.** An AsyncAPI 3 document is read as OpenAPI webhooks, one per operation, its message's payload the body
+- **AsyncAPI.** `Matchmark.Specs.AsyncApi` (netstandard2.0, shipped beside the generator) reads 3.0 and 3.1 with each
+  problem at its JSON pointer. It checks the whole document structure, with every object closed to its fields and `x-`
+  extensions. That covers servers and variables, channels and parameters, operations, replies and reply addresses,
+  messages, traits, correlation IDs, examples, tags, external docs, references, security schemes by type (OAuth flows
+  included), and the components. Schemas are checked as AsyncAPI's draft-07 Schema Object, or as a multi-format schema.
+
+  Left to others, and named in the reader: what a protocol binding holds (each binding's own schema versions it), schemas
+  in other formats (OpenAPI, Avro, RAML), and the info extensions `x-x` and `x-linkedin`. `AsyncApiUpgrade` lives here
+  too, and the generator reports the reader's problems as reader problems (`MM007`). Its regression suite covers:
+  - every real-world example (Slack, Gitter, Kraken, Mercure, the streetlights over Kafka and MQTT, the social-media
+    services, and the rest), each passing the official schema too;
+  - the 2.6 and 3.0 documents forward-ported, read, and passing the 3.1 schema;
+  - 9,905 mutations of the examples, outside what's left to others, on which the reader and the official 3.0.0 or
+    3.1.0 schema agree.
+
+  Two quirks of the official schema are mirrored: its Parameter Object doesn't say `type: object`, so a parameter that
+  isn't an object passes; and its draft-07 metaschema wants `enum` non-empty and unique. The texts hold only fragments
+  of single objects, so they aren't read whole.
+
+  An AsyncAPI 3 document is then read as OpenAPI webhooks, one per operation, its message's payload the body
   and its headers header parameters, answered `202` when taken, `400` when refused and `415` for the wrong content type.
   Everything generated for webhooks is then generated for its messages. `AsyncApiDocument` (in `Matchmark.Testing`)
   reads it directly for the consumer suite and for checking a producer's messages.

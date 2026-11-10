@@ -1,4 +1,5 @@
 using System;
+using Matchmark.Specs.AsyncApi;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -19,6 +20,13 @@ namespace Matchmark.Generator
         private static readonly Regex Version = new Regex(@"^\s*[""']?asyncapi[""']?\s*:\s*[""']?[23]\.", RegexOptions.Multiline);
 
         public static bool IsAsyncApi(string text) => Version.IsMatch(text);
+
+        /// <summary>What Matchmark's AsyncAPI reader (Matchmark.Specs.AsyncApi, Q56) finds wrong with the document, forward-ported to the latest version first.</summary>
+        public static IReadOnlyList<string> Problems(string text, string path)
+        {
+            var document = AsyncApiUpgrade.Upgrade(Overlay.Parse(text, path) as JsonObject ?? throw new InvalidOperationException($"{path} isn't an object.")).Document;
+            return AsyncApiReader.Read(document).Problems.Select(p => $"{path} {p}").ToList();
+        }
 
         /// <summary>The document (YAML or JSON) as OpenAPI 3.1 JSON.</summary>
         public static string ToOpenApi(string text, string path)
