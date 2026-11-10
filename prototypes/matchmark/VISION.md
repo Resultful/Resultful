@@ -259,16 +259,19 @@ flowchart LR
 **2. The model.** Before any new output.
 - A small semantic model of operations, outcomes, schemas and traits, at the latest version of each format.
 - Parsing as its own incremental step, with output per tag, so one edit doesn't regenerate everything.
-- The model tested directly, independent of any output. The emitter (3,979 lines in one class today) is split onto it.
-- Per-object checks on .NET's own validation layer, through a generated resolver, as the first slice (Q45):
-  Matchmark's own validator retired once a spike proves it ([docs/reference/validation.md](docs/reference/validation.md)).
+- ✓ The model tested directly (`ApiModel`), independent of any output; ✓ the emitter split by output (its largest file
+  863 lines, from 4,334 in one). Outputs as functions of the model, and the engine on it (question 1), are next
+  ([docs/reference/model.md](docs/reference/model.md)).
+- ✓ Per-object checks on .NET's own validation layer, through a generated resolver, the default (Q45): attributes on
+  models, Matchmark.Validation, rules as `IValidatableObject`, endpoint parameters. Moving the client and retiring
+  Matchmark's own validator wait on question 3 ([docs/reference/validation.md](docs/reference/validation.md)).
 
 **3. Verify.** Alongside step 2: it lives in the engine, which is separate from the generator.
 - Every version in the table above read, through the standard libraries and their Oxbow forks.
 - ✓ `matchmark upgrade`, and forward porting on every read (AsyncAPI 2.x included), with losses reported.
 - ✓ The support matrix, generated from the tests ([docs/reference/support-matrix.md](docs/reference/support-matrix.md)).
-- Support measured against the official example sets.
-- The CLI as a dotnet tool and a container image.
+- ✓ Support measured against the official example sets, at pinned commits, in CI: 56 of 57.
+- ✓ The CLI as a dotnet tool and a container image.
 
 *Alongside steps 3 and 4 (Q44):* ✓ `unique`, ✓ `references`, ✓ `derived`, ✓ `order`, ✓ `limit`, ✓ `conserved`, ✓ `scoped`: the invariants across a collection, declared as traits (unique, references,
 derived, conserved, scoped, limit, order), each built once and used by the twin, the suite, the audit and the generator,
@@ -277,18 +280,20 @@ starting with `unique` ([docs/reference/invariants.md](docs/reference/invariants
 **4. Hosted sessions.**
 - ✓ Host-based routing, consumer-chosen session ids and session tokens in the spec's security scheme
   (`matchmark host`, `UseMatchmarkSessions`).
-- ✓ Each session a seeded twin with scripted outcomes on top. Expected calls per session are next.
+- ✓ Each session a seeded twin with scripted outcomes on top, and ✓ expected calls (a scenario) per session.
 - ✓ Arazzo pathways, pathway coverage, and the two-sided report, the provider's half from `matchmark regress --save`.
-- WebSocket and broker channels per session.
-- ✓ `MatchmarkSession` for .NET tests, and the HTTP control API for everything else. Per-framework fixtures are next.
+- ✓ WebSocket and broker-bridge channels per session, every message checked against its AsyncAPI message.
+- ✓ `MatchmarkSession` for .NET tests, and the HTTP control API for everything else; ✓ an NUnit fixture that names
+  each test's session after it.
 - ✓ A session whose copy is the real service, with an ephemeral database per session (EF Core and SQLite in the Pet
   Store); the built-in twin stays the default store.
-- The generated fake hub moved onto the session host.
+- ✓ The generated fake hub on the session host's protocol; ✓ service sessions in another process, through HTTP hooks.
 
 **5. Flip.**
-- A spec derived from ASP.NET Core's own document, the application verified against it, then scaffolded from it.
+- ✓ A spec derived from ASP.NET Core's own document (`matchmark derive`), or ✓ from recorded traffic for other stacks
+  (`derive --har`), the application verified against it, then scaffolded from it.
 - AsyncAPI consumers and producers generated as typed interfaces, with one broker adapter first.
-- `matchmark diff` in pull requests, fed the outcomes consumers actually observed.
+- ✓ `matchmark diff` fed the outcomes consumers actually observed (`--observed`), for pull requests.
 - Tried end to end on one real service with a frontend.
 
 **6. Later layers.**
