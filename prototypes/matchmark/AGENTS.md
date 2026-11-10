@@ -37,8 +37,9 @@ the backlog in order, and what's waiting or blocked. The why is in the pages it 
   and Corvus.Json.Validator over JsonSchema.Net, for this reason. Add every package to `Directory.Packages.props` with
   a comment saying why.
 - **Git.** Commit subjects are conventional (`feat(prototype): …`, `test(prototype): …`, `docs(prototype): …`). Work goes
-  on the session's branch, rebased and never merged. Open a pull request only when the maintainer asks. The repository's
-  rules are in [../../AGENTS.md](../../AGENTS.md); scratch files go in the root `temp/`.
+  on the session's branch, rebased and never merged. Open a pull request only when the maintainer asks. History is linear: pull
+  requests are squash-merged, branches are rebased (never merged) and deleted on merge. Scratch files, local databases
+  and worktrees go in a gitignored `temp/`, never in the tree.
 
 ## Checks
 
