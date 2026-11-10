@@ -89,11 +89,13 @@ listed as unobserved and doesn't fail the run.
 
 ```
 matchmark derive <url or file> [--output <file>]
+matchmark derive --har <recording.har> [--title <title>] [--output <file>]
 ```
 
 Step 1 of the [flip](flip.md): turns the document an ASP.NET Core application serves into a starting spec. Every
 operation gets an `operationId`, and what to review before the flip is listed, with `matchmark audit`'s findings by rule.
-Without `--output`, the YAML goes to standard output after the review, as comments.
+Without `--output`, the YAML goes to standard output after the review, as comments. With `--har`, the spec is inferred
+from recorded traffic instead, for an application that isn't ASP.NET Core ([flip](flip.md#1-take-or-derive-the-spec)).
 
 ## scaffold
 

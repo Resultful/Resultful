@@ -78,6 +78,31 @@ public sealed class SpecRegressionTests
         report.Failures.Should().BeEmpty(report.ToString());
     }
 
+    /// <summary>
+    /// Step 1 of the flip from traffic (Q14): a spec inferred from what the service did while its suite ran, then the
+    /// service regressed against it. Only the calls are used, nothing from the service or its spec.
+    /// </summary>
+    [Test]
+    public async Task A_spec_inferred_from_recorded_traffic_is_one_the_service_passes()
+    {
+        await using var app = new PetStoreApp();
+        var client = app.CreateClient();
+        var recorded = await Suite.RunAsync(client);
+        var calls = recorded.Cases.Select(c => c.Exchange).Concat(recorded.Workflows.SelectMany(w => w.Exchanges))
+            .Select(e => new RecordedCall(e.Request.Method, "/" + e.Request.Path.Split('?')[0].TrimStart('/'), e.Request.Query, e.Request.ContentType, e.Request.Body,
+                e.Status, e.ContentType?.Split(';')[0], e.Body))
+            .ToList();
+
+        var (spec, review) = TrafficDerive.Derive(calls, "Pet Store, from traffic");
+        TestContext.Out.WriteLine(string.Join("\n", review));
+        spec["paths"]!.AsObject().Select(p => p.Key).Should().Contain(["/pets", "/pets/{petId}"]);
+
+        await using var fresh = new PetStoreApp();
+        var report = await GeneratedSuite.FromJson(spec.ToJsonString()).RunAsync(fresh.CreateClient());
+        Write("traffic", report);
+        report.Failures.Should().BeEmpty(report.ToString());
+    }
+
     [Test]
     public async Task The_service_passes_random_requests_too()
     {
