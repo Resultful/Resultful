@@ -13,7 +13,7 @@ examples, in a [support matrix](support-matrix.md) generated from the tests.
 |:--|:--|:--|:--|:--|
 | OpenAPI | 3.2 | 2.0, 3.0, 3.1 | 3.2, and 3.1 for ASP.NET Core 10 | **Partial.** 2.0 to 3.2 are read through Microsoft.OpenApi. The engine normalises to 3.1 JSON, and keeps 3.2 only when the input is 3.2. |
 | AsyncAPI | 3.1 | 2.x, 3.0 | 3.1 | **Built.** 2.x is forward-ported by Matchmark's port of the official migration guide; 3.x is read by Matchmark's own reader, to be replaced (Q30). |
-| Arazzo | 1.1 | 1.0 | 1.1 | **Built** by Matchmark's own reader, to be replaced (Q31, Q32). |
+| Arazzo | 1.1 | 1.0 | 1.1 | **Built** by Matchmark's own reader (`Matchmark.Specs.Arazzo`, Q56), regressed against the specification in `specs/arazzo`. |
 | Overlay | 1.2 | 1.0, 1.1 | | **Built** by Matchmark's own reader (`Matchmark.Specs.Overlay`, Q56), regressed against the specification in `specs/overlay`. |
 
 ## The version policy
@@ -64,12 +64,29 @@ could take it and dropped once upstream releases it (Q33).
   and its headers header parameters, answered `202` when taken, `400` when refused and `415` for the wrong content type.
   Everything generated for webhooks is then generated for its messages. `AsyncApiDocument` (in `Matchmark.Testing`)
   reads it directly for the consumer suite and for checking a producer's messages.
-- **Arazzo.** `ArazzoDocument` reads 1.0 and 1.1, runtime expressions, criteria (simple, regex, JSONPath subset),
-  `retry`, `goto`, `end`, nested workflows and AsyncAPI message steps.
+- **Arazzo.** `Matchmark.Specs.Arazzo` (netstandard2.0, shipped beside the generator) reads 1.0 and 1.1 into a typed
+  `ArazzoDocument`, with each problem at its JSON pointer:
+  - every step kind: OpenAPI operations, 1.1's AsyncAPI operations and channels, and other workflows;
+  - parameters and reusable objects;
+  - criteria, with 1.0's and 1.1's expression types;
+  - selectors, payload replacements, success and failure actions, components;
+  - workflow inputs, checked as JSON Schema 2020-12 the way its metaschema checks them (`JsonSchemaShape`).
+
+  The generator reads the Regression part's documents through it. Its regression suite covers:
+  - the 75 1.1 pass and fail fixtures;
+  - the official 1.0 and 1.1 schemas, which agree with every fixture;
+  - the examples, and the complete examples in the 1.0.0, 1.0.1 and 1.1.0 texts;
+  - every mutation of every valid document, over 5,000 (each field removed, each value of the wrong type, unknown
+    fields, arrays emptied or repeating), on which the reader and the official schema agree.
+
+  The 1.1.0 text's complete example gives two AsyncAPI steps an `operationPath`, which its own schema refuses. That is
+  pinned as an upstream inconsistency, and the reader refuses it too. `ArazzoDocument` in `Matchmark.Testing` runs the
+  workflows: runtime expressions, criteria, `retry`, `goto`, `end`, nested workflows and message steps.
 - **Overlay.** `Matchmark.Specs.Overlay` (netstandard2.0, shipped in the generator's analyzer folder) reads 1.0, 1.1 and
   1.2 into a typed `OverlayDocument`, with each problem at its JSON pointer. That covers 1.1's `copy` and
   `info.description`, and 1.2's `$self`, `components.actions` and reusable action references, escaped keys included.
-  `OverlayApplier` applies `update`, `remove` and `copy` with RFC 9535 JSONPath targets and filters. The generator applies
+  `OverlayApplier` applies `update`, `remove` and `copy` with RFC 9535 JSONPath targets and filters. On every mutation of every
+  valid 1.0 and 1.1 document, the reader and the official schema agree. The generator applies
   overlays through it, and an overlay's problems are reported as reader problems (`MM007`). Its regression suite
   (`Matchmark.Specs.Tests`) covers the vendored specification:
   - all 132 pass and fail fixtures, each failing for the reason its name gives;

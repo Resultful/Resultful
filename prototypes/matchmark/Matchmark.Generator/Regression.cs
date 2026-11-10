@@ -39,22 +39,22 @@ namespace Matchmark.Generator
         }
 
         /// <summary>An Arazzo document (YAML or JSON) as JSON, for the regression engine.</summary>
+        /// <summary>
+        /// An Arazzo document as JSON, read by Matchmark's own reader (Matchmark.Specs.Arazzo, Q56); one it can't build
+        /// throws, with every problem, and one with problems it could build is read as far as it goes.
+        /// </summary>
         public static string Arazzo(string text, string path)
         {
-            if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            var node = Matchmark.Specs.Documents.Load(text, path);
+            if (node is not System.Text.Json.Nodes.JsonObject document || document["arazzo"] is null)
             {
-                return text;
+                throw new InvalidOperationException($"{path} has no 'arazzo' version, so it isn't an Arazzo document.");
             }
 
-            var stream = new SharpYaml.Serialization.YamlStream();
-            stream.Load(new StringReader(text));
-            if (stream.Documents.Count == 0)
-            {
-                throw new InvalidOperationException($"{path} is empty.");
-            }
-
-            var json = Microsoft.OpenApi.YamlReader.YamlConverter.ToJsonNode(stream.Documents[0]);
-            return json["arazzo"] is null ? throw new InvalidOperationException($"{path} has no 'arazzo' version, so it isn't an Arazzo document.") : json.ToJsonString();
+            var read = Matchmark.Specs.Arazzo.ArazzoReader.Read(document);
+            return read.Document is null
+                ? throw new InvalidOperationException($"{path} isn't an Arazzo document Matchmark can read: {string.Join("; ", read.Problems)}")
+                : document.ToJsonString();
         }
 
         internal static string Write(OpenApiDocument document, bool threeTwo = false)

@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="Matchmark.Specs/Matchmark.Specs.csproj" />
   <Project Path="Matchmark.Specs.Overlay/Matchmark.Specs.Overlay.csproj" />
+  <Project Path="Matchmark.Specs.Arazzo/Matchmark.Specs.Arazzo.csproj" />
   <Project Path="Matchmark.Specs.Tests/Matchmark.Specs.Tests.csproj" />
   <Project Path="Matchmark.Benchmarks/Matchmark.Benchmarks.csproj" />
   <Project Path="Matchmark.Fakes/Matchmark.Fakes.csproj" />
