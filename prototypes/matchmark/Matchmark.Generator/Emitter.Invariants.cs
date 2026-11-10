@@ -34,6 +34,9 @@ namespace Matchmark.Generator
         /// <summary>A referenced assembly (the contract's project) has this API's validation resolver, so the server registers it.</summary>
         public bool ReferencedResolver { get; set; }
 
+        /// <summary>The client checks requests on .NET's validation layer (MatchmarkClientValidation="Net", question 3), not Matchmark's own validator.</summary>
+        public bool ClientOnNet { get; set; }
+
         /// <summary>Each schema's declared unique keys: (schema, fields, ignoreCase), checked against the schema's properties.</summary>
         private List<(string Schema, List<string> Fields, bool IgnoreCase)> UniqueKeys()
         {

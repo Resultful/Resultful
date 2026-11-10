@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -44,6 +45,8 @@ namespace Matchmark.Generator
             // AdditionalFiles joined to a spec by MatchmarkApiName.
             var arazzo = Companions(context, "MatchmarkArazzo");
             var overlays = Companions(context, "MatchmarkOverlay");
+            // The other files of a spec split across them (question 2, option a): MatchmarkSpecPart, joined by MatchmarkApiName.
+            var specParts = Companions(context, "MatchmarkSpecPart");
 
             // A contract compiled in a referenced project with a resolver for .NET's validation layer (Q45): the server part
             // then registers it. Looked up by the spec's own type name, so only a bool reaches the output step.
@@ -51,14 +54,22 @@ namespace Matchmark.Generator
                 .Select(static (pair, _) => (pair.Left.ApiName, Has: pair.Right.GetTypeByMetadataName($"{pair.Left.Namespace}.{pair.Left.ApiName}ValidationResolver") is not null))
                 .Collect();
 
-            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays).Combine(referencedResolvers), static (spc, all) =>
+            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays).Combine(referencedResolvers).Combine(specParts), static (spc, withParts) =>
             {
+                var all = withParts.Left;
                 var pair = all.Left;
-                Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
+                Generate(spc, Bundled(With(pair.Left.Left.Left, pair.Right), withParts.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
                     pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules,
                     pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation, pair.Left.Left.Right.HasValidationAttributes,
                     all.Right.Any(r => r.ApiName == pair.Left.Left.Left.ApiName && r.Has));
             });
+
+            // Each tag's endpoints from that tag's slice of the spec (question 4): an edit to one tag's operations changes
+            // only its slice, so Roslyn reuses the other tags' output.
+            var slices = specs.Combine(overlays).Combine(specParts)
+                .SelectMany(static (pair, ct) => Slices(Bundled(With(pair.Left.Left, pair.Left.Right), pair.Right)));
+            context.RegisterSourceOutput(slices.Combine(references), static (spc, pair) =>
+                GenerateTag(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes, pair.Right.HasRules, pair.Right.HasValidation, pair.Right.HasValidationAttributes));
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -103,6 +114,114 @@ namespace Matchmark.Generator
                 .Where(static a => a is not null)
                 .Select(static (a, _) => a!.Value)
                 .Collect();
+
+        /// <summary>Whether a spec's server endpoints are emitted per tag: a server part, OpenAPI, and a server that isn't turned off.</summary>
+        private static bool Splittable(SpecInput spec)
+            => spec.Parts.Split(',', ';').Any(p => p.Trim().Equals("Server", StringComparison.OrdinalIgnoreCase)) && !spec.OwnProblems
+               && spec.SliceTag is null && !AsyncApi.IsAsyncApi(spec.Content);
+
+        /// <summary>A spec cut into one slice per tag: the tag's operations, with every component, as JSON (overlays applied).</summary>
+        private static ImmutableArray<SpecInput> Slices(SpecInput spec)
+        {
+            if (!Splittable(spec))
+            {
+                return ImmutableArray<SpecInput>.Empty;
+            }
+
+            JsonObject document;
+            try
+            {
+                document = JsonNode.Parse(Overlay.Apply(spec.Content, spec.Path, spec.Overlays)) as JsonObject ?? new JsonObject();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or SharpYaml.YamlException or System.Text.Json.JsonException)
+            {
+                return ImmutableArray<SpecInput>.Empty;
+            }
+
+            var methods = new[] { "get", "put", "post", "delete", "options", "head", "patch", "trace", "query" };
+            var tags = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var path in document["paths"] as JsonObject ?? new JsonObject())
+            {
+                foreach (var method in methods)
+                {
+                    if (path.Value?[method] is JsonObject operation)
+                    {
+                        tags.Add(Tag(operation));
+                    }
+                }
+            }
+
+            var slices = ImmutableArray.CreateBuilder<SpecInput>();
+            foreach (var tag in tags)
+            {
+                var slice = (JsonObject)document.DeepClone();
+                var paths = new JsonObject();
+                foreach (var path in document["paths"] as JsonObject ?? new JsonObject())
+                {
+                    if (path.Value is not JsonObject item)
+                    {
+                        continue;
+                    }
+
+                    var kept = (JsonObject)item.DeepClone();
+                    foreach (var method in methods.Where(m => item[m] is JsonObject o && Tag(o) != tag))
+                    {
+                        kept.Remove(method);
+                    }
+
+                    if (methods.Any(m => kept[m] is not null))
+                    {
+                        paths[path.Key] = kept;
+                    }
+                }
+
+                slice["paths"] = paths;
+                slice.Remove("webhooks");
+                slices.Add(spec.Sliced(slice.ToJsonString(), tag));
+            }
+
+            return slices.ToImmutable();
+        }
+
+        private static string Tag(JsonObject operation) => (operation["tags"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? string.Empty;
+
+        /// <summary>One tag's endpoints, from its slice: added as {Api}.Endpoints.{Tag}.g.cs; the slice's diagnostics are the whole spec's, reported once by Generate.</summary>
+        private static void GenerateTag(SourceProductionContext context, SpecInput slice, bool describesItself, bool hasFakes, bool hasRules, bool hasValidation, bool hasValidationAttributes)
+        {
+            if (SpecReader.Read(slice.Content, slice.Path, out _) is not { } document)
+            {
+                return;
+            }
+
+            var emitter = new Emitter(document, slice.Namespace, slice.ApiName, Location.None, describesItself, hasFakes, hasRules, slice.OwnProblems)
+            {
+                NetValidation = hasValidation,
+                ValidationAttributes = hasValidationAttributes,
+                PlainOutcomes = !slice.Resultful,
+                ClientOnNet = slice.ClientOnNet,
+            };
+            var name = Naming.Pascal(string.IsNullOrEmpty(slice.SliceTag) ? slice.ApiName : slice.SliceTag!);
+            context.AddSource($"{slice.ApiName}.Endpoints.{name}.g.cs", SourceText.From(emitter.EmitTagEndpoints(), System.Text.Encoding.UTF8));
+        }
+
+        /// <summary>
+        /// A spec that refers to other files, made one from its parts (MatchmarkSpecPart, for its API name), so it's read as
+        /// matchmark bundle would write it; unchanged when it refers to none, or has no parts.
+        /// </summary>
+        private static SpecInput Bundled(SpecInput spec, ImmutableArray<(string ApiName, string Path, string Content)> parts)
+        {
+            var mine = parts.Where(p => p.ApiName == spec.ApiName).ToList();
+            if (mine.Count == 0 || !SpecBundle.Split(spec.Content))
+            {
+                return spec;
+            }
+
+            var root = SpecBundle.Normalize(spec.Path);
+            var files = mine.ToDictionary(p => SpecBundle.Normalize(p.Path), p => p.Content, StringComparer.Ordinal);
+            files[root] = spec.Content;
+            var bundled = SpecBundle.Bundle(root, file => files.TryGetValue(file, out var text) ? text : null);
+            return spec.WithContent(bundled.ToJsonString(), System.IO.Path.ChangeExtension(spec.Path, ".bundled.json"));
+        }
 
         /// <summary>The spec with its overlays (those for its API name), applied when it's read.</summary>
         private static SpecInput With(SpecInput spec, ImmutableArray<(string ApiName, string Path, string Content)> overlays)
@@ -156,8 +275,11 @@ namespace Matchmark.Generator
 
             // MatchmarkOutcomes="Resultful": outcomes on Resultful and OneOf, the adapter; plain ones of the contract's own by default (Q12).
             var resultful = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkOutcomes", out var outcomes) && string.Equals(outcomes, "Resultful", StringComparison.OrdinalIgnoreCase);
+
+            // MatchmarkClientValidation="Net": the client checks requests on .NET's validation layer (question 3).
+            var clientOnNet = fileOptions.TryGetValue(MetadataPrefix + "MatchmarkClientValidation", out var clientValidation) && string.Equals(clientValidation, "Net", StringComparison.OrdinalIgnoreCase);
             return new SpecInput(text.Path, content, string.IsNullOrWhiteSpace(ns) ? "Generated" : ns!, apiName!,
-                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned, Resultful = resultful };
+                string.IsNullOrWhiteSpace(parts) ? "Contract,Server" : parts!, audit) { OwnProblems = owned, Resultful = resultful, ClientOnNet = clientOnNet };
         }
 
         private static void Verify(SourceProductionContext context, SpecInput spec, ImmutableArray<Endpoint> endpoints)
@@ -191,7 +313,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver, PlainOutcomes = !spec.Resultful };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver, PlainOutcomes = !spec.Resultful, ClientOnNet = spec.ClientOnNet, SplitByTag = Splittable(spec) };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             if (parts.Contains("Server", StringComparer.OrdinalIgnoreCase) && !hasValidation && !referencedResolver)
             {
@@ -269,6 +391,9 @@ namespace Matchmark.Generator
         /// <summary>Outcomes on Resultful and OneOf (MatchmarkOutcomes="Resultful"), not the contract's own.</summary>
         public bool Resultful { get; set; }
 
+        /// <summary>The client validates on .NET's layer (MatchmarkClientValidation="Net").</summary>
+        public bool ClientOnNet { get; set; }
+
         public string Content { get; }
 
         public string Namespace { get; }
@@ -278,12 +403,25 @@ namespace Matchmark.Generator
         /// <summary>Overlays (text and path) applied to the spec before it's read.</summary>
         public IReadOnlyList<(string Text, string Path)> Overlays { get; private set; } = Array.Empty<(string, string)>();
 
+        /// <summary>One tag's slice of the spec, overlays already applied (question 4).</summary>
+        public string? SliceTag { get; private set; }
+
+        public SpecInput Sliced(string json, string tag)
+            => new(Path + "." + (tag.Length == 0 ? "untagged" : tag) + ".json", json, Namespace, ApiName, Parts, Audit)
+            {
+                OwnProblems = OwnProblems, Resultful = Resultful, ClientOnNet = ClientOnNet, SliceTag = tag,
+            };
+
+        /// <summary>The same spec, read from other content (a bundle of its parts).</summary>
+        public SpecInput WithContent(string content, string path)
+            => new(path, content, Namespace, ApiName, Parts, Audit) { Overlays = Overlays, OwnProblems = OwnProblems, Resultful = Resultful, ClientOnNet = ClientOnNet };
+
         public SpecInput WithOverlays(IReadOnlyList<(string Text, string Path)> overlays)
-            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays, OwnProblems = OwnProblems, Resultful = Resultful };
+            => new(Path, Content, Namespace, ApiName, Parts, Audit) { Overlays = overlays, OwnProblems = OwnProblems, Resultful = Resultful, ClientOnNet = ClientOnNet };
 
         public bool Equals(SpecInput? other)
             => other is not null && Path == other.Path && Content == other.Content
-               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit && OwnProblems == other.OwnProblems && Resultful == other.Resultful
+               && Namespace == other.Namespace && ApiName == other.ApiName && Parts == other.Parts && Audit == other.Audit && OwnProblems == other.OwnProblems && Resultful == other.Resultful && ClientOnNet == other.ClientOnNet && SliceTag == other.SliceTag
                && Overlays.SequenceEqual(other.Overlays);
 
         public override bool Equals(object? obj) => Equals(obj as SpecInput);

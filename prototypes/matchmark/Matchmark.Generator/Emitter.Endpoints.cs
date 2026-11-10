@@ -14,23 +14,56 @@ namespace Matchmark.Generator
     {
         // ---------------------------------------------------------------- endpoints
 
+        private static readonly string[] EndpointUsings =
+        {
+            "System", "System.Threading", "System.Threading.Tasks", "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Http",
+            "Microsoft.AspNetCore.Http.HttpResults", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Routing", "System.Collections.Generic",
+            "System.Text.Json", "System.Text.RegularExpressions",
+        };
+
+        /// <summary>
+        /// Each tag's Map{Api}{Tag} is emitted on its own, from that tag's slice of the spec (question 4), so the generator
+        /// can skip the tags an edit didn't touch; the endpoints file then only calls them.
+        /// </summary>
+        public bool SplitByTag { get; set; }
+
+        /// <summary>One tag's endpoints, from a slice of the spec holding only its operations: the partial class's Map{Api}{Tag}.</summary>
+        internal string EmitTagEndpoints()
+        {
+            CollectSchemas();
+            var operations = CollectOperations();
+            var w = new CodeWriter(_namespace);
+            w.Usings(EndpointUsings);
+            w.Open($"public static partial class {_apiName}Endpoints");
+            foreach (var tag in operations.GroupBy(o => Naming.Pascal(string.IsNullOrEmpty(o.Tag) ? "Default" : o.Tag)))
+            {
+                EmitTag(w, tag.Key, tag);
+            }
+
+            w.Close();
+            return w.ToString();
+        }
+
+        private void EmitTag(CodeWriter w, string tag, IEnumerable<Operation> operations)
+        {
+            w.Line($"/// <summary>Maps the operations tagged {tag} onto their handler interface, which must be registered in DI.</summary>");
+            w.Open($"public static IEndpointRouteBuilder Map{_apiName}{tag}(this IEndpointRouteBuilder app)");
+            foreach (var operation in operations)
+            {
+                EmitEndpoint(w, operation);
+            }
+
+            w.Line("return app;");
+            w.Close();
+            w.Line();
+        }
+
         private string EmitEndpoints(List<Operation> operations)
         {
             var w = new CodeWriter(_namespace);
-            w.Usings(
-                "System",
-                "System.Threading",
-                "System.Threading.Tasks",
-                "Microsoft.AspNetCore.Builder",
-                "Microsoft.AspNetCore.Http",
-                "Microsoft.AspNetCore.Http.HttpResults",
-                "Microsoft.AspNetCore.Mvc",
-                "Microsoft.AspNetCore.Routing",
-                "System.Collections.Generic",
-                "System.Text.Json",
-                "System.Text.RegularExpressions");
+            w.Usings(EndpointUsings);
 
-            w.Open($"public static class {_apiName}Endpoints");
+            w.Open($"public static partial class {_apiName}Endpoints");
             w.Line("/// <summary>Configures JSON the way the spec reads: numbers are numbers, and a oneOf discriminator may come anywhere.</summary>");
             w.Open($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Add{_apiName}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
             w.Line($"// A request that can't be bound throws, so Use{_apiName}Problems can answer it as the spec's validation problem.");
@@ -60,14 +93,24 @@ namespace Matchmark.Generator
             w.Line("}");
             w.Line();
 
-            foreach (var operation in operations)
+            // Each tag maps its own operations (question 4): Map{Api} maps them all, and a host can map one tag alone.
+            var tags = operations.GroupBy(o => Naming.Pascal(string.IsNullOrEmpty(o.Tag) ? "Default" : o.Tag)).ToList();
+            foreach (var tag in tags)
             {
-                EmitEndpoint(w, operation);
+                w.Line($"Map{_apiName}{tag.Key}(app);");
             }
 
             w.Line("return app;");
             w.Close();
             w.Line();
+            if (!SplitByTag)
+            {
+                foreach (var tag in tags)
+                {
+                    EmitTag(w, tag.Key, tag);
+                }
+            }
+
             w.Block(ProblemsMiddleware.Replace("{Api}", _apiName).Replace("{Validation}", ValidationClass));
             w.Line();
             w.Line("/// <summary>Writes a problem as application/problem+json with the status the spec gives it, whatever the handler set.</summary>");

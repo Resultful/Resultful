@@ -148,6 +148,60 @@ public sealed class GeneratorTests
         sources["T.Endpoints.g.cs"].Should().Contain("Results<Ok<Thing>, NotFound, Conflict>");
     }
 
+    /// <summary>Question 4, the addition: each tag maps its own operations, and Map{Api} maps every tag.</summary>
+    [Test]
+    public void Each_tag_has_its_own_registration_and_the_whole_API_maps_them_all()
+    {
+        var (_, sources) = Run(Header + """
+
+            paths:
+              /pets:
+                get: { operationId: listPets, tags: [pets], responses: { '204': { description: none } } }
+              /stores:
+                get: { operationId: listStores, tags: [stores], responses: { '204': { description: none } } }
+            """);
+        var endpoints = sources["T.Endpoints.g.cs"];
+        endpoints.Should().Contain("public static IEndpointRouteBuilder MapTPets(this IEndpointRouteBuilder app)")
+            .And.Contain("public static IEndpointRouteBuilder MapTStores(this IEndpointRouteBuilder app)")
+            .And.Contain("MapTPets(app);").And.Contain("MapTStores(app);");
+    }
+
+    /// <summary>
+    /// Question 4, incremental by tag: an edit to one tag's operations regenerates that tag's endpoints only; the other
+    /// tag's output is reused, because its slice of the spec didn't change.
+    /// </summary>
+    [Test]
+    public void An_edit_to_one_tag_regenerates_only_that_tag()
+    {
+        string Spec(string petsSummary) => Header + $$"""
+
+            paths:
+              /pets:
+                get: { operationId: listPets, tags: [pets], summary: '{{petsSummary}}', responses: { '204': { description: none } } }
+              /stores:
+                get: { operationId: listStores, tags: [stores], responses: { '204': { description: none } } }
+            """;
+        var before = new Spec("/specs/t.yaml", Spec("all the pets"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], [before], optionsProvider: new Options(null),
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        var compilation = CSharpCompilation.Create("Test");
+        driver = driver.RunGenerators(compilation);
+        driver = driver.ReplaceAdditionalText(before, new Spec("/specs/t.yaml", Spec("every pet"))).RunGenerators(compilation);
+
+        var outputs = driver.GetRunResult().Results.Single().TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(step => step.Outputs).ToList();
+        var generated = driver.GetRunResult().Results.Single().GeneratedSources.Select(g => g.HintName).ToList();
+        generated.Should().Contain(["T.Endpoints.Pets.g.cs", "T.Endpoints.Stores.g.cs"]);
+        // Each output's value is the sources it added: which file each step wrote, and whether it was reused.
+        static IEnumerable<string> Hints(object value)
+            => value.GetType().GetField("Item1")?.GetValue(value) is System.Collections.IEnumerable sources
+                ? sources.Cast<object>().Select(t => (string)t.GetType().GetProperty("HintName", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!.GetValue(t)!)
+                : [];
+        var reused = outputs.Where(o => o.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged).SelectMany(o => Hints(o.Value)).ToList();
+        var redone = outputs.Where(o => o.Reason is IncrementalStepRunReason.Modified or IncrementalStepRunReason.New).SelectMany(o => Hints(o.Value)).ToList();
+        reused.Should().Equal(["T.Endpoints.Stores.g.cs"], "the stores slice didn't change");
+        redone.Should().Contain("T.Endpoints.Pets.g.cs").And.NotContain("T.Endpoints.Stores.g.cs");
+    }
+
     [Test]
     public void A_required_string_whose_pattern_the_sample_cannot_meet_asks_for_an_example()
     {
@@ -317,8 +371,17 @@ public sealed class GeneratorTests
         var compilation = CSharpCompilation.Create("Test", code is null ? [] : [CSharpSyntaxTree.ParseText(code)]);
         var result = driver.RunGenerators(compilation).GetRunResult();
         // This compilation references nothing, so .NET's validation layer is never there to register (MM029): not what these test.
-        return (result.Diagnostics.Where(d => d.Id != "MM029").ToImmutableArray(), result.Results.SelectMany(r => r.GeneratedSources)
-            .ToDictionary(s => s.HintName, s => s.SourceText.ToString()));
+        // Each tag's endpoints come in a file of their own ({Api}.Endpoints.{Tag}.g.cs, question 4); these tests read the
+        // endpoints as one file, so they're folded into {Api}.Endpoints.g.cs.
+        var sources = new Dictionary<string, string>();
+        foreach (var source in result.Results.SelectMany(r => r.GeneratedSources))
+        {
+            var hint = source.HintName.Split('.');
+            var name = hint.Length == 5 && hint[1] == "Endpoints" ? $"{hint[0]}.Endpoints.g.cs" : source.HintName;
+            sources[name] = sources.TryGetValue(name, out var had) ? had + "\n" + source.SourceText : source.SourceText.ToString();
+        }
+
+        return (result.Diagnostics.Where(d => d.Id != "MM029").ToImmutableArray(), sources);
     }
 
     private sealed class Spec(string path, string text) : AdditionalText

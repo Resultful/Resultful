@@ -73,6 +73,18 @@ public sealed class ModelAttributeTests
                 => Task.FromResult(Result.Ok<Shape, CreateShapeError>(body));
         }
 
+        public static class Refusals
+        {
+            /// <summary>The keys the client refuses a body with, before sending it anywhere.</summary>
+            public static async Task<string> Keys(string json)
+            {
+                var body = System.Text.Json.JsonSerializer.Deserialize<Shape>(json)!;
+                using var http = new System.Net.Http.HttpClient { BaseAddress = new System.Uri("http://nowhere.invalid/") };
+                var result = await new ShapesClient(http).CreateShape(body, CancellationToken.None);
+                return result.Match(_ => "sent", error => string.Join(",", System.Linq.Enumerable.Order(((CreateShapeBadRequest)error.Value).Body.Errors.Keys)));
+            }
+        }
+
         public static class Server
         {
             public static async Task<WebApplication> StartAsync(bool net)
@@ -131,6 +143,18 @@ public sealed class ModelAttributeTests
             await app.StopAsync();
             await app.DisposeAsync();
         }
+    }
+
+    /// <summary>Question 3, opted in (MatchmarkClientValidation="Net"): the client refuses on .NET's layer, with the same keys as the server.</summary>
+    [TestCase("""{"name":"UPPER","sides":2,"ratio":0.5,"tags":["a"]}""", "name,sides")]
+    [TestCase("""{"name":"pentagon","sides":5,"ratio":0.5,"tags":["a"]}""", "$")]
+    public async Task The_client_can_refuse_on_net_s_layer_too(string body, string keys)
+    {
+        var path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "shapes-client.json");
+        File.WriteAllText(path, Spec);
+        var assembly = GeneratedServer.Build("Shapes", path, [], Source, withRules: true, clientOnNet: true).Assembly;
+        var refused = await (Task<string>)assembly.GetType("Shapes.Api.Refusals")!.GetMethod("Keys")!.Invoke(null, [body])!;
+        refused.Should().Be(keys);
     }
 
     private static T Attribute<T>(string property) where T : Attribute
