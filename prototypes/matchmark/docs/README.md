@@ -15,6 +15,7 @@ description of the code today and of the design ahead.
 | [COMPLETENESS.md](../COMPLETENESS.md) | What makes a spec complete enough to test, and the invariant grammars. |
 | [GAPS.md](../GAPS.md) | Where the prototype falls short of the vision. |
 | [samples/README.md](../samples/README.md) | The corpus and its ledger. |
+| [specs/README.md](../specs/README.md) | The specifications Matchmark's readers are built against, vendored at pinned commits, and their licences. |
 
 ## Reference
 

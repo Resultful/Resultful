@@ -15,6 +15,7 @@ committed** (Diffra's approach to generated assets).
 | 6. Derived evidence | What changed, for review, against the pull request's base | `DerivedEvidenceTests` and CI's `derived` job |
 | 7. Breadth | Every construct in every supported version | the official examples (57 of 57), GitHub's and Stripe's specs, the support matrix, `RandomSpecTests` |
 | 8. Consumption | It works as a package and an image | `eng/consume-package.sh` (CI's `package` job); the container image job |
+| 9. The readers | AsyncAPI, Arazzo and Overlay read as their specifications define them | `Matchmark.Specs.Tests`: the specifications' fixtures, official schemas, compliant sets and examples (vendored in `specs/`), and the reader compared with the official schema on every mutation of every valid document |
 
 ## 1. The model
 
@@ -134,6 +135,26 @@ the changed part alone when nothing above it judges the value as a whole (no `on
 value, and the whole is built once, from one copy. The output is the same: a fingerprint of every violation and boundary
 is identical before and after over all the samples and every GitHub schema (411,567 variants). Every violation
 and boundary of every GitHub schema took 245 s and now takes 45 s (5.4 times faster); Stripe's 58,040 take 21 s.
+
+## 9. The readers
+
+`Matchmark.Specs.Tests` holds Matchmark's own readers (Q56) to the specifications vendored in `specs/`, in four ways:
+
+- **Fixtures.** Every pass fixture reads with no problem and every fail fixture with one. That's Overlay's 132 for 1.0 to
+  1.2 and Arazzo's 75 for 1.1.
+- **The official schema as oracle.** JsonSchema.Net 7.3.3 judges each fixture and example as its folder says. Then
+  every valid document is mutated: each field removed, each value of another type, an unknown field added, each array
+  emptied or given a repeat. The reader and the schema must agree on every mutation: over 5,000 for Arazzo, 9,905 for
+  AsyncAPI, and every Overlay 1.0 and 1.1 document. What a reader leaves to others (AsyncAPI's binding contents,
+  extensions and other schema formats) is excluded by name.
+- **Behaviour.** Overlay's 8 compliant sets, each overlay applied to its input giving exactly its output. The 2.6 and 3.0
+  AsyncAPI documents, forward-ported, pass the 3.1 schema.
+- **Examples.** The specifications' real-world examples, and the complete examples in their texts.
+
+The comparison has found things upstream too. Arazzo 1.1.0's own example breaks its schema, which is pinned. Microsoft.OpenApi
+writes YAML nulls as a sentinel string and reads empty values as empty strings, which `YamlTests` names. The official
+AsyncAPI schema has two quirks the reader mirrors: a Parameter Object without `type: object`, and a non-empty, unique
+`enum`.
 
 ## Learned from Parquet.SourceGenerator
 

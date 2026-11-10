@@ -33,6 +33,10 @@ the backlog in order, and what's waiting or blocked. The why is in the pages it 
 - **No behaviour change on a move.** A refactor keeps every test green, one output at a time.
 - **Diagnostics are documented.** A new `MM` descriptor gets a row in `docs/reference/diagnostics.md`. `DiagnosticDocsTests`
   fails otherwise.
+- **Readers are Matchmark's own** (Q56). AsyncAPI, Arazzo and Overlay are read by `Matchmark.Specs.*` (netstandard2.0,
+  shipped in the generator's analyzer folder). A change to a reader keeps `Matchmark.Specs.Tests` green: every vendored
+  fixture and example, and agreement with the official schema on every mutation. What a reader leaves to others is
+  named in its summary and excluded from the comparison explicitly, never silently.
 - **Licences.** Dependencies are permissive (MIT, Apache-2.0, BSD). AwesomeAssertions was chosen over FluentAssertions,
   and Corvus.Json.Validator over JsonSchema.Net, for this reason. Add every package to `Directory.Packages.props` with
   a comment saying why.
@@ -47,14 +51,16 @@ From the repository root:
 
 | Check | Command | Notes |
 |:--|:--|:--|
-| Everything | `dotnet test Matchmark.slnx -c Release` | Testing about 142, Generator about 228 (8 skipped), Sample about 121 |
+| Everything | `dotnet test Matchmark.slnx -c Release` | Specs 830 (65 skipped), Testing 161, Generator 280 (2 skipped), Sample 121 |
+| The readers | `dotnet test Matchmark.Specs.Tests -c Release` | Matchmark's own AsyncAPI, Arazzo and Overlay readers against everything vendored in `specs/`: fixtures, official schemas, compliant sets, examples, and mutations compared with the official schemas |
 | Large specs | `sh samples/large/fetch.sh`, then `MATCHMARK_LARGE_SPECS=$PWD/samples/large dotnet test Matchmark.Generator.Tests -c Release --filter LargeSpecTests` | GitHub's and Stripe's specs, fetched and not committed. They must compile with 0 errors; the share generated (98.7%, 99.8%) should only rise |
 | The specifications' examples | part of `dotnet test` (`OfficialExamplesTests`) | Vendored in `specs/` at pinned commits; 57 of 57 |
 | Benchmarks | `dotnet run -c Release --project Matchmark.Benchmarks -- --filter '*'` (add `--job short` for a quick look) | BenchmarkDotNet over reading, normalising, the parse step, a whole generator run, the suite, samples and violations; GitHub and Stripe join when fetched. A performance claim cites these, run before and after ([testing.md](docs/reference/testing.md#benchmarks)) |
 | On a broker | `docker run -d --network host nats:2.10`, then `MATCHMARK_NATS_URL=nats://127.0.0.1:4222 dotnet test Matchmark.Generator.Tests -c Release --filter MessagingTests` | The generated AsyncAPI producer and consumer on NATS; CI runs a NATS service container |
 | More random specs | `MATCHMARK_RANDOM_SPECS=200 dotnet test Matchmark.Generator.Tests -c Release --filter RandomSpecTests` | 12 seeds by default. A failure prints a shrunk spec: commit it as a fixture |
 | Derived evidence | `MATCHMARK_DERIVED=<dir> dotnet test Matchmark.Generator.Tests -c Release --filter DerivedEvidenceTests` | Writes `{sample}.model.json`, `.api.txt`, `.g.cs`. Diff two runs to review a change |
-| The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors |
+| The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors, applying an overlay through the readers in the package |
+| Refresh the specifications | `sh specs/vendor.sh` | Re-vendors `specs/` at the pins in the script and rewrites `specs/SOURCES.md`. Moving a pin is a change of its own, with the reader suite run before and after |
 | The image | `docker build --tag matchmark .` | Then the smoke tests in the `image` job of `.github/workflows/ci.yml` |
 
 The ledgers (`corpus-ledger.txt`, `large-ledger.txt`, `examples-ledger.txt`) are written to

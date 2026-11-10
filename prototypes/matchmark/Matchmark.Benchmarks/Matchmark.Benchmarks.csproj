@@ -13,6 +13,11 @@
   <ItemGroup>
     <ProjectReference Include="../Matchmark.Generator/Matchmark.Generator.csproj" />
     <ProjectReference Include="../Matchmark.Testing/Matchmark.Testing.csproj" />
+    <ProjectReference Include="../Matchmark.Specs.Overlay/Matchmark.Specs.Overlay.csproj" />
+    <ProjectReference Include="../Matchmark.Specs.Arazzo/Matchmark.Specs.Arazzo.csproj" />
+    <ProjectReference Include="../Matchmark.Specs.AsyncApi/Matchmark.Specs.AsyncApi.csproj" />
+    <!-- The official schemas' cost, beside the readers': the oracle the regression suite judges them by. -->
+    <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.OpenApi.YamlReader" />
   </ItemGroup>
