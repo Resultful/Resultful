@@ -312,7 +312,8 @@ public sealed class GeneratorTests
 
         var compilation = CSharpCompilation.Create("Test", code is null ? [] : [CSharpSyntaxTree.ParseText(code)]);
         var result = driver.RunGenerators(compilation).GetRunResult();
-        return (result.Diagnostics, result.Results.SelectMany(r => r.GeneratedSources)
+        // This compilation references nothing, so .NET's validation layer is never there to register (MM029): not what these test.
+        return (result.Diagnostics.Where(d => d.Id != "MM029").ToImmutableArray(), result.Results.SelectMany(r => r.GeneratedSources)
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString()));
     }
 

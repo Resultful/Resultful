@@ -105,7 +105,7 @@ namespace Matchmark.Generator
                 }
 
                 files["Validation"] = EmitValidation(operations);
-                if (EmitValidationResolver() is { } resolver)
+                if (EmitValidationResolver(operations) is { } resolver)
                 {
                     files["ValidationResolver"] = resolver;
                 }

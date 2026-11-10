@@ -40,21 +40,22 @@ public sealed class SpecRegressionTests
     }
 
     /// <summary>
-    /// Q45, slice 2: with .NET's validation layer registered (AddPetStoreValidation, the generated resolver first), which
-    /// answers a bad body before Matchmark's own validator does, the service still passes the whole suite, random requests
-    /// included: the same statuses, and errors keyed by the spec's names.
+    /// Q45, slice 3: .NET's validation layer is the default. AddPetStore() registers the contract's resolver, found in the
+    /// referenced contract project, so every suite here runs on it; its attributes carry Matchmark's messages, so a bad
+    /// request reads the same whichever validator answers.
     /// </summary>
     [Test]
-    public async Task The_service_passes_the_suite_on_net_s_validation_layer()
+    public async Task The_service_runs_on_net_s_validation_layer_by_default()
     {
-        await using var app = new PetStoreApp().WithWebHostBuilder(b => b.ConfigureServices(services => services.AddPetStoreValidation()));
+#pragma warning disable ASP0029 // Microsoft.Extensions.Validation is experimental in .NET 10.
+        await using var app = new PetStoreApp();
+        var options = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Microsoft.Extensions.Validation.ValidationOptions>>().Value;
+        options.Resolvers.OfType<PetStoreValidationResolver>().Should().ContainSingle();
+#pragma warning restore ASP0029
 
         var report = await Suite.RunAsync(app.CreateClient(), new RegressionOptions { Random = 25, Seed = 11 });
-
         Write("service-net-validation", report);
         report.Failures.Should().BeEmpty(report.ToString());
-        report.Cases.Should().Contain(c => c.Exchange.Status == 400 && c.Exchange.Body != null && c.Exchange.Body.Contains("The field ", StringComparison.Ordinal),
-            "some bad bodies are refused by .NET's layer, in its words, before the generated validator runs");
     }
 
     /// <summary>

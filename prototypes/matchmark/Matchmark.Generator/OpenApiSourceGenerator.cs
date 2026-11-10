@@ -45,10 +45,20 @@ namespace Matchmark.Generator
             var arazzo = Companions(context, "MatchmarkArazzo");
             var overlays = Companions(context, "MatchmarkOverlay");
 
-            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays), static (spc, pair) =>
+            // A contract compiled in a referenced project with a resolver for .NET's validation layer (Q45): the server part
+            // then registers it. Looked up by the spec's own type name, so only a bool reaches the output step.
+            var referencedResolvers = specs.Combine(context.CompilationProvider)
+                .Select(static (pair, _) => (pair.Left.ApiName, Has: pair.Right.GetTypeByMetadataName($"{pair.Left.Namespace}.{pair.Left.ApiName}ValidationResolver") is not null))
+                .Collect();
+
+            context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays).Combine(referencedResolvers), static (spc, all) =>
+            {
+                var pair = all.Left;
                 Generate(spc, With(pair.Left.Left.Left, pair.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
                     pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules,
-                    pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation, pair.Left.Left.Right.HasValidationAttributes));
+                    pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation, pair.Left.Left.Right.HasValidationAttributes,
+                    all.Right.Any(r => r.ApiName == pair.Left.Left.Left.ApiName && r.Has));
+            });
 
             // The Verify part: check the project's hand-written endpoints (controllers, Minimal API Map calls) against the spec.
             var actions = context.SyntaxProvider
@@ -163,7 +173,7 @@ namespace Matchmark.Generator
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
-            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false, bool hasValidationAttributes = false)
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false, bool hasValidationAttributes = false, bool referencedResolver = false)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
@@ -178,8 +188,14 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
+            if (parts.Contains("Server", StringComparer.OrdinalIgnoreCase) && !hasValidation && !referencedResolver)
+            {
+                // No .NET validation layer to register: the server keeps Matchmark's own validator alone (validation.md).
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.NetValidationMissing, location));
+            }
+
             var files = emitter.Emit(
                 contract: parts.Contains("Contract", StringComparer.OrdinalIgnoreCase),
                 server: parts.Contains("Server", StringComparer.OrdinalIgnoreCase),
@@ -403,6 +419,11 @@ namespace Matchmark.Generator
         public static readonly DiagnosticDescriptor NetValidationMissing = new(
             "MM029", ".NET's validation layer not referenced",
             "Microsoft.Extensions.Validation isn't referenced, so the contract has no resolver for .NET's validation layer and keeps Matchmark's own validator: see docs/reference/validation.md",
+            Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor KeywordUnchecked = new(
+            "MM030", "No attribute for a keyword",
+            "{0} has {1}, which no attribute on .NET's validation layer checks: the regression suite does (add Matchmark.Validation for multipleOf, uniqueItems and property counts)",
             Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor OwnedProblemsNeedNoServer = new(

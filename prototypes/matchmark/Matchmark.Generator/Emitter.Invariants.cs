@@ -31,6 +31,9 @@ namespace Matchmark.Generator
         /// <summary>Whether the project references Matchmark.Validation, for multipleOf, uniqueItems and the property counts.</summary>
         public bool ValidationAttributes { get; set; }
 
+        /// <summary>A referenced assembly (the contract's project) has this API's validation resolver, so the server registers it.</summary>
+        public bool ReferencedResolver { get; set; }
+
         /// <summary>Each schema's declared unique keys: (schema, fields, ignoreCase), checked against the schema's properties.</summary>
         private List<(string Schema, List<string> Fields, bool IgnoreCase)> UniqueKeys()
         {
