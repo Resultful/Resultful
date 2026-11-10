@@ -107,10 +107,12 @@ are fetched and generated in CI (`.github/workflows/ci.yml`): 98.7% and 99.8% of
 - All output is emitted together, so any change to the spec regenerates every file. Splitting the output per tag
   would keep the rest cached.
 
-*Status:* partly done. The emitter is split by output (its largest file is under 900 lines). Endpoints are emitted per
-tag, from equatable slices, and `IncrementalityTests` proves an edit re-emits only its tag. What remains is in the
-shapes refactor ([model.md](docs/reference/model.md#its-shape-in-the-pipeline)): parsing as its own step, and Verify
-reading the parsed shape rather than re-parsing, with no `Location` in `Endpoint`.
+*Status:* done. The emitter is split by output (its largest file is under 900 lines). Parsing is its own step, producing
+an equatable `ApiShape`. Verify reads that shape rather than re-parsing, and `Endpoint` holds its location as data. Endpoints
+are emitted per tag from slices that keep only the components each tag reaches. `IncrementalityTests` proves four things:
+an edit to an endpoint doesn't re-parse the spec; an edit that leaves the shape equal stops at the parse step; an edit to
+one tag re-emits only that tag; and an edit to a component re-emits only the tags that use it. Moving the other emitters
+onto the shape is the model's next step ([model.md](docs/reference/model.md#its-shape-in-the-pipeline)).
 
 ## 6. Smaller findings
 
