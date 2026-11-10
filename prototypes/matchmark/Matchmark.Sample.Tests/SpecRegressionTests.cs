@@ -57,6 +57,26 @@ public sealed class SpecRegressionTests
             "some bad bodies are refused by .NET's layer, in its words, before the generated validator runs");
     }
 
+    /// <summary>
+    /// Step 1 of the flip (matchmark derive): a spec derived from the document the service serves, then the service
+    /// regressed against it. The Pet Store's served document matches its spec (the round-trip check), so the derived
+    /// spec is one it passes.
+    /// </summary>
+    [Test]
+    public async Task A_spec_derived_from_the_served_document_is_one_the_service_passes()
+    {
+        await using var app = new PetStoreApp();
+        var client = app.CreateClient();
+        var (spec, review) = SpecDerive.Derive(await client.GetStringAsync("/openapi/v1.json"));
+        TestContext.Out.WriteLine(string.Join("\n", review));
+
+        spec["paths"]!.AsObject().SelectMany(p => p.Value!.AsObject()).Where(m => m.Value is JsonObject o && o.ContainsKey("responses"))
+            .Should().OnlyContain(m => m.Value!["operationId"] != null);
+        var report = await GeneratedSuite.FromJson(spec.ToJsonString()).RunAsync(client);
+        Write("derived", report);
+        report.Failures.Should().BeEmpty(report.ToString());
+    }
+
     [Test]
     public async Task The_service_passes_random_requests_too()
     {

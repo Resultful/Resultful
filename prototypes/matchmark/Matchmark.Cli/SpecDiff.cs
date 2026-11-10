@@ -21,7 +21,17 @@ public enum ChangeKind
 
 public sealed record SpecChange(ChangeKind Kind, string Subject, string Message)
 {
-    public override string ToString() => $"{Kind.ToString().ToLowerInvariant(),-9} {Subject}: {Message}";
+    /// <summary>The operationId the change is to, when it has one (the subject otherwise).</summary>
+    public string? OperationId { get; init; }
+
+    /// <summary>
+    /// Whether a consumer was seen using what changed (decision Q14, step 5 of the flip): null without observed calls;
+    /// false when no recorded call reached the operation, or the response status, the change is to.
+    /// </summary>
+    public bool? Observed { get; init; }
+
+    public override string ToString()
+        => $"{Kind.ToString().ToLowerInvariant(),-9} {Subject}: {Message}" + (Observed == false ? " (no consumer was seen using it)" : string.Empty);
 }
 
 /// <summary>
@@ -32,11 +42,14 @@ public sealed record SpecChange(ChangeKind Kind, string Subject, string Message)
 public static class SpecDiff
 {
     public const string Usage = """
-        usage: matchmark diff <old spec> <new spec> [--allow-breaking]
+        usage: matchmark diff <old spec> <new spec> [--allow-breaking] [--observed <calls.json>]...
 
           Lists what changed and whom it breaks: breaking (an existing client or server stops working), generated (code
           generated from the old spec stops compiling, as a renamed operation does) or additive. Exits 1 when a change
           is breaking and info.version's major number didn't go up, unless --allow-breaking.
+          --observed  calls consumers made (a session's GET /__fake/sessions/{id}/calls, or any array of
+                      {"operationId", "status"}): a breaking change no recorded call reached is listed as unobserved,
+                      and doesn't fail the run (repeat for more)
         """;
 
     private static readonly string[] Methods = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"];
@@ -62,6 +75,35 @@ public static class SpecDiff
         }
 
         var changes = Compare(before, after);
+        var observedFiles = new List<string>();
+        for (var i = 2; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--observed")
+            {
+                observedFiles.Add(args[i + 1]);
+            }
+        }
+
+        if (observedFiles.Count > 0)
+        {
+            var calls = new List<(string OperationId, int Status)>();
+            try
+            {
+                foreach (var file in observedFiles)
+                {
+                    calls.AddRange(Calls(await File.ReadAllTextAsync(file, cancellationToken)));
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+            {
+                await output.WriteLineAsync($"error: {e.Message}");
+                return 2;
+            }
+
+            changes = Observe(changes, calls);
+            await output.WriteLineAsync($"Judged against {calls.Count} observed calls.");
+        }
+
         foreach (var change in changes.OrderBy(c => c.Kind))
         {
             await output.WriteLineAsync(change.ToString());
@@ -72,12 +114,41 @@ public static class SpecDiff
         return failed ? 1 : 0;
     }
 
-    /// <summary>Whether the changes may ship under the new version: a breaking change needs a new major version.</summary>
+    /// <summary>The calls in an observed file: an array of {operationId, status}, as a session's calls are listed.</summary>
+    public static IEnumerable<(string OperationId, int Status)> Calls(string json)
+        => (JsonNode.Parse(json) as JsonArray ?? throw new InvalidOperationException("Observed calls are a JSON array of {\"operationId\", \"status\"}."))
+            .OfType<JsonObject>()
+            .Where(c => c["operationId"] is JsonValue && c["status"] is JsonValue)
+            .Select(c => (c["operationId"]!.GetValue<string>(), c["status"]!.GetValue<int>()));
+
+    /// <summary>
+    /// Each change marked with whether a consumer was seen using it: a change to a response status needs a call that got
+    /// that status; any other change, a call to the operation.
+    /// </summary>
+    public static IReadOnlyList<SpecChange> Observe(IReadOnlyList<SpecChange> changes, IEnumerable<(string OperationId, int Status)> calls)
+    {
+        var seen = calls.ToList();
+        return changes.Select(change =>
+        {
+            var operation = change.OperationId ?? change.Subject;
+            // A change to an existing response (its media types, headers or schema) reaches only callers that got it; a new
+            // response, any caller of the operation.
+            var status = System.Text.RegularExpressions.Regex.Match(change.Message, @"^(?:the (\d{3}) response (?:is no longer|no longer|can now)|(\d{3}) response\.)");
+            var observed = status.Success
+                ? seen.Any(c => c.OperationId == operation && c.Status == int.Parse(status.Groups[1].Success ? status.Groups[1].Value : status.Groups[2].Value, CultureInfo.InvariantCulture))
+                : seen.Any(c => c.OperationId == operation);
+            return change with { Observed = observed };
+        }).ToList();
+    }
+
+    /// <summary>Whether the changes may ship under the new version: a breaking change needs a new major version, unless no consumer was seen using it.</summary>
     public static (string Verdict, bool Failed) Verdict(IReadOnlyList<SpecChange> changes, string? before, string? after, bool allowBreaking)
     {
-        var breaking = changes.Count(c => c.Kind == ChangeKind.Breaking);
+        var unobserved = changes.Count(c => c.Kind == ChangeKind.Breaking && c.Observed == false);
+        var breaking = changes.Count(c => c.Kind == ChangeKind.Breaking) - unobserved;
         var generated = changes.Count(c => c.Kind == ChangeKind.Generated);
-        var summary = $"{changes.Count} changes: {breaking} breaking, {generated} breaking generated code, {changes.Count - breaking - generated} additive.";
+        var summary = $"{changes.Count} changes: {breaking} breaking, {generated} breaking generated code, {changes.Count - breaking - generated - unobserved} additive"
+                      + (unobserved > 0 ? $", {unobserved} breaking but unobserved." : ".");
         if (breaking == 0)
         {
             return ($"{summary} Compatible.", false);
@@ -110,7 +181,7 @@ public static class SpecDiff
         {
             if (!current.TryGetValue(key, out var now))
             {
-                diff.Add(ChangeKind.Breaking, key, "the operation was removed");
+                diff.Changes.Add(new SpecChange(ChangeKind.Breaking, key, "the operation was removed") { OperationId = operation["operationId"]?.GetValue<string>() });
                 continue;
             }
 
@@ -166,7 +237,7 @@ public static class SpecDiff
 
         public List<SpecChange> Changes { get; } = [];
 
-        public void Add(ChangeKind kind, string subject, string message) => Changes.Add(new SpecChange(kind, subject, message));
+        public void Add(ChangeKind kind, string subject, string message) => Changes.Add(new SpecChange(kind, subject, message) { OperationId = subject });
 
         public void Operation(string name, JsonObject old, JsonObject now)
         {

@@ -72,8 +72,31 @@ public sealed class DiffTests
     {
         var removed = Diff("delete:", "patch:");
 
-        removed.Should().ContainEquivalentOf(new SpecChange(ChangeKind.Breaking, "DELETE /notes/{}", "the operation was removed"))
-            .And.ContainEquivalentOf(new SpecChange(ChangeKind.Additive, "deleteNote", "the operation was added"));
+        removed.Should().ContainEquivalentOf(new SpecChange(ChangeKind.Breaking, "DELETE /notes/{}", "the operation was removed") { OperationId = "deleteNote" })
+            .And.ContainEquivalentOf(new SpecChange(ChangeKind.Additive, "deleteNote", "the operation was added") { OperationId = "deleteNote" });
+    }
+
+    /// <summary>
+    /// Step 5 of the flip: breaking changes judged against what consumers were seen doing. A change to an operation no
+    /// recorded call reached, or to a response status nobody received, is listed but doesn't fail the run.
+    /// </summary>
+    [Test]
+    public void A_breaking_change_no_consumer_was_seen_using_does_not_fail_the_run()
+    {
+        var changes = Diff("'204': { description: deleted }", "'204': { description: deleted }\n        '409': { description: in use }")
+            .Concat(Diff("required: [id, text]", "required: [id]")).ToList();
+        SpecDiff.Verdict(changes, "1.0.0", "1.0.0", allowBreaking: false).Failed.Should().BeTrue("without observed calls, every breaking change counts");
+
+        // Consumers listed notes and added them, but never deleted one: the new 409 on deleteNote reaches nobody.
+        var observed = SpecDiff.Observe(changes, SpecDiff.Calls("""[{"operationId":"addNote","status":201},{"operationId":"listNotes","status":200}]"""));
+        observed.Should().Contain(c => c.Subject == "deleteNote" && c.Observed == false);
+        observed.Should().Contain(c => c.Subject == "addNote" && c.Message.StartsWith("201 response.text", StringComparison.Ordinal) && c.Observed == true);
+        SpecDiff.Verdict(observed, "1.0.0", "1.0.0", allowBreaking: false).Failed.Should().BeTrue("addNote's change reaches a consumer");
+
+        var onlyDelete = SpecDiff.Observe(changes.Where(c => c.Subject == "deleteNote").ToList(), SpecDiff.Calls("""[{"operationId":"addNote","status":201}]"""));
+        var verdict = SpecDiff.Verdict(onlyDelete, "1.0.0", "1.0.0", allowBreaking: false);
+        verdict.Failed.Should().BeFalse();
+        verdict.Verdict.Should().Contain("1 breaking but unobserved");
     }
 
     [Test]

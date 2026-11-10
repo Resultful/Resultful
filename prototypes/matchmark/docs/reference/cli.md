@@ -11,7 +11,8 @@ or a target that can't be reached.
 |:--|:--|:--|
 | [`audit`](#audit) | Built | What the spec leaves out, measured in the cases each fix would add. |
 | [`regress`](#regress) | Built | The suite the spec writes for itself, run against any API. |
-| [`diff`](#diff) | Built | What changed between two specs, and whom it breaks. |
+| [`diff`](#diff) | Built | What changed between two specs, and whom it breaks, judged by observed calls if given. |
+| [`derive`](#derive) | Built | A starting spec from the document ASP.NET Core serves. |
 | [`scaffold`](#scaffold) | Built | The server side as ASP.NET source you own. |
 | [`twin`](#twin) | Built | A stateful fake of the API from the spec alone. |
 | [`fidelity`](#fidelity) | Built | A fake scored against the real API, and the gate for changes to it. |
@@ -66,7 +67,7 @@ answers `2xx` when the consumer takes it, `400` when it refuses it.
 ## diff
 
 ```
-matchmark diff <old spec> <new spec> [--allow-breaking]
+matchmark diff <old spec> <new spec> [--allow-breaking] [--observed <calls.json>]...
 ```
 
 Lists each change between two specs and classifies it:
@@ -78,6 +79,21 @@ Lists each change between two specs and classifies it:
 | additive | Nothing existing breaks. |
 
 Exits `1` when a change is breaking and `info.version`'s major number didn't go up, unless `--allow-breaking`.
+
+With `--observed <calls.json>` (repeatable: a session's `GET /__fake/sessions/{id}/calls`, or any array of
+`{"operationId", "status"}`), each change is judged against what consumers were seen doing: a change to an existing
+response needs a call that got that status, any other change a call to the operation. A breaking change none reached is
+listed as unobserved and doesn't fail the run.
+
+## derive
+
+```
+matchmark derive <url or file> [--output <file>]
+```
+
+Step 1 of the [flip](flip.md): turns the document an ASP.NET Core application serves into a starting spec. Every
+operation gets an `operationId`, and what to review before the flip is listed, with `matchmark audit`'s findings by rule.
+Without `--output`, the YAML goes to standard output after the review, as comments.
 
 ## scaffold
 
