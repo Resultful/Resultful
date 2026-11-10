@@ -582,7 +582,9 @@ namespace Matchmark.Generator
                 operation.RequiredBody = requestBody.Required;
                 if (JsonSchema(requestBody.Content) is { } bodySchema)
                 {
-                    if (TypeOf(bodySchema, context + " request body", operation.Name + "Request") is not { } bodyType)
+                    // A shared request body (components/requestBodies) is named after itself, as a shared response is.
+                    var requestHint = requestBody is OpenApiRequestBodyReference { Reference.Id: { } sharedBody } ? Naming.Pascal(sharedBody) + "Request" : operation.Name + "Request";
+                    if (TypeOf(bodySchema, context + " request body", requestHint) is not { } bodyType)
                     {
                         Unsupported(context + " request body", "request bodies must be JSON the generator can type");
                         return false;
@@ -647,7 +649,12 @@ namespace Matchmark.Generator
                     isValidation = operation.Body is not null && status == 400 && RefId(responseSchema) == ValidationSchema;
                     operation.ValidationDocumented |= isValidation;
 
-                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'", $"{operation.Name}{(status <= 0 ? new Response(status, null).CaseName : Naming.StatusNames[status])}Body");
+                    // A shared response (components/responses) names its inline body after itself, the same wherever it's used,
+                    // so the name doesn't depend on which operation is read first (or which tag's slice is generated).
+                    var hint = pair.Value is OpenApiResponseReference { Reference.Id: { } shared }
+                        ? $"{Naming.Pascal(shared)}Body"
+                        : $"{operation.Name}{(status <= 0 ? new Response(status, null).CaseName : Naming.StatusNames[status])}Body";
+                    bodyType = TypeOf(responseSchema, $"{context} response '{pair.Key}'", hint);
                     if (bodyType is null)
                     {
                         return false;
