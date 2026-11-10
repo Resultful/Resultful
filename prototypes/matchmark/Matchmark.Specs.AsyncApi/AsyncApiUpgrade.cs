@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
 
-namespace Matchmark.Generator
+namespace Matchmark.Specs.AsyncApi
 {
     /// <summary>
     /// AsyncAPI 2.x forward-ported to 3.1, following the AsyncAPI Initiative's guide "Migrating to v3"

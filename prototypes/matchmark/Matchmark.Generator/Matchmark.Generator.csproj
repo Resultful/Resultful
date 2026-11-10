@@ -27,6 +27,7 @@
     <None Include="../Matchmark.Specs/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <None Include="../Matchmark.Specs.Overlay/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.Overlay.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <None Include="../Matchmark.Specs.Arazzo/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.Arazzo.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="../Matchmark.Specs.AsyncApi/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.AsyncApi.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <!-- The benchmarks time the parse step, which is internal. -->
@@ -37,6 +38,7 @@
     <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" PrivateAssets="all" />
     <ProjectReference Include="../Matchmark.Specs.Overlay/Matchmark.Specs.Overlay.csproj" PrivateAssets="all" />
     <ProjectReference Include="../Matchmark.Specs.Arazzo/Matchmark.Specs.Arazzo.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Matchmark.Specs.AsyncApi/Matchmark.Specs.AsyncApi.csproj" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" GeneratePathProperty="true" />
@@ -56,6 +58,7 @@
       <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)../Matchmark.Specs/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.dll" IncludeRuntimeDependency="false" />
       <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)../Matchmark.Specs.Overlay/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.Overlay.dll" IncludeRuntimeDependency="false" />
       <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)../Matchmark.Specs.Arazzo/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.Arazzo.dll" IncludeRuntimeDependency="false" />
+      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)../Matchmark.Specs.AsyncApi/bin/$(Configuration)/netstandard2.0/Matchmark.Specs.AsyncApi.dll" IncludeRuntimeDependency="false" />
     </ItemGroup>
   </Target>
 </Project>

@@ -12,8 +12,20 @@ namespace Matchmark.Specs
     /// unique strings, <c>properties</c> an object of schemas, <c>minLength</c> a non-negative integer, ...). Keywords it
     /// doesn't know are allowed, as the metaschema allows them. Used wherever a specification embeds a schema.
     /// </summary>
+    /// <summary>The JSON Schema dialect a specification embeds.</summary>
+    public enum SchemaDialect
+    {
+        /// <summary>JSON Schema 2020-12 (Arazzo, OpenAPI 3.1).</summary>
+        Draft202012,
+
+        /// <summary>AsyncAPI's Schema Object: JSON Schema draft-07, with <c>discriminator</c>, <c>externalDocs</c> and <c>deprecated</c>.</summary>
+        AsyncApi,
+    }
+
     public static class JsonSchemaShape
     {
+        private static readonly string[] Newer = { "prefixItems", "$defs", "dependentSchemas", "dependentRequired", "unevaluatedItems", "unevaluatedProperties", "$anchor", "$dynamicRef", "$dynamicAnchor", "$vocabulary", "maxContains", "minContains", "contentSchema" };
+
         private static readonly string[] Types = { "null", "boolean", "object", "array", "number", "string", "integer" };
         private static readonly string[] Strings = { "$id", "$schema", "$ref", "$anchor", "$dynamicRef", "$dynamicAnchor", "$comment", "title", "description", "format", "pattern", "contentEncoding", "contentMediaType" };
         private static readonly string[] Schemas = { "additionalProperties", "propertyNames", "items", "contains", "not", "if", "then", "else", "unevaluatedItems", "unevaluatedProperties", "contentSchema", "additionalItems" };
@@ -23,7 +35,9 @@ namespace Matchmark.Specs
         private static readonly string[] Numbers = { "maximum", "minimum", "exclusiveMaximum", "exclusiveMinimum" };
         private static readonly string[] Flags = { "uniqueItems", "deprecated", "readOnly", "writeOnly" };
 
-        public static void Check(Shape shape, JsonNode? node, string pointer, int depth = 0)
+        public static void Check(Shape shape, JsonNode? node, string pointer, int depth = 0) => Check(shape, node, pointer, SchemaDialect.Draft202012, depth);
+
+        public static void Check(Shape shape, JsonNode? node, string pointer, SchemaDialect dialect, int depth = 0)
         {
             if (node is JsonValue flag && flag.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
             {
@@ -46,6 +60,54 @@ namespace Matchmark.Specs
                 var at = Pointer.Join(pointer, pair.Key);
                 var value = pair.Value;
                 var kind = value?.GetValueKind() ?? JsonValueKind.Null;
+                if (dialect == SchemaDialect.AsyncApi && Array.IndexOf(Newer, pair.Key) >= 0)
+                {
+                    continue; // Keywords draft-07 doesn't have: unknown to it, so any value is allowed.
+                }
+
+                if (dialect == SchemaDialect.AsyncApi && pair.Key == "items" && value is JsonArray tuple)
+                {
+                    // draft-07: a list of schemas, one per position, at least one.
+                    if (tuple.Count == 0)
+                    {
+                        shape.Add(at, "'items' as a list must hold at least one schema.");
+                    }
+
+                    for (var i = 0; i < tuple.Count; i++)
+                    {
+                        Check(shape, tuple[i], Pointer.Join(at, i), dialect, depth + 1);
+                    }
+
+                    continue;
+                }
+
+                if (dialect == SchemaDialect.AsyncApi && pair.Key == "discriminator")
+                {
+                    if (kind != JsonValueKind.String)
+                    {
+                        shape.Add(at, "'discriminator' must be a string (the property that names the schema).");
+                    }
+
+                    continue;
+                }
+
+                if (dialect == SchemaDialect.AsyncApi && pair.Key == "externalDocs")
+                {
+                    // An External Documentation Object (a url, a description), or a Reference to one.
+                    if (value is JsonObject docs && !docs.ContainsKey("$ref"))
+                    {
+                        shape.Only(docs, at, "An External Documentation Object", "url", "description");
+                        shape.String(docs, "url", at, required: true);
+                        shape.String(docs, "description", at);
+                    }
+                    else if (value is not JsonObject)
+                    {
+                        shape.Add(at, "'externalDocs' must be an object.");
+                    }
+
+                    continue;
+                }
+
                 if (pair.Key == "type")
                 {
                     if (!(kind == JsonValueKind.String && Array.IndexOf(Types, value!.GetValue<string>()) >= 0
@@ -64,7 +126,7 @@ namespace Matchmark.Specs
                 }
                 else if (Array.IndexOf(Schemas, pair.Key) >= 0)
                 {
-                    Check(shape, value, at, depth + 1);
+                    Check(shape, value, at, dialect, depth + 1);
                 }
                 else if (Array.IndexOf(SchemaMaps, pair.Key) >= 0)
                 {
@@ -72,7 +134,7 @@ namespace Matchmark.Specs
                     {
                         foreach (var entry in map)
                         {
-                            Check(shape, entry.Value, Pointer.Join(at, entry.Key), depth + 1);
+                            Check(shape, entry.Value, Pointer.Join(at, entry.Key), dialect, depth + 1);
                         }
                     }
                     else
@@ -86,7 +148,7 @@ namespace Matchmark.Specs
                     {
                         for (var i = 0; i < list.Count; i++)
                         {
-                            Check(shape, list[i], Pointer.Join(at, i), depth + 1);
+                            Check(shape, list[i], Pointer.Join(at, i), dialect, depth + 1);
                         }
                     }
                     else
@@ -131,9 +193,19 @@ namespace Matchmark.Specs
                 }
                 else if (pair.Key is "enum" or "examples")
                 {
-                    if (value is not JsonArray)
+                    if (value is not JsonArray list)
                     {
                         shape.Add(at, $"'{pair.Key}' must be a list.");
+                    }
+                    else if (dialect == SchemaDialect.AsyncApi && pair.Key == "enum")
+                    {
+                        // AsyncAPI's draft-07 metaschema: at least one value, each once.
+                        if (list.Count == 0)
+                        {
+                            shape.Add(at, "'enum' must hold at least one value.");
+                        }
+
+                        shape.Unique(list, at, "enum");
                     }
                 }
                 else if (pair.Key is "dependentRequired")
@@ -156,7 +228,7 @@ namespace Matchmark.Specs
                     {
                         foreach (var entry in map.Where(e => e.Value is not JsonArray))
                         {
-                            Check(shape, entry.Value, Pointer.Join(at, entry.Key), depth + 1);
+                            Check(shape, entry.Value, Pointer.Join(at, entry.Key), dialect, depth + 1);
                         }
                     }
                     else

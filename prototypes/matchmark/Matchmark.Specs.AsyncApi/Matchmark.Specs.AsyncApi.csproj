@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Matchmark's AsyncAPI reader (decision Q56): AsyncAPI 3.0 and 3.1 read with every problem at its JSON pointer, as the
+    specification's text and schemas define them (vendored in specs/asyncapi), and 2.x forward-ported to 3.1 by
+    AsyncApiUpgrade, Matchmark's port of the official migration guide (Q52).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>Matchmark's AsyncAPI 3.0 and 3.1 reader, and its upgrade from 2.x.</Description>
+    <NoWarn>$(NoWarn);CA1720</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" />
+  </ItemGroup>
+</Project>
