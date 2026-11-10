@@ -136,6 +136,31 @@ internal sealed partial class RegressionRunner
             return listed.Status == 200 && listed.Json() is { } body ? Traits.Sum(Items(body), total.Total) : null;
         }
 
+        // A paged list is walked whole, page by page.
+        if (list is not null && Paging(list) is { } paging)
+        {
+            var paged = new List<JsonObject>();
+            string? at = null;
+            for (var page = 0; page < 100; page++)
+            {
+                var query = at is null ? new List<KeyValuePair<string, string>>() : [new(paging.Cursor.Name, at)];
+                var listed = await SendAsync(new RegressionRequest("GET", total.Collection.TrimStart('/'), query, [], null, null), cancellationToken).ConfigureAwait(false);
+                if (listed.Status != 200 || listed.Json() is not JsonObject body || body[paging.Items] is not JsonArray items)
+                {
+                    return null;
+                }
+
+                paged.AddRange(items.OfType<JsonObject>());
+                at = body[paging.Next] is JsonValue next && next.GetValueKind() == JsonValueKind.String ? next.GetValue<string>() : null;
+                if (at is null)
+                {
+                    return Traits.Sum(paged, total.Total);
+                }
+            }
+
+            return null;
+        }
+
         var read = suite.Spec.Operations.FirstOrDefault(o => o.Method == "GET" && o.Path.StartsWith(total.Collection + "/{", StringComparison.Ordinal));
         if (read is null || ItemParameter(total.Collection) is not { } parameter || ids.Count == 0)
         {

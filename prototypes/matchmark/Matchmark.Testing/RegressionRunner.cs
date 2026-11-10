@@ -116,6 +116,7 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         var safe = method is "GET" or "HEAD" or "QUERY";
         var before = safe && !options.Skip.Contains(Checks.SafeChangesNothing) ? await SnapshotAsync(@case.Request, cancellationToken).ConfigureAwait(false) : null;
         var totals = await TotalsBeforeAsync(@case, cancellationToken).ConfigureAwait(false);
+        var derivedBefore = await DerivedBeforeAsync(@case, cancellationToken).ConfigureAwait(false);
 
         var exchange = await SendAsync(@case.Request, cancellationToken).ConfigureAwait(false);
         var findings = new List<Finding>();
@@ -125,6 +126,10 @@ internal sealed partial class RegressionRunner(RegressionSuite suite, HttpClient
         }
 
         RememberConserved(@case, exchange);
+        if (derivedBefore is not null)
+        {
+            DerivedAfter(@case, exchange, derivedBefore, findings);
+        }
         var valid = @case.Kind != CaseKind.Invalid;
         var success = exchange.Status is >= 200 and < 300;
         Response(@case.Operation, exchange, valid && (@case.Kind != CaseKind.ReadOnlySent || success), @case.Name, findings);

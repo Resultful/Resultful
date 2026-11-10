@@ -121,6 +121,27 @@ public sealed class TraitTests
         caught.Failures.Should().Contain(f => f.Check == Checks.ReferenceHolds && f.Subject.EndsWith("references ownerId still referring", StringComparison.Ordinal));
     }
 
+    [TestCase("cascade")]
+    [TestCase("clear")]
+    public async Task The_suite_checks_what_a_delete_does_to_what_referred_to_it(string onDelete)
+    {
+        var declared = Spec(onDelete, nullable: onDelete == "clear");
+        var suite = RegressionSuite.FromJson(declared);
+        // The suite's own deleteOwner cases would delete owner 1 before any pet refers to it; the check makes its own delete.
+        var options = new RegressionOptions { Include = c => c.Operation.Id != "deleteOwner" };
+
+        using var keeps = Client(declared);
+        await keeps.PostAsJsonAsync("owners", new { name = "Ada" });
+        var kept = await suite.RunAsync(keeps, options);
+        kept.Failures.Where(f => f.Check == Checks.ReferenceHolds).Should().BeEmpty(kept.ToString());
+
+        // A service whose delete leaves the referring pet as it was.
+        using var leaves = Client(declared.Replace($"\"onDelete\": \"{onDelete}\"", "\"onDelete\": \"none\"", StringComparison.Ordinal));
+        await leaves.PostAsJsonAsync("owners", new { name = "Ada" });
+        var caught = await suite.RunAsync(leaves, options);
+        caught.Failures.Should().Contain(f => f.Check == Checks.ReferenceHolds && f.Subject.EndsWith($"references ownerId {onDelete}", StringComparison.Ordinal), caught.ToString());
+    }
+
     private static HttpClient Client(string spec) => new(new SpecTwin(spec)) { BaseAddress = new Uri("http://twin/") };
 
     private static async Task<long> Created(HttpClient client, string path, object body)

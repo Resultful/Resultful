@@ -56,8 +56,9 @@ internal sealed partial class RegressionRunner
             }
         }
 
-        // A declared order (x-matchmark-order): every list is in it.
-        if (success && operation.Method == "GET" && !options.Skip.Contains(Checks.ListOrdered) && Traits.Order(operation) is { Count: > 0 } order
+        // A declared order (x-matchmark-order), or the order a sort parameter's value asks for: every list is in it.
+        var sorted = Traits.SortParameter(operation) is { } sort ? Traits.SortOrder(@case.Request.Query.FirstOrDefault(q => q.Key == sort.Name).Value) : [];
+        if (success && operation.Method == "GET" && !options.Skip.Contains(Checks.ListOrdered) && (sorted.Count > 0 ? sorted : Traits.Order(operation)) is { Count: > 0 } order
             && exchange.Json() is { } listed && Items(listed) is { Count: > 1 } items)
         {
             for (var i = 1; i < items.Count; i++)
@@ -277,6 +278,11 @@ internal sealed partial class RegressionRunner
             }
 
             var delete = suite.Spec.Operations.FirstOrDefault(o => o.Method == "DELETE" && o.Path == reference.Target);
+            if (reference.OnDelete is "cascade" or "clear" && delete is not null)
+            {
+                await AfterDeleteAsync(@case, sent, reference, delete, findings, cancellationToken).ConfigureAwait(false);
+            }
+
             if (reference.OnDelete == "restrict" && delete is not null
                 && await ReferredAsync(@case, sent, reference, cancellationToken).ConfigureAwait(false) is { } target)
             {
@@ -298,6 +304,10 @@ internal sealed partial class RegressionRunner
     /// either can't be created. The restrict check then needs nothing earlier cases left behind.
     /// </summary>
     private async Task<string?> ReferredAsync(RegressionCase @case, JsonObject sent, Reference reference, CancellationToken cancellationToken)
+        => (await ReferringAsync(@case, sent, reference, cancellationToken).ConfigureAwait(false))?.Target;
+
+    /// <summary>A fresh target, and a fresh resource referring to it: the target's id and the referrer as created; null when either couldn't be made.</summary>
+    private async Task<(string Target, JsonObject Referrer)?> ReferringAsync(RegressionCase @case, JsonObject sent, Reference reference, CancellationToken cancellationToken)
     {
         var create = suite.Spec.Operations.FirstOrDefault(o => o.Method == "POST" && o.Path == reference.Collection && o.Body is not null);
         if (create?.Body is not { } body || !suite.Samples.TrySample(body.Schema, false, out var sample) || sample is null)
@@ -323,7 +333,46 @@ internal sealed partial class RegressionRunner
 
         var referred = await SendAsync(@case.Request with { Body = RequestText(@case.Request, referring), Headers = FreshKey(@case.Request.Headers) }, cancellationToken)
             .ConfigureAwait(false);
-        return referred.Status is >= 200 and < 300 ? (id.GetValueKind() == JsonValueKind.String ? id.GetValue<string>() : id.ToJsonString()) : null;
+        return referred.Status is >= 200 and < 300 && referred.Json() is JsonObject referrer
+            ? (id.GetValueKind() == JsonValueKind.String ? id.GetValue<string>() : id.ToJsonString(), referrer)
+            : null;
+    }
+
+    /// <summary>
+    /// A delete of what's referred to, for cascade and clear: a fresh target and referrer, the target deleted, then the
+    /// referrer read back, which must be gone (cascade) or have the field cleared (clear).
+    /// </summary>
+    private async Task AfterDeleteAsync(RegressionCase @case, JsonObject sent, Reference reference, SpecOperation delete, List<Finding> findings, CancellationToken cancellationToken)
+    {
+        var operation = @case.Operation;
+        var read = suite.Spec.Operations.Select(o => (Operation: o, Match: System.Text.RegularExpressions.Regex.Match(o.Path,
+                "^" + System.Text.RegularExpressions.Regex.Escape(operation.Path.TrimEnd('/')) + @"/\{(?<p>[^}]+)\}$")))
+            .FirstOrDefault(m => m.Operation.Method == "GET" && m.Match.Success);
+        if (read.Operation is null || await ReferringAsync(@case, sent, reference, cancellationToken).ConfigureAwait(false) is not { } made
+            || Id(made.Referrer, read.Match.Groups["p"].Value) is not { } referrer)
+        {
+            return;
+        }
+
+        var parameter = System.Text.RegularExpressions.Regex.Match(reference.Target, @"\{(?<p>[^}]+)\}$").Groups["p"].Value;
+        var target = reference.Target.Replace("{" + parameter + "}", Uri.EscapeDataString(made.Target), StringComparison.Ordinal).TrimStart('/');
+        var deleted = await SendAsync(new RegressionRequest("DELETE", target, [], [], null, null), cancellationToken).ConfigureAwait(false);
+        if (deleted.Status is < 200 or >= 300)
+        {
+            return;
+        }
+
+        var path = $"{@case.Request.Path.Split('?')[0].Trim('/')}/{Uri.EscapeDataString(referrer)}";
+        var after = await SendAsync(new RegressionRequest("GET", path, [], [], null, null), cancellationToken).ConfigureAwait(false);
+        var subject = $"{@case.Name}, references {reference.Field} {reference.OnDelete}";
+        if (reference.OnDelete == "cascade" && after.Status != 404)
+        {
+            Add(findings, Checks.ReferenceHolds, subject, after, $"after deleting {target}, {path}, which referred to it, is still there ({after.Status}); the reference cascades, so it must be gone (404)");
+        }
+        else if (reference.OnDelete == "clear" && after.Status is >= 200 and < 300 && after.Json() is JsonObject resource && Traits.Text(resource, reference.Field) is { } still)
+        {
+            Add(findings, Checks.ReferenceHolds, subject, after, $"after deleting {target}, {path} still has {reference.Field} {still}; the reference clears it, so it must be null or absent");
+        }
     }
 
     /// <summary>An id of the reference's type that names no resource: checked with a read when the spec has one.</summary>
@@ -669,6 +718,7 @@ internal sealed partial class RegressionRunner
         }
 
         var seen = new List<string>();
+        var walked = new List<JsonObject>();
         string? at = null;
         for (var page = 0; ; page++)
         {
@@ -686,6 +736,7 @@ internal sealed partial class RegressionRunner
                 return new WorkflowResult(name, exchanges, findings, $"page {page + 1} gave {exchange.Status}, with no {items} to walk");
             }
 
+            walked.AddRange(list.OfType<JsonObject>());
             foreach (var item in list)
             {
                 var key = Key(item);
@@ -702,6 +753,19 @@ internal sealed partial class RegressionRunner
             if (at is null)
             {
                 break;
+            }
+        }
+
+        // A declared order holds across pages too: each page continues the one before.
+        if (Traits.Order(operation) is { Count: > 0 } order && !options.Skip.Contains(Checks.ListOrdered))
+        {
+            for (var i = 1; i < walked.Count; i++)
+            {
+                if (Traits.Compare(walked[i - 1], walked[i], order) > 0)
+                {
+                    Add(findings, Checks.ListOrdered, $"{name}, across pages", exchanges[^1], $"item {i} of the pages walked comes before item {i - 1} in the declared order: a page doesn't continue the one before");
+                    break;
+                }
             }
         }
 
