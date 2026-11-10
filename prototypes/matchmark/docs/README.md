@@ -31,6 +31,7 @@ description of the code today and of the design ahead.
 | [Validation](reference/validation.md) | Planned: per-object checks on .NET's own validation layer, with a generated resolver. |
 | [Hosted sessions](reference/sessions.md) | A copy of the API per test session: routing, ids, tokens, pathways and the report. |
 | [Twins and fidelity](reference/twins.md) | The stateful twin, fidelity runs, recordings and the gated loop. |
+| [Testing the generator](reference/testing.md) | The layers that prove what's generated: the model, incrementality, diagnostics, behaviour, derived evidence and breadth. |
 | [The model](reference/model.md) | The semantic model every output is generated from (roadmap step 2). |
 | [Flip](reference/flip.md) | Moving an existing application to spec-first: derive, verify, scaffold, verify at compile time. |
 | [Glossary](glossary.md) | The terms these pages use. |

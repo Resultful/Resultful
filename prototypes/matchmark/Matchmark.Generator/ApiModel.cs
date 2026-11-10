@@ -23,9 +23,9 @@ namespace Matchmark.Generator
         public IReadOnlyList<string> Diagnostics { get; }
 
         /// <summary>Reads a spec (YAML or JSON) into the model; null when it can't be read at all.</summary>
-        public static ApiModel? Read(string text, string path, string apiName = "Api", string ns = "Api")
+        public static ApiModel? Read(string text, string path, string apiName = "Api", string ns = "Api", IEnumerable<(string Text, string Path)>? overlays = null)
         {
-            var document = SpecReader.Read(text, path, out _);
+            var document = SpecReader.Read(text, path, out _, overlays);
             if (document is null)
             {
                 return null;

@@ -26,7 +26,8 @@ namespace Matchmark.Generator
                 .Combine(context.AnalyzerConfigOptionsProvider)
                 .Select(static (pair, ct) => ReadSpec(pair.Left, pair.Right, ct))
                 .Where(static spec => spec is not null)
-                .Select(static (spec, _) => spec!);
+                .Select(static (spec, _) => spec!)
+                .WithTrackingName(TrackingNames.Specs);
 
             // The OpenAPI document configuration is only emitted when the app describes itself with
             // Microsoft.AspNetCore.OpenApi; without it the generated code would not compile.
@@ -39,7 +40,8 @@ namespace Matchmark.Generator
                     HasRules: compilation.GetTypeByMetadataName("Matchmark.Rules.Cel") is not null,
                     HasEntityFramework: compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.ModelBuilder") is not null,
                     HasValidation: compilation.GetTypeByMetadataName("Microsoft.Extensions.Validation.IValidatableInfoResolver") is not null,
-                    HasValidationAttributes: compilation.GetTypeByMetadataName("Matchmark.Validation.MultipleOfAttribute") is not null));
+                    HasValidationAttributes: compilation.GetTypeByMetadataName("Matchmark.Validation.MultipleOfAttribute") is not null))
+                .WithTrackingName(TrackingNames.References);
 
             // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
             // AdditionalFiles joined to a spec by MatchmarkApiName.
@@ -52,6 +54,7 @@ namespace Matchmark.Generator
             // then registers it. Looked up by the spec's own type name, so only a bool reaches the output step.
             var referencedResolvers = specs.Combine(context.CompilationProvider)
                 .Select(static (pair, _) => (pair.Left.ApiName, Has: pair.Right.GetTypeByMetadataName($"{pair.Left.Namespace}.{pair.Left.ApiName}ValidationResolver") is not null))
+                .WithTrackingName(TrackingNames.ReferencedResolvers)
                 .Collect();
 
             context.RegisterSourceOutput(specs.Combine(references).Combine(arazzo).Combine(overlays).Combine(referencedResolvers).Combine(specParts), static (spc, withParts) =>
@@ -67,7 +70,8 @@ namespace Matchmark.Generator
             // Each tag's endpoints from that tag's slice of the spec (question 4): an edit to one tag's operations changes
             // only its slice, so Roslyn reuses the other tags' output.
             var slices = specs.Combine(overlays).Combine(specParts)
-                .SelectMany(static (pair, ct) => Slices(Bundled(With(pair.Left.Left, pair.Left.Right), pair.Right)));
+                .SelectMany(static (pair, ct) => Slices(Bundled(With(pair.Left.Left, pair.Left.Right), pair.Right)))
+                .WithTrackingName(TrackingNames.TagSlices);
             context.RegisterSourceOutput(slices.Combine(references), static (spc, pair) =>
                 GenerateTag(spc, pair.Left, pair.Right.DescribesItself, pair.Right.HasFakes, pair.Right.HasRules, pair.Right.HasValidation, pair.Right.HasValidationAttributes));
 
@@ -364,6 +368,22 @@ namespace Matchmark.Generator
                 context.AddSource($"{spec.ApiName}.{file.Key}.g.cs", SourceText.From(file.Value, System.Text.Encoding.UTF8));
             }
         }
+    }
+
+    /// <summary>The generator's named pipeline steps, for tests that check what an edit re-runs (Roslyn's step tracking).</summary>
+    public static class TrackingNames
+    {
+        /// <summary>Each spec read from its AdditionalFile and metadata.</summary>
+        public const string Specs = "Matchmark.Specs";
+
+        /// <summary>What the compilation references (OpenAPI, fakes, rules, validation): a handful of bools.</summary>
+        public const string References = "Matchmark.References";
+
+        /// <summary>Whether a referenced contract project has each spec's validation resolver.</summary>
+        public const string ReferencedResolvers = "Matchmark.ReferencedResolvers";
+
+        /// <summary>Each tag's slice of each spec, for its endpoints (question 4).</summary>
+        public const string TagSlices = "Matchmark.TagSlices";
     }
 
     internal sealed class SpecInput : IEquatable<SpecInput>

@@ -13,6 +13,14 @@ internal static class GeneratedServer
 {
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
     {
+        var (assembly, diagnostics, _) = BuildWithSources(api, spec, overlays, source, withRules, resultful, clientOnNet);
+        return (assembly, diagnostics);
+    }
+
+    /// <summary>As <see cref="Build"/>, with the generated sources too (hint name and text, by hint name), for derived evidence.</summary>
+    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources) BuildWithSources(
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
+    {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
             .Append(typeof(Resultful.Unit).Assembly.Location)
@@ -25,15 +33,17 @@ internal static class GeneratedServer
         var compilation = CSharpCompilation.Create($"{api}{(withRules ? "WithRules" : "WithoutRules")}{Guid.NewGuid():N}", [CSharpSyntaxTree.ParseText(source, parse)], references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         var texts = new[] { spec }.Concat(overlays).Select(path => (AdditionalText)new Text(path, File.ReadAllText(path))).ToArray();
-        var driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, resultful, clientOnNet), parseOptions: parse);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, resultful, clientOnNet), parseOptions: parse);
 
-        driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out var diagnostics);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out var diagnostics);
+        var sources = driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources).OrderBy(s => s.HintName, StringComparer.Ordinal)
+            .Select(s => (s.HintName, s.SourceText.ToString())).ToList();
 
         using var stream = new MemoryStream();
         var emitted = generated.Emit(stream);
         emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString()).Should().BeEmpty();
         stream.Position = 0;
-        return (AssemblyLoadContext.Default.LoadFromStream(stream), diagnostics.ToList());
+        return (AssemblyLoadContext.Default.LoadFromStream(stream), diagnostics.ToList(), sources);
     }
 
     private sealed class Text(string path, string text) : AdditionalText
