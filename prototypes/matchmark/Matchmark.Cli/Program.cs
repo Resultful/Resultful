@@ -27,7 +27,11 @@ const string Usage = """
 
       Reports what the spec leaves out, each finding measured in the cases and workflows its change would add.
 
-    matchmark diff <old spec> <new spec> [--allow-breaking]
+    matchmark derive <url or file> [--output <file>]
+
+      A starting spec from the document an ASP.NET Core application serves, with what to review before the flip.
+
+    matchmark diff <old spec> <new spec> [--allow-breaking] [--observed <calls.json>]...
 
       Lists what changed and whom it breaks; exits 1 on a breaking change the major version didn't announce.
 
@@ -70,6 +74,11 @@ if (args.Length > 0 && args[0] == "host")
 if (args.Length > 0 && args[0] == "upgrade")
 {
     return await UpgradeCommand.RunAsync(args[1..], Console.Out);
+}
+
+if (args.Length > 0 && args[0] == "derive")
+{
+    return await DeriveCommand.RunAsync(args[1..], Console.Out);
 }
 
 if (args.Length > 0 && args[0] == "diff")

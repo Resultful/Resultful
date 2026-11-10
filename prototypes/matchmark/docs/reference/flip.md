@@ -16,7 +16,7 @@ flowchart LR
 | Source | How | Status |
 |:--|:--|:--|
 | A spec the team already has | Used as it is, after `matchmark audit`. | **Built** |
-| ASP.NET Core's own document | The application serves `/openapi/v1.json` (`Microsoft.AspNetCore.OpenApi`); that document is the starting spec. The round-trip check already reads it. | **Partial**: read, not yet turned into a starting spec with a command |
+| ASP.NET Core's own document | The application serves `/openapi/v1.json` (`Microsoft.AspNetCore.OpenApi`); `matchmark derive <url or file> [--output spec.yaml]` makes it the starting spec: every operation gets an `operationId` (from its method and path, unique, where an endpoint has no `.WithName`), and what to review is listed: bodies with no documented 400, single-resource reads with no 404, responses with no example, a server URL that's only where the document was served, ASP.NET Core's default version, and what `matchmark audit` finds. | **Built** (`SpecDeriveTests`; the Pet Store passes the suite of the spec derived from its own document) |
 | Recorded traffic | For applications that aren't ASP.NET Core. | **Planned**, later (Q14) |
 
 A derived spec records accidents as well as decisions. Review it, and fix what it says in the spec before going on.
@@ -43,8 +43,11 @@ running service describes itself exactly as the spec does. **Built.**
 ## 5. Change the spec first
 
 From here a change starts in the spec, in a reviewed pull request. The compiler shows every handler and consumer it
-reaches, and `matchmark diff` grades it ([command line](cli.md#diff)). **Built**; running `diff` in pull requests fed with
-the outcomes consumers actually observed is **Planned** (step 5).
+reaches, and `matchmark diff` grades it ([command line](cli.md#diff)). **Built**, and so is judging it by what consumers do:
+`--observed` takes the calls consumers made (a session's `GET /__fake/sessions/{id}/calls`, or any array of
+`{operationId, status}`), and a breaking change no recorded call reached (an operation nobody called, or a change to a
+response status nobody received) is listed as unobserved and doesn't fail the run (`DiffTests`). Collecting the calls
+from every session in CI and passing them to `diff` in pull requests is the team's pipeline, not Matchmark's.
 
 ## Events
 
