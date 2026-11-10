@@ -58,7 +58,7 @@ are forward-ported before they reach it.
 | A read-only view, tested directly | **Built.** `ApiModel.Read(spec)` gives each operation's id, method, path, tag, typed parameters and where they bind from, body (type, media type, required, validated) and outcomes (status, type, success, validation problem), and the diagnostics; `ApiModelTests` pins them from small specs. Writing it found one decision made in only one place: whether a body is required was recorded for text bodies alone, and is now recorded for every body. |
 | The engine on the model | Planned: `Matchmark.Testing` still reads the normalised JSON itself (question 1 in [QUESTIONS](../QUESTIONS.md)). |
 | Outputs as functions of the model | Planned: each output still reads the emitter's operation objects and Microsoft.OpenApi's schemas; schemas, traits, channels and workflows aren't in the model yet. |
-| Incremental by tag | Planned: parsing as its own incremental step with an equatable model, and output per tag. |
+| Incremental by tag | Planned, on [question 4](../QUESTIONS.md): parsing as its own incremental step with an equatable model, and output per tag, which splits the generated registration by tag. |
 
 ## Done when
 
