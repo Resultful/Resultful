@@ -50,6 +50,7 @@ From the repository root:
 | Everything | `dotnet test Matchmark.slnx -c Release` | Testing about 142, Generator about 228 (8 skipped), Sample about 121 |
 | Large specs | `sh samples/large/fetch.sh`, then `MATCHMARK_LARGE_SPECS=$PWD/samples/large dotnet test Matchmark.Generator.Tests -c Release --filter LargeSpecTests` | GitHub's and Stripe's specs, fetched and not committed. They must compile with 0 errors; the share generated (98.7%, 99.8%) should only rise |
 | The specifications' examples | `sh samples/examples/fetch.sh`, then `MATCHMARK_EXAMPLES=$PWD/samples/examples dotnet test Matchmark.Generator.Tests -c Release --filter OfficialExamplesTests` | Pinned commits; 57 of 57 |
+| On a broker | `docker run -d --network host nats:2.10`, then `MATCHMARK_NATS_URL=nats://127.0.0.1:4222 dotnet test Matchmark.Generator.Tests -c Release --filter MessagingTests` | The generated AsyncAPI producer and consumer on NATS; CI runs a NATS service container |
 | More random specs | `MATCHMARK_RANDOM_SPECS=200 dotnet test Matchmark.Generator.Tests -c Release --filter RandomSpecTests` | 12 seeds by default. A failure prints a shrunk spec: commit it as a fixture |
 | Derived evidence | `MATCHMARK_DERIVED=<dir> dotnet test Matchmark.Generator.Tests -c Release --filter DerivedEvidenceTests` | Writes `{sample}.model.json`, `.api.txt`, `.g.cs`. Diff two runs to review a change |
 | The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors |
@@ -72,8 +73,8 @@ Each item links to the page that defines it. Update that page as items are built
 4. **Verify** (roadmap step 3): every version read through the standard libraries. The libraries are measured against
    the corpus (`ReaderLibraryTests`). Where they can run is question 5: none targets netstandard2.0 for the generator,
    BinkyLabs Arazzo has no 1.1, and BinkyLabs Overlays fails the licence rule.
-5. **Flip** (roadmap step 5): AsyncAPI consumers and producers as typed interfaces with one broker adapter, then a
-   trial end to end on a real service with a frontend.
+5. **Flip** (roadmap step 5): a trial end to end on a real service with a frontend. The typed AsyncAPI consumer and
+   producer, with NATS as the first broker, are built ([build.md: Messaging](docs/reference/build.md#messaging)).
 6. **Later layers** (roadmap step 6), as `VISION.md` lists them.
 
 Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.md`, `sessions.md`, `twins.md`.

@@ -21,6 +21,11 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    # A NATS server, for MessagingTests: the generated AsyncAPI producer and consumer on a real broker.
+    services:
+      nats:
+        image: nats:2.10
+        ports: [ '4222:4222' ]
 
     steps:
       - name: Checkout repository
@@ -32,6 +37,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Test
+        env:
+          MATCHMARK_NATS_URL: nats://localhost:4222
         run: dotnet test Matchmark.slnx --configuration Release
 
       - name: Fetch the large specs

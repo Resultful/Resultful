@@ -40,7 +40,8 @@ namespace Matchmark.Generator
                     HasRules: compilation.GetTypeByMetadataName("Matchmark.Rules.Cel") is not null,
                     HasEntityFramework: compilation.GetTypeByMetadataName("Microsoft.EntityFrameworkCore.ModelBuilder") is not null,
                     HasValidation: compilation.GetTypeByMetadataName("Microsoft.Extensions.Validation.IValidatableInfoResolver") is not null,
-                    HasValidationAttributes: compilation.GetTypeByMetadataName("Matchmark.Validation.MultipleOfAttribute") is not null))
+                    HasValidationAttributes: compilation.GetTypeByMetadataName("Matchmark.Validation.MultipleOfAttribute") is not null,
+                    HasMessaging: compilation.GetTypeByMetadataName("Matchmark.Messaging.IMessageTransport") is not null))
                 .WithTrackingName(TrackingNames.References);
 
             // Arazzo documents for the Regression part (MatchmarkArazzo), and Overlays applied to the spec first (MatchmarkOverlay):
@@ -64,7 +65,7 @@ namespace Matchmark.Generator
                 Generate(spc, Bundled(With(pair.Left.Left.Left, pair.Right), withParts.Right), pair.Left.Left.Right.DescribesItself, pair.Left.Left.Right.HasFakes,
                     pair.Left.Left.Right.HasRegression, pair.Left.Right.Where(a => a.ApiName == pair.Left.Left.Left.ApiName).ToList(), pair.Left.Left.Right.HasRules,
                     pair.Left.Left.Right.HasEntityFramework, pair.Left.Left.Right.HasValidation, pair.Left.Left.Right.HasValidationAttributes,
-                    all.Right.Any(r => r.ApiName == pair.Left.Left.Left.ApiName && r.Has));
+                    all.Right.Any(r => r.ApiName == pair.Left.Left.Left.ApiName && r.Has), pair.Left.Left.Right.HasMessaging);
             });
 
             // Each tag's endpoints from that tag's slice of the spec (question 4): an edit to one tag's operations changes
@@ -391,7 +392,7 @@ namespace Matchmark.Generator
         }
 
         private static void Generate(SourceProductionContext context, SpecInput spec, bool describesItself, bool hasFakes, bool hasRegression,
-            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false, bool hasValidationAttributes = false, bool referencedResolver = false)
+            IReadOnlyList<(string ApiName, string Path, string Content)> arazzo, bool hasRules = false, bool hasEntityFramework = false, bool hasValidation = false, bool hasValidationAttributes = false, bool referencedResolver = false, bool hasMessaging = false)
         {
             var location = Location.Create(spec.Path, default, default);
             var document = SpecReader.Read(spec.Content, spec.Path, out var problems, spec.Overlays);
@@ -406,7 +407,7 @@ namespace Matchmark.Generator
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ReaderProblem, location, spec.Path, problem));
             }
 
-            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver, PlainOutcomes = !spec.Resultful, ClientOnNet = spec.ClientOnNet, SplitByTag = Splittable(spec) };
+            var emitter = new Emitter(document, spec.Namespace, spec.ApiName, location, describesItself, hasFakes, hasRules, spec.OwnProblems) { EntityFramework = hasEntityFramework, NetValidation = hasValidation, ValidationAttributes = hasValidationAttributes, ReferencedResolver = referencedResolver, Messaging = hasMessaging, PlainOutcomes = !spec.Resultful, ClientOnNet = spec.ClientOnNet, SplitByTag = Splittable(spec) };
             var parts = spec.Parts.Split(',', ';').Select(p => p.Trim()).ToList();
             if (parts.Contains("Server", StringComparer.OrdinalIgnoreCase) && !hasValidation && !referencedResolver)
             {

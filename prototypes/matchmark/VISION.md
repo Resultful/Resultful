@@ -303,7 +303,7 @@ starting with `unique` ([docs/reference/invariants.md](docs/reference/invariants
 **5. Flip.**
 - ✓ A spec derived from ASP.NET Core's own document (`matchmark derive`), or ✓ from recorded traffic for other stacks
   (`derive --har`), the application verified against it, then scaffolded from it.
-- AsyncAPI consumers and producers generated as typed interfaces, with one broker adapter first.
+- ✓ AsyncAPI consumers and producers generated as typed interfaces, with one broker adapter first (NATS; `Matchmark.Messaging`).
 - ✓ `matchmark diff` fed the outcomes consumers actually observed (`--observed`), for pull requests.
 - Tried end to end on one real service with a frontend.
 

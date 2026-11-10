@@ -11,17 +11,17 @@ namespace Matchmark.Generator.Tests;
 /// <summary>A sample's generated Contract and Server parts, with its overlays, compiled with the given source and loaded.</summary>
 internal static class GeneratedServer
 {
-    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
+    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
     {
-        var (assembly, diagnostics, _) = BuildWithSources(api, spec, overlays, source, withRules, resultful, clientOnNet);
+        var (assembly, diagnostics, _) = BuildWithSources(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging);
         return (assembly, diagnostics);
     }
 
     /// <summary>As <see cref="Build"/>, with the generated sources too (hint name and text, by hint name), for derived evidence.</summary>
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources) BuildWithSources(
-        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
     {
-        var (assembly, diagnostics, sources, _) = BuildWithWarnings(api, spec, overlays, source, withRules, resultful, clientOnNet);
+        var (assembly, diagnostics, sources, _) = BuildWithWarnings(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging);
         return (assembly, diagnostics, sources);
     }
 
@@ -30,7 +30,7 @@ internal static class GeneratedServer
     /// (nullable included): the emitted-code gate's input.
     /// </summary>
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources, IReadOnlyList<Diagnostic> Warnings) BuildWithWarnings(
-        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false)
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -38,6 +38,8 @@ internal static class GeneratedServer
             .Append(typeof(OneOf.OneOf<>).Assembly.Location)
             .Concat(withRules ? [typeof(Matchmark.Rules.Cel).Assembly.Location] : [])
             .Where(path => withRules || !path.EndsWith("Matchmark.Rules.dll", StringComparison.Ordinal))
+            .Where(path => withMessaging || !path.EndsWith("Matchmark.Messaging.dll", StringComparison.Ordinal))
+            .Concat(withMessaging ? [typeof(Matchmark.Messaging.IMessageTransport).Assembly.Location] : [])
             .Distinct()
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path));
         var parse = new CSharpParseOptions(LanguageVersion.Latest);

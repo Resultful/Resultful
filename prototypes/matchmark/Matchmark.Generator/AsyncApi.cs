@@ -55,6 +55,7 @@ namespace Matchmark.Generator
                         ["summary"] = operation["summary"]?.DeepClone() ?? JsonValue.Create($"{(action == "receive" ? "Receives" : "Sends")} on {address}"),
                         ["x-asyncapi-action"] = action,
                         ["x-asyncapi-channel"] = address,
+                        ["x-asyncapi-parameters"] = Parameters(document, channel?["parameters"] as JsonObject),
                         ["parameters"] = messages.Count == 1 ? Headers(Resolve(document, messages[0]["headers"])) : new JsonArray(),
                         ["requestBody"] = new JsonObject
                         {
@@ -99,6 +100,25 @@ namespace Matchmark.Generator
                 ["webhooks"] = webhooks,
                 ["components"] = new JsonObject { ["schemas"] = schemas },
             }.ToJsonString();
+        }
+
+        /// <summary>A channel's address parameters, in order, each with its enum when it has one.</summary>
+        private static JsonArray Parameters(JsonObject document, JsonObject? parameters)
+        {
+            var list = new JsonArray();
+            foreach (var pair in parameters ?? new JsonObject())
+            {
+                var parameter = Resolve(document, pair.Value);
+                var entry = new JsonObject { ["name"] = pair.Key };
+                if ((parameter?["enum"] ?? parameter?["schema"]?["enum"]) is JsonArray values)
+                {
+                    entry["enum"] = values.DeepClone();
+                }
+
+                list.Add(entry);
+            }
+
+            return list;
         }
 
         /// <summary>A message's headers schema, as header parameters.</summary>

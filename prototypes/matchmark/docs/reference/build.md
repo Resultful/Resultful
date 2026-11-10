@@ -57,6 +57,7 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Fakes` | `Matchmark.Fakes.Scenario` | The generated fake and scenario builder, in the `Contract` part. |
 | `Matchmark.Testing` | `Matchmark.Testing.RegressionSuite` | The `Regression` part. |
 | `Matchmark.Rules` | `Matchmark.Rules.Cel` | Enforcement of `x-matchmark-rules`, `x-matchmark-transitions` and `x-dependencies` in the server and client (`MM025` without it). |
+| `Matchmark.Messaging` | `Matchmark.Messaging.IMessageTransport` | **Built.** For an AsyncAPI document, in the `Contract` part: `I{Api}Consumer` (its receive operations), `{Api}Producer` (every operation's message, checked before it's sent) and `Subscribe{Api}` (the consumer on its channels, each message checked as it arrives, and refused ones given to a dead-letter handler). See [Messaging](#messaging). |
 | `Microsoft.Extensions.Validation` | **Built** (Q45) | Validation attributes on models, a generated `{Api}ValidationResolver`, registered by `Add{Api}()` ahead of Matchmark's own validator ([validation](validation.md)). In the ASP.NET Core shared framework from .NET 10. |
 
 ## Packages
@@ -67,6 +68,8 @@ The generator looks for these types in the compilation, so a feature is on exact
 | `Matchmark.Fakes` | Built | The runtime for generated fakes: `Scenario`, `ScenarioRunner`, `FakeCall`. |
 | `Matchmark.Testing` | Built | The regression engine, twin and fidelity. Needs only System.Text.Json. |
 | `Matchmark.Rules` | Built | CEL and IDL evaluators. |
+| `Matchmark.Messaging` | **Built** | The transport the generated AsyncAPI producer and consumer use (`IMessageTransport`), channel addresses, and `InMemoryTransport` for tests. |
+| `Matchmark.Messaging.Nats` | **Built** | NATS as the transport (`NatsTransport`, on NATS.Client.Core, Apache-2.0). |
 | `Matchmark.Conformance` | Built | `UseMatchmarkConformance(spec)` middleware, in observe or enforce mode. |
 | `Matchmark.Cli` | Built | The `matchmark` dotnet tool. |
 | Container image | **Built** (Q17) | The CLI, for teams without the .NET SDK: `Dockerfile`, built from the repository root (`docker build -t matchmark .`), on ASP.NET Core's runtime image so `host` and `twin` serve HTTP; the working directory is `/work`, for a mounted spec. CI builds it, audits a sample with it and hosts a session; built and smoke-tested here too (367 MB). Behind a TLS-inspecting proxy, pass its certificate as a build secret (`--secret id=ca,src=proxy.crt`) with the usual `HTTPS_PROXY` build argument. Publishing it to a registry waits on publishing being set up (Q48). |
@@ -79,3 +82,22 @@ server with neither referenced). The members keep those libraries' names, so a h
 `MatchmarkOutcomes="Resultful"` generates onto Resultful and OneOf instead, the adapter, for code that uses their wider
 API (`ToOneOf`, `Map`, `Bind`): the Pet Store sample does. `matchmark scaffold --outcomes resultful` writes owned code
 to match.
+
+## Messaging
+
+**Built.** An AsyncAPI document on a broker. With `Matchmark.Messaging` referenced, the `Contract` part of an AsyncAPI
+spec adds three types to the webhooks it already generates, which still back the HTTP bridge and the regression suite:
+
+| Generated | What it is |
+|:--|:--|
+| `I{Api}Consumer` | One method per receive operation: the channel's parameters, the message's headers (typed by its headers schema), and the payload's model. The application implements it. |
+| `{Api}Producer` | One method per operation, on an `IMessageTransport`. It checks a channel parameter against its enum and the payload against its schema, then sends to the channel's address, with the headers and the content type. A message that breaks the document throws `MessageRejectedException` and is never sent. The send operations are the application's own; the receive operations' methods are for its counterpart, such as a test. |
+| `Subscribe{Api}(transport, consumer, rejected)` | Subscribes the consumer to each receive operation's channel. A message reaches it only when its content type, headers and payload match the document. One that doesn't goes to `rejected`, a dead-letter handler, with every error by key. A message whose address parameter isn't one of the channel's values belongs to another channel (addresses can overlap: `notifications.{topic}` and `notifications.redeliver`), so it's left alone. |
+
+A channel address's parameter is one segment between its separators (`.` or `/`). `ChannelAddress.Format` refuses a
+value that holds a separator or a wildcard, so a parameter can't widen the address.
+
+Transports: `InMemoryTransport`, for tests, and `NatsTransport` (`Matchmark.Messaging.Nats`), where an address is a
+subject, a parameter is a `*` token, and headers and the content type travel as NATS headers. `MessagingTests` runs the
+same exchange on both, the NATS run against CI's service container (`MATCHMARK_NATS_URL`): a valid message taken typed,
+an invalid one refused by the producer, two sent by hand refused as they arrive, and a notification to its address.
