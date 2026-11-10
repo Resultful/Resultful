@@ -246,19 +246,107 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
 
     /// <summary>Valid copies of <paramref name="root"/> with one value moved to each bound its schema has.</summary>
     public IEnumerable<Variant> Boundaries(JsonNode? root, JsonNode schema)
-        => Walk(root, schema, string.Empty, Bounds).Where(v => validator.IsValid(v.Value, schema, Direction.Request)).DistinctBy(v => v.Value?.ToJsonString());
+        => Variants(root, schema, Bounds, valid: true);
 
     /// <summary>Copies of <paramref name="root"/> that each break exactly one constraint, and so must be rejected.</summary>
     public IEnumerable<Variant> Violations(JsonNode? root, JsonNode schema)
-        => Walk(root, schema, string.Empty, Breaks).Where(v => !validator.IsValid(v.Value, schema, Direction.Request)).DistinctBy(v => v.Value?.ToJsonString());
+        => Variants(root, schema, Breaks, valid: false);
 
     private delegate IEnumerable<(string Description, JsonNode? Value)> Leaf(JsonNode? value, JsonObject schema);
 
     /// <summary>
-    /// Every variant of the value: the leaf function applied here, then (for objects) a required property removed or
-    /// each property varied in turn, and (for arrays) the first item varied. Each variant is the whole value.
+    /// One change to the value: the node at <c>Segments</c> (property names and array indexes from the root) replaced by
+    /// <c>Local</c>, which <c>LocalSchema</c> describes. <c>Exact</c> when no schema above the change can make it valid or
+    /// invalid on its own (a oneOf, an enum on the whole object, uniqueItems...), so checking the local value decides it.
     /// </summary>
-    private IEnumerable<Variant> Walk(JsonNode? value, JsonNode schemaNode, string path, Leaf leaf, int depth = 0)
+    private sealed record Step(string Path, string Description, IReadOnlyList<object> Segments, JsonNode? Local, JsonNode LocalSchema, bool Exact);
+
+    /// <summary>
+    /// The variants that are valid (or not) as asked, each once. Where a change is exact it's checked alone, against its
+    /// own schema, and told apart from others by its path and value, so a large value is neither re-validated nor
+    /// serialised for every change in it; otherwise the whole value is, as before. The whole is built once per variant kept.
+    /// </summary>
+    private IEnumerable<Variant> Variants(JsonNode? root, JsonNode schema, Leaf leaf, bool valid)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var step in Walk(root, schema, string.Empty, [], leaf, exact: true))
+        {
+            var whole = step.Exact ? null : Replace(root, step.Segments, step.Local);
+            if ((step.Exact ? validator.IsValid(step.Local, step.LocalSchema, Direction.Request) : validator.IsValid(whole, schema, Direction.Request)) != valid)
+            {
+                continue;
+            }
+
+            // A change that changes nothing (a value already at its bound) is the value itself, wherever it is: one of those.
+            var key = !step.Exact ? "\u0001" + whole?.ToJsonString()
+                : JsonNode.DeepEquals(step.Local, At(root, step.Segments)) ? "\u0002"
+                : step.Path + "\u0000" + (step.Local?.ToJsonString() ?? "null");
+            if (!step.Exact && JsonNode.DeepEquals(whole, root))
+            {
+                key = "\u0002";
+            }
+
+            if (seen.Add(key))
+            {
+                yield return new Variant(step.Path, step.Description, whole ?? Replace(root, step.Segments, step.Local));
+            }
+        }
+    }
+
+    /// <summary>The node at <paramref name="segments"/>.</summary>
+    private static JsonNode? At(JsonNode? root, IReadOnlyList<object> segments)
+    {
+        var node = root;
+        foreach (var segment in segments)
+        {
+            node = segment is int index ? node?[index] : node?[(string)segment];
+        }
+
+        return node;
+    }
+
+    /// <summary>A copy of <paramref name="root"/> with the node at <paramref name="segments"/> replaced.</summary>
+    private static JsonNode? Replace(JsonNode? root, IReadOnlyList<object> segments, JsonNode? value)
+    {
+        if (segments.Count == 0)
+        {
+            return value?.DeepClone();
+        }
+
+        var copy = root!.DeepClone();
+        var node = copy;
+        for (var i = 0; i < segments.Count - 1; i++)
+        {
+            node = segments[i] is int index ? node![index] : node![(string)segments[i]];
+        }
+
+        if (segments[^1] is int last)
+        {
+            node![last] = value?.DeepClone();
+        }
+        else
+        {
+            node![(string)segments[^1]] = value?.DeepClone();
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    /// Whether a change below this schema can be judged by the changed part alone: true unless the schema constrains its
+    /// value as a whole, beyond its properties and items one at a time.
+    /// </summary>
+    private static bool Structural(JsonObject schema)
+        => !schema.ContainsKey("oneOf") && !schema.ContainsKey("anyOf") && !schema.ContainsKey("allOf") && !schema.ContainsKey("not")
+           && !schema.ContainsKey("if") && !schema.ContainsKey("enum") && !schema.ContainsKey("const") && !schema.ContainsKey("uniqueItems")
+           && !schema.ContainsKey("contains") && !schema.ContainsKey("dependentSchemas") && !schema.ContainsKey("unevaluatedProperties")
+           && !schema.ContainsKey("unevaluatedItems") && !schema.ContainsKey("discriminator");
+
+    /// <summary>
+    /// Every change to the value: the leaf function applied here, then (for objects) a required property removed or each
+    /// property varied in turn, and (for arrays) the first item varied.
+    /// </summary>
+    private IEnumerable<Step> Walk(JsonNode? value, JsonNode schemaNode, string path, IReadOnlyList<object> segments, Leaf leaf, bool exact, int depth = 0)
     {
         var breaking = leaf == (Leaf)Breaks;
         if (depth > 16)
@@ -266,22 +354,25 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
             yield break;
         }
 
-        var schema = Effective(value, spec.Resolve(schemaNode), path, out var discriminator);
+        var resolved = spec.Resolve(schemaNode);
+        var schema = Effective(value, resolved, path, out var discriminator);
         foreach (var (description, changed) in leaf(value, schema))
         {
-            yield return new Variant(path, description, changed);
+            yield return new Step(path, description, segments, changed, schemaNode, exact);
         }
 
         if (discriminator is { } d && value is JsonObject tagged && breaking)
         {
             var unknown = (JsonObject)tagged.DeepClone();
             unknown[d.Property] = "not-a-kind";
-            yield return new Variant(SchemaValidator.Join(path, d.Property), $"not one of {d.Values}", unknown);
+            yield return new Step(SchemaValidator.Join(path, d.Property), $"not one of {d.Values}", segments, unknown, schemaNode, exact);
             var missing = (JsonObject)tagged.DeepClone();
             missing.Remove(d.Property);
-            yield return new Variant(SchemaValidator.Join(path, d.Property), "missing", missing);
+            yield return new Step(SchemaValidator.Join(path, d.Property), "missing", segments, missing, schemaNode, exact);
         }
 
+        // Below here, a change is judged alone only if neither this schema nor any above it judges the value as a whole.
+        var below = exact && Structural(resolved) && Structural(schema);
         if (value is JsonObject obj)
         {
             var properties = schema["properties"]?.AsObject();
@@ -296,7 +387,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
 
                     var without = (JsonObject)obj.DeepClone();
                     without.Remove(name);
-                    yield return new Variant(SchemaValidator.Join(path, name), "missing", without);
+                    yield return new Step(SchemaValidator.Join(path, name), "missing", segments, without, schemaNode, exact);
                 }
 
                 // additionalProperties: false promises an unknown property is refused.
@@ -304,7 +395,7 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                 {
                     var extra = (JsonObject)obj.DeepClone();
                     extra["unexpected"] = "a property the schema doesn't allow";
-                    yield return new Variant(SchemaValidator.Join(path, "unexpected"), "with a property additionalProperties: false forbids", extra);
+                    yield return new Step(SchemaValidator.Join(path, "unexpected"), "with a property additionalProperties: false forbids", segments, extra, schemaNode, exact);
                 }
             }
 
@@ -315,21 +406,17 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
                     continue;
                 }
 
-                foreach (var variant in Walk(child, propertySchema, SchemaValidator.Join(path, name), leaf, depth + 1))
+                foreach (var step in Walk(child, propertySchema, SchemaValidator.Join(path, name), [.. segments, name], leaf, below, depth + 1))
                 {
-                    var copy = (JsonObject)obj.DeepClone();
-                    copy[name] = variant.Value?.DeepClone();
-                    yield return variant with { Value = copy };
+                    yield return step;
                 }
             }
         }
         else if (value is JsonArray array && array.Count > 0 && schema["items"] is { } items)
         {
-            foreach (var variant in Walk(array[0], items, $"{path}[0]", leaf, depth + 1))
+            foreach (var step in Walk(array[0], items, $"{path}[0]", [.. segments, 0], leaf, below, depth + 1))
             {
-                var copy = (JsonArray)array.DeepClone();
-                copy[0] = variant.Value?.DeepClone();
-                yield return variant with { Value = copy };
+                yield return step;
             }
         }
     }
