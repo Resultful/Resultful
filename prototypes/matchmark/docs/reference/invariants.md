@@ -184,8 +184,9 @@ are then allowed.
   resource referring to it are created, then the target is deleted, which must be refused.
 
 Checked as `ReferenceHolds`: an accepted reference to nothing, or an accepted restricted delete, is a failure. Both need
-a target that keeps state, so they run with workflows on. Checking `cascade` and `clear` from the suite (reading the
-referring resource after the delete) is **Planned**; the twin applies them.
+a target that keeps state, so they run with workflows on. For `cascade` and `clear`, a fresh target and a resource
+referring to it are created, the target is deleted, and the referrer read back: `{op}, references {field} cascade` fails
+when it's still there, `{op}, references {field} clear` when the field still has a value (**Built**, `TraitTests`).
 
 **Generator.** `{Api}Invariants.References` lists them (`new LedgerReference("Transfer", "from", "/accounts/{accountId}",
 "restrict")`), for a foreign key. MM027 reports an unknown field, a target path the spec doesn't have, an unknown
@@ -217,7 +218,9 @@ once; `update` sets it on each change; `always` does both. A derived field on a 
 behaviour, which the independent agent wrote.
 
 **Suite.** Checks each create's response: the field equals the expression over the request sent and the response's
-other fields. Checked as `DerivedHolds`. Checking updates, which needs the reading before, is **Planned**.
+other fields. Checked as `DerivedHolds`. **Built** for updates too: before a `PUT` or `PATCH` of a schema with a field derived `on:
+update` (or `always`), the resource is read, and the change's response is checked against the expression with `oldSelf`
+as it was (`{op}, {field} derived on update`).
 
 ## conserved
 
@@ -242,8 +245,8 @@ wrong behaviour is caught in the twin's own tests. What the twin infers itself n
 first step to its last, so deferred work is inside it) whose operations aren't excepted. A failed call isn't checked.
 The total is read through the collection's list, when it has an unpaged one; otherwise resource by resource, over the
 ones the run has seen created or referred to (the Ledger has no list of accounts; its transfers' `from` and `to`, declared
-as [references](#references), name them). Checked as `TotalConserved`. Walking a paged list whole is **Planned**, and
-so are Arazzo workflows.
+as [references](#references), name them). Checked as `TotalConserved`. A paged list is walked whole, page by page (**Built**); Arazzo
+workflows are **Planned**.
 
 **Generator.** `MM027` for a total field the schema doesn't have, one that isn't a number or a string (decimal strings
 count), or an operation in `except` the spec doesn't have.
@@ -321,8 +324,10 @@ it, when the parameter's values are field names.
 
 **Built.** The Pet Store lists pets in id order. **Twin.** Sorts lists by the declared fields (numbers as numbers,
 strings ordinally, missing values first). **Suite.** Checks every list response is in the declared order: an array body,
-or the first array property of an object body. Checked as `ListOrdered`. Checking that pages continue the order across
-pages, and a `sort` parameter overriding it, are **Planned**. `MM027` reports an order field the items don't have.
+or the first array property of an object body. Checked as `ListOrdered`. **Built:** the paging walk checks that each page continues
+the one before (`paging {op}, across pages`), and a `sort`, `orderBy` or `order_by` query parameter overrides the order:
+its value names fields, `-field` or `field desc` for descending, several joined by commas. The twin sorts by it, and the
+suite checks each list against the order its request asked for. `MM027` reports an order field the items don't have.
 
 ## Diagnostics
 

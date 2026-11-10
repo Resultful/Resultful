@@ -535,8 +535,11 @@ public sealed class SpecTwin : HttpMessageHandler
     {
         var limit = operation.Parameters.FirstOrDefault(p => p.In == "query" && p.Name.ToLowerInvariant() is "limit" or "pagesize" or "page_size" or "per_page" or "top") is { } l
                     && query.FirstOrDefault(q => q.Key == l.Name).Value is { } text && int.TryParse(text, out var n) ? n : int.MaxValue;
-        // A declared order (x-matchmark-order) sorts the list; otherwise it's in the order resources were stored.
-        var order = Traits.Order(operation);
+        // A sort parameter's value (?sort=-name) orders the list; else a declared order (x-matchmark-order); else the order
+        // resources were stored.
+        var order = Traits.SortParameter(operation) is { } sort && Traits.SortOrder(query.FirstOrDefault(q => q.Key == sort.Name).Value) is { Count: > 0 } asked
+            ? asked
+            : Traits.Order(operation);
         var stored = order.Count == 0 ? store.Items.Values.ToList() : store.Items.Values.OrderBy(i => i.Resource, Comparer<JsonObject>.Create((a, b) => Traits.Compare(a, b, order))).ToList();
         var items = stored.Take(limit).Select(i => (JsonNode?)Shaped(Item(operation), i.Resource)).ToArray();
         var schema = Success(operation) is { } s ? _spec.Resolve(s) : [];

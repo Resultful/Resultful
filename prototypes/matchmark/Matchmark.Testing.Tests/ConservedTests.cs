@@ -104,6 +104,48 @@ public sealed class ConservedTests
         caught.Failures.Should().Contain(f => f.Check == Checks.TotalConserved && f.Subject.EndsWith("the total of Wallet.balance conserved", StringComparison.Ordinal), caught.ToString());
     }
 
+    [Test]
+    public async Task A_paged_list_is_walked_whole_to_read_the_total()
+    {
+        // The same wallets, with a paged list of them: the suite reads the total through it, page by page.
+        const string List = """
+            "get": {
+              "operationId": "listWallets",
+              "parameters": [ { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1 } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } } ],
+              "responses": { "200": { "description": "A page", "content": { "application/json": { "schema": { "type": "object", "required": ["items"],
+                "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Wallet" } }, "next": { "type": ["string", "null"] } } } } } } }
+            },
+            """;
+        var paged = Spec.Replace("\"/wallets\": {", "\"/wallets\": {" + List, StringComparison.Ordinal);
+        paged.Should().Contain("listWallets");
+        var bare = paged.Replace("\"x-matchmark-conserved\"", "\"x-unused\"", StringComparison.Ordinal);
+
+        async Task<RegressionReport> Run(bool credits)
+        {
+            var service = new SpecTwin(bare);
+            service.On("move", call => Move(call, credits));
+            // One wallet a page, so the total needs every page.
+            service.On("listWallets", call =>
+            {
+                var wallets = call.Resources.GetValueOrDefault("/wallets") ?? [];
+                var at = int.TryParse(call.Query.FirstOrDefault(q => q.Key == "cursor").Value, CultureInfo.InvariantCulture, out var n) ? n : 0;
+                return new TwinAnswer(200, new JsonObject
+                {
+                    ["items"] = new JsonArray(wallets.Skip(at).Take(1).Select(w => (JsonNode?)w.DeepClone()).ToArray()),
+                    ["next"] = at + 1 < wallets.Count ? (at + 1).ToString(CultureInfo.InvariantCulture) : null,
+                });
+            });
+            using var client = new HttpClient(service) { BaseAddress = new Uri("http://twin/") };
+            await client.PostAsJsonAsync("wallets", new { balance = "50.00" });
+            await client.PostAsJsonAsync("wallets", new { balance = "50.00" });
+            return await RegressionSuite.FromJson(paged).RunAsync(client);
+        }
+
+        (await Run(credits: true)).Failures.Where(f => f.Check == Checks.TotalConserved).Should().BeEmpty();
+        var caught = await Run(credits: false);
+        caught.Failures.Should().Contain(f => f.Check == Checks.TotalConserved, caught.ToString());
+    }
+
     /// <summary>Owned code for a move: debits the source, and credits the target unless told not to.</summary>
     private static TwinAnswer? Move(TwinCall call, bool credits)
     {

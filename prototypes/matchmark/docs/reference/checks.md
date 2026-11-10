@@ -79,7 +79,7 @@ These run when the spec, or an overlay on it, declares the behaviour ([extension
 | `TotalConserved` (**Built**) | A conserved total over the collection is the same before and after each operation that must keep it. |
 | `ScopeHolds` (**Built**) | Another principal can't list, read, change or delete a scoped resource. |
 | `LimitEnforced` (**Built**) | The create past a limit is refused with the documented status. |
-| `ListOrdered` (**Built**) | A list is in its declared order, page after page. |
+| `ListOrdered` (**Built**) | A list is in its declared order, or the order its sort parameter asked for, page after page. |
 
 ## Sessions
 

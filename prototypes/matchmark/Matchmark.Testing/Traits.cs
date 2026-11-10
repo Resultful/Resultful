@@ -214,6 +214,21 @@ public static class Traits
             .Select(b => b.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .Select(parts => (parts[0], parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase))).ToList();
 
+    /// <summary>The query parameter that chooses a list's order (sort, orderBy, order_by), when the operation has one; null otherwise.</summary>
+    public static SpecParameter? SortParameter(SpecOperation operation)
+        => operation.Parameters.FirstOrDefault(p => p.In == "query" && p.Name.ToLowerInvariant() is "sort" or "orderby" or "order_by");
+
+    /// <summary>
+    /// The order a sort value asks for: a field, descending when it starts with '-' or ends with " desc", several joined
+    /// by commas (<c>-createdAt,id</c>); empty when there's no value.
+    /// </summary>
+    public static IReadOnlyList<(string Field, bool Descending)> SortOrder(string? value)
+        => (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => part.StartsWith('-') ? (part[1..], true)
+                : part.EndsWith(" desc", StringComparison.OrdinalIgnoreCase) ? (part[..^5].Trim(), true)
+                : (part.EndsWith(" asc", StringComparison.OrdinalIgnoreCase) ? part[..^4].Trim() : part, false))
+            .ToList();
+
     /// <summary>Compares two resources by a declared order; numbers as numbers, strings ordinally, a missing value first.</summary>
     public static int Compare(JsonObject a, JsonObject b, IReadOnlyList<(string Field, bool Descending)> order)
     {
