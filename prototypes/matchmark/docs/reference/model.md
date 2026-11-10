@@ -1,6 +1,7 @@
 # The model
 
-**Planned: roadmap step 2** (decisions Q10, Q24). The design the generator moves onto before any new output is added.
+**Partial: roadmap step 2** (decisions Q10, Q24). The design the generator moves onto before any new output is added.
+[Status](#status) says what's moved.
 
 ## Why
 
@@ -48,6 +49,16 @@ are forward-ported before they reach it.
 - **Incremental.** Parsing is its own incremental generator step, and output is per tag, so editing one tag's
   operations or a controller doesn't re-parse or regenerate the rest.
 - **No behaviour change on the move.** Every existing test stays green while outputs move onto the model one at a time.
+
+## Status
+
+| Slice | State |
+|:--|:--|
+| Split by output | **Built.** `Emitter.cs` (4,334 lines) is a partial class across a file per output, cut along its own section markers: `Emitter.Schemas`, `.Validation`, `.Operations` (the operation model and how it's read), `.Responses`, `.Handlers`, `.Client`, `.Samples`, `.Fake`, `.Endpoints`, `.OpenApi`, `.Invariants`, `.Scaffold`, `.Model`, with `CodeWriter` on its own. The largest is 863 lines. No output changed. |
+| A read-only view, tested directly | **Built.** `ApiModel.Read(spec)` gives each operation's id, method, path, tag, typed parameters and where they bind from, body (type, media type, required, validated) and outcomes (status, type, success, validation problem), and the diagnostics; `ApiModelTests` pins them from small specs. Writing it found one decision made in only one place: whether a body is required was recorded for text bodies alone, and is now recorded for every body. |
+| The engine on the model | Planned: `Matchmark.Testing` still reads the normalised JSON itself (question 1 in [QUESTIONS](../QUESTIONS.md)). |
+| Outputs as functions of the model | Planned: each output still reads the emitter's operation objects and Microsoft.OpenApi's schemas; schemas, traits, channels and workflows aren't in the model yet. |
+| Incremental by tag | Planned: parsing as its own incremental step with an equatable model, and output per tag. |
 
 ## Done when
 
