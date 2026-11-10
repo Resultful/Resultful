@@ -14,7 +14,7 @@ committed** (Diffra's approach to generated assets).
 | 5. Behaviour | The generated server, client and fake do what the spec says | the spec's own regression suite run against each generated server; the round-trip check of ASP.NET Core's served document |
 | 6. Derived evidence | What changed, for review, against the pull request's base | `DerivedEvidenceTests` and CI's `derived` job |
 | 7. Breadth | Every construct in every supported version | the official examples (57 of 57), GitHub's and Stripe's specs, the support matrix, `RandomSpecTests` |
-| 8. Consumption | It works as a package and an image | the container image job; a packed-package test is next |
+| 8. Consumption | It works as a package and an image | `eng/consume-package.sh` (CI's `package` job); the container image job |
 
 ## 1. The model
 
@@ -78,6 +78,14 @@ be committed as a fixture. `MATCHMARK_RANDOM_SPECS` sets how many seeds run (12 
 parameter named `body` clashing with the request body's parameter. Parameter names are now decided once, in the model,
 away from the generated signatures' own names and from each other. 200 seeds then passed.
 
+## 8. Consumption
+
+`eng/consume-package.sh` packs the generator and builds a fresh project outside this repository's build files. The project
+references only the package, marks the Pet Store spec, and treats warnings as errors. Its `Program` calls the generated
+`MapPetstore`, so the build fails unless the package delivers three things: a generator that runs, the assemblies it loads
+beside it, and the props that make the metadata visible. CI runs it as the `package` job, and the image job does the same
+for the container.
+
 ## Learned from Parquet.SourceGenerator
 
 Taken: diagnostics as equatable data with positions; step-level incrementality tests on reused drivers; an "examined N"
@@ -85,11 +93,11 @@ assertion in every gate so an empty run can't pass; signature-only surface rende
 review and a body change not; derived outputs diffed against the base rather than committed.
 
 Taken since: the emitted-code gate (compiler warnings; analyzers treat generated code as generated, so the compiler's
-own checks are what a consumer can't opt out of); random specs, shrunk on failure.
+own checks are what a consumer can't opt out of); random specs, shrunk on failure; the packed-package consumption test.
 
 Next to take: an **independent oracle** (Matchmark's generator, engine and twin all read specs through the same `SpecJson`, so
 a second, separately written schema validator would catch a misreading they share); random specs regressed against the twin as
-well as compiled; a packed-package consumption test.
+well as compiled.
 
 Avoided: its 4.0.1 Roslyn floor (Matchmark is on 4.14, so steps carry tracking names); a parser and an emitter of 2,400
 lines each (Matchmark's emitter is split by output, the largest file under 900 lines).
