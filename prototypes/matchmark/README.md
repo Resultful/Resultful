@@ -193,7 +193,7 @@ and expected the wrong way round and almost none of its assertions chain.
      union.
    - `Result<T>` and `VoidResult` (string errors) are not used in generated contracts.
    - `default(Result<,>)` is not checked. OneOf's default is case 0, so a default `Result` would read as a success
-     holding `null`.
+     holding `null` (Resultful/Resultful#19).
 7. **The published test helpers are stale.** FluentAssertions.Resultful 0.0.6-beta01 is built on FluentAssertions 5.6
    and Resultful 0.2.0-beta04. FluentAssertions.OneOf 0.0.5 is built on OneOf 1.0 and doesn't understand `OneOfBase`.
    Resultful/FluentAssertions.Resultful is being renamed to `Resultful.AwesomeAssertions`, with the FluentAssertions 7
