@@ -86,7 +86,7 @@ Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.
   CI, `.github/workflows/ci.yml`, runs only once the folder is a repository's root, so none of its jobs has run on
   GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally, and the
   whole suite passes in a copy of this folder on its own.
-- **Questions 1 to 6** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
+- **Questions 1 to 5** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
 
 ## Blocked
 

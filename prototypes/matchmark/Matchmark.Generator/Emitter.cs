@@ -161,7 +161,7 @@ namespace Matchmark.Generator
                 }
 
                 var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = paths },
-                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes };
+                    _namespace, _apiName + "Webhooks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes, NativeUnions = NativeUnions };
                 foreach (var file in receiver.Emit(contract, server))
                 {
                     files["Webhooks." + file.Key] = file.Value;
@@ -196,7 +196,7 @@ namespace Matchmark.Generator
             if (callbacks.Count > 0 && (contract || server))
             {
                 var receiver = new Emitter(new OpenApiDocument { Info = _document.Info, Components = _document.Components, Paths = callbacks },
-                    _namespace, _apiName + "Callbacks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes };
+                    _namespace, _apiName + "Callbacks", _location, describesItself: false, _hasFakes, _hasRules, _ownProblems) { _shared = true, PlainOutcomes = PlainOutcomes, NativeUnions = NativeUnions };
                 foreach (var file in receiver.Emit(contract, server))
                 {
                     files["Callbacks." + file.Key] = file.Value;

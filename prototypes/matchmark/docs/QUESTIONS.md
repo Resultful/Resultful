@@ -2,7 +2,7 @@
 
 What is still open. Each question names the assumption work proceeds on until it's answered, so nothing waits on it.
 When one is answered, its answer moves to [decisions.md](decisions.md) with its date, and it's deleted here. Questions
-answered so far are decisions Q44 to Q54.
+answered so far are decisions Q44 to Q55.
 
 **1. Should the test engine keep working on normalised JSON, or take the standard libraries as dependencies?** Once
 Matchmark reads specs through Microsoft.OpenApi, the AsyncAPI SDK and BinkyLabs (Q28 to Q31), the engine
@@ -81,22 +81,3 @@ taken on under the licence rule. That means Matchmark's own Overlay reader stays
 test-only, and pins what each refuses, so a release that gains Arazzo 1.1 or loses a document fails the test.
 *Assumption until then:* (c): Matchmark's own readers stay in the generator, the engine and the CLI, and the libraries
 are measured against them.
-
-**6. Should generated outcomes become C# 15 unions on .NET 11?** .NET 11 brings C# 15's `union` declarations
-(`public union Pet(Cat, Dog, Bird);`). A case type converts to the union implicitly, and a `switch` over every case
-needs no default arm. Today each operation's outcomes are a generated class with `Match`, `Switch`, `Value` and
-`Index` (Q12's plain outcomes), or Resultful and OneOf with `MatchmarkOutcomes="Resultful"`. The language now does the
-same job: `union GetPetError(NotFound, Gone)`, with the compiler, rather than a generated `Match`, checking that every
-documented outcome is handled.
-*The options:* (a) a third outcome style, `MatchmarkOutcomes="Union"`, emitted only when the project's language version
-is C# 15 or later. The generator reads that from the parse options as a number, so it needs no newer Roslyn to ship.
-Plain outcomes stay the default. (b) The same, and the default when the language version allows it, with plain outcomes
-kept for older targets. (c) Wait until .NET 11 is out and widely adopted.
-*What it decides:* the shape of every generated handler interface, client and fake for .NET 11 projects. Handlers
-would return the union directly (`return new NotFound();`), and callers would `switch` on it. Q12's generated `Match`
-would remain only for older targets. The webhooks' and messaging's outcomes follow the same choice.
-*Blocked meanwhile:* nothing can be built and proven here yet. The environment's network policy refuses the .NET
-download host, so there's no .NET 11 SDK to compile generated unions with, and every generated feature is proven by
-compiling it (testing.md). With an SDK, the first slice is (a) for one operation's error outcomes, compiled in
-`GeneratedServer` at C# 15, and the corpus compiled both ways.
-*Assumption until then:* plain outcomes stay the default, and nothing is generated as a C# 15 union.

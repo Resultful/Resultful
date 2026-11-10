@@ -141,10 +141,14 @@ public sealed class LedgerTests
         }
         """;
 
-    [Test]
-    public async Task Money_moves_once_settles_once_and_keeps_to_the_overlay()
+    // The same handlers and suite with each outcome shape the consumer's compiler picks (Q55): plain classes on C# 14,
+    // C# 15 unions on C# 15. The handlers are the same source, because the union keeps the class's factories and Match.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Money_moves_once_settles_once_and_keeps_to_the_overlay(bool csharp15)
     {
-        var (assembly, diagnostics) = GeneratedServer.Build("Ledger", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "ledger.overlay.yaml")], Source, withRules: true);
+        var (assembly, diagnostics) = GeneratedServer.Build("Ledger", Path.Combine(Samples, "openapi.yaml"), [Path.Combine(Samples, "ledger.overlay.yaml")], Source, withRules: true, csharp15: csharp15);
+        assembly.GetType("Ledger.Api.GetAccountError")!.IsValueType.Should().Be(csharp15, "a union is a struct, the plain outcome a class");
         diagnostics.Where(d => d.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning).Should().BeEmpty();
         var app = await (Task<WebApplication>)assembly.GetType("Ledger.Api.Server")!.GetMethod("StartAsync")!.Invoke(null, null)!;
         try

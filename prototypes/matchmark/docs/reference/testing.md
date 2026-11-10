@@ -132,8 +132,8 @@ value's size: GitHub's `issue` sample is 19 KB, has 1,386 violations, and took 1
 the changed part alone when nothing above it judges the value as a whole (no `oneOf`, `anyOf`, `allOf`, `not`, `if`,
 `enum`, `const`, `uniqueItems`, `contains` or discriminator above it). It's told apart from others by its path and
 value, and the whole is built once, from one copy. The output is the same: a fingerprint of every violation and boundary
-is identical before and after over all the samples and GitHub's first 400 schemas (31,614 variants). Every violation
-and boundary of every GitHub schema (411,567) now takes 45 s, and Stripe's (58,040) 21 s.
+is identical before and after over all the samples and every GitHub schema (411,567 variants). Every violation
+and boundary of every GitHub schema took 245 s and now takes 45 s (5.4 times faster); Stripe's 58,040 take 21 s.
 
 ## Learned from Parquet.SourceGenerator
 

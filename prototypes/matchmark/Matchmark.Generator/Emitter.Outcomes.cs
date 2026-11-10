@@ -13,6 +13,9 @@ namespace Matchmark.Generator
         /// <summary>Whether the contract uses its own outcome types (Plain, the default) rather than Resultful and OneOf.</summary>
         public bool PlainOutcomes { get; set; } = true;
 
+        /// <summary>With plain outcomes, each operation's union as a C# 15 union rather than a class (Q55).</summary>
+        public bool NativeUnions { get; set; }
+
         /// <summary>Where Result, Unit and VoidResult come from: the contract's own namespace, or Resultful.</summary>
         private string Outcomes => PlainOutcomes ? "global::" + (OutcomesNamespace ?? _namespace) : "global::Resultful";
 
@@ -150,6 +153,43 @@ public static class Result
     public static VoidResult<TError> Fail<TError>(TError error) => VoidResult<TError>.Fail(error);
 }");
             return w.ToString();
+        }
+
+        /// <summary>
+        /// A union of outcome cases as a C# 15 union (MatchmarkOutcomes, or the language version): the language gives the
+        /// conversion from each case and an exhaustive switch over them; Index, Match and Switch keep the plain class's API,
+        /// so the rest of the generated code reads the same.
+        /// </summary>
+        private static void EmitNativeUnion(CodeWriter w, string unionName, List<string> cases)
+        {
+            w.Open($"public union {unionName}({string.Join(", ", cases)})");
+            w.Line("/// <summary>Which case it is, in the order the spec lists them; -1 for the default value, which has none.</summary>");
+            w.Line($"public int Index => Value switch {{ {string.Join(", ", cases.Select((c, i) => $"{c} => {i}"))}, _ => -1 }};");
+            w.Line();
+            var funcs = string.Join(", ", cases.Select((c, i) => $"global::System.Func<{c}, TResult> f{i}"));
+            w.Line($"public TResult Match<TResult>({funcs}) => Value switch");
+            w.Line("{");
+            for (var i = 0; i < cases.Count; i++)
+            {
+                w.Line($"    {cases[i]} __case => f{i}(__case),");
+            }
+
+            w.Line($"    _ => throw new global::System.InvalidOperationException(\"An empty {unionName}.\"),");
+            w.Line("};");
+            w.Line();
+            var actions = string.Join(", ", cases.Select((c, i) => $"global::System.Action<{c}> f{i}"));
+            w.Open($"public void Switch({actions})");
+            w.Line("switch (Value)");
+            w.Line("{");
+            for (var i = 0; i < cases.Count; i++)
+            {
+                w.Line($"    case {cases[i]} __case: f{i}(__case); break;");
+            }
+
+            w.Line("}");
+            w.Close();
+            w.Line();
+            w.Line("public override string ToString() => Value?.ToString() ?? string.Empty;");
         }
 
         /// <summary>A union of outcome cases as a plain class: exactly one case, with Match and Switch over them in order.</summary>

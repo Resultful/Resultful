@@ -11,17 +11,21 @@ namespace Matchmark.Generator.Tests;
 /// <summary>A sample's generated Contract and Server parts, with its overlays, compiled with the given source and loaded.</summary>
 internal static class GeneratedServer
 {
-    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
+    /// <summary>The warnings in the given source (not the generated code) from the last build on this thread.</summary>
+    [ThreadStatic]
+    public static IReadOnlyList<Diagnostic>? LastSourceWarnings;
+
+    public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics) Build(string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false, string? outcomes = null, bool csharp15 = false)
     {
-        var (assembly, diagnostics, _) = BuildWithSources(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging);
+        var (assembly, diagnostics, _) = BuildWithSources(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging, outcomes, csharp15);
         return (assembly, diagnostics);
     }
 
     /// <summary>As <see cref="Build"/>, with the generated sources too (hint name and text, by hint name), for derived evidence.</summary>
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources) BuildWithSources(
-        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false, string? outcomes = null, bool csharp15 = false)
     {
-        var (assembly, diagnostics, sources, _) = BuildWithWarnings(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging);
+        var (assembly, diagnostics, sources, _) = BuildWithWarnings(api, spec, overlays, source, withRules, resultful, clientOnNet, withMessaging, outcomes, csharp15);
         return (assembly, diagnostics, sources);
     }
 
@@ -30,7 +34,7 @@ internal static class GeneratedServer
     /// (nullable included): the emitted-code gate's input.
     /// </summary>
     public static (Assembly Assembly, IReadOnlyList<Diagnostic> Diagnostics, IReadOnlyList<(string Hint, string Text)> Sources, IReadOnlyList<Diagnostic> Warnings) BuildWithWarnings(
-        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false)
+        string api, string spec, IEnumerable<string> overlays, string source, bool withRules, bool resultful = false, bool clientOnNet = false, bool withMessaging = false, string? outcomes = null, bool csharp15 = false)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -42,11 +46,12 @@ internal static class GeneratedServer
             .Concat(withMessaging ? [typeof(Matchmark.Messaging.IMessageTransport).Assembly.Location] : [])
             .Distinct()
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path));
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
+        // C# 15 is the preview language version to Roslyn 5.9: where unions are, and the outcomes the generator then picks.
+        var parse = new CSharpParseOptions(csharp15 ? LanguageVersion.Preview : LanguageVersion.Latest);
         var compilation = CSharpCompilation.Create($"{api}{(withRules ? "WithRules" : "WithoutRules")}{Guid.NewGuid():N}", [CSharpSyntaxTree.ParseText(source, parse)], references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable, warningLevel: 9999));
         var texts = new[] { spec }.Concat(overlays).Select(path => (AdditionalText)new Text(path, File.ReadAllText(path))).ToArray();
-        GeneratorDriver driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, resultful, clientOnNet), parseOptions: parse);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create([new OpenApiSourceGenerator().AsSourceGenerator()], texts, optionsProvider: new Options(api, outcomes ?? (resultful ? "Resultful" : csharp15 ? string.Empty : "Plain"), clientOnNet), parseOptions: parse);
 
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var generated, out var diagnostics);
         var sources = driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources).OrderBy(s => s.HintName, StringComparer.Ordinal)
@@ -57,6 +62,7 @@ internal static class GeneratedServer
         emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString()).Should().BeEmpty();
         stream.Position = 0;
         var warnings = emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Warning && d.Location.SourceTree is { } tree && !compilation.SyntaxTrees.Contains(tree)).ToList();
+        LastSourceWarnings = emitted.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Warning && d.Location.SourceTree is { } tree && compilation.SyntaxTrees.Contains(tree)).ToList();
         return (AssemblyLoadContext.Default.LoadFromStream(stream), diagnostics.ToList(), sources, warnings);
     }
 
@@ -68,12 +74,12 @@ internal static class GeneratedServer
     }
 
     /// <summary>The spec's metadata: plain outcomes by default (Q12), or on Resultful and OneOf for a source written against them.</summary>
-    private sealed class Options(string api, bool resultful, bool clientOnNet) : AnalyzerConfigOptionsProvider
+    private sealed class Options(string api, string outcomes, bool clientOnNet) : AnalyzerConfigOptionsProvider
     {
         private readonly AnalyzerConfigOptions _spec = new Values(new Dictionary<string, string>
         {
             ["build_metadata.AdditionalFiles.MatchmarkClientValidation"] = clientOnNet ? "Net" : "Matchmark",
-            ["build_metadata.AdditionalFiles.MatchmarkOutcomes"] = resultful ? "Resultful" : "Plain",
+            ["build_metadata.AdditionalFiles.MatchmarkOutcomes"] = outcomes,
             ["build_metadata.AdditionalFiles.Matchmark"] = "true",
             ["build_metadata.AdditionalFiles.MatchmarkApiName"] = api,
             ["build_metadata.AdditionalFiles.MatchmarkNamespace"] = $"{api}.Api",
