@@ -518,6 +518,29 @@ namespace Matchmark.Generator
         private static System.Text.Json.Nodes.JsonNode? Extension(IDictionary<string, IOpenApiExtension>? extensions, string name)
             => extensions is not null && extensions.TryGetValue(name, out var extension) && extension is JsonNodeExtension node ? node.Node : null;
 
+        /// <summary>
+        /// A parameter's C# name, decided once: camel case, never one the generated signatures use themselves ("body",
+        /// "cancellationToken") and never one an earlier parameter of the operation has, so each gets a suffix instead.
+        /// </summary>
+        private static string ParameterIdentifier(Operation operation, string name)
+        {
+            var identifier = Naming.Camel(name);
+            var taken = new HashSet<string>(operation.Parameters.Select(p => p.Identifier.TrimStart('@')), StringComparer.Ordinal) { "body", "cancellationToken" };
+            if (!taken.Contains(identifier.TrimStart('@')))
+            {
+                return identifier;
+            }
+
+            var stem = identifier.TrimStart('@') + "Parameter";
+            var candidate = stem;
+            for (var i = 2; taken.Contains(candidate); i++)
+            {
+                candidate = stem + i.Invariant();
+            }
+
+            return candidate;
+        }
+
         private bool TryBuild(Operation operation, OpenApiOperation spec, IList<IOpenApiParameter>? pathParameters)
         {
             if (Extension(spec.Extensions, "x-dependencies") is System.Text.Json.Nodes.JsonArray dependencies && dependencies.Count > 0 && Enforced("x-dependencies"))
@@ -540,7 +563,7 @@ namespace Matchmark.Generator
                         return false;
                     }
 
-                    operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), wholeType + (parameter.Required ? string.Empty : "?"), "FromQuery", whole)
+                    operation.Parameters.Add(new Param(parameter.Name!, ParameterIdentifier(operation, parameter.Name!), wholeType + (parameter.Required ? string.Empty : "?"), "FromQuery", whole)
                     {
                         Deep = true,
                         Whole = true,
@@ -569,7 +592,7 @@ namespace Matchmark.Generator
                 }
 
                 var nullable = !parameter.Required ? "?" : string.Empty;
-                operation.Parameters.Add(new Param(parameter.Name!, Naming.Camel(parameter.Name!), type + nullable, attribute, parameter.Schema)
+                operation.Parameters.Add(new Param(parameter.Name!, ParameterIdentifier(operation, parameter.Name!), type + nullable, attribute, parameter.Schema)
                 {
                     Deep = parameter.In == ParameterLocation.Query && (parameter.Style == ParameterStyle.DeepObject || IsObject(parameter.Schema)),
                     Enum = !scalars && IsEnumRef(parameter.Schema),
