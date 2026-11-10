@@ -25,8 +25,31 @@ public sealed class Samples(OpenApiSpec spec, SchemaValidator validator)
     /// </summary>
     public bool TrySample(JsonNode schemaNode, bool full, Direction direction, out JsonNode? value)
     {
-        value = Build(schemaNode, full, 0, string.Empty, _ => 0, out var ok, direction: direction);
-        return ok && validator.IsValid(value, schemaNode, direction);
+        var unions = new List<(string Path, int Members, List<string> Labels)>();
+        value = Build(schemaNode, full, 0, string.Empty, _ => 0, out var ok, unions, direction: direction);
+        if (ok && validator.IsValid(value, schemaNode, direction))
+        {
+            return true;
+        }
+
+        // The first member of a oneOf can be a poor choice: its sample may also satisfy another member (an object with
+        // the same required property, and no additionalProperties: false), which breaks the oneOf. Each other member,
+        // one union at a time, before giving up.
+        foreach (var (path, members, _) in unions.DistinctBy(u => u.Path))
+        {
+            for (var k = 1; k < members; k++)
+            {
+                var choice = k;
+                var candidate = Build(schemaNode, full, 0, string.Empty, p => p == path ? choice : 0, out var candidateOk, direction: direction);
+                if (candidateOk && validator.IsValid(candidate, schemaNode, direction))
+                {
+                    value = candidate;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

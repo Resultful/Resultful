@@ -24,10 +24,26 @@ public sealed class OracleTests
         => Directory.GetDirectories(Path.Combine(Root, "samples")).Where(d => File.Exists(Path.Combine(d, "openapi.yaml")))
             .Select(Path.GetFileName).OfType<string>().Where(s => s != "split").Order(StringComparer.Ordinal).Append("petstore");
 
+    /// <summary>GitHub's and Stripe's specs, when they've been fetched (MATCHMARK_LARGE_SPECS, as for LargeSpecTests).</summary>
+    public static IEnumerable<string> LargeSpecs()
+        => Environment.GetEnvironmentVariable("MATCHMARK_LARGE_SPECS") is { Length: > 0 } folder && Directory.Exists(folder)
+            ? Directory.GetFiles(folder, "*.json").Order(StringComparer.Ordinal)
+            : [];
+
+    [TestCaseSource(nameof(LargeSpecs))]
+    public void Matchmark_and_an_independent_validator_agree_on_a_large_spec(string path)
+        => Agree(path, Path.GetFileNameWithoutExtension(path), corvus: false); // Corvus's code generation can't take them (testing.md)
+
     [TestCaseSource(nameof(Specs))]
     public void Matchmark_and_an_independent_validator_agree(string sample)
+        => Agree(sample == "petstore" ? Path.Combine(Root, "Matchmark.Sample.Contract", "petstore.yaml") : Path.Combine(Root, "samples", sample, "openapi.yaml"), sample, corvus: true);
+
+    /// <summary>
+    /// Matchmark's verdict on each value against the oracles': Corvus.Json.Validator, which compiles the schema to code,
+    /// and JsonSchema.Net 7.3.3 (MIT, the last release before its maintenance-fee licence), which interprets it.
+    /// </summary>
+    private static void Agree(string path, string sample, bool corvus)
     {
-        var path = sample == "petstore" ? Path.Combine(Root, "Matchmark.Sample.Contract", "petstore.yaml") : Path.Combine(Root, "samples", sample, "openapi.yaml");
         var json = SpecJson.Normalize(File.ReadAllText(path), path, out _);
         var spec = OpenApiSpec.Parse(json);
         var validator = new SchemaValidator(spec);
@@ -38,7 +54,22 @@ public sealed class OracleTests
             Assert.Ignore("no component schemas");
         }
 
-        var oracle = Oracle(schemas, sample);
+        var combined = Combined(schemas);
+        var oracles = new List<(string Name, Func<string, JsonNode?, bool> IsValid)>();
+        if (corvus)
+        {
+            var compiled = Corvus.Json.Validator.JsonSchema.FromText(combined, $"https://matchmark.test/{sample}.json");
+            oracles.Add(("Corvus", (name, value) =>
+            {
+                using var document = JsonDocument.Parse(new JsonObject { [name] = value?.DeepClone() }.ToJsonString());
+                return compiled.Validate(document.RootElement).IsValid;
+            }));
+        }
+
+        OpenApiFormats();
+        var interpreted = Json.Schema.JsonSchema.FromText(combined);
+        var options = new Json.Schema.EvaluationOptions { RequireFormatValidation = true, OutputFormat = Json.Schema.OutputFormat.Flag };
+        oracles.Add(("JsonSchema.Net", (name, value) => interpreted.Evaluate(new JsonObject { [name] = value?.DeepClone() }, options).IsValid));
         var disagreements = new List<string>();
         var examined = 0;
         foreach (var (name, _) in schemas)
@@ -64,22 +95,24 @@ public sealed class OracleTests
             {
                 examined++;
                 var ours = validator.IsValid(value, reference);
-                using var document = JsonDocument.Parse(new JsonObject { [name] = value?.DeepClone() }.ToJsonString());
-                var theirs = oracle.Validate(document.RootElement).IsValid;
-                if (ours != theirs || (expected is { } e && theirs != e))
+                foreach (var (oracle, isValid) in oracles)
                 {
-                    disagreements.Add($"{name}: {label}: Matchmark {(ours ? "valid" : "invalid")}, oracle {(theirs ? "valid" : "invalid")}: {value?.ToJsonString() ?? "null"}");
+                    var theirs = isValid(name, value);
+                    if (ours != theirs || (expected is { } e && theirs != e))
+                    {
+                        disagreements.Add($"{name}: {label}: Matchmark {(ours ? "valid" : "invalid")}, {oracle} {(theirs ? "valid" : "invalid")}: {Short(value)}");
+                    }
                 }
             }
         }
 
-        TestContext.Out.WriteLine($"{sample}: {schemas.Count} schemas, {examined} values");
+        TestContext.Out.WriteLine($"{sample}: {schemas.Count} schemas, {examined} values, {string.Join(" and ", oracles.Select(o => o.Name))}");
         examined.Should().BeGreaterThan(schemas.Count, "every schema gave values to compare");
         disagreements.Should().BeEmpty();
     }
 
-    /// <summary>One compiled schema for the whole spec: its component schemas as $defs, and a property for each.</summary>
-    private static Corvus.Json.Validator.JsonSchema Oracle(List<KeyValuePair<string, JsonObject>> schemas, string sample)
+    /// <summary>One schema for the whole spec: its component schemas as $defs, and a root property for each.</summary>
+    private static string Combined(List<KeyValuePair<string, JsonObject>> schemas)
     {
         var defs = new JsonObject();
         var properties = new JsonObject();
@@ -89,13 +122,40 @@ public sealed class OracleTests
             properties[name] = new JsonObject { ["$ref"] = $"#/$defs/{Pointer(name)}" };
         }
 
-        var root = new JsonObject
+        return new JsonObject
         {
             ["$schema"] = "https://json-schema.org/draft/2020-12/schema",
             ["$defs"] = defs,
             ["properties"] = properties,
-        };
-        return Corvus.Json.Validator.JsonSchema.FromText(root.ToJsonString(), $"https://matchmark.test/{sample}.json");
+        }.ToJsonString();
+    }
+
+    /// <summary>
+    /// OpenAPI's integer formats, which JSON Schema doesn't define, for the interpreting oracle: int32 and int64 are in
+    /// OpenAPI's format registry, so like the discriminator they're written out here (Corvus knows them already).
+    /// </summary>
+    private static void OpenApiFormats()
+    {
+        static bool Within(JsonNode? node, decimal min, decimal max)
+            => node is not JsonValue value || value.GetValueKind() != JsonValueKind.Number || (decimal.TryParse(value.ToJsonString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) && d >= min && d <= max);
+
+        Json.Schema.Formats.Register(new RangeFormat("int32", node => Within(node, int.MinValue, int.MaxValue)));
+        Json.Schema.Formats.Register(new RangeFormat("int64", node => Within(node, long.MinValue, long.MaxValue)));
+    }
+
+    private sealed class RangeFormat(string key, Func<JsonNode?, bool> valid) : Json.Schema.Format(key)
+    {
+        public override bool Validate(JsonNode? node, out string? errorMessage)
+        {
+            errorMessage = valid(node) ? null : $"The value is out of range for {Key}.";
+            return errorMessage is null;
+        }
+    }
+
+    private static string Short(JsonNode? value)
+    {
+        var text = value?.ToJsonString() ?? "null";
+        return text.Length > 200 ? text[..200] + "…" : text;
     }
 
     /// <summary>

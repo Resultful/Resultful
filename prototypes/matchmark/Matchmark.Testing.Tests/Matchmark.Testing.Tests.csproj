@@ -16,6 +16,7 @@
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Corvus.Json.Validator" />
+    <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Neuroglia.AsyncApi.IO" />
     <PackageReference Include="BinkyLabs.OpenApi.Arazzo" />
   </ItemGroup>
