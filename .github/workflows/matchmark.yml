@@ -95,3 +95,60 @@ jobs:
           curl --silent --fail --header 'X-Matchmark-Session: ci' http://localhost:8080/pets
           docker rm --force host
 
+  derived:
+    name: derived evidence
+    # Diffra's approach to generated assets: what the generator decides and writes, derived on the pull request and on
+    # its merge-base and diffed, never committed. A change to the model or the public surface needs review; a change
+    # only in generated bodies is information. A base that can't be derived is reported as unavailable, never a pass.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototypes/matchmark
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Derive the head
+        env:
+          MATCHMARK_DERIVED: ${{ runner.temp }}/derived/head
+        run: dotnet test Matchmark.Generator.Tests --configuration Release --filter DerivedEvidenceTests
+
+      - name: Derive the base
+        if: github.event_name == 'pull_request'
+        env:
+          MATCHMARK_DERIVED: ${{ runner.temp }}/derived/base
+        run: |
+          base=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
+          git worktree add "$RUNNER_TEMP/base" "$base"
+          if [ -f "$RUNNER_TEMP/base/prototypes/matchmark/Matchmark.Generator.Tests/DerivedEvidenceTests.cs" ]; then
+            (cd "$RUNNER_TEMP/base/prototypes/matchmark" && dotnet test Matchmark.Generator.Tests --configuration Release --filter DerivedEvidenceTests)
+          else
+            echo "The base ($base) has no derived evidence: unavailable, not a pass." > "$RUNNER_TEMP/derived-unavailable"
+          fi
+
+      - name: Diff
+        if: github.event_name == 'pull_request'
+        run: |
+          head="$RUNNER_TEMP/derived/head"; base="$RUNNER_TEMP/derived/base"
+          {
+            echo '### Derived evidence'
+            if [ -f "$RUNNER_TEMP/derived-unavailable" ]; then cat "$RUNNER_TEMP/derived-unavailable"; exit 0; fi
+            for kind in model.json api.txt g.cs; do
+              changed=$(diff -rq "$base" "$head" | grep -c "\.$kind" || true)
+              echo "- \`*.$kind\`: $changed file(s) differ"
+            done
+            echo
+            echo '#### Model and public surface (needs review)'
+            echo '```diff'
+            diff -ru "$base" "$head" --exclude='*.g.cs' | head -n 400 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+

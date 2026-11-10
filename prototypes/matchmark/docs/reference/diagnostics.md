@@ -60,7 +60,7 @@ own OpenAPI document reads them. Each is reported at the line that's wrong.
 |:--|:--|:--|:--|
 | MM027 (**Built** for every trait) | Warning | Invariant declared wrongly | A trait names an unknown field or path, `clear` on a non-nullable field, a derived field that isn't `readOnly`, or a non-numeric conserved total ([invariants](invariants.md#diagnostics)). |
 | MM028 (**Built** for unique, references, limit and scoped) | Info | No status for an invariant | An operation that can break a trait documents none of the statuses it would answer with. |
-| MM029 (**Built**) | Info | Matchmark's own validator kept | A server part, and `Microsoft.Extensions.Validation` isn't referenced, nor a contract with its resolver ([validation](validation.md#diagnostics)). |
+| MM029 (**Built**) | Info | .NET's validation layer not referenced | A server part, and `Microsoft.Extensions.Validation` isn't referenced, nor a contract with its resolver ([validation](validation.md#diagnostics)). |
 | MM030 (**Built**) | Info | No attribute for a keyword | A model property's keyword no attribute on .NET's layer checks (`multipleOf`, `uniqueItems` and property counts without Matchmark.Validation; `const`, `not`, `dependentRequired`); only the suite checks it. Info, not a warning, while Matchmark's own validator still runs after .NET's layer. |
 
 Ids are stable: a retired diagnostic's id isn't reused.
