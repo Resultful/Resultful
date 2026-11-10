@@ -78,8 +78,9 @@ that refuses every new pet. ✓ A run with an agent writing
 (`AgentLoopTests`, Ledger): three attempts from the training tasks alone, one kept (held out 61.9% to 85.7%), one
 rejected because an operation fell, one rejected because only training rose (LAYERS.md has the log). Then an independent
 agent, limited to `LedgerOwned.cs` and the training tasks, reached the same 85.7% on its own in six attempts
-(`The_owned_behaviour_passes_the_gate`). Running the loop unattended in CI would need an Anthropic credential
-the repository doesn't have, so it isn't set up. ✓ The seam is narrowed to declared effects. Owned code gets copies of
+(`The_owned_behaviour_passes_the_gate`). ✓ `.github/workflows/agent-loop.yml` runs the loop unattended, weekly and on demand, once the repository has an
+`ANTHROPIC_API_KEY` secret: the writer may edit only `LedgerOwned.cs`, the gate judges its change on the held-out
+sequences, and a kept change is uploaded as a patch, never pushed. ✓ The seam is narrowed to declared effects. Owned code gets copies of
 the body and the stored resources, and changes the twin only by a rewritten body (`TwinAnswer.Continue`) or declared
 `TwinEffect`s. The twin checks each effect against the collection's schema and the conserved totals before applying it
 ([twins.md](docs/reference/twins.md)). The Ledger behaviour is rewritten onto it, and still passes the gate.

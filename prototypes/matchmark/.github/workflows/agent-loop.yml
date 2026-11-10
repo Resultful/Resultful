@@ -1,0 +1,87 @@
+name: agent-loop
+
+# The fidelity loop, unattended (GAPS.md, gap 3): an agent writes the Ledger twin's owned behaviour from the training
+# tasks alone, and the gate keeps its change only if the held-out score rises and no operation's score falls.
+# It runs only when the ANTHROPIC_API_KEY secret is set. It never pushes: a kept change is uploaded as a patch
+# for the maintainer to apply.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    name: agent loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OWNED: Matchmark.Generator.Tests/LedgerOwned.cs
+      OUT: Matchmark.Generator.Tests/bin/Release/net10.0
+      GATE: FullyQualifiedName~AgentLoopTests.The_owned_behaviour_passes_the_gate
+    steps:
+      - name: Is the key set?
+        id: key
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo "set=true" >> "$GITHUB_OUTPUT"; else echo "::notice::ANTHROPIC_API_KEY isn't set, so the loop doesn't run."; fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.set == 'true'
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.key.outputs.set == 'true'
+        with:
+          global-json-file: global.json
+
+      # The gate on the behaviour as committed: it must pass, and it writes the training tasks still unmatched.
+      - name: The tasks left
+        id: tasks
+        if: steps.key.outputs.set == 'true'
+        run: |
+          dotnet test Matchmark.Generator.Tests -c Release --filter "$GATE"
+          cat "$OUT/ledger-owned.txt"
+          if grep -q '^TASK ' "$OUT/ledger-owned.txt"; then echo "left=true" >> "$GITHUB_OUTPUT"; else echo "::notice::No training task is left."; fi
+          cp "$OUT/ledger-owned.txt" "$RUNNER_TEMP/tasks.txt"
+
+      - name: The writer
+        if: steps.tasks.outputs.left == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are the writer in Matchmark's fidelity loop (GAPS.md, gap 3; docs/reference/twins.md).
+            Edit only ${{ env.OWNED }}: the Ledger twin's owned behaviour. The training tasks are in
+            ${{ runner.temp }}/tasks.txt: each names a step, the twin's answer and the real API's, and where they differ.
+            Change the behaviour so more training steps match, using only SpecTwin.On, OnRejected, TwinAnswer and
+            TwinEffect. Check it with: dotnet test Matchmark.Generator.Tests -c Release --filter "${{ env.GATE }}".
+            Don't edit any other file, and don't read the tests' held-out sequences or the real Ledger's source.
+          claude_args: >-
+            --max-turns 40
+            --allowedTools "Read,Edit(${{ env.OWNED }}),Bash(dotnet test Matchmark.Generator.Tests*)"
+
+      # Only the owned file may change; the gate then judges the change on the held-out sequences.
+      - name: The gate
+        if: steps.tasks.outputs.left == 'true'
+        run: |
+          changed=$(git status --porcelain | grep -v ' bin/\| obj/' | awk '{print $2}' | sort -u)
+          echo "changed: ${changed:-nothing}"
+          for f in $changed; do [ "$f" = "$OWNED" ] || { echo "::error::the writer changed $f, which it may not"; exit 1; }; done
+          [ -n "$changed" ] || { echo "::notice::The writer changed nothing."; exit 0; }
+          dotnet test Matchmark.Generator.Tests -c Release --filter "$GATE"
+          cat "$OUT/ledger-owned.txt"
+          mkdir -p temp && git diff -- "$OWNED" > temp/ledger-owned.patch
+
+      - name: The kept change
+        if: steps.tasks.outputs.left == 'true' && hashFiles('temp/ledger-owned.patch') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-owned
+          path: temp/ledger-owned.patch
