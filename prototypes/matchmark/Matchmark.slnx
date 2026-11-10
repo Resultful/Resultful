@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="../../Resultful/Resultful.csproj" />
   <Project Path="Matchmark.Fakes/Matchmark.Fakes.csproj" />
   <Project Path="Matchmark.Generator.Tests/Matchmark.Generator.Tests.csproj" />
   <Project Path="Matchmark.Generator/Matchmark.Generator.csproj" />

@@ -36,14 +36,14 @@ the backlog in order, and what's waiting or blocked. The why is in the pages it 
 - **Licences.** Dependencies are permissive (MIT, Apache-2.0, BSD). AwesomeAssertions was chosen over FluentAssertions,
   and Corvus.Json.Validator over JsonSchema.Net, for this reason. Add every package to `Directory.Packages.props` with
   a comment saying why.
-- **Git.** Commit subjects are conventional (`feat(prototype): …`, `test(prototype): …`, `docs(prototype): …`). Work goes
+- **Git.** Commit subjects are conventional (`feat: …`, `test: …`, `docs: …`, with an optional scope such as `feat(generator): …`). Work goes
   on the session's branch, rebased and never merged. Open a pull request only when the maintainer asks. History is linear: pull
   requests are squash-merged, branches are rebased (never merged) and deleted on merge. Scratch files, local databases
   and worktrees go in a gitignored `temp/`, never in the tree.
 
 ## Checks
 
-From `prototypes/matchmark`:
+From the repository root:
 
 | Check | Command | Notes |
 |:--|:--|:--|
@@ -53,7 +53,7 @@ From `prototypes/matchmark`:
 | More random specs | `MATCHMARK_RANDOM_SPECS=200 dotnet test Matchmark.Generator.Tests -c Release --filter RandomSpecTests` | 12 seeds by default. A failure prints a shrunk spec: commit it as a fixture |
 | Derived evidence | `MATCHMARK_DERIVED=<dir> dotnet test Matchmark.Generator.Tests -c Release --filter DerivedEvidenceTests` | Writes `{sample}.model.json`, `.api.txt`, `.g.cs`. Diff two runs to review a change |
 | The package | `eng/consume-package.sh <work dir>` | Packs the generator and builds a fresh project from it, with warnings as errors |
-| The image | `docker build --file prototypes/matchmark/Dockerfile --tag matchmark .` (from the repository root) | Then the smoke tests in the `image` job of `.github/workflows/matchmark.yml` |
+| The image | `docker build --tag matchmark .` | Then the smoke tests in the `image` job of `.github/workflows/ci.yml` |
 
 The ledgers (`corpus-ledger.txt`, `large-ledger.txt`, `examples-ledger.txt`) are written to
 `Matchmark.Generator.Tests/bin/Release/net10.0/`.
@@ -80,18 +80,50 @@ Smaller open items are each page's "Planned" rows: `validation.md`, `invariants.
 
 ## Waiting on the maintainer
 
-- **A pull request to main.** None has been opened; it needs the maintainer's word. Until `.github/workflows/matchmark.yml`
-  is on main, GitHub can't dispatch it by hand (404). It runs on pull requests to main, so none of its jobs has run on
-  GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally.
+- **The split.** This folder is laid out as its own repository (see [Its own repository](#its-own-repository)). Its
+  CI, `.github/workflows/ci.yml`, runs only once the folder is a repository's root, so none of its jobs has run on
+  GitHub yet: test, large specs and examples, image, package, and derived evidence. Each has been run locally, and the
+  whole suite passes in a copy of this folder on its own.
 - **Questions 1 to 4** in [docs/QUESTIONS.md](docs/QUESTIONS.md). Each has an assumption in force, so nothing waits.
 
 ## Blocked
 
 These need access or decisions this repository can't give:
 
-- **Its own home** (roadmap step 1): moving to `rtkelly-labs/matchmark` with its history. A session can't create
-  repositories.
+- **Its own home** (roadmap step 1): creating `rtkelly-labs/matchmark` and moving this folder there with its history. A
+  session can't create repositories.
 - **The Oxbow forks** of the standard readers (roadmap step 3).
 - **Publishing**: packages, the dotnet tool, and the image to a registry.
 - **The trial**: a real service with a frontend for the flip trial, a broker for AsyncAPI channels, and a sandbox with
   credentials for scheduled fidelity runs.
+
+## Its own repository
+
+This folder is laid out to be a repository's root. Nothing in it refers to files outside it:
+
+- **Build settings.** `Directory.Build.props` and `Directory.Packages.props` hold every setting and version: warnings
+  as errors, the analysis level, and central package versions. They import nothing from above.
+- **SDK, style and licence.** `global.json` pins the SDK (10.0.100, rolling forward to the latest feature band),
+  `.editorconfig` sets the style, and `LICENSE` is MIT.
+- **Resultful.** It comes from NuGet (`Resultful` 0.2.0-beta05), for the samples and the opt-in adapter's tests. The
+  generator and the runtimes don't reference it.
+- **CI.** `.github/workflows/ci.yml` runs from the root, with no paths filter.
+- **The image.** The `Dockerfile` builds with the root as its context (`docker build -t matchmark .`).
+
+To split it out with its history (the maintainer's step):
+
+```bash
+git clone <this repository> matchmark && cd matchmark
+git filter-repo --subdirectory-filter prototypes/matchmark   # or: git subtree split --prefix=prototypes/matchmark
+git remote add origin https://github.com/rtkelly-labs/matchmark.git && git push -u origin main
+```
+
+Then, in the new repository:
+
+- **Branch protection on `main`:** squash merges, linear history, and the CI jobs as required checks.
+- **Package metadata:** `PackageProjectUrl` and `RepositoryUrl` in `Directory.Build.props` already point at
+  `rtkelly-labs/matchmark`.
+- **The "Waiting" and "Blocked" sections above:** remove what the split resolves.
+
+To check the folder stands alone before splitting: copy it somewhere outside this repository, delete `bin` and `obj`,
+and run `dotnet test Matchmark.slnx -c Release`.

@@ -1,5 +1,31 @@
 <Project>
-  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <NoWarn>$(NoWarn);CA1716;CA1000</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageProjectUrl>https://github.com/rtkelly-labs/matchmark</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rtkelly-labs/matchmark.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
   <PropertyGroup>
     <!--
       Prototype: nothing is published. The generator, the runtimes (Rules, Fakes, Testing) and the CLI (a dotnet tool)
@@ -12,7 +38,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
     <!-- Sentence-style test names; NUnit disposes fixtures' fields in TearDown. -->
-    <NoWarn>$(NoWarn);CA1707;CA1001;CA2007;CA2234;CA1859;CA1861</NoWarn>
+    <NoWarn>$(NoWarn);CA1305;CA1822;CA1062;CA1707;CA1001;CA2007;CA2234;CA1859;CA1861</NoWarn>
     <!-- Tests find their samples from their own source path ([CallerFilePath]), which a CI build maps to /_/. -->
     <ContinuousIntegrationBuild>false</ContinuousIntegrationBuild>
   </PropertyGroup>
