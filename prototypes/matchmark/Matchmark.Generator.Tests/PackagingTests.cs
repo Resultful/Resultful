@@ -43,6 +43,7 @@ public sealed partial class PackagingTests
             "SharpYaml.dll -> analyzers/dotnet/cs",
             "Matchmark.Specs.dll -> analyzers/dotnet/cs",
             "Matchmark.Specs.Overlay.dll -> analyzers/dotnet/cs",
+            "Matchmark.Specs.Arazzo.dll -> analyzers/dotnet/cs",
             "Matchmark.Generator.props -> build;buildTransitive");
     }
 

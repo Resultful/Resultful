@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Matchmark's Arazzo reader (decision Q56): Arazzo 1.0 and 1.1 read into a typed document, with every problem at its
+    JSON pointer, as the specification's text and schemas define it (vendored in specs/arazzo).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <Description>Matchmark's Arazzo 1.0 and 1.1 reader.</Description>
+    <NoWarn>$(NoWarn);CA1720</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Matchmark.Specs/Matchmark.Specs.csproj" />
+  </ItemGroup>
+</Project>

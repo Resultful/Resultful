@@ -75,6 +75,24 @@ public sealed class OverlayTests
         result.Problems.Select(p => p.ToString()).Should().BeEmpty();
     }
 
+    /// <summary>The valid 1.0 and 1.1 documents (those with a published schema): pass fixtures and compliant sets' overlays.</summary>
+    public static IEnumerable<TestCaseData> ValidDocuments()
+        => Specs.Files("overlay/tests", ".yaml").Where(f => f.Contains("/pass/", StringComparison.Ordinal) && !f.Contains("v1.2", StringComparison.Ordinal))
+            .Concat(CompliantSets().Select(c => $"overlay/compliant-sets/{c}/overlay.yaml"))
+            .Select(f => new TestCaseData(f).SetName($"Overlay mutations of {f}"));
+
+    [TestCaseSource(nameof(ValidDocuments))]
+    public void On_every_mutation_the_reader_and_the_official_schema_agree(string relative)
+    {
+        var document = Specs.Load(relative);
+        var version = document["overlay"]!.GetValue<string>().StartsWith("1.0", StringComparison.Ordinal) ? "v1.0" : "v1.1";
+        var schema = Json.Schema.JsonSchema.FromText(Specs.Load($"overlay/schemas/{version}/schema.yaml").ToJsonString());
+
+        var disagreements = Mutations.Disagreements(document, d => OverlayReader.Read(d).Problems, schema);
+
+        disagreements.Should().BeEmpty(string.Join("\n", disagreements));
+    }
+
     [Test]
     public void Every_kind_of_document_is_examined()
     {
