@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,7 +13,7 @@ namespace Resultful
     {
         //ToOneOf
         public static Task<OneOf<T, None>> ToOneOf<T>(this Task<Option<T>> value)
-            => value.Map(x => x.ToOneOf()); 
+            => value.Map(x => x.ToOneOf());
 
         //Builder for Option<T> from Task<T> value
         public static Task<Option<T>> Some<T>(this Task<T> value)

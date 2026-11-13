@@ -1,4 +1,4 @@
-﻿namespace Resultful
+namespace Resultful
 {
     public interface IPlus<in T, out TResult>
     {

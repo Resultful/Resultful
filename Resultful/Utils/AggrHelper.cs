@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -125,7 +125,7 @@ namespace Resultful.Utils
             Result<T, TError> value,
             Func<TResult, T, TResult> aggrFunc, Func<TError, TError, TError> mergeError) =>
             acc.Plus(value, mergeError)
-                .Map( x =>
+                .Map(x =>
                 {
                     var (finalAcc, finalVal) = x;
                     return aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal);

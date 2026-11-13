@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -386,7 +386,7 @@ namespace Resultful
         public static Task<Result<TResult, TError>> FoldUntilAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Result<TResult, TError> seed, Func<TResult, T, Task<TResult>> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).FoldUntilAsync(seed,
-                (acc, value) =>  AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
+                (acc, value) => AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
 
         public static async Task<Result<TResult, TError>> FoldUntilAsync<TResult, T, TError>(this IEnumerable<Result<T, TError>> values,
             Task<Result<TResult, TError>> seed, Func<TResult, T, Task<TResult>> aggrFunc)
@@ -409,7 +409,7 @@ namespace Resultful
         //ReduceUntil on Result<T, TError>
         public static Task<Result<T, TError>> ReduceUntilAsync<T, TError>(this IEnumerable<Result<T, TError>> values, Func<T, T, Task<T>> aggrFunc)
             => values.ThrowIfDefault(nameof(values)).ReduceUntilAsync(
-                (acc, value) =>  AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
+                (acc, value) => AggrHelper.FuncUntilAsync(acc, value, aggrFunc));
 
         //TryReduce on Result<T, TError>
         public static Task<Option<Result<T, TError>>> TryReduceAsync<T, TError>(this IEnumerable<Result<T, TError>> values,

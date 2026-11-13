@@ -1,4 +1,4 @@
-﻿namespace Resultful.Examples
+namespace Resultful.Examples
 {
     public class Program
     {
