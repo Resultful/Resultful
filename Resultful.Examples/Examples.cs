@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Resultful.Examples
@@ -11,7 +11,7 @@ namespace Resultful.Examples
         }
     }
 
-    public class Examples: Controller
+    public class Examples : Controller
     {
         #region Build
         private Result<int, Error> ParseInt(string input)

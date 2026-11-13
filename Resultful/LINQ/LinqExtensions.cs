@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Resultful.Utils;
 
 namespace Resultful.LINQ

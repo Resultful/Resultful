@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Resultful.Utils;
@@ -151,7 +151,7 @@ namespace Resultful
         public static Task<VoidResult<TError>> Tee<TError>(this Task<VoidResult<TError>> value, Action<Unit> action)
             => value.Map(item => item.Tee(action));
 
-        public static Task<VoidResult<TError>> TeeAsync<TError>(this Task<VoidResult<TError>> value, Func<Unit ,Task> asyncFunc)
+        public static Task<VoidResult<TError>> TeeAsync<TError>(this Task<VoidResult<TError>> value, Func<Unit, Task> asyncFunc)
             => value.Tee(item => item.TeeAsync(asyncFunc).Discard());
 
         //TeeAsync on VoidResult

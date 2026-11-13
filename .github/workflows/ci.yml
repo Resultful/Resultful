@@ -31,6 +31,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Resultful.sln
 
+      - name: Verify code formatting
+        run: dotnet format whitespace Resultful.sln --no-restore --verify-no-changes
+
       - name: Build solution
         run: dotnet build Resultful.sln --configuration Release --no-restore
 

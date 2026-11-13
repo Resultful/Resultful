@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using FluentAssertions.OneOf;
 using NUnit.Framework;
 using Resultful.LINQ;
