@@ -16,7 +16,7 @@ namespace Resultful
     {
         private readonly IReadOnlyList<string> _context = Array.Empty<string>();
 
-        protected Error(string message) => Message = message;
+        protected Error(string message) => Message = message ?? throw new ArgumentNullException(nameof(message));
 
         public string Message { get; }
 
@@ -59,7 +59,7 @@ namespace Resultful
 
     public sealed record ValidationFailed<TError> : Error where TError : Error
     {
-        public ValidationFailed(IReadOnlyList<TError> errors) : base(Describe(errors)) => Errors = errors.ToArray();
+        public ValidationFailed(IReadOnlyList<TError> errors) : base("Validation failed.") => Errors = NonEmpty(errors);
 
         public IReadOnlyList<TError> Errors { get; }
 
@@ -69,11 +69,10 @@ namespace Resultful
 
         public override int GetHashCode() => HashCode.Combine(base.GetHashCode(), Errors.Count);
 
-        static string Describe(IReadOnlyList<TError> errors)
+        static TError[] NonEmpty(IReadOnlyList<TError> errors)
         {
             ArgumentNullException.ThrowIfNull(errors);
-            if (errors.Count == 0) throw new ArgumentException("A validation failure has at least one error.", nameof(errors));
-            return $"{errors.Count} validation error(s)";
+            return errors.Count > 0 ? errors.ToArray() : throw new ArgumentException("A validation failure has at least one error.", nameof(errors));
         }
     }
 
@@ -106,8 +105,8 @@ namespace Resultful
         internal Result(byte state, T value, TError error) { _state = state; _value = value; _error = error; }
 
         public bool IsDefault => _state == 0;
-        public bool IsSuccess => Guard() == 1;
-        public bool IsFailure => Guard() == 2;
+        public bool IsSuccess => _state == 1;
+        public bool IsFailure => _state == 2;
         public T Value => Guard() == 1 ? _value : throw new InvalidOperationException("The result is a failure.");
         public TError Error => Guard() == 2 ? _error : throw new InvalidOperationException("The result is a success.");
 
@@ -141,8 +140,8 @@ namespace Resultful
         internal Result(byte state, T value, Error? error) { _state = state; _value = value; _error = error; }
 
         public bool IsDefault => _state == 0;
-        public bool IsSuccess => Guard() == 1;
-        public bool IsFailure => Guard() == 2;
+        public bool IsSuccess => _state == 1;
+        public bool IsFailure => _state == 2;
         public T Value => Guard() == 1 ? _value : throw new InvalidOperationException("The result is a failure.");
         public Error Error => Guard() == 2 ? _error! : throw new InvalidOperationException("The result is a success.");
 
@@ -189,10 +188,10 @@ namespace Resultful
         public bool IsDefault => _state == 0;
         [MemberNotNullWhen(true, nameof(Value))]
         [MemberNotNullWhen(false, nameof(Errors))]
-        public bool IsSuccess => Guard() == 1;
+        public bool IsSuccess => _state == 1;
         [MemberNotNullWhen(false, nameof(Value))]
         [MemberNotNullWhen(true, nameof(Errors))]
-        public bool IsFailure => Guard() == 2;
+        public bool IsFailure => _state == 2;
         public T Value => Guard() == 1 ? _value : throw new InvalidOperationException("The validation is a failure.");
         public IReadOnlyList<TError> Errors => Guard() == 2 ? _errors! : throw new InvalidOperationException("The validation is a success.");
         public bool TryGetValue([MaybeNullWhen(false)] out T value) { value = _value; return Guard() == 1; }
@@ -224,10 +223,10 @@ namespace Resultful
         public bool IsDefault => _state == 0;
         [MemberNotNullWhen(true, nameof(Value))]
         [MemberNotNullWhen(false, nameof(Errors))]
-        public bool IsSuccess => Guard() == 1;
+        public bool IsSuccess => _state == 1;
         [MemberNotNullWhen(false, nameof(Value))]
         [MemberNotNullWhen(true, nameof(Errors))]
-        public bool IsFailure => Guard() == 2;
+        public bool IsFailure => _state == 2;
         public T Value => Guard() == 1 ? _value : throw new InvalidOperationException("The validation is a failure.");
         public IReadOnlyList<Error> Errors => Guard() == 2 ? _errors! : throw new InvalidOperationException("The validation is a success.");
         public bool TryGetValue([MaybeNullWhen(false)] out T value) { value = _value; return Guard() == 1; }
@@ -243,6 +242,9 @@ namespace Resultful
         public override string ToString() => _state switch { 0 => "<default Validation>", 1 => $"Ok({_value})", _ => $"Fail({string.Join(", ", _errors!)})" };
         public static bool operator ==(Validation<T> left, Validation<T> right) => left.Equals(right);
         public static bool operator !=(Validation<T> left, Validation<T> right) => !left.Equals(right);
+
+        // The list travels as one ValidationFailed<Error>.
+        public Result<T> ToResult() => Guard() == 1 ? Result.Ok(_value) : Result.Fail<T>(new ValidationFailed<Error>(_errors!));
     }
 
     public static class Validation
@@ -253,6 +255,9 @@ namespace Resultful
         public static Validation<T> Ok<T>(T value) => new(1, value, null);
         public static Validation<T> Fail<T>(Error error) => new(2, default!, new[] { error ?? throw new ArgumentNullException(nameof(error)) });
         public static Validation<T> Fail<T>(IEnumerable<Error> errors) => new(2, default!, NonEmpty(errors));
+
+        public static Result<T> ToResult<T, TError>(this Validation<T, TError> validation) where TError : Error =>
+            validation.TryGetValue(out var value) ? Result.Ok(value) : Result.Fail<T>(new ValidationFailed<TError>(validation.Errors));
 
         static TItem[] NonEmpty<TItem>(IEnumerable<TItem> items)
         {

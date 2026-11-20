@@ -27,8 +27,18 @@ public class RoundTripLaws
             (2, Gen.Select(Gen.Int, Text, Notes, (id, by, notes) => (Error)new OrderLocked(id, by) { Context = notes })),
             (2, Gen.Select(Gen.Decimal, Notes, (price, notes) => (Error)new InvalidItem(price) { Context = notes })),
             (1, Payment(depth).Select(p => (Error)p)),
+            (1, Gen.Select(Gen.Int, Payment(depth), (id, reason) => (Error)new PaymentFailed(id, reason))),
         };
-        if (depth > 0) leaves.Add((1, Errors(depth - 1).Array[1, 3].Select(list => (Error)new ValidationFailed<Error>(list))));
+        if (depth > 0)
+        {
+            // Every ValidationFailed the core makes: Validation<T>.ToResult() and Validation<T, X>.ToResult() for X a
+            // hierarchy and a leaf, with context and a cause on top.
+            leaves.Add((1, Gen.Select(Errors(depth - 1).Array[1, 3], Notes, Cause(depth),
+                (list, notes, cause) => Validation.Fail<int>(list).ToResult().Error with { Context = notes, Cause = cause })));
+            leaves.Add((1, Gen.Select(Payment(depth - 1).Array[1, 3], Notes,
+                (list, notes) => Validation.Fail<int, PaymentError>(list).ToResult().Error with { Context = notes })));
+            leaves.Add((1, Gen.Int.Array[1, 3].Select(ids => Validation.Fail<int, OrderNotFound>(ids.Select(id => new OrderNotFound(id))).ToResult().Error)));
+        }
         return Gen.Frequency([.. leaves]);
     }
 
@@ -86,6 +96,11 @@ public class RoundTripLaws
     [Theory, MemberData(nameof(Cultures))]
     public void Validation_with_a_hierarchy_error(string culture, string naming) =>
         Law(Gen.Bool.SelectMany(ok => ok ? Gen.Int.Select(Validation.Ok<int, PaymentError>) : Payment(1).Array[1, 4].Select(e => Validation.Fail<int, PaymentError>(e))), culture, naming);
+
+    [Theory, MemberData(nameof(Cultures))]
+    public void Result_from_a_Validation_of_a_hierarchy(string culture, string naming) =>
+        Law(Gen.Bool.SelectMany(ok => ok ? Gen.Int.Select(Validation.Ok<int, PaymentError>) : Payment(1).Array[1, 4].Select(e => Validation.Fail<int, PaymentError>(e)))
+            .Select(v => v.ToResult()), culture, naming);
 
     [Theory, MemberData(nameof(Cultures))]
     public void An_Error_on_its_own(string culture, string naming) => Law(AnyError, culture, naming);

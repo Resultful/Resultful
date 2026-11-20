@@ -27,9 +27,12 @@ public sealed record CardDeclined(string Reason) : PaymentError($"card declined:
 
 public sealed record CardExpired(DateOnly On) : PaymentError("card expired");
 
+// A leaf with a member typed as a hierarchy's base: written as an error object, read back through PaymentError's cases.
+public sealed record PaymentFailed(int OrderId, PaymentError Reason) : Error($"payment for order {OrderId} failed");
+
 public static class Wire
 {
-    public static readonly Type[] AllLeaves = [typeof(OrderNotFound), typeof(OrderLocked), typeof(InvalidItem), typeof(CardDeclined), typeof(CardExpired)];
+    public static readonly Type[] AllLeaves = [typeof(OrderNotFound), typeof(OrderLocked), typeof(InvalidItem), typeof(CardDeclined), typeof(CardExpired), typeof(PaymentFailed)];
 
     /// <summary>Web defaults (camelCase leaf properties), every converter, every leaf registered.</summary>
     public static JsonSerializerOptions Web() => Configure(new JsonSerializerOptions(JsonSerializerDefaults.Web));

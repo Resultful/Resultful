@@ -11,6 +11,8 @@ namespace Resultful.Text.Json.Tests;
 [JsonSerializable(typeof(Order))]
 [JsonSerializable(typeof(OrderNotFound))]
 [JsonSerializable(typeof(OrderLocked))]
+[JsonSerializable(typeof(CardDeclined))]
+[JsonSerializable(typeof(CardExpired))]
 public partial class ShopJson : JsonSerializerContext;
 
 public class SourceGenerationTests
@@ -36,6 +38,32 @@ public class SourceGenerationTests
         var json = JsonSerializer.Serialize(r, info);
         Assert.Equal("""{"ok":false,"error":{"type":"OrderLocked","message":"order 7 is locked by ann","context":["saving"],"cause":{"type":"OrderNotFound","message":"order 7 was not found","context":[],"id":7},"id":7,"by":"ann"}}""", json);
         Assert.Equal(r, JsonSerializer.Deserialize(json, info));
+    }
+
+    // The pattern for an app (22, and 20a's registration): a resolver that hands out the converter-backed metadata for
+    // each result type, combined with the source-generated context, so plain JsonSerializer.Serialize(value, options)
+    // works with no reflection and no AddResultful (which needs dynamic code).
+    private sealed class ResultResolver : IJsonTypeInfoResolver
+    {
+        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options) =>
+            type == typeof(Result<Order>) ? JsonMetadataServices.CreateValueInfo<Result<Order>>(options, new ResultJsonConverter<Order>())
+            : type == typeof(Validation<Order, PaymentError>) ? JsonMetadataServices.CreateValueInfo<Validation<Order, PaymentError>>(options, new ValidationJsonConverter<Order, PaymentError>())
+            : null;
+    }
+
+    [Fact]
+    public void A_combined_resolver_serves_plain_Serialize_and_Deserialize()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { TypeInfoResolver = JsonTypeInfoResolver.Combine(new ResultResolver(), ShopJson.Default) }
+            .AddErrorCases<Error>([typeof(OrderNotFound), typeof(OrderLocked)]).AddErrorCases<PaymentError>(PaymentError.Cases);
+        var r = Result.Fail<Order>(new OrderLocked(7, "ann") { Cause = new OrderNotFound(7) });
+        var json = JsonSerializer.Serialize(r, options);
+        Assert.Equal(r, JsonSerializer.Deserialize<Result<Order>>(json, options));
+        Assert.Equal("""{"ok":true,"value":{"id":1,"name":"tea"}}""", JsonSerializer.Serialize(Result.Ok(new Order(1, "tea")), options));
+        var v = Validation.Fail<Order, PaymentError>([new CardDeclined("x")]);
+        Assert.Equal(v, JsonSerializer.Deserialize<Validation<Order, PaymentError>>(JsonSerializer.Serialize(v, options), options));
+        // A type the resolvers don't know fails loudly instead of reflecting.
+        Assert.Throws<NotSupportedException>(() => JsonSerializer.Serialize(Result.Ok(1), options));
     }
 
     [Fact]

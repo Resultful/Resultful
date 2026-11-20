@@ -1,6 +1,7 @@
 #if NET11_0_OR_GREATER
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Resultful.CodeAnalysis;
 using Resultful.Testing.Json;
 
@@ -40,6 +41,22 @@ public union CheckoutError(OrderNotFound, CardError) : IErrorUnion
         CardExpired e => (CardError)e,
         _ => throw new JsonException($"{leaf.GetType().Name} isn't a CheckoutError case."),
     };
+}
+
+// A union whose converter comes from an attribute, not the options.
+[JsonConverter(typeof(LockConverter))]
+public union LockError(OrderLocked) : IErrorUnion
+{
+    public Error Error => Value switch { Error e => e, _ => throw new InvalidOperationException("<default LockError>") };
+}
+
+public sealed class LockConverter : JsonConverter<LockError>
+{
+    private readonly ErrorUnionJsonConverter<LockError> _inner = new([typeof(OrderLocked)], e => (OrderLocked)e);
+
+    public override LockError Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => _inner.Read(ref reader, typeToConvert, options);
+
+    public override void Write(Utf8JsonWriter writer, LockError value, JsonSerializerOptions options) => _inner.Write(writer, value, options);
 }
 
 public class UnionTests
@@ -103,6 +120,15 @@ public class UnionTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Result<Order, Twin.OrderError>>(unknown, Options()));
         // A leaf of another union is unknown to this one.
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Result<Order, OrderError>>("""{"ok":false,"error":{"type":"CardDeclined","message":"m","context":[],"reason":"r"}}""", Options()));
+    }
+
+    [Fact]
+    public void A_union_with_a_JsonConverter_attribute_reads_without_registration()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web).AddResultful();
+        Result<Order, LockError> r = (LockError)new OrderLocked(7, "ann");
+        var back = JsonSerializer.Deserialize<Result<Order, LockError>>(JsonSerializer.Serialize(r, options), options);
+        Assert.True(back.TryGetError(out var e) && e.Error is OrderLocked { Id: 7 });
     }
 
     [Fact]

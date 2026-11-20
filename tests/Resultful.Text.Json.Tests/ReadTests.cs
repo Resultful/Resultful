@@ -26,13 +26,14 @@ public class ReadTests
     public void Members_may_come_in_any_order()
     {
         Assert.Equal(Result.Ok(5), Read<Result<int>>("""{"value":5,"ok":true}"""));
-        Assert.Equal(Result.Fail<int>(new OrderNotFound(1)), Read<Result<int>>("""{"error":{"id":1,"context":[],"type":"OrderNotFound"},"ok":false}"""));
+        Assert.Equal(Result.Fail<int>(new OrderNotFound(1)), Read<Result<int>>("""{"error":{"id":1,"context":[],"message":"m","type":"OrderNotFound"},"ok":false}"""));
     }
 
     [Theory]
     [InlineData("""{"ok":false,"error":{"type":"OrderVanished","message":"gone","context":[]}}""")]
     [InlineData("""{"ok":false,"error":{"message":"no type","context":[]}}""")]
     [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","message":"m","context":"not an array","id":1}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"ValidationFailed","message":"m","context":[],"errors":[{"type":"MessageError","message":"a","context":[]}]}}""")]
     public void An_unknown_or_missing_type_throws_JsonException(string json)
     {
         Assert.Throws<JsonException>(() => Read<Result<int>>(json));
@@ -94,6 +95,95 @@ public class ReadTests
     {
         var r = Result.Fail<int>(new ValidationFailed<Error>([Error.From("a"), new OrderNotFound(1)]).WithContext("form"));
         Assert.Equal(r, Read<Result<int>>(JsonSerializer.Serialize(r, Wire.Web())));
+    }
+
+    // The rule: ValidationFailed is written as ValidationFailed<X>, X being its closed type argument's wire name, and is
+    // read back as that closed type. So Validation<T, X>.ToResult() round-trips for X = Error, a hierarchy or a leaf.
+    [Theory]
+    [InlineData("web")]
+    [InlineData("plain")]
+    public void Validation_ToResult_round_trips_for_every_element_type(string naming)
+    {
+        var options = naming == "web" ? Wire.Web() : Wire.Plain();
+        var ofError = Validation.Fail<int>([Error.From("a"), new CardDeclined("b")]).ToResult();
+        var ofHierarchy = Validation.Fail<int, PaymentError>([new CardDeclined("x"), new CardExpired(new DateOnly(2026, 2, 1))]).ToResult();
+        var ofLeaf = Validation.Fail<int, OrderNotFound>([new OrderNotFound(1), new OrderNotFound(2)]).ToResult();
+        foreach (var r in new[] { ofError, ofHierarchy, ofLeaf })
+        {
+            var back = Read<Result<int>>(JsonSerializer.Serialize(r, options), options);
+            Assert.Equal(r, back);
+            Assert.Equal(r.Error.GetType(), back.Error.GetType());
+        }
+
+        Assert.IsType<ValidationFailed<PaymentError>>(Read<Result<int>>(JsonSerializer.Serialize(ofHierarchy, options), options).Error);
+    }
+
+    [Fact]
+    public void Registering_a_closed_ValidationFailed_as_a_case_is_harmless()
+    {
+        var options = Wire.Web().AddErrorCases<Error>([typeof(ValidationFailed<PaymentError>)]);
+        var r = Validation.Fail<int, PaymentError>([new CardDeclined("x")]).ToResult();
+        Assert.Equal(r, Read<Result<int>>(JsonSerializer.Serialize(r, options), options));
+        var plain = Validation.Fail<int>([Error.From("a")]).ToResult();
+        Assert.Equal(plain, Read<Result<int>>(JsonSerializer.Serialize(plain, options), options));
+    }
+
+    [Fact]
+    public void A_ValidationFailed_whose_element_type_isnt_registered_throws()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web).AddResultful();
+        var json = JsonSerializer.Serialize(Validation.Fail<int, PaymentError>([new CardDeclined("x")]).ToResult(), options);
+        var ex = Assert.Throws<JsonException>(() => Read<Result<int>>(json, options));
+        Assert.Contains("AddErrorCases<PaymentError>", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_ValidationFailed_element_outside_its_type_throws() =>
+        Assert.Throws<JsonException>(() => Read<Result<int>>("""{"ok":false,"error":{"type":"ValidationFailed<PaymentError>","message":"m","context":[],"errors":[{"type":"OrderNotFound","message":"m","context":[],"id":1}]}}"""));
+
+    [Fact]
+    public void A_member_typed_as_a_hierarchy_base_reads_back()
+    {
+        var r = Result.Fail<int>(new PaymentFailed(3, new CardExpired(new DateOnly(2026, 3, 1)) { Cause = Error.From("bank") }));
+        Assert.Equal(r, Read<Result<int>>(JsonSerializer.Serialize(r, Wire.Web())));
+        Assert.Equal(r, Read<Result<int>>(JsonSerializer.Serialize(r, Wire.Plain()), Wire.Plain()));
+    }
+
+    [Theory]
+    [InlineData("""{"ok":true,"ok":false,"error":{"type":"MessageError","message":"m","context":[]}}""")]
+    [InlineData("""{"ok":true,"value":1,"value":2}""")]
+    [InlineData("""{"ok":false,"error":{"type":"MessageError","message":"m","context":[]},"error":{"type":"MessageError","message":"n","context":[]}}""")]
+    public void A_repeated_envelope_member_throws_JsonException(string json) => Assert.Throws<JsonException>(() => Read<Result<int>>(json));
+
+    [Fact]
+    public void A_repeated_errors_member_throws_JsonException() =>
+        Assert.Throws<JsonException>(() => Read<Validation<int>>("""{"ok":false,"errors":[{"type":"MessageError","message":"m","context":[]}],"errors":[{"type":"MessageError","message":"n","context":[]}]}"""));
+
+    [Theory]
+    [InlineData("""{"ok":false,"error":{"type":"MessageError","type":"OrderNotFound","message":"m","context":[]}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","message":"m","context":[],"id":1,"id":2}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","message":"m","message":"n","context":[],"id":1}}""")]
+    public void A_repeated_error_member_throws_JsonException_not_ArgumentException(string json)
+    {
+        var ex = Record.Exception(() => Read<Result<int>>(json));
+        Assert.IsType<JsonException>(ex);
+    }
+
+    [Theory]
+    [InlineData("""{"ok":false,"error":{"type":"MessageError","context":[]}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"MessageError","message":null,"context":[]}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"MessageError","message":3,"context":[]}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","context":[],"id":1}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","message":"m","context":null,"id":1}}""")]
+    [InlineData("""{"ok":false,"error":{"type":"OrderNotFound","message":"m","context":[],"cause":"db","id":1}}""")]
+    public void A_missing_or_mistyped_wire_member_throws_JsonException(string json) => Assert.Throws<JsonException>(() => Read<Result<int>>(json));
+
+    [Fact]
+    public void Cases_cant_be_added_once_the_options_are_in_use()
+    {
+        var options = Wire.Web();
+        JsonSerializer.Serialize(Result.Ok(1), options);
+        Assert.Throws<InvalidOperationException>(() => options.AddErrorCases<Error>([typeof(Other.OrderNotFound)]));
     }
 
     [Fact]

@@ -22,11 +22,10 @@ public class WireFormatTests
             Result.Fail<Order>(new OrderNotFound(2) { Cause = Error.From("db") }.WithContext("loading")));
 
     [Fact]
-    public void Members_are_written_in_the_fixed_order()
-    {
-        var json = JsonSerializer.Serialize(Result.Fail<Order>(new OrderLocked(7, "ann") { Cause = Error.From("db") }.WithContext("a")), Wire.Web());
-        Assert.Equal("""{"ok":false,"error":{"type":"OrderLocked","message":"order 7 is locked by ann","context":["a"],"cause":{"type":"MessageError","message":"db","context":[]},"id":7,"by":"ann"}}""", json);
-    }
+    public void Members_are_written_in_the_fixed_order() =>
+        JsonAssert.EqualOrdered(
+            """{"ok":false,"error":{"type":"OrderLocked","message":"order 7 is locked by ann","context":["a"],"cause":{"type":"MessageError","message":"db","context":[]},"id":7,"by":"ann"}}""",
+            Result.Fail<Order>(new OrderLocked(7, "ann") { Cause = Error.From("db") }.WithContext("a")));
 
     [Fact]
     public void Context_is_always_written_and_cause_only_when_set() =>
@@ -56,10 +55,29 @@ public class WireFormatTests
         JsonAssert.Equal("""{"ok":false,"error":"nope"}""", Result.Fail<int, string>("nope"));
 
     [Fact]
-    public void A_ValidationFailed_carried_through_a_result_writes_its_errors() =>
+    public void A_ValidationFailed_carried_through_a_result_writes_its_closed_type_and_errors()
+    {
+        // The core owns ValidationFailed's message, so the literal takes it from the value.
+        var r = Validation.Fail<int>([Error.From("a"), new OrderNotFound(1)]).ToResult();
+        JsonAssert.EqualOrdered(
+            $$$"""{"ok":false,"error":{"type":"ValidationFailed<Error>","message":"{{{r.Error.Message}}}","context":[],"errors":[{"type":"MessageError","message":"a","context":[]},{"type":"OrderNotFound","message":"order 1 was not found","context":[],"id":1}]}}""",
+            r);
+    }
+
+    [Fact]
+    public void A_ValidationFailed_of_a_hierarchy_names_the_hierarchy()
+    {
+        var r = Validation.Fail<int, PaymentError>([new CardDeclined("x")]).ToResult();
         JsonAssert.Equal(
-            """{"ok":false,"error":{"type":"ValidationFailed","message":"2 validation error(s)","context":[],"errors":[{"type":"MessageError","message":"a","context":[]},{"type":"OrderNotFound","message":"order 1 was not found","context":[],"id":1}]}}""",
-            Result.Fail<int>(new ValidationFailed<Error>([Error.From("a"), new OrderNotFound(1)])));
+            $$$"""{"ok":false,"error":{"type":"ValidationFailed<PaymentError>","message":"{{{r.Error.Message}}}","context":[],"errors":[{"type":"CardDeclined","message":"card declined: x","context":[],"reason":"x"}]}}""",
+            r);
+    }
+
+    [Fact]
+    public void A_member_typed_as_a_hierarchy_base_is_written_as_an_error_object() =>
+        JsonAssert.EqualOrdered(
+            """{"ok":false,"error":{"type":"PaymentFailed","message":"payment for order 3 failed","context":[],"orderId":3,"reason":{"type":"CardDeclined","message":"card declined: x","context":[],"reason":"x"}}}""",
+            Result.Fail<int>(new PaymentFailed(3, new CardDeclined("x"))));
 
     [Fact]
     public void Without_a_naming_policy_leaf_properties_keep_their_names_and_wire_keys_stay_lowercase() =>

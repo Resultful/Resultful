@@ -65,6 +65,25 @@ public class JsonAssertTests
     }
 
     [Fact]
+    public void EqualJson_reports_invalid_JSON_on_either_side_as_such()
+    {
+        var expected = Assert.Throws<JsonAssertException>(() => JsonAssert.EqualJson("""{"a":""", """{"a":1}"""));
+        Assert.StartsWith("The expected JSON isn't valid", expected.Message, StringComparison.Ordinal);
+        var actual = Assert.Throws<JsonAssertException>(() => JsonAssert.EqualJson("""{"a":1}""", """{"a":"""));
+        Assert.StartsWith("The actual JSON isn't valid", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Equal_ignores_member_order_and_EqualOrdered_pins_it()
+    {
+        const string reordered = """{"ok":false,"error":{"message":"m","type":"MessageError","context":[]}}""";
+        JsonAssert.Equal(reordered, Result.Fail<int>("m"));
+        var ex = Assert.Throws<JsonAssertException>(() => JsonAssert.EqualOrdered(reordered, Result.Fail<int>("m")));
+        Assert.Contains("JSON member order differs at $.error: member 0 expected \"message\", actual \"type\"", ex.Message, StringComparison.Ordinal);
+        JsonAssert.EqualOrdered("""{"ok":false,"error":{"type":"MessageError","message":"m","context":[]}}""", Result.Fail<int>("m"));
+    }
+
+    [Fact]
     public void Numbers_compare_by_value() => JsonAssert.EqualJson("""{"price":1.50}""", """{"price":1.5}""");
 
     [Fact]
