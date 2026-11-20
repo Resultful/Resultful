@@ -176,6 +176,11 @@ Record either in `PROGRESS.md`.
 - **Implementer.** One per PR, in a worktree at `temp/wt/NN` (gitignored). Gets the contract. Returns `stack-plan/reports/NN.json`: a
   list of claims.
 - **Reviewer.** Fresh. Gets the contract, the relevant decisions and `gh pr diff`. Never the implementer's report.
+  Checks first, from 01's review: tests that can't fail (a flag already set by an earlier step, an
+  `Assert.IsType` the static type already guarantees, a call with no assertion after it); async calls not awaited,
+  or not awaitable because the API returns `void`; a packed-package run that could restore a published package
+  instead of the one just built; comments that disagree with the code. Rank findings, give each a failure scenario
+  and a fix; the orchestrator sends them back to the implementer.
 - **Adversary.** For 03, 04b, 08a, 08b, 09, 13b, 15, 16a, 16b and 17. Writes a fixture the spec says should
   pass and that fails. For 03 and 04b it hunts for any difference from beta06. A valid find becomes a fixture.
 
