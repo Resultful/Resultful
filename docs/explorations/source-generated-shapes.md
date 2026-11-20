@@ -27,7 +27,7 @@ two specific places where C#'s type system creates friction:
    Enforce cross-assembly closure in `csc` itself (not just via an analyzer), avoid the `CS0108` positional-record
    inheritance trap, and emit exhaustive `Match`/`Switch` plus zero-reflection `Causes()` boundary mappers.
 2. **Tier 2 — Domain-specific result shapes (`[ResultShape]`):**
-   Give bounded contexts real typed result aliases (`OrderResult<T>` instead of `Result<T, OrderError>`) with
+   Give each operation its own result type (`PlaceOrderResult` instead of `Result<Order, OrderError>`) with
    opt-in surface area and automatic widening to `Result<T>` / `Result<T, Error>`.
 
 Everything generated still projects cleanly to the core `Result<T, TError>` and `Error` types, so libraries and
@@ -54,7 +54,9 @@ From this, the generator emits (**verified**):
 
 1. **Compiler-enforced closure:** `private protected OrderError(string message) : base(message) { }` (when no
    matching constructor is hand-written). No external assembly can derive from `OrderError` even if that consumer
-   never installs `Resultful.Analyzers`, and derived records don't repeat `string Message` (avoiding `CS0108`).
+   never installs `Resultful.Analyzers`. A positional `abstract record OrderError(string Message)` isn't enough: its
+   constructor is `protected`, which another assembly can still call (**verified**). (Positional derived records
+   don't cause CS0108 either: a parameter named like an inherited property reuses it.)
 2. **Exhaustive `Match<TResult>` and `Switch`:** Generated across all concrete leaves in the assembly, including
    leaves under nested `[ClosedHierarchy]` bases (`OrderNotFound`, `OrderLocked`, `CardDeclined`). Adding a new
    leaf breaks every `Match`/`Switch` call site at compile time on every IDE and compiler version, without
@@ -72,80 +74,113 @@ OrderError.TryMap(
 ```
 
 Because it walks `Causes()` outer-to-inner rather than calling `TryFind<T>` per dictionary entry, precedence is
-deterministic when multiple errors in a cause chain are mappable, with zero reflection and zero allocations.
+deterministic when multiple errors in a cause chain are mappable, with no reflection.
 
-## Tier 2: Domain-specific result shapes
+## Tier 2: Narrow result shapes
 
 C# has no library-level generic type aliases, and structs are invariant (`Result<Order, OrderError>` does not
 implicitly convert to `Result<Order>` or `Result<Order, Error>`).
 
-A user declares a domain-specific result type:
+A user declares a result type for one operation, naming its success type and its error set:
 
 ```csharp
-[ResultShape(typeof(OrderError))]
-public readonly partial struct OrderResult<T>;
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+[ResultShape(typeof(OrderError))]              // no Success: a step with no value
+public readonly partial struct CancelOrderResult;
 ```
 
-From this, the generator emits (**verified**):
+The first prototype generated a generic `OrderResult<T>`. Review found it misclassifies a success whose type is
+also an error case (below), so [decision 16](../decisions/0016-source-generated-result-shapes.md) uses narrow,
+non-generic shapes instead. From a declaration, the generator emits:
 
 - `[MustObserve]` on the struct.
 - State-byte storage (`0` = uninitialised, `1` = success, `2` = failure) plus an `[Obsolete(error: true)]`
   parameterless constructor, matching [decision 10](../decisions/0010-default-is-not-success.md).
-- `IsSuccess`, `IsFailure`, `TryGetValue`, `TryGetError` (with `[MaybeNullWhen(false)]`), `Ok`, `Fail`, `Map`,
-  `Bind`, `Match`.
-- Implicit conversions from `T` and `OrderError` (so `OrderResult<int> r = new OrderNotFound(42);` works).
-- **Automatic widening** to `Result<T, OrderError>` and `Result<T>` (when `TError` derives from `Error`), plus
-  `WithContext(string)` returning `Result<T>`:
+- `IsSuccess`, `IsFailure`, `TryGetValue`, `TryGetError` (with `[MaybeNullWhen(false)]`), `Ok`, `Fail`, `Match`.
+- `Map` and `Bind`, which return the core `Result<TOut, OrderError>`: a `PlaceOrderResult` holds only an `Order`.
+- Implicit conversions from the success type and from each error leaf
+  (`PlaceOrderResult r = new OrderLocked(7);`).
+- **Widening out**, to `Result<Order, OrderError>` and `Result<Order>`.
+- **Conversions in** (**verified** on a hand-written shape, next to the `[Union]` conversions with no ambiguity):
+  - from `Result<Order, OrderError>`, so a pipeline of core steps returns straight into the shape;
+  - from another shape with the same success type and error set (`PlaceOrderResult r = loadOrderResult;`);
+  - from a different error hierarchy only through a mapping the user writes (design):
+    `static partial OrderError From(PaymentError e);`.
+- `WithContext(string)` that keeps the shape: context is a note on the error
+  ([decision 14](../decisions/0014-result-and-validation.md)), so the result can still be switched over.
 
 ```csharp
-OrderResult<int> r = new OrderNotFound(42);
-Result<int> widened = r;                                  // implicit widening
-Result<int> wrapped = r.WithContext("loading order");     // widens cleanly to Result<T>
+Result<Order, OrderError> Reserve(Order o) => ...;
+
+PlaceOrderResult Place(Cart c) =>
+    Load(c.OrderId)                            // Result<Order, OrderError>
+        .Bind(Reserve)
+        .WithContext($"placing order {c.OrderId}");   // converts into PlaceOrderResult on return
+
+Result<Order> widened = Place(cart);           // widening out at a layer boundary
 ```
+
+### The overlap rule
+
+A union switch matches by type, so the success type must not be something an error case could also be.
+
+```csharp
+// the first prototype's generic shape
+OrderResult<OrderNotFound> a = OrderResult<OrderNotFound>.Ok(new OrderNotFound(1));
+var r = a switch { OrderNotFound => "...", OrderLocked => "...", CardDeclined => "..." };
+// compiled with no warning under TreatWarningsAsErrors; threw SwitchExpressionException at runtime
+```
+
+The compiler matched `OrderNotFound` through the leaf's `TryGetValue`, which only accepts failures, so the
+success matched no arm (**verified**). `OrderResult<object>` also needed a `null` arm (CS8655). A narrow shape
+names its success type where it's declared, so the generator reports an error there if `Success` is a leaf, a base
+of a leaf, `Error`, `object`, or an interface a leaf implements. No use-site analyzer is needed.
 
 ### .NET 11 `[Union]` integration — replacing `OneOfBase` with a native struct union
 
 `OneOf` tried to solve domain-named results with `OneOfBase<T0, T1, ...>`, which forced heap-allocated `class`
 inheritance, constructor boilerplate, and `.Match(...)` lambdas because C# couldn't exhaustively `switch` over it.
 
-Because a Tier 2 `[ResultShape]` is a `readonly partial struct` and the generator already knows every leaf of a
+Because a shape is a `readonly partial struct` and the generator already knows every leaf of a
 `[ClosedHierarchy]` error, on `net11.0` (`#if NET11_0_OR_GREATER`) it emits `[System.Runtime.CompilerServices.Union]`,
 `IUnion`, `HasValue`, `public object? Value`, and one `public` union constructor + non-boxing `TryGetValue(out Leaf)`
-per concrete leaf (keeping `OrderResult(OrderError)` `private` so `OrderError` itself isn't an extra unmatched
+per concrete leaf (keeping the constructor from `OrderError` itself `private` so the base isn't an extra unmatched
 union case).
 
-That turns `OrderResult<T>` into a **native C# 15 union** with flat, exhaustive `switch` expressions — no `_` arm,
-no `OneOfBase` class, no `.Match(...)`, and no `CS8509` analyzer suppressor (**verified**):
+That makes the shape a **native C# 15 union** with flat, exhaustive `switch` expressions: no `_` arm, no
+`OneOfBase` class, no `.Match(...)`, and no `CS8509` suppressor.
 
 ```csharp
-// Flat exhaustive switch over T and every closed error leaf
-var status = orderResult switch
+// Flat: the success type and every closed error leaf
+var status = Place(cart) switch
 {
-    int v => v,
-    OrderNotFound nf => nf.Id == 42 ? 404 : 500,
-    OrderLocked => 409,
-    CardDeclined => 402,
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
 };
 
-// Grouping by an intermediate base (OrderPaymentError) is also exhaustive
-var grouped = orderResult switch
+// Grouped: an intermediate base (OrderPaymentError) covers its leaves
+var grouped = Place(cart) switch
 {
-    int v => v,
+    Order o => 201,
     OrderNotFound => 404,
     OrderLocked => 409,
     OrderPaymentError => 402,
 };
 ```
 
-Adding a new leaf to `OrderError` adds a new union case to `OrderResult<T>` automatically, so every `switch`
-expression over `OrderResult<T>` immediately warns `CS8509` via the C# compiler itself. On `netstandard2.0` and
-`net10.0`, the exact same `[ResultShape]` declaration falls back cleanly to the generated `Match`/`Switch` methods.
+**Verified**: both forms on the generic prototype, and the flat form on a hand-written narrow shape. Removing an
+arm gives CS8509 from the compiler (negative control run for the flat form on both). Adding a leaf to `OrderError`
+adds a union case, so every `switch` over the shape warns until it handles it. On `netstandard2.0` and `net10.0`,
+the same declaration falls back to the generated `Match`/`Switch` methods.
 
-More broadly, this same generator pattern can scaffold any custom `[Union]` struct as a value-type successor to
-`OneOf.SourceGenerator` / `OneOfBase`. While native C# 15 unions make `OneOf` itself largely unnecessary on
-`net11.0`, the generator's lasting value is bridging `netstandard2.0`/`net10.0` to `net11.0` `[Union]` with one
-declaration and adding the railway surface, widening conversions, and `Causes()` boundary mappers that raw unions
-don't provide.
+More broadly, this generator pattern can scaffold custom `[Union]` structs as a value-type successor to
+`OneOf.SourceGenerator` / `OneOfBase`. Native C# 15 unions make `OneOf` largely unnecessary on `net11.0`; the
+generator's lasting value is one declaration that works from `netstandard2.0` to `net11.0`, plus the railway
+surface, the conversions, and the `Causes()` boundary mappers that raw unions don't provide.
 
 ### Opt-in shape knobs (design)
 
@@ -159,8 +194,10 @@ Not prototyped yet, but natural extensions on `[ResultShape]`:
 
 ## Verified probe results (SDK 11.0.100)
 
-The prototype lives in `temp/gen-probe/` (gitignored) and was built and executed with `TreatWarningsAsErrors=true`
-and `EnforceExtendedAnalyzerRules=true`:
+The prototype lives in `temp/gen-probe/` (gitignored) on the branch where this exploration started, and was built
+and executed with `TreatWarningsAsErrors=true` and `EnforceExtendedAnalyzerRules=true`. It generates the generic
+`OrderResult<T>` that came first. The review rows at the end were run on a copy of it (`temp/gen-check/`), with the
+narrow shape written by hand from the generated code, since the generator doesn't emit narrow shapes yet.
 
 | Check | Result |
 |---|---|
@@ -170,14 +207,20 @@ and `EnforceExtendedAnalyzerRules=true`:
 | Tier 2 `[ResultShape(typeof(OrderError))]` implicit from leaf, widening to `Result<int>`, `WithContext` + `TryFind` | **Verified** — all assertions pass |
 | Tier 2 `.NET 11 [Union]` flat exhaustive `switch` over `T` + every closed leaf (`OrderNotFound`, `OrderLocked`, `CardDeclined`) and grouped intermediate base (`OrderPaymentError`) | **Verified** — compiles with zero warnings (no `_` arm, no suppressor) and runs |
 | Decision 10 zero-value guard on generated `OrderResult<int>` | **Verified** — `default(OrderResult<int>).IsSuccess` throws `InvalidOperationException` |
-| `System.Text.Json` source generation (`[JsonSerializable(typeof(OrderResult<int>))]`) in the same compilation | **Verified failure (see below)** — `CS0619` and 0 properties discovered |
+| `System.Text.Json` source generation (`[JsonSerializable(typeof(OrderResult<int>))]`) in the same compilation | **Verified failure (see below)** — `CS0619` and 0 properties discovered (not re-run in review) |
+| Review: rebuilt the probe; removed the `CardDeclined` arm from the flat union switch | **Verified** — `CS8509` from the compiler, so the exhaustiveness is real |
+| Review: `OrderResult<OrderNotFound>` holding a success, switched over its leaves | **Verified failure** — no warning at build; `SwitchExpressionException` at runtime. The reason for narrow shapes and the overlap rule |
+| Review: `OrderResult<object>` | Needs a `null` arm (`CS8655`) |
+| Review: hand-written narrow `PlaceOrderResult` with `[Union]` | **Verified** — flat switch over `Order` and every leaf runs; removing an arm gives `CS8509` |
+| Review: conversions into `PlaceOrderResult` from `Result<Order, OrderError>` and from `LoadOrderResult` | **Verified** — compile next to the union conversions with no ambiguity, and classify correctly |
+| Review: accessibility of a positional `abstract record` constructor | `protected`, so not closed to other assemblies without the generated `private protected` constructor |
 
 ## Key constraint: generator-to-generator blindness
 
 Roslyn runs source generators in parallel over the user's original syntax/compilation; one generator cannot see
 members emitted by another generator in the same compilation.
 
-When `[JsonSerializable(typeof(OrderResult<int>))]` was placed in the same project as `[ResultShape]`,
+When `[JsonSerializable(typeof(OrderResult<int>))]` (the generic prototype) was placed in the same project as `[ResultShape]`,
 `System.Text.Json.SourceGeneration` (**verified**):
 
 1. Saw **0 properties** on `OrderResult<int>` (`new JsonPropertyInfo[0]` and an empty `{}` serializer).
@@ -194,7 +237,7 @@ members directly in the same compilation.
   1. Resultful's generator (or `Resultful.Text.Json`) emits a `JsonConverterFactory` / `[JsonConverter]` directly
      for the generated shape, or
   2. Consumers serialize/expose DTOs or the core `Result<T>` at the HTTP/JSON boundary (using the generated
-     widening conversion `OrderResult<T> -> Result<T>`), keeping `OrderResult<T>` internal to the domain/application
+     widening conversion `PlaceOrderResult -> Result<Order>`), keeping shapes internal to the domain/application
      layer.
 
 ## Costs and boundaries
@@ -214,11 +257,13 @@ members directly in the same compilation.
 
 ## Still open
 
-- **Packaging:** Does the generator live in `Resultful.Analyzers` (one build-time package for both rules and
-  generation) or a separate `Resultful.Generators` package?
-- **Attribute home:** `[ClosedHierarchy]` is already proposed for `Resultful.CodeAnalysis` in the core (PR #35).
-  Should `[ResultShape]` live there too, or only be added when Tier 2 ships?
-- **Validation shapes:** Should `[ResultShape]` support `Errors = ResultErrors.Many` (generating a `Validation`-like
-  struct) and/or `Void` shapes (`OrderResult` with no `T`)?
-- **STJ / AspNetCore integration:** Whether Tier 2 emits optional `JsonConverter` / `IResult` helpers when those
-  assemblies are referenced, or relies on widening to `Result<T>`.
+Decided in [decision 16](../decisions/0016-source-generated-result-shapes.md): a separate `Resultful.Generators`
+package, both attributes in `Resultful.CodeAnalysis` in the core, narrow shapes, and void shapes (no `Success`).
+
+- **Validation shapes:** should `[ResultShape]` support `Errors = ResultErrors.Many`, generating a
+  `Validation`-like struct with a non-empty list of errors?
+- **Mapping between error hierarchies:** the `static partial OrderError From(PaymentError e)` form is design only.
+- **Conversions between shapes with nested error sets:** from a shape whose error type is a closed base nested
+  under this one. Only the same error type was run.
+- **STJ / AspNetCore integration:** whether shapes emit optional `JsonConverter` / `IResult` helpers when those
+  assemblies are referenced, or rely on widening to `Result<T>`.
