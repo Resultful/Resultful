@@ -175,6 +175,22 @@ At most two implementers at once. Only 04c and 04d may be drafted alongside 02â€
 with no edits to root files (`Resultful.slnx`, `Directory.Packages.props`, `.github/`, `.ls-lint.yml`). They are
 wired in after rebasing onto 04b. Everything else is built in stack order.
 
+**Pipelining (Ryan, 2026-11-20: don't wait longer than needed).** The order stays linear; the waiting doesn't.
+- **Start the next PR when this one is pushed, not when it's green.** PR n+1 branches from n's pushed head as soon
+  as n's implementer has pushed and its local build passes. If n then changes (a CI fix, a review fix), n+1 is
+  restacked with `git rebase --update-refs` before it pushes again. A non-mechanical conflict is a stop condition
+  as before.
+- **Review runs alongside CI.** The reviewer starts on the pushed diff while CI runs; the adversary (where there is
+  one) starts with the reviewer. Fixes from both are batched into one push.
+- **Implementers don't wait on CI.** An implementer pushes, opens the draft and reports. The orchestrator watches CI
+  and hands a red job to a fixer agent with the log, so the implementer slot is free for the next PR.
+- **Contracts one or two ahead.** The orchestrator writes the next contracts while PRs build.
+- **Up to three agents building at once** (implementers and fixers; reviewers and adversaries don't count), at most
+  three PRs deep in flight above the last green one. A PR is still *done* only by rule 3, and a checkpoint only when
+  every PR under it is.
+- **Drafting ahead.** Besides 04c and 04d, 13a may be drafted as soon as 04c's target API is pushed (it depends only
+  on the target), on the same no-root-files rule.
+
 ## Known traps
 
 - **Running tests.** `dotnet test Resultful.slnx` fails once an xunit.v3 Microsoft.Testing.Platform project is in
