@@ -18,15 +18,15 @@ ls:
     .psm1: exists:0
     .py: exists:0
 
-  # Source and test projects: PascalCase files and folders; partial files use dotted segments
-  # (Result.ErrorList.cs, ResultExtensions.Composition.Async.cs).
-  "{Resultful,Resultful.*}":
+  # Projects live under src/, tests/ and samples/ (benchmarks/ later). PascalCase files and folders;
+  # partial files use dotted segments (Result.ErrorList.cs, ResultExtensions.Composition.Async.cs).
+  "{src,tests,samples}":
+    .dir: regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
+    .props: regex:Directory\.Build
+  "{src,tests,samples}/**":
     .dir: PascalCase | regex:LINQ | regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
     .cs: regex:[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*
     .csproj: regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
-  "{Resultful,Resultful.*}/**":
-    .dir: PascalCase | regex:LINQ | regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
-    .cs: regex:[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*
 
   eng:
     .cs: kebab-case
