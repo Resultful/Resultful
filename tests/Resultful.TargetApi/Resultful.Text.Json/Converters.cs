@@ -71,10 +71,11 @@ namespace Resultful.Text.Json
         public override void Write(Utf8JsonWriter writer, TError value, JsonSerializerOptions options) => throw null!;
     }
 
-    // An error union writes as its leaf (decision 17) and reads back through its cases.
+    // An error union writes as its leaf (decision 17) and reads back through its innermost cases; `wrap` turns the
+    // leaf read back into the union (a generated union supplies it; no reflection, so AOT-safe).
     public sealed class ErrorUnionJsonConverter<TUnion> : JsonConverter<TUnion> where TUnion : struct, IErrorUnion
     {
-        public ErrorUnionJsonConverter(IEnumerable<Type> cases) => throw null!;
+        public ErrorUnionJsonConverter(IEnumerable<Type> cases, Func<Error, TUnion> wrap) => throw null!;
         public override TUnion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => throw null!;
         public override void Write(Utf8JsonWriter writer, TUnion value, JsonSerializerOptions options) => throw null!;
     }
