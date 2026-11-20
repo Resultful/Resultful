@@ -13,6 +13,12 @@ generated:
 
 ## 2026-11-20
 
+- Exploration *Source-generated error hierarchies and result shapes* added: Tier 1 (`[ClosedHierarchy]` closure,
+  exhaustive `Match`/`Switch`, outer-to-inner `Causes()` mapper) and Tier 2 (`[ResultShape]` domain result structs
+  with widening to `Result<T>` and `.NET 11 [Union]` flat/grouped exhaustive `switch` over closed error leaves),
+  verified with a `netstandard2.0` incremental generator probe on SDK 11.0.100, including empirical verification of
+  `System.Text.Json` generator-to-generator blindness.
+
 - Decision 15 proposed: analyzer rules read attributes (`[MustObserve]`, `[ClosedHierarchy]`) matched by name, so
   users' own types get the same checks. A probe confirmed a suppressor can remove CS8509 when every type of a
   closed hierarchy is matched, and keeps it otherwise. Exploration *Analyzers for your own types* added.
