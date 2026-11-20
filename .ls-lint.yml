@@ -44,6 +44,13 @@ ignore:
   - .git
   - .vs
   - .idea
+  # 04d (the Shop and the end-to-end oracle): use case folders named by ledger ID (UC01), the generator's
+  # stand-in output, the broken consumers (each project named after the mistake it makes) and check-snippets.cs (a
+  # file-based app that moves to eng/ at wiring). Kept apart from 04c's entries below so the branches merge cleanly.
+  - samples/*/UC*
+  - samples/*/GeneratorStandIn
+  - tests/Resultful.EndToEnd/Broken
+  - tests/Resultful.EndToEnd/Snippets/check-snippets.cs
   - temp
   - .temp
   - artifacts
