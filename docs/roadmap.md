@@ -39,7 +39,7 @@ Following [decision 7](decisions/0007-ci-follows-rig.md):
 - Least-privilege tokens, `persist-credentials: false`, SDK from `global.json`, NuGet cache.
 - A format check, pack and the package check on every pull request.
 - Fix the publish condition, which never fires today because a step's `if` cannot see its own `env`.
-- zizmor, and the package check as a C# file-based app.
+- zizmor, ls-lint (naming, no shell scripts), Dependabot, and the package check as a C# file-based app.
 - The required check stays `build`.
 
 ## 3. Current .NET standards

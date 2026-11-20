@@ -1,5 +1,14 @@
 # Release notes
 
+## Unreleased
+
+### Build
+
+- CI hardened: least-privilege tokens, no persisted credentials, SDK from `global.json`, NuGet cache, format check,
+  pack and package check on every pull request, zizmor, ls-lint, Dependabot.
+- The package check is a C# file-based app: `dotnet run eng/verify-package.cs -- <nupkg>`.
+- Publishing from `main` works again; the old condition never fired.
+
 ## 0.2.0-beta06
 
 ### Fixed
@@ -23,7 +32,7 @@
 
 ### Build
 
-- Deterministic CI builds; a pack-and-inspect check (`eng/verify-package.sh`) fails on any regression of the above.
+- Deterministic CI builds; a pack-and-inspect check (`eng/verify-package.cs`) fails on any regression of the above.
 - LF line endings and a `dotnet format` baseline.
 - Documentation in `docs/`: vision, roadmap and decisions.
 

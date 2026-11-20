@@ -1,0 +1,51 @@
+# .ls-lint.yml — file and directory naming, checked in CI (lint job).
+# Scripts are C# file-based apps (`dotnet run eng/<name>.cs`): shell and PowerShell scripts are banned,
+# as in the rest of the estate. Exceptions must be listed under `ignore:`.
+
+ls:
+  .sh: exists:0
+  .bash: exists:0
+  .zsh: exists:0
+  .ps1: exists:0
+  .psm1: exists:0
+  .py: exists:0
+  .md: regex:[A-Z][A-Z_]*      # README, AGENTS, RELEASE_NOTES
+  "**":
+    .sh: exists:0
+    .bash: exists:0
+    .zsh: exists:0
+    .ps1: exists:0
+    .psm1: exists:0
+    .py: exists:0
+
+  # Source and test projects: PascalCase files and folders; partial files use dotted segments
+  # (Result.ErrorList.cs, ResultExtensions.Composition.Async.cs).
+  "{Resultful,Resultful.*}":
+    .dir: PascalCase | regex:LINQ | regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
+    .cs: regex:[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*
+    .csproj: regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
+  "{Resultful,Resultful.*}/**":
+    .dir: PascalCase | regex:LINQ | regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
+    .cs: regex:[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*
+
+  eng:
+    .cs: kebab-case
+    .*: exists:0
+
+  docs:
+    .dir: kebab-case
+    .md: kebab-case
+  "docs/**":
+    .dir: kebab-case
+    .md: kebab-case
+
+ignore:
+  - .git
+  - .vs
+  - .idea
+  - temp
+  - .temp
+  - artifacts
+  - TestResults
+  - "**/bin"
+  - "**/obj"
