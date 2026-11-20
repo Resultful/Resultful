@@ -10,7 +10,7 @@ Rows are in stack order.
 | 03 | rtkelly13/stack-03-analysis-level |  | todo |  |
 | 04 | rtkelly13/stack-04-per-package-release |  | todo |  |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
-| 04c | rtkelly13/stack-04c-spec-harness |  | todo | may run alongside 02–04 |
+| 04c | rtkelly13/stack-04c-spec-harness |  | building | drafted alongside 02–04 on 00; contract written |
 | 04d | rtkelly13/stack-04d-reference-app |  | todo | checkpoint; may run alongside 02–04 |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
 | 13a | rtkelly13/stack-13a-generator-target |  | todo | copied from #37 |
