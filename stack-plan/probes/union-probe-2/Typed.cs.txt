@@ -1,0 +1,7 @@
+public static class Typed
+{
+    static T Match<T>(int k, System.Func<OrderNotFound, T> a, System.Func<OrderLocked, T> b) => k == 0 ? a(new(1)) : b(new(2));
+    static string Ok() => Match(0, (OrderNotFound _) => "404", (OrderLocked _) => "409");
+    static string Swapped() => Match(0, (OrderLocked _) => "409", (OrderNotFound _) => "404");
+    static string Untyped() => Match(0, _ => "409", _ => "404");
+}

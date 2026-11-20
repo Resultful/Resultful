@@ -1,15 +1,28 @@
-# The stack plan (review only, never merged)
+# The stack plan (never merged)
 
-This PR exists so the plan for the two-stack Resultful build can be reviewed and commented on. It is never merged.
+This branch is the working copy of the plan for the two-stack Resultful build:
 
-The working copy lives in `temp/stack/` (gitignored) on the orchestrating machine; agents read it from there, so the
-paths inside these files say `temp/stack/...`. The orchestrator mirrors every change to `GOAL.md`, `VERIFY.md`,
-`DECISIONS-TAKEN.md` and `contracts/` into this branch as a new commit, so the history shows how the plan moved.
-`PROGRESS.md`, implementer reports and review transcripts stay local.
+- **Stack A** (01–04b) ships 0.2.0.
+- **Stack B** (00, 04c–25) builds 0.3.
 
-- `GOAL.md`: the outcome, the rules for every PR, and the stack table (what each PR delivers).
-- `VERIFY.md`: how each gate works and who owns it.
-- `DECISIONS-TAKEN.md`: defaults taken without asking, and decisions Ryan made during planning.
-- `contracts/NN.md`: the exact scope handed to each PR's implementer, written just before it starts.
+PR #39 shows it for review. The PR is never merged and is closed when the run ends.
 
-Comments on this PR are read by the orchestrator and folded into the working copy.
+## Starting or resuming the run
+
+Check out `rtkelly13/stack-plan`. Read `GOAL.md`, then `PROGRESS.md`, and continue from the first PR that isn't
+done. `GOAL.md` says how to keep this branch current and how to read Ryan's comments on #39.
+
+## Files
+
+| File | What it holds |
+|---|---|
+| `GOAL.md` | The outcome, the rules for every PR, and the stack table. Start here. |
+| `VERIFY.md` | How each gate works and which PR owns it. |
+| `DECISIONS-TAKEN.md` | Ryan's planning decisions, and defaults taken where the docs are silent. |
+| `PROGRESS.md` | One row per PR, plus run notes. |
+| `contracts/NN.md` | The scope handed to one PR's implementer, written just before it starts. |
+| `reports/NN.json` | An implementer's claims, which the orchestrator checks. |
+| `probes/` | The small programs behind decision 17 (unions on .NET 11), and the Paket consumer. |
+| `reviews/` | The planning reviews (agy/Gemini, Fable). History only. |
+
+Review comments on #39 are read at each PR boundary and treated as Ryan's instructions.

@@ -1,0 +1,10 @@
+STORAGE: NONE
+STRATEGY: MIN
+LOWEST_MATCHING: TRUE
+RESTRICTION: == net11.0
+NUGET
+  remote: https://api.nuget.org/v3/index.json
+    OneOf (3.0.271)
+  remote: ../../../artifacts
+    Resultful (0.2.0-beta06)
+      OneOf (>= 3.0.271)

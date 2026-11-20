@@ -1,0 +1,33 @@
+{
+  "pr": 38,
+  "branch": "rtkelly13/stack-01-consumption-tests",
+  "head_sha": "24d079b9d32780fb49461f81f545b86abf8eca81",
+  "ci": "green",
+  "test_count": 38,
+  "suppressions": [],
+  "changes": [
+    "Cherry-picked #36 commits a0d0c45 and e62dc2d (tests/Resultful.Consumption, CI test step)",
+    "Deleted tests/Resultful.Consumption/DesignSpec/ entirely (0.3 specs, six skipped tests, harness)",
+    "PublicApiCoverageTests: counts only bound symbols (no CandidateSymbols), requires zero scan errors, reads Shipped + Unshipped, ignores *REMOVED*",
+    "ResultfulPackageVersion computed from src/Resultful/Resultful.csproj VersionPrefix/VersionSuffix; -p:VersionSuffix wins",
+    "NetStandardLoadTests loads lib/netstandard2.0 from the restored package when packed, no fallback; netstandard2.0 ProjectReference otherwise",
+    "New PackageSourceTests: loaded Resultful.dll byte-identical to package lib/<tfm> asset or src build",
+    "Both hazards pinned: default/new() succeed for all four result types; bare string/string[]/List<string> convert to errors",
+    "Failure-path and mixed-input tests for sync and async extensions (Plus, Fold/Reduce/Unroll, *Until, Then/Check/Sequence, Task-of-failed-result operators)",
+    "CI packed run: repack with run-unique suffix ci.<run>.<attempt>, isolated packages folder, package source mapping; Pack step and artifacts unchanged",
+    "Removed #36's project NoWarn (CS1998;CA1859;CA2007;CA1034); fixed the one CA1859 site",
+    "Review fixes: Task<Result>/Task<Option> Switch, SwitchAsync, Tee and TeeAsync calls now assert values only the callbacks record; VoidResult Tee checks use distinct values",
+    "Result.Ok() asserts success instead of IsType<VoidResult>",
+    "Packed run errors at restore/build when UsePackedPackage=true and VersionSuffix is empty; CI still passes the suffix",
+    "PublicApiCoverageTests documents it proves binding, not execution, and that foreach/await/deconstruction bindings aren't recorded",
+    "CI comment matches the exact Resultful source-mapping pattern; PR body notes the single-project Test step stays until 02"
+  ],
+  "open_issues": [
+    "Struct SwitchAsync (Result<T>, Result<T,TError>, VoidResult, VoidResult<TError>) returns void and drops the callback Task: can't be awaited, late exceptions lost. src/ out of scope, so tests pin the void return type and the synchronous effect instead of awaiting",
+    "*Until operators (sync and async) pull one source item past the first failure; pinned as today's behaviour",
+    "default(VoidResult) / default(VoidResult<TError>) succeed with a null Unit",
+    "Fail with no errors yields a failure with an empty error list",
+    "A default Result inside a collection is silently folded in as a success",
+    "rig gh pr wait unusable on this machine (rig CLI ModuleNotFoundError: shared_utilities); CI was polled with gh pr checks --json instead"
+  ]
+}

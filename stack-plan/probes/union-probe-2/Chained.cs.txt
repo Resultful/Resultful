@@ -1,0 +1,5 @@
+public static class Chained
+{
+    // Does leaf -> union -> result chain without a cast?
+    static Res<Order, OrderError> F() => new OrderNotFound(1);
+}

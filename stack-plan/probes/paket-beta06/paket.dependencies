@@ -1,0 +1,9 @@
+source ../../../artifacts
+source https://api.nuget.org/v3/index.json
+
+storage: none
+strategy: min
+lowest_matching: true
+framework: net11.0
+
+nuget Resultful = 0.2.0-beta06

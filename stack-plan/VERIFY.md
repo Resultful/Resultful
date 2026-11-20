@@ -1,6 +1,6 @@
 # How the stack is verified
 
-Merged from agy's and Fable's reviews (`agy-review.md`, `fable-review.md`). `GOAL.md` says which PR owns each
+Merged from agy's and Fable's reviews (`stack-plan/reviews/`). `GOAL.md` says which PR owns each
 piece; this file says how it works.
 
 ## 1. `release-check`: 0.2.0 is the same library as beta06 (scripts in 02, gate in 03 and 04b)
@@ -17,7 +17,7 @@ The baseline is `Resultful 0.2.0-beta06`, packed in CI from the `0.2.0-beta06` t
 
 Consumers restore only the packed nupkg into a clean packages folder:
 - NuGet on `net8.0` (the `netstandard2.0` asset), `net10.0`, `net11.0`, with `NuGetAudit` on and NU1903 an error.
-- Paket `strategy: min`, starting from `temp/paket-beta06`, with `--no-cache`.
+- Paket `strategy: min`, starting from `stack-plan/probes/paket-beta06`, with `--no-cache`.
 - `net481` on one `windows-latest` job, in `tests/Compatibility/Net481`, which `eng/run-tests.cs` skips off Windows: the only run of the `netstandard2.0` asset off .NET Core.
 
 After 04b, `release/0.2` keeps `release-check` with `0.2.0` as its baseline. On the stack, the 0.2
@@ -37,7 +37,7 @@ characterisation suite becomes the baseline side of the 08a/08b differential (sp
   - IDs: `CORE-*`, `ZERO-*`, `ERR-*`, `VAL-*`, `OP-*`, `ASYNC-*`, the `SHAPE-*`/`HIER-*`/`GEN-*` table in
     `testing-the-shapes.md`, `RF-*` (one per analyzer rule), `UNION-*`, `UERR-*` (error unions, decision 17), `PKG-*`, `HTTP-*`, `AOT-*`, `MIG-*`,
     `UC01`–`UC10`.
-  - `UERR-*` fixtures are `net11.0` only and come from `temp/union-error-probe`: a union error in
+  - `UERR-*` fixtures are `net11.0` only and come from `stack-plan/probes/union-error-probe`: a union error in
     `Result<T, TError>` and in a shape (flat `switch`, CS8509 on a missing arm), `default` of the union rejected
     by `Fail` and flagged by the analyzer, `RFG0007` for a case that isn't an `Error`, the JSON `type` is the leaf's
     name, a nested union kept as one case (`PaymentError p =>` is an exhaustive arm; a flat arm for its leaf is CS8121; dropping the inner arm is CS8509 on the inner switch), implicit widening to `Result<T>`, `Fail` allocating 0 bytes,

@@ -1,8 +1,8 @@
 # Goal: the Resultful roadmap as two stacks
 
 Every implementer, reviewer and adversary reads this file first, and again after its context is compacted. The
-orchestrator is the main Claude session in `resultful-beta06`. Claude subagents build and check each PR.
-How each gate works is in `temp/stack/VERIFY.md`. Each PR's exact scope is in `temp/stack/contracts/NN.md`,
+orchestrator is the session that runs this goal, local or on Claude Code on the web. Claude subagents build and check each PR.
+How each gate works is in `stack-plan/VERIFY.md`. Each PR's exact scope is in `stack-plan/contracts/NN.md`,
 which the orchestrator writes just before the PR starts.
 
 ## Outcome
@@ -32,30 +32,34 @@ The one exception is **0.3.0 previews**: at checkpoints 19, 17 and 25, once ever
 orchestrator runs the `publish-preview` job (from 04e) on that branch: `0.3.0-preview.1` (core), `.2` (tooling),
 `.3` (everything). 25 still prepares a stable `0.3.0` (release notes, `Shipped` moved) for Ryan to publish; agents never push it. Not gated on 0.2.0 being out (Ryan, 2026-11-20). A preview is never deleted, only unlisted, so
 a failed one is followed by the next number, not re-pushed. If the `nuget-preview` environment or its secret
-isn't set up, log it in `PROGRESS.md` and carry on.
+isn't set up, or the session's GitHub access can't dispatch a workflow, log it in `PROGRESS.md` and carry on.
 
 **Horizon.** About 33 PRs is days of work, not hours. The run never pauses for review (Ryan, 2026-11-20): at each
 checkpoint it writes a summary to `PROGRESS.md` and keeps going. Each checkpoint leaves something useful if the run
 stops there: after 04b (0.2.0 is ready to ship), after 04d (the 0.3 target is reviewable), after 19 (the core is
 finished), after 17 (the tooling is finished).
 
-**The plan PR (#39, `rtkelly13/stack-plan`, never merged).** Whenever the orchestrator changes `GOAL.md`,
-`VERIFY.md`, `DECISIONS-TAKEN.md` or a contract, it copies them into `stack-plan/` in `temp/stack/wt/plan`, commits
-with a one-line message saying what changed, and pushes. It reads review comments on #39 (`gh pr view 39 --comments`,
-`gh api repos/Resultful/Resultful/pulls/39/comments`) at each PR boundary and treats them as Ryan's instructions.
-Never mark #39 ready, never merge it.
+**The plan PR (#39, branch `rtkelly13/stack-plan`, never merged) is the working copy.** Everything in
+`stack-plan/` lives on that branch: this file, `VERIFY.md`, `DECISIONS-TAKEN.md`, `PROGRESS.md`, the contracts, the
+implementers' reports, the probes and the planning reviews. The orchestrator checks it out (a worktree at
+`temp/wt/plan`), and commits and pushes every change to it with a one-line message, so #39's history is the run's
+log. Other stack branches never contain `stack-plan/`. At each PR boundary it reads review comments on #39
+(`gh pr view 39 --comments`, `gh api repos/Resultful/Resultful/pulls/39/comments`) and treats them as Ryan's
+instructions. Never mark #39 ready, never merge it. To reach Ryan (a stop condition, a question), comment on #39
+and say so in `PROGRESS.md`.
 
 ## Rules for every PR
 
 1. **Contract.** The PR body opens with: the roadmap item and decision it implements, the ledger IDs it flips,
-   *Out of scope*, *Decisions taken* (rule 6), the log line for 25 (rule 7), and links to the previous and next
+   *Later PRs* (what the contract leaves to which later PR), *Beyond the contract* (rule 13), *Decisions taken* (rule 6), the log line for 25 (rule 7), and links to the previous and next
    PRs.
 2. **Base.** Each branch is `rtkelly13/stack-NN-<slug>`, based on the branch of the PR before it. Open it with
    `gh pr create --draft --base <previous branch>`.
 3. **Done** means every CI job passes, the ledger IDs in the contract are `done` and nothing else changed state,
    and the orchestrator's own checks in `VERIFY.md` pass. If the run stops at PR k, PRs 00 to k each meet this.
-4. **Light local builds.** The machine is shared. Use `nice`, `dotnet build -m:2`, and build or test only the
-   affected project. Push and let CI run the matrix.
+4. **Light builds.** Build or test only the affected project (`dotnet build -m:2`); push and let CI run the
+   matrix. Install the SDKs `global.json` needs (10.0.4xx and 11.0.100; 9.0.3xx for the compiler legs) with
+   `dotnet-install.sh` if the machine lacks them.
 5. **The design is the docs.** Decisions 1 to 16 and the explorations are the spec, including the proposed
    decisions 14 and 15 and decision 16 item 8: build them as written. From 04c on, the target API and the
    fixtures are the spec in code. Read the relevant decision before writing code.
@@ -75,13 +79,21 @@ Never mark #39 ready, never merge it.
     `continue-on-error` without listing it in the PR body.
 11. **Git.**
     - Conventional commits. Never bare `git stash`.
-    - Worktrees go under `temp/stack/wt/NN`.
+    - Worktrees go under `temp/wt/NN`.
     - A reviewed, green PR is frozen. A later fix goes in a new PR at the top, unless it changes the API or the
       spec. Fixes that must go low are batched and restacked at the checkpoints, with
       `git rebase --update-refs`, then pushed with `--force-with-lease`.
     - Don't touch branches outside the stack. #36 and #37 are copied into stack branches, not rebased in place
-      (#37's branch is checked out in agy's worktree).
+      (another agent may have #37's branch checked out).
 12. **Privacy.** Keep the maintainer's personal details out of commits, PR bodies and any external request.
+13. **Improve your own area.** A contract is the floor. Each implementer goes past it inside its own PR's area:
+    more tests, sharper gates, clearer errors, docs. It lists each addition under *Beyond the contract* in the PR
+    body, and the reviewer judges whether it improves the project. Limits: it doesn't take another PR's item; in
+    stack A it doesn't change `src/` or the public API; it stays under the size limit. What it finds but can't fix
+    goes into `DECISIONS-TAKEN.md` with the PR that should own it (as 01's review sent the `void` `SwitchAsync` to
+    19).
+14. **Waiting on CI.** Poll `gh pr checks <n> --json name,bucket` in the background with a sleep of a minute or
+    more. Never `--watch`. `rig` may not be installed; don't depend on it.
 
 ## Stop conditions (report to the orchestrator, don't push on)
 
@@ -92,6 +104,9 @@ Never mark #39 ready, never merge it.
 - A PR needs more than three `spec:` changes.
 - A reviewer rejects the same PR three times, or a restack conflict isn't mechanical.
 - A step would need anything the agents may not do (merge, a stable publish).
+
+On a stop: comment on #39 with the cause and what was tried, mark the PR `blocked` in `PROGRESS.md`, and carry on
+with any later PR that doesn't depend on it.
 
 A PR that runs past 90 minutes is marked `blocked`, and the orchestrator reports before going on.
 
@@ -105,7 +120,7 @@ A PR that runs past 90 minutes is marked `blocked`, and the orchestrator reports
 | 03 | `analysis-level` | M1 quality | `AnalysisLevel latest-all` with explicit opt-outs, XML docs on public members, a nullable audit, per-target `PublicAPI` files. Core edits are annotations and docs only: the IL list stays empty, each re-annotation is on the API list. |
 | 04 | `per-package-release` | M1, decision 11 | A version per project, change detection by path and project graph, a tag per package, the package check on every packable project. `eng/release-plan.cs` tested against made-up change lists. Nothing publishes. |
 | 04b | `release-0.2` | Ship today's API | `0.2.0`, no new API. `Unshipped` moves to `Shipped`, release notes are written. The `release-check` job's five checks pass against beta06, with the consumers in `VERIFY.md` (net8, net10, net11, `net481` on Windows, Paket `strategy: min`). Mutation run 0. **Checkpoint: 0.2.0 is ready.** |
-| 04c | `spec-harness` | the 0.3 target | `tests/Resultful.TargetApi` (every package's end-state API as `throw null` stubs), `tests/Resultful.Spec` (fixtures, `SpecHarness.cs`), `ledger.tsv` with every line strict `pending`, the API gate (`Unshipped` additions ⊆ target, plus `removed-in-0.3.txt` for 0.2 API the target drops, empty by 12),. Each gate has a self-test that shows it can fail. Every default in `DECISIONS-TAKEN.md` is visible in the target. Includes decision 17 (error unions on .NET 11, alongside `[ClosedHierarchy]`) and its `UERR-*` fixtures, from `temp/union-error-probe`. Round 4: the JSON read contract for unions and hierarchies (unknown `type` → `JsonException`; two leaves with the same simple name in one hierarchy or union → generator error), nested-union `.Error`/`WithContext`/`TryFind` fixtures, `ValidationFailed`/`Validation` equality, `Error.ToString`, `Fail(null!)` and an empty `Validation` failure, all in the target. |
+| 04c | `spec-harness` | the 0.3 target | `tests/Resultful.TargetApi` (every package's end-state API as `throw null` stubs), `tests/Resultful.Spec` (fixtures, `SpecHarness.cs`), `ledger.tsv` with every line strict `pending`, the API gate (`Unshipped` additions ⊆ target, plus `removed-in-0.3.txt` for 0.2 API the target drops, empty by 12),. Each gate has a self-test that shows it can fail. Every default in `DECISIONS-TAKEN.md` is visible in the target. Includes decision 17 (error unions on .NET 11, alongside `[ClosedHierarchy]`) and its `UERR-*` fixtures, from `stack-plan/probes/union-error-probe`. Round 4: the JSON read contract for unions and hierarchies (unknown `type` → `JsonException`; two leaves with the same simple name in one hierarchy or union → generator error), nested-union `.Error`/`WithContext`/`TryFind` fixtures, `ValidationFailed`/`Validation` equality, `Error.ToString`, `Fail(null!)` and an empty `Validation` failure, all in the target. |
 | 04d | `reference-app` | the 0.3 oracle | The Shop (`samples/Resultful.Shop.*`) against the target API, one folder per use case UC01–UC10, built only when its line is `done`. `tests/Resultful.EndToEnd` with the packed-package restore, `http-cases.json`, the broken consumers, and the doc-snippet check (lenient). **Checkpoint: the 0.3 target is reviewable.** |
 | 04e | `publish-preview` | previews | A `publish-preview` job in `ci.yml`: `workflow_dispatch` only, from a `rtkelly13/stack-*` branch, uses the `nuget-preview` environment, and refuses unless every packed version contains `-preview.`. The stable publish job is unchanged and still `main` only. Its own `concurrency` group with `cancel-in-progress: false`, so a push to the branch can't cancel a push to NuGet midway. Lives in `ci.yml`, which already exists on `main`, so it can be dispatched from a stack branch. Tested with a dry run that packs and checks the versions without pushing. Ryan creates the `nuget-preview` environment and its secret. All packable packages get the same `0.3.0-preview.N`, and the dry run restores the set together. The dry run also dispatches the job live from the stack branch with `gh workflow run ci.yml --ref`; if GitHub rejects it, the preview job moves into stack A (04) so it is on `main`. |
 | 13a | `generator-target` (from #37) | M4, decision 16 | The generator compiles against the target API, the stub deleted. Fuzz and determinism tests pass. Not packed (`IsPackable=false`). `GEN-*` (the `RFG0001`–`RFG0006` diagnostics, compile-only) flip here; `SHAPE-*` and `HIER-*` stay `pending`. |
@@ -113,7 +128,7 @@ A PR that runs past 90 minutes is marked `blocked`, and the orchestrator reports
 | 06 | `error-record` | decision 14 | The abstract `Error` record: `Message`, `Cause`, `Causes()`, `TryFind`, `WithContext` that keeps the type, `ValidationFailed`. No implicit conversion from `string`. `Context` is `IReadOnlyList<string>`, copied on add. `Error` equality is structural, `Context` compared element by element, so two identical errors are equal before and after `WithContext`; laws in the reference model. `Error.ToString()` is `sealed` in the base: leaf type name, `Message`, `Context` and the cause chain, never the leaf's own properties (they may hold personal data). `ERR-TOSTRING`. |
 | 07 | `attributes` | decisions 15, 16 | `Resultful.CodeAnalysis`: `MustObserve`, `ClosedHierarchy`, `ResultShape`, applied to the core. `IResultShape<T, TError>`, `IValidationShape<T, TError>`. `IErrorUnion` (decision 17) ships here on every TFM, so `PublicAPI` is the same everywhere. |
 | 08a | `own-storage` | M3, decision 1 | Every type keeps its own state with a state byte. No behaviour change: the baseline differential against 0.2.0 is empty. Struct sizes and allocations are tested. |
-| 08b | `zero-guard` | decision 10 | Zero means uninitialised and throws on use. `[Obsolete(error: true)]` parameterless constructors. The baseline differential's allowlist holds only the zero value. `Fail` rejects an error union with no value. Zero-allocation check, verified in `temp/union-probe-2`: a cached `IsUnion` flag, then the union's single reference field read with `Unsafe.As` when `Unsafe.SizeOf<TError>()` is pointer-sized, else `IUnion { Value: null }` (24 B, boxes). A test pins the layout so a compiler change fails loudly. `net11.0` only (`IUnion` doesn't exist below it). Only reading the value or error of a zero value throws. `ToString` (`"<default Result>"`), `Equals`, `GetHashCode` and `[DebuggerDisplay]` never throw, so logging, dictionaries and the debugger survive the bug. The `Unsafe.As` path runs only when `TError` is a compiler-generated union whose one instance field is `object` (checked by reflection once per type and cached, plus `RuntimeHelpers.IsReferenceOrContainsReferences<TError>()`); a hand-written `IUnion` struct, e.g. one holding a `long`, takes the `IUnion` path. A fixture with such a struct proves no crash (`UERR-CUSTOM-IUNION`). `Fail(null!)` throws `ArgumentNullException` (`ZERO-NULL-ERR`). |
+| 08b | `zero-guard` | decision 10 | Zero means uninitialised and throws on use. `[Obsolete(error: true)]` parameterless constructors. The baseline differential's allowlist holds only the zero value. `Fail` rejects an error union with no value. Zero-allocation check, verified in `stack-plan/probes/union-probe-2`: a cached `IsUnion` flag, then the union's single reference field read with `Unsafe.As` when `Unsafe.SizeOf<TError>()` is pointer-sized, else `IUnion { Value: null }` (24 B, boxes). A test pins the layout so a compiler change fails loudly. `net11.0` only (`IUnion` doesn't exist below it). Only reading the value or error of a zero value throws. `ToString` (`"<default Result>"`), `Equals`, `GetHashCode` and `[DebuggerDisplay]` never throw, so logging, dictionaries and the debugger survive the bug. The `Unsafe.As` path runs only when `TError` is a compiler-generated union whose one instance field is `object` (checked by reflection once per type and cached, plus `RuntimeHelpers.IsReferenceOrContainsReferences<TError>()`); a hand-written `IUnion` struct, e.g. one holding a `long`, takes the `IUnion` path. A fixture with such a struct proves no crash (`UERR-CUSTOM-IUNION`). `Fail(null!)` throws `ArgumentNullException` (`ZERO-NULL-ERR`). |
 | 09 | `result-error` | M3, decision 14 | `Result<T>` holds an `Error` instead of `IEnumerable<string>`. |
 | 10 | `validation` | M2, decision 14 | `Validation<T, TError>` on its own storage: a non-empty list, `Combine`, `AsResult`/`ToResult(combine)`. `VoidResult` converts to `Result<Unit>`. `Validation.Fail` with no errors throws (`VAL-NONEMPTY`). `ValidationFailed<TError>` and `Validation<T, TError>` compare their errors element by element (`VAL-EQ`). |
 | 11 | `oneof-split` | M3, decision 1 | No OneOf in the core. `Resultful.OneOf` interop package, `Resultful.None`. The core resolves alone under Paket `strategy: min`. |
@@ -148,7 +163,7 @@ Record either in `PROGRESS.md`.
 
 - **Orchestrator** (main session). Writes no product code. Owns `PROGRESS.md`, the contracts, every restack, and
   the checks in `VERIFY.md`. It never accepts "tests pass" as a report.
-- **Implementer.** One per PR, in `temp/stack/wt/NN`. Gets the contract. Returns `temp/stack/reports/NN.json`: a
+- **Implementer.** One per PR, in a worktree at `temp/wt/NN` (gitignored). Gets the contract. Returns `stack-plan/reports/NN.json`: a
   list of claims.
 - **Reviewer.** Fresh. Gets the contract, the relevant decisions and `gh pr diff`. Never the implementer's report.
 - **Adversary.** For 03, 04b, 08a, 08b, 09, 13b, 15, 16a, 16b and 17. Writes a fixture the spec says should
@@ -203,10 +218,12 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
 
 ## Files
 
-- `temp/stack/GOAL.md`: this file.
-- `temp/stack/VERIFY.md`: every gate, and what the orchestrator checks itself.
-- `temp/stack/contracts/NN.md`: one PR's IDs, paths and gate commands.
-- `temp/stack/reports/NN.json`: an implementer's claims.
-- `temp/stack/PROGRESS.md`: one line per PR: number, branch, PR link, state (`todo`, `building`, `review`,
+- `stack-plan/GOAL.md`: this file.
+- `stack-plan/VERIFY.md`: every gate, and what the orchestrator checks itself.
+- `stack-plan/contracts/NN.md`: one PR's IDs, paths and gate commands.
+- `stack-plan/reports/NN.json`: an implementer's claims.
+- `stack-plan/PROGRESS.md`: one line per PR: number, branch, PR link, state (`todo`, `building`, `review`,
   `green`, `blocked`), note.
-- `temp/stack/DECISIONS-TAKEN.md`: each choice made where the docs were silent.
+- `stack-plan/DECISIONS-TAKEN.md`: each choice made where the docs were silent.
+- `stack-plan/probes/`: the union probes behind decision 17 and the Paket consumer for `release-check`.
+- `stack-plan/reviews/`: the planning reviews the plan was merged from (history, not instructions).
