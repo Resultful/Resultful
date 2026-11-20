@@ -14,7 +14,7 @@ Rows are in stack order.
 | 04d | rtkelly13/stack-04d-reference-app | #44 | review | the Shop; bd33431; split at ~1,270 sample lines; reviewer running |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | end-to-end runner, broken consumers, snippet check; 1fedf62; 32 e2e tests, 268 spec green locally |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
-| 13a | rtkelly13/stack-13a-generator-target |  | todo | copied from #37 |
+| 13a | rtkelly13/stack-13a-generator-target | #46 | review | drafted ahead on 04c@5b8b23a; a74d085; 41/44 generator tests green; 3 spec findings for 04c; reviewer running |
 | 05 | rtkelly13/stack-05-named-methods |  | todo |  |
 | 06 | rtkelly13/stack-06-error-record |  | todo |  |
 | 07 | rtkelly13/stack-07-attributes |  | todo |  |
@@ -44,3 +44,4 @@ Rows are in stack order.
 - 2026-11-20: the plan moved from the local `temp/stack/` to this branch (#39), for a Claude Code on the web run. 01 was built and reviewed locally. 02's contract is written; 02 is next.
 - 2026-11-20 (web run 1): resumed on Claude Code on the web. SDKs pulled from the MCR images, GitHub through the MCP tools (`WEB-RUN.md`). Starting 02.
 - Live tracker (private artifact, updated at each PR boundary): https://claude.ai/artifact/KPm6VvRnY2U7moMKKZufrE
+- Pending `spec:` fixes for 04c (batched with 04c's review): from 13a, `GEN-RFG0005` can't pass as written (CS1729; give `NestedError` its own protected constructor, see 13a's `GenRfg0005Proposed.cs`), `building-the-generator.md` still says colliding names are prefixed (now RFG0008), `SHAPE-UNIT` calls `Ok(Unit.Value)` but the tsv says `Ok()`; from 04d, the UC10 "before" snippet in `errors-in-practice.md` doesn't compile on 0.2, GOAL row 12 misses CS0411.

@@ -1,0 +1,60 @@
+{
+  "pr": 46,
+  "pr_url": "https://github.com/Resultful/Resultful/pull/46",
+  "branch": "rtkelly13/stack-13a-generator-target",
+  "head_sha": "a74d0854364e6584ad46d43a80ab925cf81120e8",
+  "started_from": "origin/rtkelly13/stack-04c-spec-harness at 5b8b23a (worktree created at c4ea0e7, fast-forwarded to 5b8b23a before the first commit; nothing had been pushed)",
+  "cherry_picks": [],
+  "commits": [
+    "9ed766b feat(generators): copy the generator experiment from #37 unchanged",
+    "a74d085 feat(generators): compile the generator against the 0.3 target API"
+  ],
+  "local_runs": [
+    {"command": "dotnet build src/Resultful.Generators/Resultful.Generators.csproj -m:2 -c Release", "result": "succeeded, 0 warnings"},
+    {"command": "dotnet build tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -m:2 -c Release", "result": "succeeded"},
+    {"command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net10.0", "result": "total 41, succeeded 40, skipped 1 (UERR-RFG0007, net11.0-only), failed 0"},
+    {"command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net11.0", "result": "total 44, succeeded 44, failed 0"},
+    {"command": "RESULTFUL_FUZZ_ITER=400 (both TFMs, before the final small edits)", "result": "all passed"},
+    {"command": "dotnet build tests/Resultful.Spec/Resultful.Spec.csproj -m:2 -c Release; RESULTFUL_SPEC_GENERATOR=src/Resultful.Generators/bin/Release/netstandard2.0/Resultful.Generators.dll dotnet run --project tests/Resultful.Spec/Resultful.Spec.csproj -c Release --no-build -f net10.0 -- --filter-method '*Fixture_compiles_against_the_target_api'", "result": "total 122, failed 2: GEN-RFG0005 (spec bug), SHAPE-INTO (owner 15)"},
+    {"command": "same, -f net11.0", "result": "total 122, failed 9: GEN-RFG0005 (spec bug), SHAPE-INTO and UERR-WIDEN (owner 15), UERR-SHAPE, UERR-NESTED-TRYFIND, UERR-NESTED-CONTEXT, UERR-NESTED-LEAF-CONVERSION, UERR-NESTED-ERROR, UERR-NESTED-ONECASE (owner 13b)"},
+    {"command": "mutation check: HidesCases=false, then hidesDispatch=false", "result": "fuzz failed with CS0108 both times (restored afterwards)"}
+  ],
+  "gen_ids_passing_locally": ["GEN-CLEAN", "GEN-RFG0001", "GEN-RFG0002", "GEN-RFG0003", "GEN-RFG0004", "GEN-RFG0006", "GEN-RFG0008 (ledger owner 13b)", "UERR-RFG0007 (net11.0; ledger owner 13b)"],
+  "gen_ids_failing": {"GEN-RFG0005": "the fixture as written is CS1729 on its marked line, whatever the generator does; the proposed fix passes (tests/Resultful.Generators.Tests/GenFixtures/GenRfg0005Proposed.cs)"},
+  "ledger_changes": "none; every line stays pending (drafted ahead)",
+  "roslyn_version": "generator compiled against Microsoft.CodeAnalysis.CSharp 4.14.0 (as #37); tests use 5.12.0 (as tests/Resultful.Spec)",
+  "spec_findings": [
+    "GEN-RFG0005 can't pass: Outer.NestedError has no constructor and the generator can't reopen non-partial Outer, so CS1729 is reported on the marked line. Proposed: give it `protected NestedError(string m) : base(m) { }`.",
+    "Contract gives RFG0007/RFG0008 to 13a; diagnostics.tsv and the ledger say 13b. Implemented here; ledger owners untouched.",
+    "building-the-generator.md's prefixing rule for colliding short names is superseded by RFG0008 (round 4); the doc still says prefix.",
+    "SHAPE-UNIT calls Ok(Unit.Value) while generated-members.tsv says Ok() for a valueless shape; both emitted."
+  ],
+  "wiring": [
+    "Resultful.slnx: add src/Resultful.Generators and tests/Resultful.Generators.Tests",
+    "Directory.Packages.props: Microsoft.CodeAnalysis.CSharp 4.14.0 (generator) / 5.12.0 (tests), xunit.v3 4.0.2, CsCheck 5.0.1; delete the two nested Directory.Packages.props",
+    ".ls-lint.yml: | regex:api for src/*/api/",
+    "ci.yml or eng/run-tests.cs: run the generator tests on net10.0 and net11.0",
+    "merge GeneratorTestHarness into SpecHarness; delete GenFixtureTests.cs and GenFixtures/ once SpecHarness runs GEN-* against the real generator"
+  ],
+  "beyond_contract": [
+    "GeneratedMembersTests: every generated-members.tsv row checked or deferred to a named PR; the core members the emitter calls checked against the target",
+    "budget gate prints all measurements on failure",
+    "no warnings allowed in generated files (caught CS0108 on nested hierarchies)",
+    "net11: leaf-to-union-shape conversions are unambiguous",
+    "RFG0004 generalised to any shape exposing a less accessible leaf (effective accessibility)",
+    "fixes: source locations for diagnostics (were external file locations), RFG0002/0003 locations were lost, CS0108 on nested hierarchies, CS0051 for internal leaves under a public base, array Success read as valueless, leaf named Success clashing with onSuccess, constructor kept under RFG0003/RFG0008"
+  ],
+  "suppressions": [
+    "Assert.Skip for UERR-RFG0007 on net10.0 (tfm directive)",
+    "test NoWarn CA1859, CA1034 (from #37), CA1515, CA2007; generator NoWarn CA1305, CA1822 (from #37)"
+  ],
+  "open_issues": [
+    "Union-error shapes (flat members, IErrorUnion emission on partial unions) not done: 13b.",
+    "Conversion from another shape not done: 15.",
+    "Harness is a thin adapter, not merged into SpecHarness.cs (that file is 04c's; the drafting rule keeps 13a to new directories).",
+    "Budgets re-measured against the target stubs; 13b must re-measure against the real core.",
+    "Generated code uses MaybeNullWhen; a netstandard2.0 consumer without the polyfill would fail. Not tested (fixtures are net10/net11 only).",
+    "Leaves from another assembly that are internal there are not filtered out of the case list.",
+    "CI not waited on."
+  ]
+}

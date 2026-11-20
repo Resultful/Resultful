@@ -15,5 +15,5 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-04c-spec-harness | #42 | 00 @ ec55581 | 00 | wiring into root files happens in the local pass |
 | rtkelly13/stack-04d-reference-app | #44 | 04c @ c4ea0e7 | 04c | carries cherry-picks of 04c a3c298d, 0d0c4c5, 5b8b23a (-x); one fixup! commit bd33431 |
 | rtkelly13/stack-04d2-end-to-end | #45 | 04d @ bd33431 | 04d | |
-| rtkelly13/stack-13a-generator-target | | 04c (early head) | 04e | drafted ahead |
+| rtkelly13/stack-13a-generator-target | #46 | 04c @ 5b8b23a | 04e | drafted ahead; 9ed766b is an unchanged copy of #37 |
 | rtkelly13/stack-12b-text-json | | 04c @ 5b8b23a | 12 | drafted ahead against target stubs; switch to the real core in the local pass |
