@@ -3,7 +3,7 @@
   "url": "https://github.com/Resultful/Resultful/pull/43",
   "branch": "rtkelly13/stack-04-per-package-release",
   "started_from": "be6b76a (origin/rtkelly13/stack-03-analysis-level)",
-  "head_sha": "34d01ec3e947a01ce1480ca3583aa6bb411520f6",
+  "head_sha": "d51d2e3aa9055b41c3d0c6e455cce8167e421993",
   "commits": [
     "8cfab52 build: release plan",
     "17179e7 build: verify-package every packable project",
@@ -56,7 +56,8 @@
     "release-plan.cs is 843 lines, of which about 510 are the self-test; production logic is about 330 lines",
     "an analyzer-only package (stack B) will need a verify-package exception for lib/<target>/<id>.dll",
     "Microsoft.CodeAnalysis.PublicApiAnalyzers (PrivateAssets=all) counts as a central input, as in the sibling; harmless but noisy",
-    "suppressions: two runs failed because GitHub tests the merge with 03's current head (its fixups rewrote NoWarn lines in Directory.Build.props and src/Resultful/Resultful.csproj) while #43's recorded base.sha is still be6b76a. The body now names those lines as inherited from #41 and the rerun passes. Restacking onto 03's new head removes the cause; the body note can go then."
+    "The api-diff and ApiCompat steps glob artifacts/Resultful.*.nupkg (03's text, kept for a clean merge); a second package would match. Tighten once the stack is restacked.",
+    "The cherry-picked 03 commits are duplicates of #41's; the restack drops them once 04 is rebased onto 03 (the orchestrator's call)."
   ],
   "fixup_commits": {
     "3f804b1": "fixup! build: add a release plan ... (review 1,2,3, nit 6: nuget retry/timeout/clear error; Directory.Packages.props settings and transitive pinning; global.json and out-of-folder imports/includes as inputs; bootstrap skipped below a real tag; 8 new self-test cases, 32 total)",
@@ -64,11 +65,35 @@
     "34d01ec": "fixup! docs: record how a per-package release works ... (review 3 docs, nit 5: the --skip-duplicate window, untracked files, retries)"
   },
   "ci": {
-    "head": "34d01ec",
+    "head": "d51d2e3",
     "build": "success",
-    "release-check": "success (includes release-plan --self-test on the runner)",
+    "release-check": "success",
     "lint": "success",
-    "suppressions": "success on the rerun after the body named the opt-outs inherited from #41; two earlier runs failed (see open_issues)",
-    "publish": "skipped (pull_request event)"
+    "suppressions": "success (the body names the 8 opt-outs carried in by the cherry-picked 03 commits)",
+    "publish": "skipped"
+  },
+  "restack_by_cherry_pick": {
+    "base_now": "origin/rtkelly13/stack-03-analysis-level 900f8aa",
+    "cherry_picked_from_03 (-x, none empty)": [
+      "afaf2cb",
+      "feab5b9",
+      "9bf6a6e",
+      "8d0079e",
+      "b200386",
+      "614164f",
+      "291f0c8",
+      "c2bd77f",
+      "1667770",
+      "631a79f",
+      "2d0793e",
+      "d51d2e3"
+    ],
+    "conflicts_resolved": "1667770: eng/verify-package.cs (03 runs the baseline diff before reporting failures; kept on top of PackageCheck). 2d0793e: ci.yml api-diff step (03 split out api-nullable-0.2.0.txt)",
+    "own_fixups_for_clean_merge": {
+      "3f77959": "fixup! build: check every packable project's package... (03's loop tail kept as it is; PackageCheck called above it; the symbols check only in the loop; --packages block after the baseline check; PackageCheck class after PackageDiff)",
+      "5f6355d": "fixup! ci: ... (03's api-diff line taken as it is, Resultful.*.nupkg glob)"
+    },
+    "merge_tree": "git merge-tree --write-tree origin/rtkelly13/stack-03-analysis-level HEAD: clean",
+    "base_owned_files_identical_to_03": "eng/api-diff-0.2.0.txt, eng/api-nullable-0.2.0.txt, eng/apicompat-0.2.0.xml"
   }
 }
