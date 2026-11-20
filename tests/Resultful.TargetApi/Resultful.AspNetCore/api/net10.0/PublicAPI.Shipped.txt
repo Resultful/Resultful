@@ -7,9 +7,8 @@ Resultful.AspNetCore.MinimalApiValidationError.MinimalApiValidationError(string!
 Resultful.AspNetCore.ResultEndpointFilter
 Resultful.AspNetCore.ResultEndpointFilter.InvokeAsync(Microsoft.AspNetCore.Http.EndpointFilterInvocationContext! context, Microsoft.AspNetCore.Http.EndpointFilterDelegate! next) -> System.Threading.Tasks.ValueTask<object?>
 Resultful.AspNetCore.ResultEndpointFilter.ResultEndpointFilter() -> void
-Resultful.AspNetCore.ResultHttpResult<T>
-Resultful.AspNetCore.ResultHttpResult<T>.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
-Resultful.AspNetCore.ResultHttpResult<T>.ResultHttpResult() -> void
+Resultful.AspNetCore.ResultHttpResult<T, TError>
+Resultful.AspNetCore.ResultHttpResult<T, TError>.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
 Resultful.AspNetCore.ResultfulEndpointConventionBuilderExtensions
 Resultful.AspNetCore.ResultfulHttpOptions
 Resultful.AspNetCore.ResultfulHttpOptions.DefaultStatusCode.get -> int
@@ -23,13 +22,13 @@ override Resultful.AspNetCore.MinimalApiValidationError.<Clone>$() -> Resultful.
 override Resultful.AspNetCore.MinimalApiValidationError.Equals(object? obj) -> bool
 override Resultful.AspNetCore.MinimalApiValidationError.GetHashCode() -> int
 override sealed Resultful.AspNetCore.MinimalApiValidationError.Equals(Resultful.Error? other) -> bool
-static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T>!
-static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Validation<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T>!
-static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Result<T> result) -> Resultful.AspNetCore.ResultHttpResult<T>!
-static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Validation<T> result) -> Resultful.AspNetCore.ResultHttpResult<T>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, TError!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Validation<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.ValidationFailed<TError!>!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Result<T> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.Error!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Validation<T> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.ValidationFailed<Resultful.Error!>!>!
 static Resultful.AspNetCore.MinimalApiValidationError.operator !=(Resultful.AspNetCore.MinimalApiValidationError? left, Resultful.AspNetCore.MinimalApiValidationError? right) -> bool
 static Resultful.AspNetCore.MinimalApiValidationError.operator ==(Resultful.AspNetCore.MinimalApiValidationError? left, Resultful.AspNetCore.MinimalApiValidationError? right) -> bool
-static Resultful.AspNetCore.ResultHttpResult<T>.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
+static Resultful.AspNetCore.ResultHttpResult<T, TError>.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
 static Resultful.AspNetCore.ResultfulEndpointConventionBuilderExtensions.WithResultful<TBuilder>(this TBuilder builder) -> TBuilder
 static Resultful.AspNetCore.ResultfulServiceCollectionExtensions.AddResultful(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Resultful.AspNetCore.ResultfulServiceCollectionExtensions.AddResultful(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Resultful.AspNetCore.ResultfulHttpOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

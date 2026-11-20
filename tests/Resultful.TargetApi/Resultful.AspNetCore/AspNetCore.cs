@@ -35,9 +35,12 @@ namespace Resultful.AspNetCore
     }
 
     // An IResult that maps a result when it executes, using the registered options and IProblemDetailsService.
-    // Its metadata lists the success status and each failure status, so the OpenAPI document shows them.
-    public sealed class ResultHttpResult<T> : IResult, IEndpointMetadataProvider
+    // Its metadata lists the success status and each failure status, so the OpenAPI document shows them. It keeps the
+    // result's error type (DECISIONS-TAKEN 20a, #39 question 11), so the metadata can read the statuses a route can
+    // answer from TError: a Validation's ValidationFailed<TError> is a 400; any error may be a 500.
+    public sealed class ResultHttpResult<T, TError> : IResult, IEndpointMetadataProvider where TError : Error
     {
+        internal ResultHttpResult() => throw null!;
         public Task ExecuteAsync(HttpContext httpContext) => throw null!;
         public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder) => throw null!;
     }
@@ -45,10 +48,10 @@ namespace Resultful.AspNetCore
     // A result whose error is a union (decision 17) widens first: result.AsResult().ToHttpResult().
     public static class HttpResultExtensions
     {
-        public static ResultHttpResult<T> ToHttpResult<T>(this Result<T> result) => throw null!;
-        public static ResultHttpResult<T> ToHttpResult<T, TError>(this Result<T, TError> result) where TError : Error => throw null!;
-        public static ResultHttpResult<T> ToHttpResult<T>(this Validation<T> result) => throw null!;
-        public static ResultHttpResult<T> ToHttpResult<T, TError>(this Validation<T, TError> result) where TError : Error => throw null!;
+        public static ResultHttpResult<T, Error> ToHttpResult<T>(this Result<T> result) => throw null!;
+        public static ResultHttpResult<T, TError> ToHttpResult<T, TError>(this Result<T, TError> result) where TError : Error => throw null!;
+        public static ResultHttpResult<T, ValidationFailed<Error>> ToHttpResult<T>(this Validation<T> result) => throw null!;
+        public static ResultHttpResult<T, ValidationFailed<TError>> ToHttpResult<T, TError>(this Validation<T, TError> result) where TError : Error => throw null!;
     }
 
     // Lets a Minimal API handler return a result directly: the filter turns it into a ResultHttpResult.
