@@ -65,12 +65,58 @@ public class ValidationTests
     }
 
     [Fact]
-    public async Task ValidationFailed_as_a_cause_is_a_400()
+    public async Task ValidationFailed_as_a_cause_is_not_a_400_by_default()
     {
+        // The built-in 400 is for the result's own error. A server error wrapping a validation failure stays a 500
+        // and shows none of its messages.
         var error = new SaveFailed(1) { Cause = new ValidationFailed<Error>([new Required("name")]) };
         var response = await Execute(Result.Fail<int>(error).ToHttpResult(), configure: ByField);
+        Assert.Equal(500, response.Status);
+        Assert.DoesNotContain("name is required", response.Text, StringComparison.Ordinal);
+        Assert.False(response.Body.TryGetProperty("errors", out _));
+    }
+
+    [Fact]
+    public async Task ValidationFailed_as_a_cause_is_a_400_when_mapped()
+    {
+        var error = new SaveFailed(1) { Cause = new ValidationFailed<Error>([new Required("name")]) };
+        var response = await Execute(Result.Fail<int>(error).ToHttpResult(), configure: o =>
+        {
+            ByField(o);
+            o.Map<ValidationFailed<Error>>(StatusCodes.Status400BadRequest);
+        });
         Assert.Equal(400, response.Status);
         Assert.Equal("name is required", response.Body.GetProperty("errors").GetProperty("name")[0].GetString());
+    }
+
+    [Fact]
+    public async Task A_context_note_keeps_the_built_in_400()
+    {
+        Result<int> r = Validation.Fail<int>(new Error[] { new Required("name") }).ToResult();
+        var noted = Result.Fail<int>(r.Error.WithContext("sign-up"));
+        Assert.Equal(400, (await Execute(noted.ToHttpResult())).Status);
+    }
+
+    [Theory]
+    [InlineData(500)]
+    [InlineData(503)]
+    public async Task A_ValidationFailed_mapped_to_a_5xx_shows_no_messages(int status)
+    {
+        var v = Validation.Fail<int>(new Error[] { new Required("name") });
+        var response = await Execute(v.ToHttpResult(), configure: o => o.Map<ValidationFailed<Error>>(status));
+        Assert.Equal(status, response.Status);
+        Assert.False(response.Body.TryGetProperty("errors", out _));
+        Assert.Null(response.Get("detail"));
+        Assert.DoesNotContain("name is required", response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_null_key_is_an_empty_key()
+    {
+        var v = Validation.Fail<int>(new Error[] { new Required("name") });
+        var response = await Execute(v.ToHttpResult(), configure: o => o.ValidationKey = _ => null!);
+        Assert.Equal(400, response.Status);
+        Assert.Equal("name is required", response.Body.GetProperty("errors").GetProperty("")[0].GetString());
     }
 
     [Fact]

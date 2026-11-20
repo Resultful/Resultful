@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    A native AOT probe for Resultful.AspNetCore: not in the solution, not a test project, not run by CI.
+    How to run it is in README.md next to this file. Like the tests, it compiles the package's sources against the
+    stand-in core until 20a's turn; then the Compile glob becomes a ProjectReference to src/Resultful.AspNetCore.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- A probe, not a library: CA1515 (make types internal) and CA1852 don't apply to its tiny Program. -->
+    <NoWarn>$(NoWarn);CA1515;CA1852</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../StandInCore/Resultful.StandInCore.csproj" />
+    <Compile Include="../../../src/Resultful.AspNetCore/*.cs" LinkBase="Package" />
+  </ItemGroup>
+</Project>

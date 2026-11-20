@@ -61,6 +61,43 @@ public class NoLeakTests
     }
 
     [Fact]
+    public async Task A_4xx_default_status_shows_no_message()
+    {
+        var response = await Execute(Result.Fail<int>(new SaveFailed(1)).ToHttpResult(), configure: o => o.DefaultStatusCode = StatusCodes.Status400BadRequest);
+        Assert.Equal(400, response.Status);
+        Assert.Null(response.Get("detail"));
+        Assert.DoesNotContain("not saved", response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_hidden_5xx_is_logged_once_at_error_without_leaf_properties()
+    {
+        var log = new LogSink();
+        var error = new CredentialRejected("hunter2-secret") { Cause = Error.From("db said no") }.WithContext("loading order 42");
+        var response = await Execute(Result.Fail<int>(error).ToHttpResult(), log: log);
+        Assert.Equal(500, response.Status);
+
+        var entry = Assert.Single(log.Entries, e => e.Category == "Resultful.AspNetCore.ResultHttpResult");
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Error, entry.Level);
+        Assert.Equal("ResultServerError", entry.Id.Name);
+        Assert.Contains("500", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("CredentialRejected", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("the credential was rejected", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("loading order 42", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("db said no", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2-secret", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(log.Entries, e => e.Message.Contains("hunter2-secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_4xx_is_not_logged_by_the_package()
+    {
+        var log = new LogSink();
+        await Execute(Result.Fail<int>(new OrderNotFound(1)).ToHttpResult(), configure: MapOrders, log: log);
+        Assert.DoesNotContain(log.Entries, e => e.Category == "Resultful.AspNetCore.ResultHttpResult");
+    }
+
+    [Fact]
     public async Task A_mapped_4xx_shows_its_message_in_production()
     {
         var response = await Execute(Result.Fail<int>(new CardDeclined()).ToHttpResult(), configure: o => o.Map<CardDeclined>(409));

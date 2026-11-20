@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using static Resultful.AspNetCore.Tests.Http;
 
 namespace Resultful.AspNetCore.Tests;
@@ -94,14 +93,12 @@ public class MapTests
     }
 
     [Fact]
-    public void Configure_runs_in_order_and_adds_to_one_map()
+    public async Task Configure_runs_in_order_and_adds_to_one_map()
     {
-        var services = new ServiceCollection();
-        services.AddResultful(o => o.Map<OrderNotFound>(404));
-        services.AddResultful(o => o.Map<OrderLocked>(409));
-        var options = services.BuildServiceProvider().GetRequiredService<IOptions<ResultfulHttpOptions>>().Value;
-        Assert.True(options.TryGetStatus(typeof(OrderNotFound), out var a) && a == 404);
-        Assert.True(options.TryGetStatus(typeof(OrderLocked), out var b) && b == 409);
+        static void Twice(IServiceCollection services) =>
+            services.AddResultful(o => o.Map<OrderNotFound>(404)).AddResultful(o => o.Map<OrderLocked>(409));
+        Assert.Equal(404, (await Execute(Result.Fail<int>(new OrderNotFound(1)).ToHttpResult(), register: false, moreServices: Twice)).Status);
+        Assert.Equal(409, (await Execute(Result.Fail<int>(new OrderLocked(1, "ann")).ToHttpResult(), register: false, moreServices: Twice)).Status);
     }
 
     [Fact]

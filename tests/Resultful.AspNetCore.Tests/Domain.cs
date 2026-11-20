@@ -32,5 +32,8 @@ public readonly struct PaymentError(Error error) : IErrorUnion
     public Error Error { get; } = error;
 }
 
+// A leaf property that must never reach a body or a log (ERR-TOSTRING: ToString never prints leaf properties).
+public sealed record CredentialRejected(string Password) : Error("the credential was rejected");
+
 public sealed record CardDeclined() : Error("The card was declined.");
 public sealed record FraudSuspected(int RiskScore) : Error($"payment blocked, risk score {RiskScore}");

@@ -13,13 +13,15 @@
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <IsPackable>false</IsPackable>
+    <!-- 02's eng/run-tests.cs adds one run per culture, as for tests/Resultful.Spec. -->
+    <TestCultures>invariant;tr-TR</TestCultures>
     <RootNamespace>Resultful.AspNetCore.Tests</RootNamespace>
     <!-- CA1515 doesn't fit a test project; the test types are public for xunit. -->
     <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="StandInCore/**" />
+    <Compile Remove="StandInCore/**;AotProbe/**" />
     <Compile Include="../../src/Resultful.AspNetCore/**/*.cs" Exclude="../../src/Resultful.AspNetCore/obj/**;../../src/Resultful.AspNetCore/bin/**" LinkBase="Package" />
   </ItemGroup>
 

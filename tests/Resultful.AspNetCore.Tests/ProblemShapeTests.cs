@@ -22,6 +22,15 @@ public class ProblemShapeTests
     }
 
     [Fact]
+    public async Task The_instance_is_path_base_and_path_without_the_query()
+    {
+        var response = await Execute(Result.Fail<int>(new OrderNotFound(9)).ToHttpResult(), configure: MapOrders, path: "/orders/9",
+            request: c => { c.Request.PathBase = "/shop"; c.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString("?email=ada@example.com"); });
+        Assert.Equal("/shop/orders/9", response.Get("instance"));
+        Assert.DoesNotContain("ada@example.com", response.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_409_has_the_conflict_title()
     {
         var response = await Execute(Result.Fail<int>(new OrderLocked(2, "alice")).ToHttpResult(), configure: MapOrders);

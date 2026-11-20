@@ -58,12 +58,12 @@ public class SuccessTests
 public class OptionsTests
 {
     [Fact]
-    public void The_defaults()
+    public async Task The_defaults()
     {
         var o = new ResultfulHttpOptions();
         Assert.Equal(500, o.DefaultStatusCode);
         Assert.Equal("Required", o.ValidationKey(new Required("x")));
-        Assert.False(o.TryGetStatus(typeof(OrderNotFound), out _));
+        Assert.Equal(500, (await Execute(Result.Fail<int>(new OrderNotFound(1)).ToHttpResult(), configure: _ => { })).Status);
     }
 
     [Theory]
