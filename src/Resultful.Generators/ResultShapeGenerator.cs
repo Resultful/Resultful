@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Resultful.Generators.Analysis;
 using Resultful.Generators.Emission;
@@ -17,6 +19,9 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
     public const string UnionAvailableTrackingName = "Resultful.UnionAvailable";
     public const string EmitTrackingName = "Resultful.Emit";
 
+    // LanguageVersion.CSharp15's value in Roslyn 5.x; the 4.14 API this build compiles against has no name for it.
+    private const int CSharp15 = 1500;
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Stage A: syntax-filtered index of types declaring a BaseList
@@ -30,9 +35,13 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
                 arr.Where(e => e is not null).OrderBy(e => e!.FullName, StringComparer.Ordinal).ToArray()!))
             .WithTrackingName(BaseIndexTrackingName);
 
-        // Single-bool reference gate for .NET 11 [Union]
+        // Single-bool gate for .NET 11 [Union], decided at run time from the compilation (Known traps): the attribute
+        // exists and the language version allows unions. C# 15 is compared by number, since Roslyn 4.14 has no CSharp15.
         var unionAvailable = context.CompilationProvider
             .Select(static (c, _) => c.GetTypeByMetadataName("System.Runtime.CompilerServices.UnionAttribute") is not null)
+            .Combine(context.ParseOptionsProvider.Select(static (po, _) =>
+                po is CSharpParseOptions cs && (int)cs.LanguageVersion >= CSharp15))
+            .Select(static (pair, _) => pair.Left && pair.Right)
             .WithTrackingName(UnionAvailableTrackingName);
 
         // Stage B1: [ClosedHierarchy] declarations combined with Stage A index
@@ -98,9 +107,24 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(diagnostics.Combine(context.CompilationProvider), static (spc, pair) =>
         {
             var (all, compilation) = pair;
+            if (all.Length == 0)
+            {
+                return;
+            }
+
+            // One lookup per call, not a scan of every tree per diagnostic.
+            var trees = new Dictionary<string, SyntaxTree>(StringComparer.Ordinal);
+            foreach (var tree in compilation.SyntaxTrees)
+            {
+                if (!trees.ContainsKey(tree.FilePath))
+                {
+                    trees.Add(tree.FilePath, tree);
+                }
+            }
+
             for (var i = 0; i < all.Length; i++)
             {
-                spc.ReportDiagnostic(all[i].ToDiagnostic(compilation));
+                spc.ReportDiagnostic(all[i].ToDiagnostic(trees));
             }
         });
     }

@@ -100,6 +100,22 @@ public sealed class GeneratedCodeStructureTests
     }
 
     [Fact]
+    public void Net11_references_with_CSharp_14_emit_no_union_members()
+    {
+        // UnionAttribute exists in net11.0's references, but C# 14 can't declare a union: the gate needs both.
+        var comp = GeneratorTestHarness.CreateCompilation([("Flat.cs", FixtureCatalog.FlatHierarchy)], languageVersion: LanguageVersion.CSharp14);
+        Assert.NotNull(comp.GetTypeByMetadataName("System.Runtime.CompilerServices.UnionAttribute"));
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        var shape = output.OutputCompilation.GetTypeByMetadataName("Fixture.Flat.PlaceOrderResult")!;
+        Assert.DoesNotContain(shape.GetAttributes(), a => a.AttributeClass?.Name == "UnionAttribute");
+        Assert.DoesNotContain(shape.Interfaces, i => i.Name == "IUnion");
+        Assert.Empty(shape.GetMembers("HasValue"));
+        Assert.DoesNotContain(output.GeneratedSources.Values, v => v.Contains("Union", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Net11_a_leaf_converts_into_a_union_shape_without_ambiguity()
     {
         // The shape has both a union constructor and an implicit conversion per leaf; neither may make a plain
@@ -129,7 +145,8 @@ public sealed class GeneratedCodeStructureTests
     private static void VerifyAllGeneratedSourceRules(GeneratorRunOutput output)
     {
         var compilation = output.OutputCompilation;
-        var hasUnionAttr = compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.UnionAttribute") is not null;
+        var hasUnionAttr = compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.UnionAttribute") is not null
+            && (int)((CSharpParseOptions)compilation.SyntaxTrees.First().Options).LanguageVersion >= 1500;
 
         foreach (var (hintName, text) in output.GeneratedSources)
         {

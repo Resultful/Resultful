@@ -61,9 +61,10 @@ internal static class GeneratorTestHarness
         IEnumerable<MetadataReference>? extraReferences = null,
         string assemblyName = "FixtureAssembly",
         bool includeCore = true,
-        OptimizationLevel optimizationLevel = OptimizationLevel.Release)
+        OptimizationLevel optimizationLevel = OptimizationLevel.Release,
+        LanguageVersion languageVersion = LanguageVersion.Preview)
     {
-        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(languageVersion);
         var trees = new List<SyntaxTree>();
         foreach (var (name, src) in sources)
         {
