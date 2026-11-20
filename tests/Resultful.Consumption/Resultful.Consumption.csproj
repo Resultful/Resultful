@@ -5,8 +5,6 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <UsePackedPackage Condition="'$(UsePackedPackage)' == ''">false</UsePackedPackage>
-    <!-- Test code exercises intentional hazards (e.g. default(Result<T>), bare string errors) and async lambdas. -->
-    <NoWarn>$(NoWarn);CS1998;CA1859;CA2007;CA1034</NoWarn>
   </PropertyGroup>
 
   <!--
