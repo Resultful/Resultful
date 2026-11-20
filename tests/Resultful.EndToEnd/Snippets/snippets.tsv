@@ -1,0 +1,19 @@
+# Which code block of a doc equals which tagged regions of the Shop (`#region snippet: <name>` under samples/ or
+# tests/Resultful.EndToEnd/Broken/). block: `<heading prefix>#<n>`, the n-th fenced block under the first heading
+# that starts with the prefix, or `tag:<name>` for a block preceded by `<!-- snippet: <name> -->`. regions: names
+# joined with `+`, compared in order. Blank lines and indentation are ignored; everything else must be equal.
+doc	block	regions
+docs/errors-in-practice.md	## 1. An endpoint#1	uc01-errors+uc01-get+uc01-endpoint
+docs/errors-in-practice.md	## 1. An endpoint#3	uc01-shape+uc01-shape-endpoint
+docs/errors-in-practice.md	## 2. A sign-up form#1	uc02-errors+uc02-validate
+docs/errors-in-practice.md	## 2. A sign-up form#2	uc02-endpoint
+docs/errors-in-practice.md	## 3. Validate first#1	uc03-error+uc03-register+uc03-endpoint
+docs/errors-in-practice.md	## 4. A database failure#1	uc04-error+uc04-layers+uc04-edge
+docs/errors-in-practice.md	## 5. A payment provider#1	uc05-errors+uc05-adapter
+docs/errors-in-practice.md	## 6. A message handler#1	uc06-handle
+docs/errors-in-practice.md	## 7. A result nobody looked at#1	uc07-broken
+docs/errors-in-practice.md	## 7. A result nobody looked at#3	uc07-fix
+docs/errors-in-practice.md	## 8. Tests that survive#1	uc08-test
+docs/errors-in-practice.md	## 9. A library with its own result type#1	uc09-attribute+uc09-type
+docs/errors-in-practice.md	## 10. Moving from string errors#1	uc10-before
+docs/errors-in-practice.md	## 10. Moving from string errors#2	uc10-after

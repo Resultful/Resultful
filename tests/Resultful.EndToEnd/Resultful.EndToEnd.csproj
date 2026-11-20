@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The end-to-end oracle (stack-plan VERIFY.md section 3). No ProjectReference to src/: the runner packs every
+    packable project with a per-run version, restores the Shop and the broken consumers from that feed only, and
+    holds each result to tests/Resultful.Spec/ledger.tsv. xunit.v3 on Microsoft.Testing.Platform: `dotnet run`.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- CA1515: xunit needs public test classes. CA2007: no sync context in a test runner. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Built by the runner from the packed packages, never by this project. -->
+    <Compile Remove="Broken/**;Snippets/**" />
+    <None Include="Broken/**;Snippets/**;http-cases.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="RepoRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+  </ItemGroup>
+</Project>
