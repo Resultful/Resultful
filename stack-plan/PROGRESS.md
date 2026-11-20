@@ -8,11 +8,11 @@ Rows are in stack order.
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
 | 02 | rtkelly13/stack-02-test-infra | #40 | green | d083225, CI green: review fixes + release-check gaps closed (ApiCompat strict added); size waiver |
 | 03 | rtkelly13/stack-03-analysis-level | #41 | review | 12 fixes in (d73ff76, 4 fixup! commits); conflicts with 02's new commits so CI can't run; cherry-picking 02's commits |
-| 04 | rtkelly13/stack-04-per-package-release | #43 | green | 34d01ec, CI green; review fixes as 3 fixup! commits (3f804b1, 35d9b27, 34d01ec); will absorb 03's new commits once 03 is green |
+| 04 | rtkelly13/stack-04-per-package-release | #43 | review | green at 34d01ec, then 03 moved: conflicts, absorbing 03's commits |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
-| 04d | rtkelly13/stack-04d-reference-app | #44 | review | review: approve, with should-fixes (CardDeclined text, a shape over a union in Net11); fixing |
-| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review: changes needed (MissingArm deadlock with 13b; Legacy cases to MIG-LEGACY; pack failures hidden); 4 questions on #39; fixing |
+| 04d | rtkelly13/stack-04d-reference-app | #44 | review | review fixes in (c3647e1); conflicts with 04c's newer commits, so no CI: absorbs 04c once 04c's fixes finish |
+| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | review | a96a660 on 04d2@1fedf62; dry run green (0.3.0-preview.0 packed, restored together); lint red from 04c/04d paths (04c adds .ls-lint.yml rules; cherry-pick up); secret `NUGET_PREVIEW_KEY` |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review: changes needed ([Union] ignores language version; fuzz mostly hits early returns); fixing |
 | 05 | rtkelly13/stack-05-named-methods |  | todo |  |
