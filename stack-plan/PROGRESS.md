@@ -11,7 +11,8 @@ Rows are in stack order.
 | 04 | rtkelly13/stack-04-per-package-release | #43 | review | 6eb5116 on 03@be6b76a; reviewer running |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | 5b8b23a; 261 spec tests green locally, 135 ledger lines pending; 7 items flagged for Ryan; reviewer running |
-| 04d | rtkelly13/stack-04d-reference-app |  | todo | checkpoint; may run alongside 02–04 |
+| 04d | rtkelly13/stack-04d-reference-app | #44 | review | the Shop; bd33431; split at ~1,270 sample lines; reviewer running |
+| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | end-to-end runner, broken consumers, snippet check; 1fedf62; 32 e2e tests, 268 spec green locally |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
 | 13a | rtkelly13/stack-13a-generator-target |  | todo | copied from #37 |
 | 05 | rtkelly13/stack-05-named-methods |  | todo |  |
