@@ -96,6 +96,7 @@ internal static class ResultWire
             reader.Read();
             if (Is(key, "ok", options))
             {
+                if (ok is not null) throw Repeated("ok", type);
                 ok = reader.TokenType switch
                 {
                     JsonTokenType.True => true,
@@ -105,16 +106,19 @@ internal static class ResultWire
             }
             else if (Is(key, "value", options))
             {
+                if (hasValue) throw Repeated("value", type);
                 envelope.Value = ReadValue<T>(ref reader, options);
                 hasValue = true;
             }
             else if (!many && Is(key, "error", options))
             {
+                if (hasError) throw Repeated("error", type);
                 envelope.Error = ReadError<TError>(ref reader, options);
                 hasError = true;
             }
             else if (many && Is(key, "errors", options))
             {
+                if (hasError) throw Repeated("errors", type);
                 if (reader.TokenType != JsonTokenType.StartArray) throw new JsonException($"\"errors\" must be an array in a {Describe(type)}.");
                 envelope.Errors = [];
                 while (reader.Read() && reader.TokenType != JsonTokenType.EndArray) envelope.Errors.Add(ReadError<TError>(ref reader, options));
@@ -152,6 +156,9 @@ internal static class ResultWire
         return envelope;
     }
 
+    /// <summary>A repeated envelope member is refused whatever the options say: a second "ok" could flip the case.</summary>
+    private static JsonException Repeated(string key, Type type) => new($"A {Describe(type)} repeats \"{key}\".");
+
     private static T ReadValue<T>(ref Utf8JsonReader reader, JsonSerializerOptions options)
     {
         if (typeof(T) == typeof(Unit)) return (T)(object)UnitJsonConverter.ReadUnit(ref reader);
@@ -162,21 +169,17 @@ internal static class ResultWire
     {
         if (typeof(Error).IsAssignableFrom(typeof(TError)))
         {
-            var cases = ErrorCaseRegistry.Candidates(options, typeof(TError), ErrorCaseRegistry.ExplicitCases(options, typeof(TError)));
-            return (TError)(object)ErrorWire.Read(ref reader, typeof(TError), cases, options);
+            return (TError)(object)ErrorWire.Read(ref reader, typeof(TError), ErrorCaseRegistry.Candidates(options, typeof(TError)), options);
         }
 
-        if (typeof(IErrorUnion).IsAssignableFrom(typeof(TError)))
+        var info = Info<TError>(options);
+        if (typeof(IErrorUnion).IsAssignableFrom(typeof(TError)) && info.Kind != JsonTypeInfoKind.None)
         {
-            foreach (var converter in options.Converters)
-            {
-                if (converter is IErrorConverter and JsonConverter<TError> union) return union.Read(ref reader, typeof(TError), options)!;
-            }
-
-            throw new JsonException($"Reading {typeof(TError).Name} needs its cases: add new ErrorUnionJsonConverter<{typeof(TError).Name}>(cases, wrap) to the options.");
+            // No converter for the union (its default metadata would read a struct with a Value): say what to add.
+            throw new JsonException($"Reading {typeof(TError).Name} needs its cases: add new ErrorUnionJsonConverter<{typeof(TError).Name}>(cases, wrap) to the options, or put [JsonConverter] on the union.");
         }
 
-        return JsonSerializer.Deserialize(ref reader, Info<TError>(options))!;
+        return JsonSerializer.Deserialize(ref reader, info)!;
     }
 
     private static JsonTypeInfo<TValue> Info<TValue>(JsonSerializerOptions options) =>

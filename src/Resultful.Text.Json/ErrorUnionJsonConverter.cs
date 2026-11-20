@@ -26,7 +26,7 @@ public sealed class ErrorUnionJsonConverter<TUnion> : JsonConverter<TUnion>, IEr
         _wrap = wrap;
     }
 
-    IReadOnlyList<Type>? IErrorConverter.Cases => _cases;
+    Type[]? IErrorConverter.Cases => _cases;
 
     /// <inheritdoc />
     public override TUnion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

@@ -27,7 +27,7 @@ public sealed class ErrorJsonConverter<TError> : JsonConverter<TError>, IErrorCo
         _cases = [.. ErrorCaseRegistry.Validate(typeof(TError), cases)];
     }
 
-    IReadOnlyList<Type>? IErrorConverter.Cases => _cases;
+    Type[]? IErrorConverter.Cases => _cases;
 
     /// <inheritdoc />
     public override TError Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

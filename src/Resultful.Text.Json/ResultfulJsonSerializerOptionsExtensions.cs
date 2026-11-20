@@ -12,9 +12,11 @@ public static class ResultfulJsonSerializerOptionsExtensions
     /// <see cref="Unit"/> and <see cref="Error"/>. Adding it twice has no effect.
     /// </summary>
     /// <remarks>
-    /// The factory makes generic converters at run time, so it isn't native-AOT safe. For native AOT, add the
-    /// converters themselves (<c>new ResultJsonConverter&lt;Order&gt;()</c>), for example through
-    /// <c>JsonMetadataServices.CreateValueInfo</c> in a source-generated context.
+    /// The factory makes generic converters at run time, so it isn't native-AOT safe, and a library that registers
+    /// Resultful for its callers shouldn't call this. For native AOT, give each result type converter-backed metadata
+    /// (<c>JsonMetadataServices.CreateValueInfo&lt;Result&lt;Order&gt;&gt;(options, new ResultJsonConverter&lt;Order&gt;())</c>)
+    /// from an <c>IJsonTypeInfoResolver</c>, combined with the source-generated context through
+    /// <c>JsonTypeInfoResolver.Combine</c>, and register the error cases with <see cref="AddErrorCases{TError}"/>.
     /// </remarks>
     /// <param name="options">The options to change. They must not have been used yet.</param>
     /// <returns>The same options, for chaining.</returns>
@@ -40,6 +42,7 @@ public static class ResultfulJsonSerializerOptionsExtensions
     /// <param name="options">The options to change. They must not have been used yet.</param>
     /// <param name="cases">The concrete leaves, for example <c>OrderError.Cases</c> from Resultful.Generators.</param>
     /// <returns>The same options, for chaining.</returns>
+    /// <exception cref="InvalidOperationException">The options are already in use (read-only).</exception>
     /// <exception cref="ArgumentException">
     /// A case isn't a concrete <see cref="Error"/>, isn't a <typeparamref name="TError"/>, or two cases have the same
     /// simple name (the generator reports that as RFG0008).
@@ -48,6 +51,7 @@ public static class ResultfulJsonSerializerOptionsExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(cases);
+        if (options.IsReadOnly) throw new InvalidOperationException("These options are already in use and can't change: register the error cases before the first serialization.");
         ErrorCaseRegistry.GetOrAdd(options).Add(typeof(TError), cases);
         return options;
     }

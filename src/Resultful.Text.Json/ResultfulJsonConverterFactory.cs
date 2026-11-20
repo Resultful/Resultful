@@ -43,7 +43,7 @@ public sealed class ResultfulJsonConverterFactory : JsonConverterFactory
         if (typeToConvert == typeof(Unit)) return new UnitJsonConverter();
         if (typeof(Error).IsAssignableFrom(typeToConvert))
         {
-            var cases = ErrorCaseRegistry.Candidates(options, typeToConvert, ErrorCaseRegistry.ExplicitCases(options, typeToConvert));
+            var cases = ErrorCaseRegistry.Candidates(options, typeToConvert);
             return (JsonConverter)Activator.CreateInstance(typeof(ErrorJsonConverter<>).MakeGenericType(typeToConvert), [cases])!;
         }
 
@@ -55,4 +55,5 @@ public sealed class ResultfulJsonConverterFactory : JsonConverterFactory
             : throw new ArgumentException($"{typeToConvert.Name} isn't a Resultful type.", nameof(typeToConvert));
         return (JsonConverter)Activator.CreateInstance(converter.MakeGenericType(typeToConvert.GetGenericArguments()))!;
     }
+
 }
