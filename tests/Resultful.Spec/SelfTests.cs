@@ -150,6 +150,32 @@ public sealed class SelfTests : IDisposable
     }
 
     [Fact]
+    public void A_case_beside_an_expected_error_is_rejected()
+    {
+        var outcome = Real.Value.Evaluate(Seed("SEEDED-STRANDED", ("Case.cs", Passing + "\npublic static class Bad { static int M() => \"x\"; } // expect: CS0029\n")));
+        Assert.Equal(Status.Fail, outcome.Status);
+        Assert.Contains("can't run beside expected errors", outcome.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Cases_run_when_the_expected_errors_are_in_their_own_file()
+    {
+        var failing = Passing.Replace("2 + 2", "2 + 3", StringComparison.Ordinal);
+        var outcome = Real.Value.Evaluate(Seed("SEEDED-SPLIT", ("Case.cs", failing), ("Errors.cs", "public static class Bad { static int M() => \"x\"; } // expect: CS0029\n")));
+        Assert.Equal(Status.Fail, outcome.Status);
+        Assert.Contains("Cases.Adds", outcome.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_marker_scoped_to_another_target_is_ignored()
+    {
+        var other = SpecPaths.Tfm == "net11.0" ? "net10.0" : "net11.0";
+        var outcome = Real.Value.Evaluate(Seed("SEEDED-SCOPED", ("Case.cs", Passing + $"\npublic static class Bad {{ static int M() => \"x\"; }} // expect({SpecPaths.Tfm}): CS0029\n// expect({other}): CS0219\n"), ("More.cs", Passing.Replace("Cases", "More", StringComparison.Ordinal))));
+        Assert.Contains("can't run beside expected errors", outcome.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("CS0219", outcome.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_library_swapped_after_compiling_runs_against_the_new_version()
     {
         var outcome = Real.Value.Evaluate(Seed("SEEDED-SWAP",
