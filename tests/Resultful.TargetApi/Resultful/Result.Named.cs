@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace Resultful
 {
+    // Decision 15: the core carries its own attributes, so RF0001 reaches its results like a user's.
+    [Resultful.CodeAnalysis.MustObserve]
     public readonly partial struct Result<T, TError>
     {
         // Decision 10: `new Result<T, TError>()` doesn't compile; `default` is the zero value and throws on use.
@@ -53,6 +55,7 @@ namespace Resultful
         public Task<Result<TResult, TError>> BindAsync<TResult>(Func<T, CancellationToken, Task<Result<TResult, TError>>> bindFunc, CancellationToken cancellationToken) => throw null!;
     }
 
+    [Resultful.CodeAnalysis.MustObserve]
     public readonly partial struct Result<T>
     {
         // Decision 10: `new Result<T>()` doesn't compile; `default` is the zero value and throws on use.
