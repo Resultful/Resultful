@@ -8,6 +8,8 @@
                             package  PackageReference to Resultful* at $(ResultfulPackageVersion) (tests/Resultful.EndToEnd).
                             project  ProjectReference to src/ (once the real packages exist: wiring, then 20b).
                             baseline Resultful $(ShopBaselineVersion) from nuget.org: 0.2, for Shop.Legacy's UC10.
+                            none     no Resultful reference: UC09's library on its own.
+      ShopAnalyzers         true to add Resultful.Analyzers (package mode, with ResultfulAnalyzersPackageVersion).
       ShopForce             all, or a list such as UC01;UC03: compile those use cases whatever the ledger says.
       ShopGeneratorStandIn  true until Resultful.Generators runs on the Shop (13b): compiles GeneratorStandIn/, the
                             hand-written copy of what the generator would emit.
