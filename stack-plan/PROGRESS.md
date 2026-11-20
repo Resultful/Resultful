@@ -6,8 +6,8 @@ Rows are in stack order.
 |---|---|---|---|---|
 | 00 | rtkelly13/error-design | #34 | green | stack B base: rebase onto 04b, retarget |
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
-| 02 | rtkelly13/stack-02-test-infra | #40 | green | 732a709, CI green, review fixes in (8 items); size waiver |
-| 03 | rtkelly13/stack-03-analysis-level | #41 | review | be6b76a on 02@6595f59; reviewer + adversary running; ~2,100 lines outside tests, almost all XML docs |
+| 02 | rtkelly13/stack-02-test-infra | #40 | review | 732a709 green; reopened: 03's adversary showed release-check scripts miss 9 kinds of difference; fixing as fixup! commits |
+| 03 | rtkelly13/stack-03-analysis-level | #41 | review | review: changes needed (12 items, 1 blocking doc error); adversary: no unlisted difference from beta06; fixing as fixup! commits |
 | 04 | rtkelly13/stack-04-per-package-release |  | building | on 03@be6b76a |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | 5b8b23a; 261 spec tests green locally, 135 ledger lines pending; 7 items flagged for Ryan; reviewer running |
