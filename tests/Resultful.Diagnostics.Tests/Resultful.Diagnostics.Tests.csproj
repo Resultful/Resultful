@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests for Resultful.Diagnostics. xunit.v3 on Microsoft.Testing.Platform and CsCheck: run with
+    `dotnet run -f net10.0` (and net11.0).
+
+    Drafted ahead of the core (stack-plan GOAL.md, Pipelining): the target core is throw-null stubs, so these tests
+    compile the package's sources against ../Resultful.Satellites.StandIn, a small working core with the target's
+    signatures. At 21's turn this becomes a ProjectReference to src/Resultful.Diagnostics over the real core, and the
+    stand-in is deleted.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Resultful.Diagnostics.Tests</RootNamespace>
+    <!-- CA1515 doesn't fit a test project; the test types are public for xunit and CsCheck. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/Resultful.Diagnostics/**/*.cs" Exclude="../../src/Resultful.Diagnostics/obj/**;../../src/Resultful.Diagnostics/bin/**" LinkBase="Package" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.Satellites.StandIn/Resultful.Satellites.StandIn.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Condition="'$(TargetFramework)' == 'net10.0'" />
+  </ItemGroup>
+</Project>

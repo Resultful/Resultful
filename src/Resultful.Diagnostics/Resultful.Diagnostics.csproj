@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.Diagnostics</AssemblyName>
+    <RootNamespace>Resultful.Diagnostics</RootNamespace>
+    <Description>Opt-in logging and tracing hooks for Resultful failures. Nothing is logged or tagged unless a call asks for it.</Description>
+    <VersionPrefix>0.3.0</VersionPrefix>
+    <PackageId>Resultful.Diagnostics</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;logging;tracing;diagnostics</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Drafted ahead (stack-plan GOAL.md, Pipelining): not packed until it is switched to the real core. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Drafted ahead of the core (05–12): compiled against the target API's stub core. At its turn this becomes
+      ../Resultful/Resultful.csproj and the property goes away.
+    -->
+    <ResultfulCoreProject Condition="'$(ResultfulCoreProject)' == ''">$(MSBuildThisFileDirectory)../../tests/Resultful.TargetApi/Resultful/Resultful.csproj</ResultfulCoreProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ResultfulCoreProject)" />
+    <!-- On net11.0 the logging abstractions are in the shared framework (NU1510), so only net10.0 references the package. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Condition="'$(TargetFramework)' == 'net10.0'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt; it must be in the target. One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
