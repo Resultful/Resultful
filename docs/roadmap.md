@@ -45,8 +45,8 @@ Following [decision 7](decisions/0007-ci-follows-rig.md):
 
 [Decision 2](decisions/0002-targets-netstandard20-net10-net11.md).
 
-- SDK 11.0.100, with `net11.0` added to the targets.
-- Public API tracking (`PublicAPI.*.txt`) so every surface change shows in review.
+- SDK 11.0.100, with `net11.0` added to the targets and tests running on `net10.0` and `net11.0`. Done in this step.
+- Public API tracking (`PublicAPI.*.txt`, baseline in `Shipped`) so every surface change shows in review. Done in this step.
 - XML documentation generated and required on public members.
 - `AnalysisLevel latest-all` with explicit opt-outs.
 - Nullable annotations audited.
