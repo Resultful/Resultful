@@ -1,8 +1,8 @@
 {
   "pr": 40,
   "branch": "rtkelly13/stack-02-test-infra",
-  "head_sha": "732a709d50075b6972701bba5087b50f89ef2d1a",
-  "ci": "green on 732a709: build, release-check, lint, suppressions pass (one older suppressions run cancelled by the body edit, superseded by a passing one); publish skipped as designed",
+  "head_sha": "d08322528d468ecf35468fa57bf90bd1a94b3848",
+  "ci": "green on d083225: build, release-check (incl. ApiCompat strict: no breaking changes), lint, suppressions pass; publish skipped as designed",
   "test_count": {
     "Resultful.Consumption per run": 46,
     "Resultful.Consumption runs": "net10.0, net11.0 x default, tr-TR, invariant = 6, plus the same 6 [packed]",
@@ -54,7 +54,9 @@
     "DECISIONS-TAKEN.md (plan branch) should be corrected: no 0.2.0-beta06 tag exists; baseline is commit 1697a7a; beta06 was never published to nuget.org",
     "Binary-compat run (suite built against baseline, new DLL swapped in) and EnablePackageValidation not done here: 04b",
     "Suppressions gate can't see suppressions in files it doesn't scan (e.g. .md, .json runsettings) and matches only by text; documented in the script header",
-    "eng scripts duplicate Package/Targets/Expected helpers between api-diff.cs and il-diff.cs (file-based apps can't share a source file)"
+    "eng scripts duplicate Package/Targets/Expected helpers between api-diff.cs and il-diff.cs (file-based apps can't share a source file)",
+    "03's branch doesn't carry d083225; once restacked, 03's own changes must be listed under the new api-diff lines (and apicompat suppressions if it changes nullable attributes)",
+    "verify-package's baseline diff does not compare the .snupkg's own nuspec or PDB contents (paths/commit); documented"
   ],
   "review_fixes": [
     "eee001e: counts gate enforces its whole scope (label + --project/--framework filters): a deleted project, a target or culture dropped everywhere fails; UsePackedPackage projects must have [packed] entries; new CI step --counts-complete fails if any file entry was counted by no step (removed packed step); .NET Framework entries exempt off Windows; self-tests for each",
@@ -63,5 +65,13 @@
     "4b5c400: coverage floor 84.5 branch / 92.0 line (measured 84.72 / 92.15), reason in $comment (pinning CsCheck_Seed replays one case per property)",
     "168fafe: suppressions gate catches Assert.Skip/SkipWhen/SkipUnless/Inconclusive; named paths and IDs must match as whole tokens; both in the self-test",
     "732a709: ReferenceModelLawTests.Same compares IsOk, value or error, and error sequences directly"
+  ],
+  "adversary_fixes": [
+    "d083225 (fixup! ci: add release-check scripts and run them against the 0.2.0-beta06 baseline): api-diff adds parameter flags (Optional, In), TypeAttributes and explicit pack/size, every instance field incl. private (order, flags, offsets), assembly identity, references, assembly and module attributes, hashed manifest resources and type forwarders; DebuggerBrowsable and other debugger attributes compared (skip list keeps only nullable attributes and state machine attributes, with reasons)",
+    "verify-package --baseline adds per-file SHA-256 content (except lib DLLs, nuspec, psmdcp, _rels/.rels), nuspec package/metadata attributes (minClientVersion), ungrouped dependencies, other dependencies children, the .snupkg file list; baseline diff now runs even if the shape check fails",
+    "Ignored on purpose, named in scripts and list headers: commit after '+' in AssemblyInformationalVersion, Win32 version resource, debug directory (CodeView path gained src/), lib DLL bytes and PDB bytes, version, repository commit/branch, psmdcp name",
+    "Lists: api-diff-0.2.0.txt now has 8 net11.0 lines (TargetFramework attribute, System.Runtime/Collections/Linq 11.0 refs vs baseline net10.0); package-diff-0.2.0.txt gains '+ snupkg file lib/net11.0/Resultful.pdb'; il-diff still empty",
+    "release-check job: Microsoft.DotNet.ApiCompat.Tool 10.0.401 (local tool; 11.0.100 is <2 weeks old) package mode, strict baseline + compatible-tfms, attributes-must-match, cannot-change-parameter-name; fails on CP1003; optional eng/apicompat-0.2.0.xml suppression file (none). Passes today; fails on the adversary's mut.nupkg (CP0003, CP0014-16)",
+    "Self-tests: 13 new api-diff seeds and 5 new verify-package seeds; each was shown to fail against the previous scripts; the adversary's package now fails api-diff, verify-package and ApiCompat locally"
   ]
 }
