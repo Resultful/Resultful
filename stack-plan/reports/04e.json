@@ -1,0 +1,36 @@
+{
+  "pr": 47,
+  "pr_url": "https://github.com/Resultful/Resultful/pull/47",
+  "branch": "rtkelly13/stack-04e-publish-preview",
+  "head_sha": "a96a6608204c164f05a0a50dd8edebcdf0aed3ad",
+  "started_from": "1fedf62 (origin/rtkelly13/stack-04d2-end-to-end)",
+  "ci": {
+    "run": "https://github.com/Resultful/Resultful/actions/runs/44812144182",
+    "build": "success",
+    "preview-dry-run": "success",
+    "lint": "failure (inherited: ls-lint rejects tests/Resultful.Spec/Fixtures/<ID> dirs, tests/Resultful.TargetApi/*/PublicAPI/<tfm> dirs and tests/Resultful.TargetApi/check-api.cs; base PR #45 fails lint identically; zizmor step did not run in CI because ls-lint failed first, but zizmor 1.31.1 --offline is clean locally)",
+    "publish": "skipped (unchanged, main only)",
+    "publish-preview": "skipped (dispatch only)",
+    "publish-preview-push": "skipped (dispatch only)"
+  },
+  "dry_run_result": "preview-dry-run passed on the first CI run: Resultful packed as 0.3.0-preview.0, version check passed, set restored together into an empty packages folder, eng/verify-package.cs passed (deps OneOf 3.0.271; groups net10.0 net11.0 .NETStandard2.0). Same result locally. Nothing pushed; no workflow dispatched.",
+  "commands_for_maintainer": [
+    "gh workflow run ci.yml --ref rtkelly13/stack-04e-publish-preview -f preview=1 -f dry-run=true",
+    "gh workflow run ci.yml --ref rtkelly13/stack-NN-name -f preview=N -f dry-run=false"
+  ],
+  "decisions_taken": [
+    "Push secret is NUGET_PREVIEW_KEY in the nuget-preview environment (not NUGET_KEY, so it can't fall back to the org secret).",
+    "Two dispatch jobs: publish-preview (pack/check, contents: read, no secrets, no environment) and publish-preview-push (environment nuget-preview, permissions {}, own concurrency group publish-preview with cancel-in-progress false, needs build+lint+publish-preview).",
+    "Every packable project = every csproj under src/ (decision 13; same rule as tests/Resultful.EndToEnd/Feed.cs); Resultful.slnx doesn't list every project.",
+    "Restore probe targets net10.0.",
+    "preview input is a string with empty default, validated as a positive integer; dry-run boolean defaults true.",
+    "No --skip-duplicate on the preview push so a number is used once.",
+    "Branch check is a failing first step in publish-preview plus a startsWith guard in publish-preview-push's if."
+  ],
+  "suppressions": "None added. The existing file-level zizmor use-trusted-publishing ignore for ci.yml now also covers the preview push step (2 findings with --no-config, 0 with config); its comment updated to name both jobs.",
+  "open_issues": [
+    "lint job fails on the stack B base (from 04c/04d files vs main's .ls-lint.yml); needs a fix in 04c/04d's area or the stack A ls-lint changes at restack. Contract item 7 (every CI job passes) is not met until then.",
+    "Risk: GitHub may reject workflow_dispatch inputs not in main's copy of ci.yml (main has only `publish`); if the maintainer's dry dispatch is rejected, the preview jobs move into stack A (04) at the local restack.",
+    "Maintainer must create the nuget-preview environment and its NUGET_PREVIEW_KEY secret before a real preview."
+  ]
+}
