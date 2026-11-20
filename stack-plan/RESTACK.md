@@ -18,3 +18,6 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-13a-generator-target | #46 | 04c @ 5b8b23a | 04e | drafted ahead; 9ed766b is an unchanged copy of #37 |
 | rtkelly13/stack-12b-text-json | | 04c @ 5b8b23a | 12 | drafted ahead against target stubs; switch to the real core in the local pass |
 | rtkelly13/stack-04e-publish-preview | #47 | 04d2 @ 1fedf62 | 04d2 | edits `ci.yml`, conflicts with stack A's CI changes are expected in the local pass |
+| rtkelly13/stack-12b-text-json | #48 | 04c @ 5b8b23a | 12 | drafted ahead; tests use a temporary StandInCore |
+| rtkelly13/stack-16a-analyzers-core | #50 | 04c @ f72ad89 | 15 | drafted ahead |
+| rtkelly13/stack-05-named-methods | | 04e @ a96a660 (+ cherry-picks of 04c's spec fixes) | 13a | first core PR |
