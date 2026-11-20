@@ -12,7 +12,7 @@ namespace Resultful
         [Obsolete(ObsoleteMessages.VoidResult)]
         public static implicit operator VoidResult(Result<Unit> value) => throw null!;
         [Obsolete(ObsoleteMessages.VoidResult)]
-        public static implicit operator VoidResult(Unit value) => throw null!;
+        public static implicit operator VoidResult(Unit? value) => throw null!;
         //Local Methods
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<Error, TResult> errorFunc) => throw null!;
         public void Switch(Action<Unit> successfulFunc, Action<Error> errorFunc) => throw null!;

@@ -41,7 +41,8 @@ namespace Resultful
         public MessageError(string message) : base(message) => throw null!;
     }
 
-    // A Validation's errors carried through a Result chain. Never empty (VAL-NONEMPTY); equal element by element (VAL-EQ).
+    // A Validation's errors carried through a Result chain. Message is "Validation failed.". Never empty (VAL-NONEMPTY);
+    // equal element by element (VAL-EQ).
     public sealed record ValidationFailed<TError> : Error where TError : Error
     {
         public ValidationFailed(IReadOnlyList<TError> errors) : base((string)null!) => throw null!;

@@ -13,10 +13,10 @@
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 
-  <!-- Only the stub projects (each has a PublicAPI folder); check-api.cs, a file-based app here, has none. -->
-  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/PublicAPI')">
+  <!-- Only the stub projects (each has an api folder, as src/Resultful does from 03); check-api.cs, a file-based app here, has none. -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/api')">
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
-    <AdditionalFiles Include="PublicAPI/$(TargetFramework)/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI/$(TargetFramework)/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="api/$(TargetFramework)/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="api/$(TargetFramework)/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

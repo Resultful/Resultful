@@ -42,6 +42,7 @@ namespace Resultful.AspNetCore
         public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder) => throw null!;
     }
 
+    // A result whose error is a union (decision 17) widens first: result.AsResult().ToHttpResult().
     public static class HttpResultExtensions
     {
         public static ResultHttpResult<T> ToHttpResult<T>(this Result<T> result) => throw null!;
