@@ -15,7 +15,7 @@ Rows are in stack order.
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | green | 3499c1e, CI green; review fixes in; 3 spec: commits (UC10 fixture back to 23a); 292 spec, 34 e2e green locally |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | green | 4f37dca, CI green incl. lint and preview dry run; review fixes in |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review fixes in (46a46fd, 5 fixup! commits): language-version gate, stronger fuzz (catches the seeded order fault), no CS0109; 42/47 tests green |
-| 05 | rtkelly13/stack-05-named-methods | #51 | review | review: no blockers, 4 should-fix (zero-value docs, UERR sentinel, null-error test, body); spec CI job added (7d69361); an `-s ours` merge 2104c15 (drop on restack); fixing |
+| 05 | rtkelly13/stack-05-named-methods | #51 | green | 04cca83, CI green incl. `spec` job (net10/net11 × invariant/tr-TR); 4 lines done; review fixes in; carries 04e's commits; empty merge 2104c15 |
 | 06 | rtkelly13/stack-06-error-record |  | building | on 05@870518e |
 | 07 | rtkelly13/stack-07-attributes |  | todo |  |
 | 08a | rtkelly13/stack-08a-own-storage |  | todo |  |
