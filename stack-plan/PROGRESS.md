@@ -13,7 +13,7 @@ Rows are in stack order.
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
 | 04d | rtkelly13/stack-04d-reference-app | #44 | review | review fixes in (c3647e1); conflicts with 04c's newer commits, so no CI: absorbs 04c once 04c's fixes finish |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
-| 04e | rtkelly13/stack-04e-publish-preview | #47 | review | a96a660 on 04d2@1fedf62; dry run green (0.3.0-preview.0 packed, restored together); lint red from 04c/04d paths (04c adds .ls-lint.yml rules; cherry-pick up); secret `NUGET_PREVIEW_KEY` |
+| 04e | rtkelly13/stack-04e-publish-preview | #47 | review | review: security model sound; lint red until 04c's f72ad89 reaches 04d→04d2→04e; doc fixes (environment is the real boundary) in progress |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review: changes needed ([Union] ignores language version; fuzz mostly hits early returns); fixing |
 | 05 | rtkelly13/stack-05-named-methods |  | building | on 04e@a96a660 + 04c's spec fixes by cherry-pick |
 | 06 | rtkelly13/stack-06-error-record |  | todo |  |
@@ -24,7 +24,7 @@ Rows are in stack order.
 | 10 | rtkelly13/stack-10-validation |  | todo |  |
 | 11 | rtkelly13/stack-11-oneof-split |  | todo |  |
 | 12 | rtkelly13/stack-12-void-to-unit |  | todo |  |
-| 12b | rtkelly13/stack-12b-text-json | #48 | review | drafted ahead on 04c@5b8b23a; f7b40ca; API equals target; 96/104 tests green against a stand-in core; reviewer running |
+| 12b | rtkelly13/stack-12b-text-json | #48 | review | review: changes needed (ValidationFailed<TError> round-trip, duplicate keys, null message, AOT resolver test, stand-in pins); fixing |
 | 18 | rtkelly13/stack-18-operators |  | todo |  |
 | 19 | rtkelly13/stack-19-async |  | todo | checkpoint: core done |
 | 13b | rtkelly13/stack-13b-generator-package |  | todo |  |
