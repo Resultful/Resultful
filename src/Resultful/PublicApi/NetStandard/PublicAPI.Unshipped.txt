@@ -1,0 +1,3 @@
+#nullable enable
+override Resultful.MessageError.<Clone>$() -> Resultful.Error!
+override Resultful.ValidationFailed<TError>.<Clone>$() -> Resultful.Error!

@@ -54,11 +54,12 @@ public abstract record Error
     protected Error(string message);
     public string Message { get; }
     public Error? Cause { get; init; }                 // the lower error this one wraps
-    public ImmutableList<string> Context { get; init; } // notes added on the way up
+    public IReadOnlyList<string> Context { get; init; } // notes added on the way up, copied when set
     public static Error From(string message);          // a plain MessageError
     public virtual IEnumerable<Error> Inner();         // errors held inside, such as ValidationFailed's list
-    public IEnumerable<Error> Causes();                 // this, then each Cause and Inner error
+    public IEnumerable<Error> Causes();                 // this, then its Cause's tree, then each Inner error's
     public bool TryFind<TError>(out TError? found) where TError : Error;
+    public sealed override string ToString();           // type, Message, Context, causes; never the record's own data
 }
 public static TError WithContext<TError>(this TError error, string message) where TError : Error; // keeps the type
 public sealed record ValidationFailed<TError>(IReadOnlyList<TError> Errors) : Error; // a Validation inside a Result
@@ -299,7 +300,6 @@ Use it for the operations a caller branches on. The steps between use the core `
 ## Still open
 
 The open questions live in one place for each decision:
-[decision 14](decisions/0014-result-and-validation.md#still-open) (the name `Validation`, `Bind` on it, how
-`Context` takes part in equality, sealing `ToString`) and
+[decision 14](decisions/0014-result-and-validation.md#still-open) (the name `Validation`, `Bind` on it) and
 [decision 15](decisions/0015-analyzer-rules-read-attributes.md) (IDE support, `switch` statements and nested
 patterns).

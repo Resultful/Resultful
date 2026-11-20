@@ -1,12 +1,20 @@
 #if !NET
-// netstandard2.0 lacks the nullable flow attributes the named methods use. The compiler reads them by name, so internal
-// copies work; on net10.0 and later the framework's own types are used.
+// netstandard2.0 lacks the nullable flow attributes the named methods and Error.TryFind use. The compiler reads them by
+// name, so internal copies work; on net10.0 and later the framework's own types are used.
 namespace System.Diagnostics.CodeAnalysis
 {
     [AttributeUsage(AttributeTargets.Parameter)]
     internal sealed class MaybeNullWhenAttribute : Attribute
     {
         public MaybeNullWhenAttribute(bool returnValue) => ReturnValue = returnValue;
+
+        public bool ReturnValue { get; }
+    }
+
+    [AttributeUsage(AttributeTargets.Parameter)]
+    internal sealed class NotNullWhenAttribute : Attribute
+    {
+        public NotNullWhenAttribute(bool returnValue) => ReturnValue = returnValue;
 
         public bool ReturnValue { get; }
     }
@@ -23,6 +31,14 @@ namespace System.Diagnostics.CodeAnalysis
         public bool ReturnValue { get; }
 
         public string[] Members { get; }
+    }
+}
+
+// Records and init accessors (Error) need this marker type, which netstandard2.0 lacks.
+namespace System.Runtime.CompilerServices
+{
+    internal static class IsExternalInit
+    {
     }
 }
 #endif

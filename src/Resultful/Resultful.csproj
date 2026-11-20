@@ -34,6 +34,12 @@
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+    <!--
+      The few lines that differ by target: a derived record's <Clone>$ returns the record itself only where covariant
+      returns exist (not netstandard2.0). The analyzer reads every PublicAPI.*.txt it is given, so these add to the pair above.
+    -->
+    <AdditionalFiles Include="PublicApi/NetStandard/PublicAPI.Unshipped.txt" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <AdditionalFiles Include="PublicApi/Net/PublicAPI.Unshipped.txt" Condition="'$(TargetFramework)' != 'netstandard2.0'" />
   </ItemGroup>
 
 </Project>
