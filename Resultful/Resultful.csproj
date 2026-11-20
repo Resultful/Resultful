@@ -6,7 +6,29 @@
     <Description>Functional Error Handling library that is intended to be idiomatic for C#. Based on the Railway Oriented Programming idea</Description>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- Keep the betaNN form: NuGet compares pre-release labels lexically, so beta.6 would sort below beta05. -->
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionSuffix>beta06</VersionSuffix>
+    <PackageId>Resultful</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;functional;oneof</PackageTags>
+    <PackageReleaseNotes>See https://github.com/Resultful/Resultful/blob/main/RELEASE_NOTES.md</PackageReleaseNotes>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
   <ItemGroup>
+    <!--
+      OneOf's floor matters to consumers using lowest-matching resolution (Paket strategy: min).
+      OneOf 3.0.178 only had a .NETStandard1.3 group, which drags NETStandard.Library 1.6.1 and the
+      vulnerable System.Net.Http / System.Text.RegularExpressions 4.3.0 into net8+ apps.
+      3.0.271 adds an empty netstandard2.0 group. eng/verify-package.sh enforces this floor.
+    -->
     <PackageReference Include="OneOf" />
   </ItemGroup>
 
