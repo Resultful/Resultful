@@ -73,3 +73,14 @@
 | 04d, 09, 14 | Spec finding: on a `Result<T>`, `MapError(e => new InvoiceFailed(id) { Cause = e })` picks the generic overload and returns `Result<Order, InvoiceFailed>`; wrapping into `Error` needs `MapError(Error (e) => …)`. 09 (which ships `MapError` to an `Error`) decides whether to fix the overloads or the docs (decision 14, *Using it well*) | From 04d's fixes |
 | 16a | RF0002 (a `default` result) flags a struct with an `[Obsolete(error: true)]` parameterless constructor (decision 10 layer 2), a `[ResultShape]` struct, or an error union — not a type-name list, so `Option<T>` isn't flagged. A dedicated "zero is invalid" attribute would be an addition to decision 15 | Taken by 16a's implementer |
 | 13a | A generic `[ClosedHierarchy]` base is RFG0006; RFG0004 covers non-public shapes; a protected/private leaf drops `Match`/`Switch`/`TryMap` without a diagnostic (a new ID would be a `spec:` change; 13b may add one); the generator references Roslyn 4.14.0 via `VersionOverride`, central is 5.12.0 | Taken by 13a's implementer |
+| 04c | The target's PublicAPI files live in api/<tfm>/ (03's layout); the gate compares against a frozen baseline-0.2.0 (0.2 Shipped + 03's re-annotations, from 03's branch) | 04c review: the editable Shipped file can't be trusted |
+| 04c, 08b | On the zero value IsSuccess and IsFailure are both false and don't throw; Value/Error/TryGetValue/TryGetError/Match/Switch throw; ToString/Equals/GetHashCode never throw | Accepted rule 'only reading the value or error throws'; default until Ryan answers |
+| 04c, 08b, 24 | Decision 3's matrix splits: CORE-MATRIX (named methods, every target, 08b); UNION-MATRIX keeps IUnion.Value (24) | 04c review |
+| 04c, 13b | A shape with no Success has Ok() only, no Ok(Unit) | 13a finding: fixture and generated-members.tsv disagreed |
+| 04c, 06 | ValidationFailed's Message is "Validation failed." | 04c review default |
+| 04c, 12b | AddErrorCases throws ArgumentException on two cases with one simple name; only leaf property names follow the naming policy, `type` keeps the simple name | 04c review (replaces the earlier wording) |
+| 04c, 20a, 21 | AspNetCore and Diagnostics helpers take a union-error result after .AsResult() | 04c review |
+| 04c, 09 | Result<Error> from a bare Error is CS0457 (MIG-AMBIGUOUS); a leaf into Result<object> is a failure | Documented beside RF0004 |
+| 04c, 13a | GEN-RFG0005: a nested decl in a non-partial type declares its own constructor (the generator can't reopen the parent) | 13a finding |
+| 04c | .ls-lint.yml ignores exactly 04c's paths (Fixtures, */api, */PublicAPI, baseline-0.2.0, check-api.cs) | ls-lint '**' rules can't be overridden per folder |
+| 04c, 07 | The core's Result<T>, Result<T, TError>, Validation<T>, Validation<T, TError> and Option<T> carry [MustObserve] in the target | Decision 15; 16a finding (#50) |

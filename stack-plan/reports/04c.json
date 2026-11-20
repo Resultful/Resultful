@@ -1,49 +1,45 @@
 {
   "pr": 42,
   "branch": "rtkelly13/stack-04c-spec-harness",
-  "head_sha": "5b8b23a9350bc7ac3e74687dfce1b69dae534038",
-  "ci": "build success, lint success, publish skipped (run 44808805858). New projects are not wired into CI yet.",
+  "head_sha": "9a465b08dd2bf17fb0f2d2a7e0d713cc85333cab",
+  "ci": "head 9a465b0: build success, lint success, publish skipped (run 44814795341). New projects not wired into CI yet.",
   "local_runs": [
     {
-      "cmd": "dotnet build tests/Resultful.TargetApi/<pkg> -m:2 (all 6 packages, every TFM)",
-      "result": "0 warnings, 0 errors"
-    },
-    {
       "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs -- --self-test",
-      "result": "7/7 seeded cases behave; exit 0"
+      "result": "14/14 ok"
     },
     {
-      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
-      "result": "API gate: passed (core 358/342 target members to add, 141 listed removals to make; satellites skipped: no src project)"
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs -- --repo <tests + 03's src/Resultful/api>",
+      "result": "API gate: passed"
     },
     {
       "cmd": "dotnet run --project tests/Resultful.Spec -f net10.0",
-      "result": "MTP total 261, failed 0"
+      "result": "268 total, 0 failed (also --culture tr-TR)"
     },
     {
       "cmd": "dotnet run --project tests/Resultful.Spec -f net11.0",
-      "result": "MTP total 261, failed 0"
+      "result": "268 total, 0 failed"
     },
     {
-      "cmd": "RESULTFUL_SPEC_GENERATOR=<#37 generator dll> dotnet run --project tests/Resultful.Spec -f net11.0",
-      "result": "34 generator fixtures fail target compile: all generator-side gaps (Ok/Fail statics, instance AsResult, no private protected ctor, no IsDefault/WithContext/Cases/unions/shape conversions)"
+      "cmd": "RESULTFUL_SPEC_GENERATOR=<#37 dll> ... -f net11.0",
+      "result": "34 generator fixtures fail, all generator gaps"
     },
     {
-      "cmd": "ls-lint 2.3.1 (local)",
-      "result": "pass"
+      "cmd": "ls-lint 2.3.1 on clean export, 15 runs",
+      "result": "0/15 failures (old config 6/15)"
     }
   ],
   "ledger_counts": {
-    "total": 135,
-    "pending": 135,
-    "with_fixture": 122,
+    "total": 137,
+    "pending": 137,
+    "with_fixture": 124,
     "fixture_to_come": 13,
     "by_owner": {
       "05": 4,
       "06": 6,
       "07": 2,
-      "08b": 10,
-      "09": 6,
+      "08b": 11,
+      "09": 7,
       "10": 10,
       "11": 4,
       "12": 4,
@@ -142,7 +138,18 @@
     "| 04c | Compile-only tool fixtures compile against the target API with the real tool; each fixture uses only API from its owner and earlier PRs | So 13a can flip GEN-* before 07 |",
     "| 12b, 22 | Decision 10's [Obsolete(error: true)] ctor breaks [JsonSerializable(typeof(Result<T>))] (CS0619); pattern: context lists the value type, result info from JsonMetadataServices.CreateValueInfo<Result<T>>(options, new ResultJsonConverter<T>()) | Found by AOT-JSON-SOURCEGEN |",
     "| 13b, 25 | On net11, shape.TryGetValue(out var x) is ambiguous (CS0121); document naming the type | Found with #37's generator |",
-    "| 25 | error-shape.md shape 4's MapError(e => new SaveFailed{Cause=e}) into Result<Order> needs .AsResult() | Overload resolution picks the generic MapError |"
+    "| 25 | error-shape.md shape 4's MapError(e => new SaveFailed{Cause=e}) into Result<Order> needs .AsResult() | Overload resolution picks the generic MapError |",
+    "| 04c | The target's PublicAPI files live in api/<tfm>/ (03's layout); the gate compares against a frozen baseline-0.2.0 (0.2 Shipped + 03's re-annotations, from 03's branch) | 04c review: the editable Shipped file can't be trusted |",
+    "| 04c, 08b | On the zero value IsSuccess and IsFailure are both false and don't throw; Value/Error/TryGetValue/TryGetError/Match/Switch throw; ToString/Equals/GetHashCode never throw | Accepted rule 'only reading the value or error throws'; default until Ryan answers |",
+    "| 04c, 08b, 24 | Decision 3's matrix splits: CORE-MATRIX (named methods, every target, 08b); UNION-MATRIX keeps IUnion.Value (24) | 04c review |",
+    "| 04c, 13b | A shape with no Success has Ok() only, no Ok(Unit) | 13a finding: fixture and generated-members.tsv disagreed |",
+    "| 04c, 06 | ValidationFailed's Message is \"Validation failed.\" | 04c review default |",
+    "| 04c, 12b | AddErrorCases throws ArgumentException on two cases with one simple name; only leaf property names follow the naming policy, `type` keeps the simple name | 04c review (replaces the earlier wording) |",
+    "| 04c, 20a, 21 | AspNetCore and Diagnostics helpers take a union-error result after .AsResult() | 04c review |",
+    "| 04c, 09 | Result<Error> from a bare Error is CS0457 (MIG-AMBIGUOUS); a leaf into Result<object> is a failure | Documented beside RF0004 |",
+    "| 04c, 13a | GEN-RFG0005: a nested decl in a non-partial type declares its own constructor (the generator can't reopen the parent) | 13a finding |",
+    "| 04c | .ls-lint.yml ignores exactly 04c's paths (Fixtures, */api, */PublicAPI, baseline-0.2.0, check-api.cs) | ls-lint '**' rules can't be overridden per folder |",
+    "| 04c, 07 | The core's Result<T>, Result<T, TError>, Validation<T>, Validation<T, TError> and Option<T> carry [MustObserve] in the target | Decision 15; 16a finding (#50) |"
   ],
   "wiring": {
     "Resultful.slnx": [
@@ -168,7 +175,16 @@
       "replace dotnet test Resultful.slnx with eng/run-tests.cs once an MTP project is in the solution"
     ],
     ".ls-lint.yml": [
-      "none needed today (passes locally); if tests/** rules tighten, allow fixture ID dirs, TFM dirs, lib, lib.v2, PublicAPI"
+      "done in f72ad89; drop the check-api.cs ignore line once it moves to eng/"
+    ],
+    "eng/test-counts.json": [
+      "Resultful.Spec net10.0, net11.0, and culture=invariant / culture=tr-TR runs: {total: 268, skipped: 0} each at this head; regenerate with eng/run-tests.cs --write-counts"
+    ],
+    "Resultful.Spec": [
+      "<TestCultures>invariant;tr-TR</TestCultures> already set"
+    ],
+    "removed-list": [
+      "after the rebase: dotnet run eng/check-api.cs -- --regenerate-removed; confirm baseline-0.2.0 equals 04b's final Shipped files"
     ]
   },
   "beyond_contract": [
@@ -197,6 +213,59 @@
     "Roslyn 5.12.0 chosen vs #37's 5.9.0",
     "Satellite APIs (Text.Json, AspNetCore, FV, Diagnostics) are first drafts beyond the docs; expect spec: amendments in 12b/20a/21",
     "No ledger lines owned by 08a, 04e, 23b, 25",
-    "removed-in-0.3 'empty by 12' wording vs contract rule: gate follows contract"
-  ]
+    "Gate on this branch (based on 00, before 03) fails by design until rebased onto 03/04b",
+    "Fixup commit fb1d240's message says '267 -> 268 tests'; the count is 268 after the spec commit (cosmetic)"
+  ],
+  "review_round_1": {
+    "commits": [
+      {
+        "sha": "eb8beb9",
+        "kind": "spec",
+        "what": "target api/<tfm> layout, baseline-0.2.0 from 03's files, 03's Unit? annotation, removed list regenerated, generated-members Ok()"
+      },
+      {
+        "sha": "1dbb86f",
+        "kind": "fixup",
+        "what": "gate reads api/<tfm>, fails on missing TFM files, baseline-based checks, --strict fails without src project, --regenerate-removed, 14 self-tests"
+      },
+      {
+        "sha": "fb1d240",
+        "kind": "fixup",
+        "what": "harness runs cases without files holding expected errors; tfm-scoped markers"
+      },
+      {
+        "sha": "156481b",
+        "kind": "spec",
+        "what": "fixture changes from review, 13a and 04d (see PR body)"
+      },
+      {
+        "sha": "a36c3d4",
+        "kind": "docs",
+        "what": "building-the-generator RFG0007/0008, UC10 before snippet, decision 17 wording"
+      },
+      {
+        "sha": "654ff44",
+        "kind": "fixup",
+        "what": "TestCultures invariant;tr-TR"
+      },
+      {
+        "sha": "f72ad89",
+        "kind": "ci",
+        "what": ".ls-lint.yml ignore entries for 04c paths (cherry-pickable)"
+      },
+      {
+        "sha": "9a465b0",
+        "kind": "spec",
+        "what": "[MustObserve] on Result<T>, Result<T,TError>, Validation<T>, Validation<T,TError>, Option<T> stubs (16a finding)"
+      }
+    ],
+    "spec_commits": [
+      "eb8beb9 spec: target API files in api/<tfm> as in 03, a frozen 0.2.0 baseline, removed list regenerated",
+      "156481b spec: fixtures from the 04c review, 13a and 04d (137 ledger lines, all pending)",
+      "9a465b0 spec: the core's result types, Validation and Option carry [MustObserve]"
+    ],
+    "ls_lint_commit": "f72ad89526295948a10509c25dba6b0692328ac3",
+    "ls_lint_note": "ls-lint 2.3.1 locally is racy (0.2's config failed only 6/15 runs on a clean export) \u2014 my earlier 'ls-lint passes' was a false pass. '**' rules can't be overridden per folder, so the fix is narrow ignore entries; new config 0/15 failures, planted bad dir elsewhere still caught.",
+    "gate_on_03_layout": "passes against origin/rtkelly13/stack-03-analysis-level src/Resultful/api (359/343 to add, 141 removals to make); on this branch it reports 03's 8 re-annotations by design"
+  }
 }
