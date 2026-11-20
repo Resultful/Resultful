@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests for Resultful.Text.Json and JsonAssert. xunit.v3 on Microsoft.Testing.Platform and CsCheck: run with
+    `dotnet run -f net10.0` (and net11.0).
+
+    Drafted ahead of the core (stack-plan GOAL.md, Pipelining): the target core is throw-null stubs, so these tests
+    compile the package's and JsonAssert's sources against StandInCore/, a small working core with the target's
+    signatures. At 12b's turn this becomes two ProjectReferences (src/Resultful.Text.Json, tests/Resultful.Testing.Json)
+    over the real core, and StandInCore/ is deleted.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Resultful.Text.Json.Tests</RootNamespace>
+    <!-- CA1515 doesn't fit a test project; the test types are public for xunit and CsCheck. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="StandInCore/**" />
+    <Compile Include="../../src/Resultful.Text.Json/**/*.cs" Exclude="../../src/Resultful.Text.Json/obj/**;../../src/Resultful.Text.Json/bin/**" LinkBase="Package" />
+    <Compile Include="../Resultful.Testing.Json/**/*.cs" Exclude="../Resultful.Testing.Json/obj/**;../Resultful.Testing.Json/bin/**" LinkBase="Testing.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="StandInCore/Resultful.StandInCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>
