@@ -21,6 +21,8 @@ public sealed class FuzzTests
     [Fact]
     public void Random_hierarchies_compile_cleanly_or_report_an_RFG_diagnostic_never_CS8785()
     {
+        var clean = 0;
+        var total = 0;
         Plans.Sample(
             plan =>
             {
@@ -42,16 +44,26 @@ public sealed class FuzzTests
                     }
                 }
 
+                // Whatever the user wrote, the generated files themselves have no diagnostic of any severity.
+                var generated = output.RunResult.GeneratedTrees.ToHashSet();
+                var inGenerated = output.CompilationDiagnostics
+                    .Where(d => d.Severity != DiagnosticSeverity.Hidden && d.Location.SourceTree is { } t && generated.Contains(t))
+                    .ToList();
+                if (inGenerated.Count > 0)
+                {
+                    throw new InvalidOperationException("diagnostics in generated files:\n" + string.Join("\n", inGenerated));
+                }
+
+                Interlocked.Increment(ref total);
                 if (output.GeneratorDiagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
                 {
                     return;
                 }
 
-                // No RFG error: the whole compilation is clean, and the generated files have no warnings either.
-                var generated = output.RunResult.GeneratedTrees.ToHashSet();
+                // No RFG error: the whole compilation is clean.
+                Interlocked.Increment(ref clean);
                 var problems = output.CompilationDiagnostics
-                    .Where(d => d.Severity == DiagnosticSeverity.Error
-                        || (d.Severity == DiagnosticSeverity.Warning && d.Location.SourceTree is { } t && generated.Contains(t)))
+                    .Where(d => d.Severity == DiagnosticSeverity.Error)
                     .ToList();
                 if (problems.Count > 0)
                 {
@@ -61,6 +73,10 @@ public sealed class FuzzTests
             iter: Iterations,
             threads: 1,
             print: p => p.Source());
+
+        // A fuzz where most plans stop at an RFG error checks little: about half are clean (measured 39-47%), 30% is the floor.
+        TestContext.Current.TestOutputHelper?.WriteLine($"{clean} of {total} plans compiled without an RFG error");
+        Assert.True(clean * 10 >= total * 3, $"only {clean} of {total} plans compiled without an RFG error; rebalance the generators");
     }
 
     [Fact]
@@ -149,36 +165,41 @@ public sealed class FuzzTests
 
     private sealed record ShapeSpec(int Hierarchy, int Success, bool Many, bool Public, bool Readonly);
 
-    private static readonly Gen<NodeKind> Kinds = Gen.Int[0, 19].Select(i => i switch
+    // Weights keep about half the plans free of RFG errors (asserted above). OpenLeaf is a concrete intermediate
+    // (RFG0002, a warning) and becomes a base, so most-derived-first ordering is exercised; InternalLeaf stays sealed,
+    // since a public type can't derive from it.
+    private static readonly Gen<NodeKind> Kinds = Gen.Int[0, 59].Select(i => i switch
     {
-        <= 9 => NodeKind.SealedLeaf,
-        <= 12 => NodeKind.ClosedBase,
-        <= 14 => NodeKind.PlainBase,
-        15 => NodeKind.OpenLeaf,
-        16 => NodeKind.GenericLeaf,
+        <= 29 => NodeKind.SealedLeaf,
+        <= 39 => NodeKind.ClosedBase,
+        <= 45 => NodeKind.PlainBase,
+        <= 56 => NodeKind.OpenLeaf,
+        57 => NodeKind.GenericLeaf,
         _ => NodeKind.InternalLeaf,
     });
 
-    private static readonly Gen<NodeSpec> Nodes = Gen.Select(Gen.Int[0, 100], Kinds, Gen.Int[0, 5], Gen.Int[0, 2], (p, k, n, ns) => new NodeSpec(p, k, n, ns));
+    // Namespace: mostly the global one, where a repeated name is renamed; Alpha and Beta give RFG0008 collisions.
+    private static readonly Gen<NodeSpec> Nodes = Gen.Select(Gen.Int[0, 100], Kinds, Gen.Int[0, 11], Gen.Int[0, 15].Select(i => i <= 13 ? 0 : i - 13), (p, k, n, ns) => new NodeSpec(p, k, n, ns));
 
     // Nesting: 0 none (mostly), 1 in a partial class, 2 in a non-partial class (RFG0005).
     private static readonly Gen<HierarchySpec> Hierarchies = Gen.Select(
-        Gen.Int[0, 9].Select(i => i <= 6 ? 0 : i <= 8 ? 1 : 2),
-        Gen.Int[0, 14].Select(i => i == 0),
+        Gen.Int[0, 19].Select(i => i <= 13 ? 0 : i <= 18 ? 1 : 2),
+        Gen.Int[0, 29].Select(i => i == 0),
         Nodes.Array[1, 8],
         (nesting, unsupported, nodes) => new HierarchySpec(nesting, unsupported, nodes));
 
+    // Success: 5 a leaf, 6 object, 7 Error give RFG0001; each is 1 in 30.
     private static readonly Gen<ShapeSpec> Shapes = Gen.Select(
         Gen.Int[0, 100],
-        Gen.Int[0, 9],
-        Gen.Select(Gen.Int[0, 4].Select(i => i == 0), Gen.Int[0, 3].Select(i => i != 0), Gen.Int[0, 14].Select(i => i != 0), (m, p, r) => (m, p, r)),
+        Gen.Int[0, 29].Select(i => i switch { <= 2 => 0, <= 6 => 1, <= 9 => 2, <= 13 => 3, <= 16 => 4, 17 => 5, 18 => 6, 19 => 7, <= 22 => 8, _ => 9 }),
+        Gen.Select(Gen.Int[0, 4].Select(i => i == 0), Gen.Int[0, 3].Select(i => i != 0), Gen.Int[0, 29].Select(i => i != 0), (m, p, r) => (m, p, r)),
         (h, s, f) => new ShapeSpec(h, s, f.m, f.p, f.r));
 
     private static readonly Gen<Plan> Plans = Gen.Select(Hierarchies.Array[1, 3], Shapes.Array[0, 4], (h, s) => new Plan(h, s));
 
     private sealed record Plan(HierarchySpec[] Hierarchies, ShapeSpec[] Shapes)
     {
-        private static readonly string[] Names = ["NotFound", "Locked", "Gone", "Expired", "Declined", "Missing"];
+        private static readonly string[] Names = ["NotFound", "Locked", "Gone", "Expired", "Declined", "Missing", "Timeout", "Refused", "Conflict", "Invalid", "Stale", "Busy"];
         private static readonly string[] Namespaces = ["", "Alpha", "Beta"];
         private const string Usings = "using Resultful;\nusing Resultful.CodeAnalysis;\n\n";
 
@@ -225,18 +246,19 @@ public sealed class FuzzTests
                         NodeKind.SealedLeaf => $"public sealed record {name}() : {parent}(\"m\");",
                         NodeKind.ClosedBase => $"[ClosedHierarchy] public abstract partial record {name} : {parent};",
                         NodeKind.PlainBase => $"public abstract record {name}(string M) : {parent}(M);",
-                        NodeKind.OpenLeaf => $"public record {name}() : {parent}(\"m\");",
+                        NodeKind.OpenLeaf => $"public record {name}(string M) : {parent}(M);",
                         NodeKind.GenericLeaf => $"public sealed record {name}<T>() : {parent}(\"m\");",
                         _ => $"internal sealed record {name}() : {parent}(\"m\");",
                     };
 
                     fullNames.Add(full);
                     types.Add((name, ns.Length == 0 ? null : ns, declaration));
-                    if (node.Kind is NodeKind.ClosedBase or NodeKind.PlainBase)
+                    if (node.Kind is NodeKind.ClosedBase or NodeKind.PlainBase or NodeKind.OpenLeaf)
                     {
                         bases.Add(fullNames.Count - 1);
                     }
-                    else if (node.Kind is NodeKind.SealedLeaf or NodeKind.OpenLeaf)
+
+                    if (node.Kind is NodeKind.SealedLeaf or NodeKind.OpenLeaf)
                     {
                         leaves.Add(full);
                     }
