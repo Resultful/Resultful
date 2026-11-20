@@ -41,7 +41,7 @@ internal static class Shop
         services.AddSingleton(sp => new Invoicing(sp.GetRequiredService<ILogger<Invoicing>>()));
 #endif
 #if SHOP_UC05
-        services.AddSingleton(_ => new Payments());
+        services.AddSingleton(sp => new Payments(sp.GetRequiredService<ILogger<Payments>>()));
 #endif
         return services;
     }
