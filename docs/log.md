@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- Layout moved (#33): `src/Resultful`, `tests/Resultful.Tests`, `samples/Resultful.Examples`, `Resultful.slnx`.
+  Package settings are in `src/Directory.Build.props`; test and sample settings in their folders' props files,
+  replacing the project-name conditions. No code changed.
+
 - Decisions 9, 11 and 13 accepted. Operators are opt-in through `Resultful.Operators`. Packages are versioned on
   their own and only what changed is published, as in `Resultful.Assertions`. `Resultful.Analyzers` is a separate
   package. The satellite set is accepted as recommended and confirmed per milestone. The layout move is the first

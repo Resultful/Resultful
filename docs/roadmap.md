@@ -40,7 +40,8 @@ is done when its "Done when" holds.
 Structure and safety nets before anything changes behaviour.
 
 - Repository layout: `src/`, `tests/`, `samples/`, `benchmarks/`, `.slnx` ([decision 13](decisions/0013-repository-layout.md)).
-  The first pull request, with no code changes.
+  Done in #33: projects moved, `Resultful.slnx`, and `Directory.Build.props` split into `src/`, `tests/` and
+  `samples/`.
 - Per-package releases ([decision 11](decisions/0011-package-family.md)): a version per project, change detection
   by path and project graph, a tag per package, and the package check run on every package. Follows the design
   in `Resultful.Assertions`.

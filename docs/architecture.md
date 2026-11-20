@@ -96,7 +96,7 @@ docs/  eng/
 Resultful.slnx
 ```
 
-Moving to this layout touches:
+The move (#33) touched:
 - `Resultful.sln`, which becomes `Resultful.slnx`
 - `.ls-lint.yml` globs
 - the paths in `ci.yml`
