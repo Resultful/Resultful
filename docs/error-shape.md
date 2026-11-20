@@ -179,12 +179,13 @@ Independent checks that should all run, with every failure reported.
 
 ```csharp
 [ClosedHierarchy]
-public abstract partial record InputError : Error
+public abstract record InputError : Error
 {
-    public required string Field { get; init; }
+    private protected InputError(string field, string message) : base(message) => Field = field;
+    public string Field { get; }
 }
-public sealed record Required : InputError { /* message from Field */ }
-public sealed record TooLong(int Max) : InputError { /* … */ }
+public sealed record Required(string Field) : InputError(Field, $"{Field} is required");
+public sealed record TooLong(string Field, int Max) : InputError(Field, $"{Field} is longer than {Max}");
 
 Validation<Registration, InputError> Validate(Request r) =>
     Validation.Combine(Name(r.Name), Email(r.Email), Age(r.Age),

@@ -13,8 +13,9 @@ generated:
 
 > **Proposed API.** This shows how an application would use [the error shape](error-shape.md) (decisions
 > [14](decisions/0014-result-and-validation.md) and [15](decisions/0015-analyzer-rules-read-attributes.md), both
-> proposed). `Match`, `Bind`, `MapError` and `TeeError` exist today; `Validation`, `Error`, `TryFind`, the
-> attributes and the `Resultful.AspNetCore` calls don't yet. Behaviour marked **verified** was compiled on
+> proposed, and [16](decisions/0016-source-generated-result-shapes.md), accepted). `Match`, `Bind`, `MapError`
+> and `TeeError` exist today; `Validation`, `Error`, `TryFind`, the attributes, the generated shapes and the
+> `Resultful.AspNetCore` calls don't yet. Behaviour marked **verified** was compiled on
 > SDK 11.0.100; the rest is how it's designed to work.
 
 Each use case has the same parts: the situation, the code, and **what it catches**: something the compiler, a
@@ -31,7 +32,7 @@ unexpected is a 500.
 
 ```csharp
 [ClosedHierarchy]
-public abstract record OrderError(string Message) : Error(Message);
+public abstract partial record OrderError : Error;   // Resultful.Generators adds a private protected constructor
 public sealed record OrderNotFound(int Id) : OrderError($"order {Id} was not found");
 public sealed record OrderLocked(int Id, string By) : OrderError($"order {Id} is locked by {By}");
 
@@ -65,6 +66,27 @@ enum, the new case would quietly become a 500.
 **Using it well.** The signature says `Result<Order, OrderError>`, not `Result<Order>`. A caller can see the
 exact set of failures, and the `switch` needs no `_`.
 
+**With a generated shape.** When callers branch on every outcome, name the result after the operation
+([decision 16](decisions/0016-source-generated-result-shapes.md)). On .NET 11 the success and every failure sit in
+one flat `switch`, checked by the compiler:
+
+```csharp
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct GetOrderResult;
+
+public GetOrderResult Get(int id) { /* the same body: Order and each leaf convert implicitly */ }
+
+app.MapGet("/orders/{id}", (int id, Orders orders) => orders.Get(id) switch
+{
+    Order order => Results.Ok(order),
+    OrderNotFound => Results.NotFound(),
+    OrderLocked l => Results.Conflict(new { l.By }),
+});
+```
+
+Removing an arm gives CS8509 from the compiler itself (**verified** with a hand-written shape). On `net10.0` and
+`netstandard2.0`, the generated `Match` does the same job.
+
 ---
 
 ## 2. A sign-up form that reports every mistake at once
@@ -74,7 +96,11 @@ both in one response, not one at a time.
 
 ```csharp
 [ClosedHierarchy]
-public abstract record InputError(string Field, string Message) : Error(Message);
+public abstract record InputError : Error
+{
+    private protected InputError(string field, string message) : base(message) => Field = field;
+    public string Field { get; }
+}
 public sealed record Required(string Field) : InputError(Field, $"{Field} is required");
 public sealed record TooShort(string Field, int Min) : InputError(Field, $"{Field} needs at least {Min} characters");
 public sealed record NotAnEmail(string Field) : InputError(Field, $"{Field} is not an email address");
@@ -93,9 +119,12 @@ Validation<string, InputError> Password(string? v) =>
     : v;
 
 Validation<SignUp, InputError> Validate(SignUpRequest r) =>
-    (Name(r.Name) & EmailOf(r.Email) & Password(r.Password))
-        .Map(t => new SignUp(t.Item1, t.Item2, t.Item3));
+    Validation.Combine(Name(r.Name), EmailOf(r.Email), Password(r.Password),
+        (name, email, password) => new SignUp(name, email, password));
 ```
+
+Each leaf's positional `Field` reuses the base's `Field` property rather than hiding it (**verified**: no CS0108).
+`&` works for two checks; `Combine` names the values and needs no nested tuples.
 
 At the endpoint:
 
@@ -120,6 +149,10 @@ A request with no name and a bad email gets one response:
 - A failed `Validation` is never empty, so `errors` always has at least one entry. There's no "failed with
   nothing wrong" to guard against.
 - Each error knows its `Field` as a typed property. No parsing the field out of a message.
+
+**With a generated shape.** `[ResultShape(typeof(InputError), Success = typeof(SignUp), ManyErrors = true)]` names
+the result `SignUpResult`. Its `switch` has two arms, `SignUp` and `IReadOnlyList<InputError>`, because one
+failure holds every mistake.
 
 ---
 
@@ -175,25 +208,25 @@ Result<Order> LoadForInvoice(int id) =>
 var result = LoadForInvoice(id);
 if (result.TryGetError(out var error))
 {
-    _log.LogWarning("{Chain}", string.Join(" → ", error.Causes().Select(c => c.Message)));
-    if (error.TryFind<DbTimeout>(out var timeout)) return Retry.After(timeout.After * 2);
-    return Retry.Never;
+    _log.LogWarning("{Error} ({Context})", error.Message, string.Join(" → ", error.Context));
+    return error is DbTimeout timeout ? Retry.After(timeout.After * 2) : Retry.Never;
 }
 ```
 
 The log line:
 
 ```text
-loading order 42 for invoicing → the database timed out after 30s
+the database timed out after 30s (loading order 42 for invoicing)
 ```
 
-**What it catches.** Context doesn't hide the cause. `TryFind<DbTimeout>` finds the timeout under the message
-(**verified**), so the service layer can add context without breaking the retry policy. With strings, the
-retry policy would have to look for "timed out" in a sentence someone else wrote.
+**What it catches.** Context doesn't change what the error is. `WithContext` adds a note and keeps the type, so
+the timeout is still a `DbTimeout` (**verified**), and the service layer can add context without breaking the
+retry policy. With strings, the retry policy would have to look for "timed out" in a sentence someone else
+wrote.
 
-**Using it well.** A `switch` on the top value sees only the context message once something has wrapped it
-(**verified**). Inside a layer, `switch` on what that layer produces. At an edge that might see wrapped errors,
-use `TryFind`.
+**Using it well.** Add notes with `WithContext`. When a layer turns a failure into a different one, wrap it
+instead, `new InvoiceFailed(id) { Cause = error }`, and the edge finds the cause with
+`error.TryFind<DbTimeout>(out var timeout)`, which walks the `Cause` chain.
 
 ---
 
@@ -204,7 +237,7 @@ them. Some failures are worth retrying and some aren't.
 
 ```csharp
 [ClosedHierarchy]
-public abstract record PaymentError(string Message) : Error(Message);
+public abstract partial record PaymentError : Error;
 public sealed record CardDeclined(string Reason) : PaymentError($"card declined: {Reason}");
 public sealed record ProviderUnavailable() : PaymentError("the payment provider is unavailable");
 public sealed record FraudSuspected() : PaymentError("payment blocked");
@@ -368,7 +401,7 @@ result.Match(
 
 **What changes, and what catches it.**
 - `Result<int> F() => "bad";` no longer compiles (CS0029, **verified**). Each place that returned a bare string
-  shows up as an error, and becomes a typed error or `Fail<int>("bad")`.
+  shows up as an error, and becomes a typed error or `Error.From("bad")`.
 - `Result<string> F() => "bad";` still compiles, but now means **success**. That's the dangerous case, and the
   analyzer rule for a bare string is planned to ship in the same release to flag every one.
 - Code that gathered errors with `Plus` moves to `Validation` and `&` (use case 2).
@@ -383,6 +416,7 @@ conflict, retryable), and leave a message-only error where nobody branches on it
 | Benefit | Where |
 |---|---|
 | A new failure can't be silently mishandled; the compiler points at every decision | 1, 5, 6 |
+| An operation's result is one named type, with success and every failure in one `switch` | 1, 2 |
 | The signature says whether failures stop or gather, and which ones to expect | 1, 2, 3 |
 | Users see every input mistake at once, and the list is never empty | 2 |
 | Dependent steps can't hide inside validation | 3 |
@@ -399,7 +433,10 @@ conflict, retryable), and leave a message-only error where nobody branches on it
 - **Close a base when callers make decisions on it**, and leave it open when errors are only reported.
 - **Validate before you act.** Pure checks in `Validation`; anything that needs the outcome of a check in
   `Result`.
-- **Add context at layer boundaries**, and search with `TryFind` at the edge.
+- **Name the result of an operation callers branch on** with `[ResultShape]`; use the core `Result` for the
+  steps in between.
+- **Add context at layer boundaries.** It keeps the type. Wrap with `Cause` only when the error becomes a
+  different one, and search with `TryFind` at the edge.
 - **Translate other people's errors at the adapter**, into your own closed set.
 - **Keep messages for people and properties for code.**
 - **Throw for bugs.** A null where there can't be one, or a broken invariant, is an exception, not an error
