@@ -15,7 +15,7 @@ Rows are in stack order.
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | review | a96a660 on 04d2@1fedf62; dry run green (0.3.0-preview.0 packed, restored together); lint red from 04c/04d paths (04c adds .ls-lint.yml rules; cherry-pick up); secret `NUGET_PREVIEW_KEY` |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review: changes needed ([Union] ignores language version; fuzz mostly hits early returns); fixing |
-| 05 | rtkelly13/stack-05-named-methods |  | todo |  |
+| 05 | rtkelly13/stack-05-named-methods |  | building | on 04e@a96a660 + 04c's spec fixes by cherry-pick |
 | 06 | rtkelly13/stack-06-error-record |  | todo |  |
 | 07 | rtkelly13/stack-07-attributes |  | todo |  |
 | 08a | rtkelly13/stack-08a-own-storage |  | todo |  |
@@ -29,7 +29,7 @@ Rows are in stack order.
 | 19 | rtkelly13/stack-19-async |  | todo | checkpoint: core done |
 | 13b | rtkelly13/stack-13b-generator-package |  | todo |  |
 | 15 | rtkelly13/stack-15-shape-conversions |  | todo |  |
-| 16a | rtkelly13/stack-16a-analyzers-core |  | todo |  |
+| 16a | rtkelly13/stack-16a-analyzers-core | #50 | review | drafted ahead on 04c@f72ad89; 9f63086; 44 tests green; RF-0001 waits on [MustObserve] in the target stubs (04c fixing) |
 | 16b | rtkelly13/stack-16b-analyzers-more |  | todo |  |
 | 17 | rtkelly13/stack-17-closed-hierarchy-rules |  | todo | checkpoint: tooling done |
 | 20a | rtkelly13/stack-20a-aspnetcore-errors |  | todo |  |
