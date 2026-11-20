@@ -15,8 +15,8 @@ Rows are in stack order.
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | review | review fixes in (a77f228): environment is the real boundary, stack-plan refused; lint red until 04c's f72ad89 comes up the chain |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review fixes in (46a46fd, 5 fixup! commits): language-version gate, stronger fuzz (catches the seeded order fault), no CS0109; 42/47 tests green |
-| 05 | rtkelly13/stack-05-named-methods |  | building | on 04e@a96a660 + 04c's spec fixes by cherry-pick |
-| 06 | rtkelly13/stack-06-error-record |  | todo |  |
+| 05 | rtkelly13/stack-05-named-methods | #51 | review | 870518e, CI green; CORE-NAMED/TRYGET/DECONSTRUCT/ORELSE done (290 spec tests, local); adding a spec CI job; reviewer running |
+| 06 | rtkelly13/stack-06-error-record |  | building | on 05@870518e |
 | 07 | rtkelly13/stack-07-attributes |  | todo |  |
 | 08a | rtkelly13/stack-08a-own-storage |  | todo |  |
 | 08b | rtkelly13/stack-08b-zero-guard |  | todo |  |
