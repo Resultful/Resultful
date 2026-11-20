@@ -9,7 +9,8 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-01-consumption-tests | #38 | main 81d012b | main | |
 | rtkelly13/stack-02-test-infra | #40 | 01 @ 24d079b | 01 | review fixes are plain commits 6595f59..732a709 (not fixup!) |
 | rtkelly13/stack-03-analysis-level | #41 | 02 @ 6595f59 | 02 | lacks 02's fixes 6595f59..732a709 |
-| rtkelly13/stack-04-per-package-release | | 03 @ be6b76a | 03 | |
+| rtkelly13/stack-04-per-package-release | #43 | 03 @ be6b76a | 03 | lacks 02's fixes |
+| rtkelly13/stack-04b-release-0.2 | | 04 @ 6eb5116 | 04 | may carry cherry-picks (-x) from 02/03 |
 | rtkelly13/error-design (00) | #34 | main | 04b | moves to the bottom of stack B |
 | rtkelly13/stack-04c-spec-harness | #42 | 00 @ ec55581 | 00 | wiring into root files happens in the local pass |
 | rtkelly13/stack-04d-reference-app | | 04c (early head) | 04c | drafted on a moving 04c |
