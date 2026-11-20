@@ -17,6 +17,7 @@ done. `GOAL.md` says how to keep this branch current and how to read Ryan's comm
 | File | What it holds |
 |---|---|
 | `GOAL.md` | The outcome, the rules for every PR, and the stack table. Start here. |
+| `WEB-RUN.md` | SDKs and GitHub on Claude Code on the web. |
 | `VERIFY.md` | How each gate works and which PR owns it. |
 | `DECISIONS-TAKEN.md` | Ryan's planning decisions, and defaults taken where the docs are silent. |
 | `PROGRESS.md` | One row per PR, plus run notes. |
