@@ -36,6 +36,8 @@ in `AnalyzerReleases.Shipped.md` and `AnalyzerReleases.Unshipped.md`.
 | `RFG0004` | error | A `public` shape exposes a leaf that's less accessible than the shape. | The union constructor and `TryGetValue(out Leaf)` would be CS0051. |
 | `RFG0005` | error | A declaration that carries `[ClosedHierarchy]` or `[ResultShape]` is nested in a type that isn't `partial`. | The generator can't reopen the enclosing type. |
 | `RFG0006` | error | `[ResultShape]` is on something other than a `readonly partial struct`, or `[ClosedHierarchy]` on something other than an `abstract partial` record or class. | The generator can't add members. |
+| `RFG0007` | error | A case of an error union used as a shape's error type doesn't derive from `Error` ([decision 17](../decisions/0017-error-unions.md)). | The shape's cases must share `Message`, `Cause` and `Context`. |
+| `RFG0008` | error | Two leaves of one hierarchy or union share a simple name (`Orders.NotFound` and `Payments.NotFound`). Reported on the base. | The JSON `type` is the leaf's simple name, so reading it back would be ambiguous (decision 17). This replaces an earlier rule that prefixed colliding names. |
 
 **Verified** on SDK 11.0.100 with a probe (`temp/gendesign-probe`):
 
@@ -52,10 +54,6 @@ in `AnalyzerReleases.Shipped.md` and `AnalyzerReleases.Unshipped.md`.
 - **Leaves in another assembly.** When a shape's error type comes from a referenced assembly, the generator lists
   its cases by walking `errorType.ContainingAssembly.GlobalNamespace`. It doesn't use the current compilation's
   syntax.
-- **Leaves with the same short name.** `Orders.NotFound` and `Payments.NotFound` under one base would both become
-  `onNotFound`. When short names collide, the generator prefixes each colliding name with as many enclosing type
-  and namespace segments as it takes to make it unique: `onOrdersNotFound` and `onPaymentsNotFound`. Names that
-  don't collide stay short.
 - **Hint names.** Each file is named from the type's namespace, its enclosing types and its metadata name
   (`App.Orders.Outer+PlaceOrderResult.ResultShape.g.cs`). Two types with the same name in different namespaces or
   enclosing types can't share a hint name. A shared hint name throws inside the generator and surfaces as CS8785,
@@ -190,7 +188,7 @@ lowers the ceiling to the measured value plus 25%, recording the numbers in the 
 | narrow, `net11.0` | `14 + 3L` | `L + 1` |
 | valueless | the same as narrow | the same as narrow |
 | gathering (`ManyErrors`) | `14` | `3` |
-| `[ClosedHierarchy]` base | `3` (`Match`, `Switch`, `TryMap`) | `L + 2` |
+| `[ClosedHierarchy]` base | `4` (`Match`, `Switch`, `TryMap`, `Cases`) | `L + 2` |
 
 Compiled IL, read from the fixture assembly with `System.Reflection.Metadata`:
 
