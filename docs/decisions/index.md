@@ -27,5 +27,5 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 9 | [Operators are opt-in sugar over named methods](0009-operators-are-opt-in-sugar.md) | proposed | 20 November 2026 |
 | 10 | [`default` is not a success](0010-default-is-not-success.md) | stable | 20 November 2026 |
 | 11 | [A family of satellite packages around a dependency-free core](0011-package-family.md) | proposed | 20 November 2026 |
-| 12 | [Assertions live in `Resultful.Assertions`](0012-assertions-live-in-resultful-assertions.md) | proposed | 20 November 2026 |
+| 12 | [Assertions live in `Resultful.Assertions`](0012-assertions-live-in-resultful-assertions.md) | stable | 20 November 2026 |
 | 13 | [Repository layout: `src`, `tests`, `samples`, `benchmarks`](0013-repository-layout.md) | proposed | 20 November 2026 |
