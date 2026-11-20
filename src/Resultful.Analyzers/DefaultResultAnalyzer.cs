@@ -31,7 +31,28 @@ public sealed class DefaultResultAnalyzer : DiagnosticAnalyzer
     static void AnalyzeDefault(OperationAnalysisContext context, Symbols symbols)
     {
         var operation = (IDefaultValueOperation)context.Operation;
-        if (symbols.IsResultType(operation.Type)) Report(context, operation);
+        if (symbols.IsResultType(operation.Type) && !IsComparison(operation)) Report(context, operation);
+    }
+
+    /// <summary>
+    /// `r == default`, `r != default`, `r.Equals(default(Result&lt;int&gt;))` and `default` inside a pattern compare with the zero
+    /// value rather than create one to use, so they are left alone (a pattern also has the compiler's own rules, CS9135).
+    /// </summary>
+    static bool IsComparison(IOperation operation)
+    {
+        var node = operation;
+        while (node.Parent is IConversionOperation or IParenthesizedOperation) node = node.Parent;
+        switch (node.Parent)
+        {
+            case IBinaryOperation { OperatorKind: BinaryOperatorKind.Equals or BinaryOperatorKind.NotEquals }:
+                return true;
+            case IArgumentOperation { Parent: IInvocationOperation { TargetMethod.Name: nameof(Equals) } }:
+                return true;
+        }
+
+        for (var ancestor = operation.Parent; ancestor is not null; ancestor = ancestor.Parent)
+            if (ancestor is IPatternOperation) return true;
+        return false;
     }
 
     // `new OrderError()` on a union (or any result without a declared parameterless constructor) is its zero value.

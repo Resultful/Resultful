@@ -22,7 +22,7 @@ public sealed class MustObserveAnalyzer : DiagnosticAnalyzer
     static readonly ImmutableDictionary<string, string?> Discardable = ImmutableDictionary<string, string?>.Empty.Add(FixProperty, DiscardFix);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Descriptors.MustObserve, Descriptors.MustObserveAsyncVoid);
+        ImmutableArray.Create(Descriptors.MustObserve, Descriptors.MustObserveAsyncVoid, Descriptors.MustObserveUpcast);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -33,6 +33,7 @@ public sealed class MustObserveAnalyzer : DiagnosticAnalyzer
             var symbols = new Symbols(start.Options);
             start.RegisterOperationAction(c => AnalyzeStatement(c, symbols), OperationKind.ExpressionStatement);
             start.RegisterOperationAction(c => AnalyzeHandlers(c, symbols), OperationKind.Invocation);
+            start.RegisterOperationAction(c => AnalyzeTaskUpcast(c, symbols), OperationKind.Conversion);
         });
     }
 
@@ -53,11 +54,11 @@ public sealed class MustObserveAnalyzer : DiagnosticAnalyzer
                 return Unobserved(conditional.WhenNotNull, symbols, configured);
 
             case IInvocationOperation invocation when !invocation.TargetMethod.ReturnsVoid:
-                if (symbols.IsMustObserveType(invocation.Type, configured) || symbols.IsMustObserveMethod(invocation.TargetMethod, configured))
+                if (IsMustObserveValue(invocation.Type, symbols, configured) || symbols.IsMustObserveMethod(invocation.TargetMethod, configured))
                     return $"The {Display(invocation.Type)} returned by {Name(invocation)}";
                 // Fire-and-forget: a task (or any awaitable) of a [MustObserve] value, neither awaited nor discarded.
                 var awaited = Symbols.AwaitedType(invocation.Type);
-                return awaited is not null && symbols.IsMustObserveType(awaited, configured)
+                return IsMustObserveValue(awaited, symbols, configured)
                     ? $"The {Display(awaited)} in the {Display(invocation.Type)} returned by {Name(invocation)}"
                     : null;
 
@@ -66,7 +67,7 @@ public sealed class MustObserveAnalyzer : DiagnosticAnalyzer
 
             case IAwaitOperation await when await.Type is { SpecialType: not SpecialType.System_Void }:
                 var source = await.Operation as IInvocationOperation;
-                return symbols.IsMustObserveType(await.Type, configured) || source is not null && symbols.IsMustObserveMethod(Unwrap(source).TargetMethod, configured)
+                return IsMustObserveValue(await.Type, symbols, configured) || source is not null && symbols.IsMustObserveMethod(Unwrap(source).TargetMethod, configured)
                     ? $"The {Display(await.Type)} awaited from {(source is null ? "this await" : Name(source))}"
                     : null;
 
@@ -75,29 +76,55 @@ public sealed class MustObserveAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    /// <summary>A [MustObserve] value, or an array of them (`await Task.WhenAll(…)` of results).</summary>
+    static bool IsMustObserveValue(ITypeSymbol? type, Symbols symbols, ImmutableHashSet<string> configured) =>
+        type is IArrayTypeSymbol array ? symbols.IsMustObserveType(array.ElementType, configured) : symbols.IsMustObserveType(type, configured);
+
     static void AnalyzeHandlers(OperationAnalysisContext context, Symbols symbols)
     {
         var invocation = (IInvocationOperation)context.Operation;
         var method = invocation.TargetMethod;
         var configured = symbols.Configured(invocation.Syntax.SyntaxTree);
-        var onMustObserve = method.IsExtensionMethod
-            ? method.Parameters.Length > 0 && symbols.IsMustObserveType(method.Parameters[0].Type, configured)
-            : !method.IsStatic && symbols.IsMustObserveType(method.ContainingType, configured);
-        if (!onMustObserve) return;
+        // The receiver is a [MustObserve] value, or a task of one (`Switch<T>(this Task<Result<T>>, …)`, `Tee` on a ValueTask).
+        var receiver = method.IsExtensionMethod
+            ? method.Parameters.Length > 0 ? method.Parameters[0].Type : null
+            : method.IsStatic ? null : method.ContainingType;
+        if (receiver is null || !symbols.IsMustObserveType(receiver, configured) && !symbols.IsMustObserveType(Symbols.AwaitedType(receiver), configured)) return;
 
         foreach (var argument in invocation.Arguments)
         {
-            if (Handler(argument.Value) is { Symbol: { IsAsync: true, ReturnsVoid: true } } handler)
-                context.ReportDiagnostic(Diagnostic.Create(Descriptors.MustObserveAsyncVoid, handler.Syntax.GetLocation(), method.Name));
+            if (AsyncVoidHandler(argument.Value) is { } handler)
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.MustObserveAsyncVoid, handler.GetLocation(), method.Name));
         }
     }
 
-    static IAnonymousFunctionOperation? Handler(IOperation value) => value switch
+    /// <summary>An async lambda or anonymous method, or a method group naming an async void method, given as a void delegate.</summary>
+    static SyntaxNode? AsyncVoidHandler(IOperation value) => value switch
     {
-        IDelegateCreationOperation { Target: IAnonymousFunctionOperation lambda } => lambda,
-        IConversionOperation conversion => Handler(conversion.Operand),
+        IDelegateCreationOperation { Target: IAnonymousFunctionOperation { Symbol: { IsAsync: true, ReturnsVoid: true } } lambda } => lambda.Syntax,
+        IDelegateCreationOperation { Target: IMethodReferenceOperation { Method: { IsAsync: true, ReturnsVoid: true } } group } => group.Syntax,
+        IConversionOperation conversion => AsyncVoidHandler(conversion.Operand),
         _ => null,
     };
+
+    /// <summary>
+    /// A fresh task of a [MustObserve] value converted to the non-generic Task (or ValueTask): `Func&lt;Task&gt; f = () =&gt;
+    /// MakeAsync(1);`. Whoever awaits it can no longer see the result. Only a call or a `new` is checked, not a variable,
+    /// which may still be awaited as itself.
+    /// </summary>
+    static void AnalyzeTaskUpcast(OperationAnalysisContext context, Symbols symbols)
+    {
+        var conversion = (IConversionOperation)context.Operation;
+        if (!conversion.IsImplicit || conversion.Operand is not (IInvocationOperation or IObjectCreationOperation)) return;
+        if (conversion.Type is not INamedTypeSymbol { IsGenericType: false } target
+            || target.ToDisplayString() is not ("System.Threading.Tasks.Task" or "System.Threading.Tasks.ValueTask")) return;
+        var configured = symbols.Configured(conversion.Syntax.SyntaxTree);
+        var awaited = Symbols.AwaitedType(conversion.Operand.Type);
+        if (!IsMustObserveValue(awaited, symbols, configured)) return;
+        var source = conversion.Operand is IInvocationOperation invocation ? $"returned by {Name(invocation)}" : "created here";
+        context.ReportDiagnostic(Diagnostic.Create(Descriptors.MustObserveUpcast, conversion.Operand.Syntax.GetLocation(),
+            $"The {Display(conversion.Operand.Type)} {source}", target.Name, Display(awaited)));
+    }
 
     // `CancelAsync(1).ConfigureAwait(false)` is named after CancelAsync.
     static IInvocationOperation Unwrap(IInvocationOperation invocation) =>
