@@ -34,13 +34,14 @@ public sealed record Outcome(string Id, string Tfm, Status Status, string Detail
 }
 
 /// <summary>An expected diagnostic: an ID on a line of a file (`// expect: CS8509`).</summary>
-public sealed record Marker(string File, int Line, string Id, string SourceLine);
+public sealed record Marker(string File, int Line, string Id, string SourceLine, string? Tfm = null);
 
 /// <summary>One fixture directory, Fixtures/&lt;ID&gt;/, with the directives and markers parsed from its files.</summary>
 public sealed class Fixture
 {
     static readonly Regex Directive = new(@"^\s*//\s*spec:\s*(?<key>\w[\w-]*)\s+(?<value>.+?)\s*$", RegexOptions.Compiled);
-    static readonly Regex Expect = new(@"//\s*expect:\s*(?<ids>[A-Z]+[0-9]+(\s*,\s*[A-Z]+[0-9]+)*)", RegexOptions.Compiled);
+    // `// expect: CS8509`, or scoped to one target framework: `// expect(net11.0): CS0121`.
+    static readonly Regex Expect = new(@"//\s*expect(\((?<tfm>[^)]+)\))?:\s*(?<ids>[A-Z]+[0-9]+(\s*,\s*[A-Z]+[0-9]+)*)", RegexOptions.Compiled);
     static readonly Regex ExpectFix = new(@"//\s*expect-fix:\s*(?<id>[A-Z]+[0-9]+)", RegexOptions.Compiled);
 
     public required string Id { get; init; }
@@ -57,11 +58,16 @@ public sealed class Fixture
     /// <summary>`// spec: uses X`: packages (Resultful.Text.Json, …) and tools (generator, analyzers, aspnetcore, stj-generator).</summary>
     public required IReadOnlySet<string> Uses { get; init; }
 
-    public required IReadOnlyList<Marker> Markers { get; init; }
+    public required IReadOnlyList<Marker> AllMarkers { get; init; }
+
+    /// <summary>The markers that apply to one target framework.</summary>
+    public IReadOnlyList<Marker> MarkersFor(string tfm) => AllMarkers.Where(m => m.Tfm is null || m.Tfm == tfm).ToList();
+
+    public IReadOnlyList<Marker> Markers => AllMarkers.Where(m => m.Tfm is null || m.Tfm == SpecPaths.Tfm).ToList();
     public required IReadOnlyList<string> ExpectedFixes { get; init; }
     public required IReadOnlySet<string> CleanFiles { get; init; }
 
-    public bool HasMarkers => Markers.Count > 0 || CleanFiles.Count > 0;
+    public bool HasMarkers => AllMarkers.Count > 0 || CleanFiles.Count > 0;
 
     public static Fixture Load(string directory)
     {
@@ -101,7 +107,7 @@ public sealed class Fixture
                 else if (Expect.Match(line) is { Success: true } e)
                 {
                     foreach (var mid in e.Groups["ids"].Value.Split(',', StringSplitOptions.TrimEntries))
-                        markers.Add(new Marker(rel, i + 1, mid, line.Trim()));
+                        markers.Add(new Marker(rel, i + 1, mid, line.Trim(), e.Groups["tfm"].Success ? e.Groups["tfm"].Value : null));
                 }
             }
         }
@@ -109,7 +115,7 @@ public sealed class Fixture
         return new Fixture
         {
             Id = id, Directory = directory, Sources = main, LibSources = lib, LibV2Sources = libV2,
-            Tfms = tfms, Uses = uses, Markers = markers, ExpectedFixes = fixes, CleanFiles = clean,
+            Tfms = tfms, Uses = uses, AllMarkers = markers, ExpectedFixes = fixes, CleanFiles = clean,
         };
     }
 }
@@ -212,11 +218,30 @@ public sealed class SpecHarness
             problems.Add("doesn't compile:\n" + Describe(compiled.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error), fixture));
 
         var cases = 0;
+        var runnable = compiled.Compilation;
+        if (hasErrors && problems.Count == 0 && HasCases(fixture.Sources.Values))
+        {
+            // The expected errors stop the build, so the cases run without the files that hold them. A case may not live
+            // in such a file, or it would never run and the fixture could pass on its markers alone.
+            var errorFiles = compiled.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => Key(d).File).ToHashSet(StringComparer.Ordinal);
+            var stranded = errorFiles.Where(f => fixture.Sources.TryGetValue(f, out var t) && HasCases([t])).ToList();
+            if (stranded.Count > 0) problems.Add($"[SpecCase] methods in {string.Join(", ", stranded)} can't run beside expected errors: move the errors to their own file");
+            else
+            {
+                var rest = fixture.Sources.Where(s => !errorFiles.Contains(s.Key)).ToDictionary(s => s.Key, s => s.Value, StringComparer.Ordinal);
+                var extra = compiled.Library.Reference is null ? [] : new[] { compiled.Library.Reference };
+                var (c, d) = CompileWithTools(fixture, rest, "Fixture." + fixture.Id, extra, PackagesFor(fixture));
+                var restErrors = d.Where(x => x.Severity == DiagnosticSeverity.Error).ToList();
+                if (restErrors.Count > 0) problems.Add("without the files that expect errors, the rest doesn't compile:\n" + Describe(restErrors, fixture));
+                else { runnable = c; hasErrors = false; }
+            }
+        }
+
         if (!hasErrors && problems.Count == 0)
         {
             var libForRun = fixture.LibV2Sources.Count > 0 ? CompileLibrary(fixture, fixture.LibV2Sources) : compiled.Library;
             if (libForRun.Error is { } v2Error) return new(fixture.Id, _tfm, Status.Fail, v2Error);
-            var run = Run(compiled.Compilation, libForRun.Bytes);
+            var run = Run(runnable, libForRun.Bytes);
             cases = run.Cases;
             problems.AddRange(run.Problems);
         }
@@ -245,13 +270,13 @@ public sealed class SpecHarness
         var compiled = CompileFixture(fixture, fixture.LibSources);
         if (compiled.Error is { } libError) return new(fixture.Id, _tfm, Status.Fail, libError);
         // Compiler errors the fixture expects are allowed; RF and RFG markers need tools the target doesn't have.
-        var expected = fixture.Markers.Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal) || CandidateGenerator is not null && m.Id.StartsWith("RFG", StringComparison.Ordinal))
+        var expected = fixture.MarkersFor(_tfm).Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal) || CandidateGenerator is not null && m.Id.StartsWith("RFG", StringComparison.Ordinal))
             .Select(m => (m.File, m.Line, m.Id)).ToHashSet();
         var errors = compiled.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .Where(d => !expected.Contains(Key(d))).ToList();
         // And every compiler diagnostic the fixture expects is what the target API gives (a suppressor's subject aside).
         var reported = compiled.Diagnostics.Select(Key).ToHashSet();
-        var absent = fixture.Markers.Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal) && !reported.Contains((m.File, m.Line, m.Id))).ToList();
+        var absent = fixture.MarkersFor(_tfm).Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal) && !reported.Contains((m.File, m.Line, m.Id))).ToList();
         if (errors.Count == 0 && absent.Count == 0) return new(fixture.Id, _tfm, Status.Pass, "compiles against the target API");
         return new(fixture.Id, _tfm, Status.Fail, string.Join("\n",
             errors.Count > 0 ? "doesn't compile against the target API:\n" + Describe(errors, fixture) : "",
@@ -342,6 +367,8 @@ public sealed class SpecHarness
         ["FluentValidation"] = "Resultful.FluentValidation",
     };
 
+    static bool HasCases(IEnumerable<string> sources) => sources.Any(s => s.Contains("[SpecCase]", StringComparison.Ordinal));
+
     // ---- markers ----
 
     static (string File, int Line, string Id) Key(Diagnostic d)
@@ -354,16 +381,17 @@ public sealed class SpecHarness
     IEnumerable<string> CheckMarkers(Fixture fixture, ImmutableArray<Diagnostic> diagnostics)
     {
         if (!fixture.HasMarkers) yield break;
-        var markerIds = fixture.Markers.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        var markers = fixture.MarkersFor(_tfm);
+        var markerIds = fixture.AllMarkers.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         var relevant = diagnostics.Where(d => d.Location.IsInSource && fixture.Sources.ContainsKey(d.Location.SourceTree!.FilePath))
             .Where(d => d.Severity == DiagnosticSeverity.Error
                 || d.Severity == DiagnosticSeverity.Warning && (CheckedWarnings.Contains(d.Id) || markerIds.Contains(d.Id) || d.Id.StartsWith("RF", StringComparison.Ordinal))
                 || fixture.CleanFiles.Contains(d.Location.SourceTree!.FilePath) && d.Severity >= DiagnosticSeverity.Warning)
             .ToList();
         var actual = relevant.Select(Key).ToHashSet();
-        var expected = fixture.Markers.Select(m => (m.File, m.Line, m.Id)).ToHashSet();
+        var expected = markers.Select(m => (m.File, m.Line, m.Id)).ToHashSet();
 
-        foreach (var m in fixture.Markers.Where(m => !actual.Contains((m.File, m.Line, m.Id))))
+        foreach (var m in markers.Where(m => !actual.Contains((m.File, m.Line, m.Id))))
             yield return $"expected {m.Id} at {m.File}:{m.Line}, not reported\n    {m.SourceLine}"
                 + (relevant.Where(d => Key(d).Line == m.Line && Key(d).File == m.File).Select(d => $"\n    (got {d.Id} there: {d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)})").FirstOrDefault() ?? "");
         foreach (var d in relevant.Where(d => !expected.Contains(Key(d))))
