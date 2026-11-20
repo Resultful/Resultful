@@ -13,7 +13,8 @@ generated:
 
 > **Proposed**, not accepted. This brings together [decision 14](decisions/0014-result-and-validation.md)
 > (`Result`, `Validation` and `Error`) and [decision 15](decisions/0015-analyzer-rules-read-attributes.md)
-> (analyzer rules that read attributes). The reasoning is in [One error or many](explorations/one-error-or-many.md)
+> (analyzer rules that read attributes), and shows where [decision 16](decisions/0016-source-generated-result-shapes.md)
+> (generated result shapes, **accepted**) fits. The reasoning is in [One error or many](explorations/one-error-or-many.md)
 > and [Analyzers for your own types](explorations/analyzers-for-your-own-types.md); the libraries and languages it
 > learned from are in [Error handling: prior art](references/error-handling-prior-art.md). Claims marked
 > **verified** were compiled on SDK 11.0.100. Everything else is design. For the code an application writes, use
@@ -30,9 +31,10 @@ you a small base and a set of rules, and **your types are the model**.
 | One error or many? | Always a list, or always one | **In the type**: `Result` holds one and stops; `Validation` holds a non-empty list and gathers |
 | What is a category? | An enum or a string code | **Your record type** |
 | Where does extra data go? | A `string → object` dictionary | **Typed properties** on your record |
-| How does a lower layer's error travel up? | Lost, or a list of reasons | **Wrapped** with `WithContext`, still findable with `TryFind` |
+| How does a lower layer's error travel up? | Lost, or a list of reasons | **Noted** with `WithContext`, keeping its type; or **wrapped** with `Cause` and found with `TryFind` |
 | Is a `switch` over errors exhaustive? | No | **When you say so**, with `[ClosedHierarchy]` |
 | How does HTTP see it? | A category enum built into the core | **A satellite maps your types**; the core knows nothing about HTTP |
+| What does a method return? | The library's result type | The core `Result`, or **a struct named after the operation** that switches flat over success and every error |
 
 The ideas aren't new. They come from F# and Haskell (the count in the type), Rust and Swift (your types are
 the errors), and Go and Rust again (wrap, then search). What's new is putting them together in a C# library and
@@ -43,23 +45,32 @@ letting the analyzers check your types as strictly as Resultful's own.
 ```csharp
 Result<T, TError>          // a T, or one TError; Bind stops at the first failure
 Validation<T, TError>      // a T, or a non-empty list of TError; & gathers every failure
-Result<T>     = Result<T, Error>
-Validation<T> = Validation<T, Error>
+Result<T>                  // means Result<T, Error>, but a separate type; AsResult() widens to it
+Validation<T>              // means Validation<T, Error>
+VoidResult, VoidValidation // the same, with no value
 
 public abstract record Error
 {
     protected Error(string message);
     public string Message { get; }
-    public Error? Cause { get; init; }
-    public Error WithContext(string message);       // wraps this as the Cause of a new error
-    public IEnumerable<Error> Causes();              // this, then each Cause
+    public Error? Cause { get; init; }                 // the lower error this one wraps
+    public ImmutableList<string> Context { get; init; } // notes added on the way up
+    public static Error From(string message);          // a plain MessageError
+    public virtual IEnumerable<Error> Inner();         // errors held inside, such as ValidationFailed's list
+    public IEnumerable<Error> Causes();                 // this, then each Cause and Inner error
     public bool TryFind<TError>(out TError? found) where TError : Error;
 }
+public static TError WithContext<TError>(this TError error, string message) where TError : Error; // keeps the type
+public sealed record ValidationFailed<TError>(IReadOnlyList<TError> Errors) : Error; // a Validation inside a Result
 
-// Resultful.CodeAnalysis: read by Resultful.Analyzers, matched by name
-[MustObserve]        // a value of this type may not be thrown away
-[ClosedHierarchy]    // a switch over this base is exhaustive when every derived type is matched
+// Resultful.CodeAnalysis: read by Resultful.Analyzers and Resultful.Generators, matched by name
+[MustObserve]                                  // a value of this type may not be thrown away
+[ClosedHierarchy]                              // a switch over this base is exhaustive when every derived type is matched
+[ResultShape(typeof(TError), Success = typeof(T))] // generate a narrow result struct (decision 16)
 ```
+
+There's no implicit conversion from `string`: C# applies one user-defined conversion at a time, so it never let
+`return "bad";` compile against a `Result`. Write `Error.From("bad")`, or use your own record.
 
 ## The shapes
 
@@ -88,11 +99,24 @@ Use it when errors are shared across the application and new ones appear often.
 Close a base when an area has a fixed set of failures and you want the compiler to tell you about a new one.
 
 ```csharp
-[ClosedHierarchy] public abstract record OrderError(string Message) : Error(Message);
+[ClosedHierarchy]
+public abstract record OrderError : Error
+{
+    private protected OrderError(string message) : base(message) { }
+}
 public sealed record OrderNotFound(int Id) : OrderError($"order {Id} not found");
 public sealed record OrderLocked(int Id) : OrderError($"order {Id} is locked");
 
 int Status(OrderError e) => e switch { OrderNotFound => 404, OrderLocked => 409 };   // no `_`
+```
+
+The `private protected` constructor is what keeps other assemblies from adding a case. A positional
+`abstract record OrderError(string Message)` gets a `protected` constructor, which another assembly can call
+(**verified**). Declare the base `partial` and reference `Resultful.Generators`, and the constructor is written for
+you ([decision 16](decisions/0016-source-generated-result-shapes.md)):
+
+```csharp
+[ClosedHierarchy] public abstract partial record OrderError : Error;
 ```
 
 Add `OrderCancelled` and every `switch` over `OrderError` warns again (CS8509) until it handles it. **Verified**:
@@ -106,8 +130,8 @@ Signatures say which set to expect: `Result<Order, OrderError>`.
 Closed bases nest. Match a group as a whole, or every case inside it.
 
 ```csharp
-[ClosedHierarchy] public abstract record AppError(string Message) : Error(Message);
-[ClosedHierarchy] public abstract record OrderFault(string Message) : AppError(Message);
+[ClosedHierarchy] public abstract partial record AppError : Error;
+[ClosedHierarchy] public abstract partial record OrderFault : AppError;
 public sealed record OrderMissing() : OrderFault("missing");
 public sealed record OrderLocked() : OrderFault("locked");
 public sealed record PaymentDeclined() : AppError("declined");
@@ -120,38 +144,57 @@ e switch { OrderMissing => 404, OrderLocked => 409, PaymentDeclined => 402 }    
 
 ### 4. Layers with context
 
-A lower layer's error becomes the cause of a higher one. It isn't lost, and a handler can still find it.
+Two ways to say more on the way up.
+
+**A note.** `WithContext` adds a line to the error's `Context` and keeps its type, so a closed `switch` still
+matches it (**verified**: a `NotFound` with a note is still a `NotFound`, and still an `OrderError`).
+
+```csharp
+Result<Order, OrderError> Load(int id) =>
+    repo.Find(id).MapError(e => e.WithContext($"loading order {id}"));
+
+// at the edge: the switch is unchanged; the notes go to the log
+```
+
+**A wrapper.** When a lower layer's error should become a different one, make it the `Cause` of yours. It isn't
+lost, and a handler can still find it.
 
 ```csharp
 public sealed record DbTimeout(TimeSpan After) : Error($"database timed out after {After}");
+public sealed record SaveFailed(int OrderId) : Error($"order {OrderId} was not saved");
 
-Result<Order> Load(int id) =>
-    db.Find(id)                                         // Result<Order>, may fail with DbTimeout
-      .MapError(e => e.WithContext($"loading order {id}"));
+Result<Order> Save(Order o) =>
+    db.Save(o).MapError(e => new SaveFailed(o.Id) { Cause = e });
 
 // at the edge
 if (error.TryFind<DbTimeout>(out var timeout)) return Retry(timeout.After);
 ```
 
-A `switch` on the top value sees only the context message once an error is wrapped (**verified**). Handlers that
-may see wrapped errors use `TryFind`. A typed wrapper works too: `new SaveFailed(orderId) { Cause = dbError }`.
+A `switch` sees the wrapper, not its cause. Handlers that may see wrapped errors use `TryFind`, which walks the
+error, then its `Cause` chain and any `Inner` errors.
 
 ### 5. Validation
 
 Independent checks that should all run, with every failure reported.
 
 ```csharp
-[ClosedHierarchy] public abstract record InputError(string Field, string Message) : Error(Message);
-public sealed record Required(string Field) : InputError(Field, $"{Field} is required");
-public sealed record TooLong(string Field, int Max) : InputError(Field, $"{Field} is longer than {Max}");
+[ClosedHierarchy]
+public abstract partial record InputError : Error
+{
+    public required string Field { get; init; }
+}
+public sealed record Required : InputError { /* message from Field */ }
+public sealed record TooLong(int Max) : InputError { /* … */ }
 
 Validation<Registration, InputError> Validate(Request r) =>
-    (Name(r.Name) & Email(r.Email))
-        .Map(t => new Registration(t.Item1, t.Item2));
+    Validation.Combine(Name(r.Name), Email(r.Email), Age(r.Age),
+        (name, email, age) => new Registration(name, email, age));
 ```
 
-The result type says it gathers, and the closed set says what it gathers. A satellite turns a failed
-`Validation` into a validation problem with one entry per field.
+The result type says it gathers, and the closed set says what it gathers. `&` works for two; `Combine` takes up
+to eight with no nested tuples. To carry on in a `Result` chain, `ToResult()` turns the list into one
+`ValidationFailed<InputError>`, which `TryFind` can search. A satellite turns either into a validation problem
+with one entry per field.
 
 ### 6. Mapping at a boundary
 
@@ -166,7 +209,12 @@ errors.Map<OrderNotFound>(StatusCodes.Status404NotFound)
 [HttpStatus(404)] public sealed record OrderNotFound(int Id) : OrderError($"order {Id} not found");
 ```
 
-The mapping uses `TryFind`, so it still works after context has been added.
+The mapping walks the error outer-to-inner (the error, then its `Cause` chain and `Inner` errors) and uses the
+first type it knows. So a typed wrapper like `SaveFailed` picks its own status before its cause's, and a note
+from `WithContext` changes nothing, because the type is the same.
+
+The table keeps HTTP out of your domain. The attribute is shorter but puts an HTTP fact on a domain type; use it
+when the type already lives at the edge.
 
 ### 7. Your own result type
 
@@ -188,6 +236,36 @@ client.Send(request);   // the analyzer reports the ignored ApiResponse
 **Verified** for `[ClosedHierarchy]`: an `internal` copy in the consuming project drove the suppression. Types you
 can't edit are listed in `.editorconfig`.
 
+### 8. A result named after the operation
+
+The core experience [decision 16](decisions/0016-source-generated-result-shapes.md) chose. Declare a struct for
+an operation, and `Resultful.Generators` writes it. On .NET 11 it's a native union, so the `switch` is flat and
+checked by the compiler with no `_` arm.
+
+```csharp
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+PlaceOrderResult Place(Cart cart) =>
+    Load(cart.OrderId).Bind(Reserve);          // Result<Order, OrderError> converts into the shape
+
+var status = Place(cart) switch
+{
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
+};
+```
+
+**Verified** on SDK 11.0.100: the switch is exhaustive, removing an arm gives CS8509, and the conversion from
+`Result<Order, OrderError>` compiles next to the union conversions. The shape is narrow, holding one success type,
+so the generator reports a success type that overlaps an error case where it's declared. It widens implicitly to
+`Result<Order, OrderError>` and `Result<Order>` at a layer boundary. On `net10.0` and `netstandard2.0` the same
+declaration gives a `Match` method instead of the native switch.
+
+Use it for the operations a caller branches on. The steps between use the core `Result`.
+
 ## Choosing a shape
 
 | If… | Use |
@@ -199,6 +277,7 @@ can't edit are listed in `.editorconfig`.
 | a lower layer failed and the caller needs to know why | `WithContext` or a typed wrapper with `Cause`, and `TryFind` at the edge (shape 4) |
 | failures meet HTTP or another protocol | a satellite's map or attribute (shape 6) |
 | you already have your own result type | the attributes on it (shape 7) |
+| a caller branches on every outcome of an operation | a generated result shape (shape 8) |
 
 ## Rules of thumb
 
@@ -207,6 +286,8 @@ can't edit are listed in `.editorconfig`.
 - **Seal the leaves.** Derived error records are `sealed`; only the bases you mean to extend are `abstract`.
 - **Close a base only when its set is really fixed.** Closing it means a new case breaks every `switch` over it
   until it's handled. That's the point, so use it where you want that.
+- **Note, or wrap.** `WithContext` adds a note and keeps the type. Wrap with `Cause` only when the error becomes a
+  different one.
 - **Search, don't match, at the edge.** Inside a layer, `switch` on what that layer produces. At a boundary that
   sees wrapped errors, use `TryFind`.
 - **Exceptions stay exceptions.** A bug, a broken invariant or a lost connection the code can't recover from is
@@ -214,12 +295,8 @@ can't edit are listed in `.editorconfig`.
 
 ## Still open
 
-From [decision 14](decisions/0014-result-and-validation.md):
-- whether `Error` keeps an implicit conversion from `string`, or uses `Error.From` and `Fail<T>(string)` overloads
-  only
-- the name `Validation`, whether it is a new type, and whether it has `Bind`
-- how many errors become one inside a `Result` chain
-- whether the base seals `ToString` so typed data stays out of logs
-
-From [decision 15](decisions/0015-analyzer-rules-read-attributes.md):
-- closed hierarchies across assemblies, IDE support, `switch` statements and nested patterns
+The open questions live in one place for each decision:
+[decision 14](decisions/0014-result-and-validation.md#still-open) (the name `Validation`, `Bind` on it, how
+`Context` takes part in equality, sealing `ToString`) and
+[decision 15](decisions/0015-analyzer-rules-read-attributes.md) (IDE support, `switch` statements and nested
+patterns).
