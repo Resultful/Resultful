@@ -52,7 +52,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore Resultful.sln
+        run: dotnet restore Resultful.slnx
 
       - name: Check formatting
         run: dotnet format Resultful.slnx --no-restore --verify-no-changes
