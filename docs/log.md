@@ -13,6 +13,19 @@ generated:
 
 ## 2026-11-20
 
+- Review of the error design, folded into one branch (decisions 14, 15 and 16):
+  - Decision 16 amended by the maintainer: narrow, operation-named shapes (`PlaceOrderResult`) replace the generic
+    `OrderResult<T>`, which misclassified an overlapping `T` at run time (verified); an overlapping success type
+    is a generator error; conversions into a shape (verified); valueless shapes succeed with `Unit`; `ManyErrors`
+    makes a shape that gathers. Proposed: a shape wraps one core value, and the generator writes only what
+    depends on the user's types (verified with stand-in core types).
+  - Decision 14: `WithContext` adds a note and keeps the error's type (verified); the implicit `string`
+    conversion is cut; `ValidationFailed`, `Combine` and `AsResult` added; `Result<Unit>` replaces the void
+    types; `Validation` moves to M2. One Still open list.
+  - Decision 15: a `null` arm for nullable inputs, a rule for closing constructors (a positional base's is
+    `protected`, verified), the generator as a second reader; `[ContextWrapper]` dropped.
+  - *The error shape* gains shape 8 (a generated result shape); *Errors in practice* uses it.
+
 - Decision 16 accepted: source-generated `[ClosedHierarchy]` plumbing and `[ResultShape]` union-backed structs
   (`Resultful.Generators`) become the centrepiece consumer experience — flat, exhaustive `.NET 11` `[Union]`
   switching over success and every closed error leaf. Roadmap (goal, M4, M6), architecture, and vision updated.
