@@ -13,6 +13,8 @@ generated:
 
 ## 2026-11-20
 
+- Decision 12 accepted: `Resultful.Assertions` holds many assertion projects and publishes only what changed.
+  The rename, its vision and the selective publishing were handed to a session in that repository.
 - Long-term plan: roadmap rewritten as milestones (M1 to M7, beyond 1.0, and an assertions track); architecture
   added; decisions 11 to 13 proposed (package family, `Resultful.Assertions`, repository layout). The
   exploration gains the collections probe.

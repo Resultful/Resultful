@@ -2,10 +2,10 @@
 type: decision
 title: "Assertions live in Resultful.Assertions"
 description: "The FluentAssertions.Resultful repository becomes Resultful.Assertions: assertion packages for result and union types across assertion libraries, keeping the existing package IDs."
-status: proposed
+status: stable
 tags: [resultful, decision, assertions]
 decided:
-  by: ""
+  by: human:rtkelly13
   at: 2026-11-20
 generated:
   by: claude-opus-5.5
@@ -15,8 +15,9 @@ generated:
 # 12. Assertions live in `Resultful.Assertions`
 
 The maintainer chose the name. The `Resultful/FluentAssertions.Resultful` repository is renamed
-`Resultful/Resultful.Assertions`. It is the home for assertion packages for result and union types, in every
-assertion library where the library's extension model makes that worthwhile.
+`Resultful/Resultful.Assertions`. It is the home for many assertion projects for result, option and union types
+(OneOf, Resultful and others), in every assertion library where the library's extension model makes that
+worthwhile. Assertions for Resultful are one part of it, not the whole point.
 
 - **Existing packages keep their IDs.** `FluentAssertions.OneOf` (about 388,000 downloads, the family's most
   used package, and mostly used without Resultful), `FluentAssertions.Union` and
@@ -32,6 +33,9 @@ assertion library where the library's extension model makes that worthwhile.
   licence. Which range the adapter supports is still to be checked.
 - `FluentAssertions.Resultful` is deprecated on NuGet in favour of `Resultful.Assertions.FluentAssertions` once
   that exists.
+- **It publishes only what changed.** That repository holds many independent packages, so unlike this one
+  ([decision 11](0011-package-family.md)) it versions and releases each package on its own. Publishing stays a
+  manual workflow run.
 - That repository gets its own vision and OKF docs bundle. Its vision is about testing failure-as-a-value
   types, of which Resultful is one.
 
