@@ -17,6 +17,9 @@ public sealed class GeneratedMembersTests
         [(ErrorUnion, "IErrorUnion: Error Error { get; }")] = "13b (decision 17: error unions)",
         [(ErrorUnion, "string Message, Error? Cause, Union WithContext(string message), bool TryFind<TFound>(out TFound? found)")] = "13b (decision 17: error unions)",
         [(ErrorUnion, "static IReadOnlyList<Type> Cases { get; }")] = "13b (decision 17: error unions)",
+
+        // Half deferred: the conversion from Result<T, TError> is checked below; from another shape is 15's.
+        [(ShapeOfHierarchy, "implicit operator Shape(Result<T, TError>), implicit operator Shape(OtherShape)")] = "15 (shape-conversions: the OtherShape half)",
     };
 
     private static readonly Dictionary<(string Declaration, string Member), Action<Emitted>> Checks = new()
@@ -83,7 +86,7 @@ public sealed class GeneratedMembersTests
             Assert.Equal("Fixture.Flat.OrderError", Assert.Single(fail.Parameters).Type.ToDisplayString());
 
             // Ok() with Unit when there is no Success.
-            Assert.Contains(e.ValuelessShape.GetMembers("Ok").OfType<IMethodSymbol>(), m => m.Parameters.Length == 0);
+            Assert.Empty(Single(e, e.ValuelessShape, "Ok").Parameters);
         },
         [(ShapeOfHierarchy, "bool IsDefault")] = e =>
         {
@@ -172,6 +175,7 @@ public sealed class GeneratedMembersTests
 
         var emitted = Emit();
         var unknown = rows.Where(r => !Checks.ContainsKey(r) && !Deferred.ContainsKey(r)).ToList();
+        TestContext.Current.TestOutputHelper?.WriteLine("deferred:\n" + string.Join("\n", Deferred.Select(d => $"{d.Key.Declaration} | {d.Key.Member} -> {d.Value}")));
         Assert.True(unknown.Count == 0, "rows neither checked nor deferred:\n" + string.Join("\n", unknown));
 
         var failures = new List<string>();

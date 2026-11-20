@@ -10,8 +10,8 @@
 # from each leaf (+1L), Ok() on a valueless shape, Result<T> from a ManyErrors shape, and Cases on a hierarchy.
 #   narrow_net10:     measured MEMBERS = 16+1L, PARAMETERS = 1+1L
 #   narrow_net11:     measured MEMBERS = 19+3L, PARAMETERS = 1+1L
-#   valueless_net10:  measured MEMBERS = 17+1L (Ok() and Ok(Unit)), PARAMETERS = 1+1L
-#   valueless_net11:  measured MEMBERS = 20+3L, PARAMETERS = 1+1L
+#   valueless_net10:  measured MEMBERS = 16+1L (Ok() instead of Ok(T)), PARAMETERS = 1+1L
+#   valueless_net11:  measured MEMBERS = 19+3L, PARAMETERS = 1+1L
 #   many_errors:      measured MEMBERS = 14+0L (net10) / 19+0L (net11), PARAMETERS = 2+0L
 #   closed_hierarchy: measured MEMBERS = 4+0L (Match, Switch, TryMap, Cases), PARAMETERS = 2+1L
 # Ceilings are the measured value + 25%, rounded up; per-leaf terms are kept as measured.
@@ -19,8 +19,8 @@
 # Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
 narrow_net10 MEMBERS=20+1L PARAMETERS=2+1L
 narrow_net11 MEMBERS=24+3L PARAMETERS=2+1L
-valueless_net10 MEMBERS=22+1L PARAMETERS=2+1L
-valueless_net11 MEMBERS=25+3L PARAMETERS=2+1L
+valueless_net10 MEMBERS=20+1L PARAMETERS=2+1L
+valueless_net11 MEMBERS=24+3L PARAMETERS=2+1L
 many_errors MEMBERS=24+0L PARAMETERS=3+0L
 closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
 
@@ -29,6 +29,9 @@ closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
 #               all other forwarders <= 24 bytes
 #   dispatch: Match = 38 + 24L bytes, TryMap (foreach Causes()) = 63 + 24L bytes
 #   no `box` outside get_Value
+# Note for 13b: building-the-generator.md starts forwarding at 32 bytes and dispatch at 32 + 24L; #37 measured 36 bytes
+# for TryGetValue(out Leaf) and set the ceilings below from its measurements. Either the doc moves to these numbers
+# or TryGetValue(out Leaf) gets cheaper; 13b decides against the real core.
 IL_FORWARDING_MAX=45
 IL_DISPATCH_BASE=80
 IL_DISPATCH_PER_LEAF=30

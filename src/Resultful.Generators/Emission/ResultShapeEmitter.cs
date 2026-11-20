@@ -134,10 +134,11 @@ internal static class ResultShapeEmitter
         {
             // A step with no value succeeds with Unit (decision 14).
             w.WriteLine($"public static {m.Name} Ok() => new({OkCore("global::Resultful.Unit.Value")});");
-            w.WriteLine(InlineAttr);
         }
-
-        w.WriteLine($"public static {m.Name} Ok({ok} value) => new({OkCore("value")});");
+        else
+        {
+            w.WriteLine($"public static {m.Name} Ok({ok} value) => new({OkCore("value")});");
+        }
 
         if (m.ManyErrors)
         {
