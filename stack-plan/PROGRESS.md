@@ -30,9 +30,9 @@ Rows are in stack order.
 | 13b | rtkelly13/stack-13b-generator-package |  | todo |  |
 | 15 | rtkelly13/stack-15-shape-conversions |  | todo |  |
 | 16a | rtkelly13/stack-16a-analyzers-core | #50 | review | review fixes in (596a78f): Task-receiver handlers, arrays/WhenAll, Task upcasts; all 5 RF fixtures pass through 04c's harness |
-| 16b | rtkelly13/stack-16b-analyzers-more |  | todo |  |
+| 16b | rtkelly13/stack-16b-analyzers-more |  | building | drafted ahead on 16a |
 | 17 | rtkelly13/stack-17-closed-hierarchy-rules |  | todo | checkpoint: tooling done |
-| 20a | rtkelly13/stack-20a-aspnetcore-errors |  | building | drafted ahead on 04c@9a465b0 |
+| 20a | rtkelly13/stack-20a-aspnetcore-errors | #53 | review | drafted ahead on 04c@9a465b0; 4d17410; spec: ResultHttpResult<T, TError>; 69/70 tests green against the stand-in; AOT probe clean; reviewer running |
 | 20b | rtkelly13/stack-20b-aspnetcore-endpoints |  | todo |  |
 | 21 | rtkelly13/stack-21-fluentvalidation-diagnostics | #52 | review | drafted ahead on 04c@9a465b0; c8e2ecf; API equals target; 23+19 tests green against the stand-in; FV-VALIDATE, DIAG-HOOKS would flip |
 | 22 | rtkelly13/stack-22-aot |  | todo |  |

@@ -94,3 +94,13 @@
 | 21 | Hooks pass the zero value through without logging, tagging or throwing; LogLevel.None never logs | follows the IsFailure zero default; a hook must not break logging |
 | 21 | A generic leaf's name in logs/tags carries type arguments (ValidationFailed<Error>) | matches 12b's JSON type |
 | 21 | FluentValidation 12.0.0; wiring unifies target and spec on it | contract: lowest version that works on both targets |
+| 20a | ResultHttpResult<T, TError>; Result<T> -> <T, Error>; Validation -> <T, ValidationFailed<...>>; internal ctor (spec: 8329250) | #39 q11 default; 20b's OpenAPI reads statuses from TError |
+| 20a | Per error in Causes(): exact-type entry, then built-in ValidationFailed 400, then base-type entries nearest first; first error with any status wins | 'first mapped type wins' with leaf overrides for closed hierarchies; Map<Error> doesn't swallow validation |
+| 20a | Any 5xx (default or mapped) hides Message outside Development; Development detail = Error.ToString(); no IHostEnvironment = Production | HTTP-500-NOLEAK for every server error, failing safe |
+| 20a | 4xx detail = the matched error's Message, not the outer wrapper's | the mapped error is what the app chose to show |
+| 20a | Map/DefaultStatusCode accept 400-599 only | a failure must not answer 2xx/3xx |
+| 20a | Unit success = 200 with no body | http-cases UC07; no Unit JSON metadata under AOT |
+| 20a | AddResultful(IServiceCollection) also calls AddProblemDetails() (idempotent) | consistent bodies, traceId |
+| 20a | instance = request path; traceId = Activity.Current?.Id ?? TraceIdentifier | contract's shape list |
+| 20a | No Resultful.Text.Json dependency | target project has none; avoids [RequiresDynamicCode] (12b) |
+| 20a | Zero result: ToHttpResult throws | decision 10 |
