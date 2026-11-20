@@ -26,8 +26,15 @@ generated:
 4. **Two attributes to start:**
    - `[MustObserve]`: a value of the type, or returned by the method, may not be thrown away.
    - `[ClosedHierarchy]`: a `switch` over the base is exhaustive when every derived type is matched, and the
-     compiler's CS8509 is suppressed; types outside the base's assembly may not derive from it.
-   Others (`[ResultShape]`, `[ContextWrapper]`) are added only when a rule needs them.
+     compiler's CS8509 is suppressed. A nullable input (`OrderError?`) also needs a `null` arm; the probe's
+     suppressor hid the warning without one, which is a gap the rule closes. Types outside the base's assembly
+     may not derive from it, and a base with a `public` or `protected` constructor is reported, since that is
+     what lets another assembly derive (a positional `abstract record` gets a `protected` one, **verified**).
+   Others are added only when a rule or the generator needs them. `[ResultShape(typeof(TError), Success =
+   typeof(T), ManyErrors = …)]` is one, defined by [decision 16](0016-source-generated-result-shapes.md).
+5. **The generator is a second reader of the same attributes.** `Resultful.Generators` writes the `private
+   protected` constructor, `Match` and the shapes, and needs the base declared `partial`. The analyzers don't:
+   a hand-written base with its own `private protected` constructor gets every check.
 
 Why: users write their own result and error types, and the checks that make Resultful safe should reach them too.
 It also answers the cost in [decision 14](0014-result-and-validation.md) that a `switch` on an open `Error` is
@@ -44,5 +51,7 @@ Consequences, if accepted:
 - The attributes ship in the core with the breaking release (M3), so the result types carry them from the start.
 - Roadmap M4's rules are written against the attributes and tested against a user's own type as well as
   Resultful's.
-- When C# gets closed hierarchies or unions ([decision 3](0003-unions-are-chosen-by-measurement.md)),
-  `[ClosedHierarchy]` gives way to them.
+- .NET 11's `[Union]` makes a generated shape's `switch` exhaustive with no suppressor. The suppressor stays for a
+  `switch` over a closed base itself (`OrderError e => e switch …`), for each error inside a gathering shape's
+  list, and on `net10.0` and `netstandard2.0`. If C# gets closed hierarchies
+  ([decision 3](0003-unions-are-chosen-by-measurement.md)), `[ClosedHierarchy]` gives way to them.

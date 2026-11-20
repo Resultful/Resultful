@@ -54,14 +54,21 @@ Candidates for later, each added only when a rule needs it:
 
 | Attribute | On | Rule |
 |---|---|---|
-| `[ResultShape]` | a result-like type, naming its check and value members | `Value` read without a check; `default(T)` or `new T()` |
-| `[ContextWrapper]` | a method like `Error.WithContext` | A `switch` on the top value of an error that may be wrapped; suggests `TryFind` |
+| `[ResultShape]` | a `partial struct`, naming its error type and success type | Defined by [decision 16](../decisions/0016-source-generated-result-shapes.md) for the generator; the analyzers can read it too (`default(T)`, a success type that overlaps an error case) |
+
+An earlier `[ContextWrapper]` candidate (warn on a `switch` over an error that may be wrapped) is dropped:
+`WithContext` now adds a note and keeps the type ([decision 14](../decisions/0014-result-and-validation.md)), so
+a `switch` still sees the real error.
 
 Resultful's own `Result`, `Validation` and `Option` would carry `[MustObserve]`. `Error` stays open
 ([decision 14](../decisions/0014-result-and-validation.md)), and a user closes their own base:
 
 ```csharp
-[ClosedHierarchy] public abstract record OrderError(string Message) : Error(Message);
+[ClosedHierarchy]
+public abstract record OrderError : Error
+{
+    private protected OrderError(string message) : base(message) { }   // or `partial`, and the generator writes it
+}
 public sealed record NotFound(int Id) : OrderError($"order {Id} not found");
 public sealed record Conflict(string Reason) : OrderError(Reason);
 
@@ -82,6 +89,7 @@ when every case is matched. **Verified**:
 | every type matched, but one arm has a `when` guard | CS8509 kept |
 | a base without the attribute | CS8509 kept |
 | every type matched, built with `TreatWarningsAsErrors` | builds |
+| a nullable input (`OrderError?`), every type matched, no `null` arm | CS8509 suppressed, **a gap**: `null` throws at run time. The rule keeps the warning unless there's a `null` arm |
 
 If a value of a new type arrives anyway (from code that ignored the rule), the `switch` throws
 `SwitchExpressionException` at run time, as any non-exhaustive switch does.
@@ -94,6 +102,21 @@ What the probe did not cover:
 - **IDEs.** Suppressors work in the build; Visual Studio, Rider and VS Code weren't checked.
 - **`switch` statements and nested patterns.** Only `switch` expressions with top-level type patterns were
   probed.
+
+## Closing the base
+
+The attribute says the set is closed; the constructor makes it so. A positional `abstract record
+OrderError(string Message) : Error(Message)` gets a `protected` constructor, and another assembly can call it
+(**verified**). A rule reports a closed base with a `public` or `protected` constructor and suggests
+`private protected`. `Resultful.Generators` writes that constructor when the base is `partial`
+([decision 16](../decisions/0016-source-generated-result-shapes.md)); the analyzers don't need the generator.
+
+## With generated shapes
+
+On .NET 11, a generated `[ResultShape]` struct is a native union, so the compiler checks its `switch` with no
+suppressor (**verified** on the exploration's probe). The suppressor is still what checks a `switch` over the base
+itself, over each error in a gathering shape's list (the compiler reports CS8509 there, **verified**), and every
+`switch` on `net10.0` and `netstandard2.0`.
 
 ## Prior art
 
@@ -118,8 +141,8 @@ What the probe did not cover:
 
 ## If decision 15 is accepted
 
-- The core gains `Resultful.CodeAnalysis` with `MustObserveAttribute` and `ClosedHierarchyAttribute` in the
-  breaking release (M3), so `Result`, `Validation` and `Option` carry them from the start.
+- The core gains `Resultful.CodeAnalysis` with `MustObserveAttribute`, `ClosedHierarchyAttribute` and
+  `ResultShapeAttribute` in the breaking release (M3), so `Result`, `Validation` and `Option` carry them from the start.
 - Roadmap M4's rules read attributes. "A result that is never observed" becomes `[MustObserve]`; exhaustive
   `switch` over a closed hierarchy is added.
 - Satellites may define their own attributes for their own rules.
