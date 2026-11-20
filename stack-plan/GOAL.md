@@ -185,6 +185,9 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
   alone. A draft-ahead branch stays on the base it started from. PR bases stay as opened. **A PR that conflicts with its base gets no CI** (GitHub skips `pull_request` runs on a conflicting PR), so when a base branch gains commits that conflict, the branch above cherry-picks the base's new commits (`-x`) and resolves them, in stack order; duplicates that come out empty are skipped. After the run, a local
   agent rebuilds the whole tree into a clean stack from `stack-plan/RESTACK.md`, which the orchestrator keeps: for
   each branch, the commit it started from, the commits it owns, and the `fixup!` and cherry-picked commits it carries.
+  **No merge commits** on any branch (linear history): conflicts are cleared by cherry-picks, never by `git merge`
+  (an `-s ours` merge on 05, 2104c15, predates this line; the local pass drops it). Agents keep working files in
+  `temp/` inside their worktree, never in the shared scratchpad.
   This replaces the restack steps elsewhere in this file (rule 11, the stack B rebase onto stack A, wiring 04c/04d
   "after rebasing onto 04b"): they happen in that local pass, not in the run.
 - **Review runs alongside CI.** The reviewer starts on the pushed diff while CI runs; the adversary (where there is
