@@ -13,6 +13,7 @@ generated:
 
 ## 2026-11-20
 
+- Decision 10 accepted: an invalid zero value, an obsolete-error parameterless constructor, and an analyzer rule.
 - Exploration *Seamless with .NET*: C# 14 extension operators probed against the current types; two
   existing hazards found (`default` is success; a bare string converts to an error). Decisions 9 and 10 proposed.
 - Roadmap step 3 done (#24): SDK 11, `net11.0`, public API tracking.

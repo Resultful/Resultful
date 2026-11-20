@@ -92,8 +92,8 @@ These exist today, independent of operators. Operators make them easier to hit.
 `Ok(null)`, and `default(Option<int>)` is `Some(0)`. An uninitialised field, an array element or a missing
 deserialised value is silently a success. The cause is the OneOf storage, whose case 0 is the success case.
 
-The dependency-free storage change in roadmap step 5 is the moment to fix it: `default` should be a failure or a
-distinct uninitialised state that throws on use
+The dependency-free storage change in roadmap step 5 is the moment to fix it: `default` becomes a distinct
+uninitialised state that throws on use, `new Result<T>()` stops compiling, and an analyzer catches the rest
 ([decision 10](../decisions/0010-default-is-not-success.md)).
 
 ### A string converts to an *error*
