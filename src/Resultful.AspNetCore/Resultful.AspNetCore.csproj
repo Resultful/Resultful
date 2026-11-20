@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.AspNetCore</AssemblyName>
+    <RootNamespace>Resultful.AspNetCore</RootNamespace>
+    <Description>ASP.NET Core for Resultful: a result becomes an IResult, its error an RFC 9457 ProblemDetails through a configurable error-to-status map.</Description>
+    <VersionPrefix>0.3.0</VersionPrefix>
+    <PackageId>Resultful.AspNetCore</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;aspnetcore;problemdetails</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Drafted ahead (stack-plan GOAL.md, Pipelining): not packed until it is switched to the real core. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Drafted ahead of the core (05–12): compiled against the target API's stub core. At its turn this becomes
+      ../Resultful/Resultful.csproj and the property goes away.
+    -->
+    <ResultfulCoreProject Condition="'$(ResultfulCoreProject)' == ''">$(MSBuildThisFileDirectory)../../tests/Resultful.TargetApi/Resultful/Resultful.csproj</ResultfulCoreProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ResultfulCoreProject)" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt in review; it must be in the target. One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
