@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TEMPORARY. A stand-in for the 0.3 core while 21 (Resultful.FluentValidation, Resultful.Diagnostics) is drafted ahead
+    of 05–12 (stack-plan GOAL.md, Pipelining). The target API (tests/Resultful.TargetApi/Resultful) is throw-null stubs,
+    so nothing written against it can run. This assembly has the same name and the same signatures for the members the
+    two packages and their tests use, with small working bodies that follow the target's comments. The source is 12b's
+    stand-in (#48). Deleted when 21 is placed above 20b and switched to the real core.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful</AssemblyName>
+    <RootNamespace>Resultful</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- A stand-in: no docs, no analyzers beyond the compiler's. -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  </PropertyGroup>
+</Project>
