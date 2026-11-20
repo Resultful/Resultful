@@ -21,6 +21,7 @@ done. `GOAL.md` says how to keep this branch current and how to read Ryan's comm
 | `VERIFY.md` | How each gate works and which PR owns it. |
 | `DECISIONS-TAKEN.md` | Ryan's planning decisions, and defaults taken where the docs are silent. |
 | `PROGRESS.md` | One row per PR, plus run notes. |
+| `RESTACK.md` | Each branch's base and commits, for the local restack after the run. |
 | `contracts/NN.md` | The scope handed to one PR's implementer, written just before it starts. |
 | `reports/NN.json` | An implementer's claims, which the orchestrator checks. |
 | `probes/` | The small programs behind decision 17 (unions on .NET 11), and the Paket consumer. |

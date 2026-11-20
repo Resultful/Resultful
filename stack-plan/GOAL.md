@@ -177,9 +177,16 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
 
 **Pipelining (Ryan, 2026-11-20: don't wait longer than needed).** The order stays linear; the waiting doesn't.
 - **Start the next PR when this one is pushed, not when it's green.** PR n+1 branches from n's pushed head as soon
-  as n's implementer has pushed and its local build passes. If n then changes (a CI fix, a review fix), n+1 is
-  restacked with `git rebase --update-refs` before it pushes again. A non-mechanical conflict is a stop condition
-  as before.
+  as n's implementer has pushed and its local build passes.
+- **Append only (Ryan, 2026-11-20). No force-push, no rebase of a pushed branch, no restack in this run.** A fix to
+  PR n is a new commit on n's branch, with the subject `fixup! <subject of the commit it fixes>` so that a later
+  `git rebase --autosquash` folds it in deterministically. A branch above n that needs the fix gets the same commit
+  cherry-picked (`git cherry-pick -x`, keeping the subject) as a new commit; one that doesn't need it yet is left
+  alone. A draft-ahead branch stays on the base it started from. PR bases stay as opened. After the run, a local
+  agent rebuilds the whole tree into a clean stack from `stack-plan/RESTACK.md`, which the orchestrator keeps: for
+  each branch, the commit it started from, the commits it owns, and the `fixup!` and cherry-picked commits it carries.
+  This replaces the restack steps elsewhere in this file (rule 11, the stack B rebase onto stack A, wiring 04c/04d
+  "after rebasing onto 04b"): they happen in that local pass, not in the run.
 - **Review runs alongside CI.** The reviewer starts on the pushed diff while CI runs; the adversary (where there is
   one) starts with the reviewer. Fixes from both are batched into one push.
 - **Implementers don't wait on CI.** An implementer pushes, opens the draft and reports. The orchestrator watches CI
