@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.Text.Json</AssemblyName>
+    <RootNamespace>Resultful.Text.Json</RootNamespace>
+    <Description>System.Text.Json converters for Resultful: a fixed wire format for results, validations and errors. AOT-safe and source-generation friendly.</Description>
+    <VersionPrefix>0.3.0</VersionPrefix>
+    <PackageId>Resultful.Text.Json</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;json;system.text.json</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Drafted ahead (stack-plan GOAL.md, Pipelining): not packed until it is switched to the real core. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Drafted ahead of the core (05–12): compiled against the target API's stub core. At its turn this becomes
+      ../Resultful/Resultful.csproj and the property goes away. Tests set it to the stand-in core.
+    -->
+    <ResultfulCoreProject Condition="'$(ResultfulCoreProject)' == ''">$(MSBuildThisFileDirectory)../../tests/Resultful.TargetApi/Resultful/Resultful.csproj</ResultfulCoreProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ResultfulCoreProject)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt in review; it must be in the target. One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
