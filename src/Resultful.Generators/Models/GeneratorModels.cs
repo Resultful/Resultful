@@ -6,6 +6,7 @@ internal readonly record struct EnclosingTypeModel(
     string Name,
     bool IsPartial);
 
+// AccessibilityRank is the effective accessibility: the least accessible of the type and its enclosing types.
 internal sealed record BaseIndexEntry(
     string FullName,
     string ShortName,
@@ -21,6 +22,7 @@ internal sealed record BaseIndexEntry(
 
 internal sealed record LeafModel(
     string FullName,
+    string ShortName,
     string ParamSuffix,
     int Depth,
     int AccessibilityRank);
@@ -31,10 +33,14 @@ internal sealed record ClosedHierarchyDeclaration(
     string? Namespace,
     EquatableArray<EnclosingTypeModel> EnclosingTypes,
     string Accessibility,
+    int AccessibilityRank,
     string Keyword,
     string Name,
     bool DerivesFromError,
-    EquatableArray<DiagnosticInfo> Diagnostics);
+    bool EmitConstructor,
+    EquatableArray<string> ClosedAncestorFullNames,
+    EquatableArray<DiagnosticInfo> Diagnostics,
+    SourcePosition? Position);
 
 internal sealed record ClosedHierarchyModel(
     string HintName,
@@ -44,6 +50,11 @@ internal sealed record ClosedHierarchyModel(
     string Keyword,
     string Name,
     bool DerivesFromError,
+    bool EmitConstructor,
+    bool EmitMembers,
+    string? DispatchAccessibility,
+    bool HidesDispatch,
+    bool HidesCases,
     EquatableArray<LeafModel> Leaves,
     EquatableArray<DiagnosticInfo> Diagnostics);
 

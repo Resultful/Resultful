@@ -1,23 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
+  <!--
+    Resultful.Generators' own tests: diagnostics, the emitted .g.cs (structure, budgets, IL), incrementality,
+    determinism and a CsCheck fuzz over random hierarchies. Fixtures compile against the target API's stub core
+    (tests/Resultful.TargetApi/Resultful), not the real core: 13a is drafted ahead of the core (13b switches it).
+    xunit.v3 on Microsoft.Testing.Platform: run with `dotnet run -f net10.0` (and net11.0).
+  -->
   <PropertyGroup>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);CA1859;CA1034</NoWarn>
+    <!-- CA1859/CA1034 don't fit test code; CA1515 public xunit classes; CA2007 no ConfigureAwait in tests. -->
+    <NoWarn>$(NoWarn);CA1859;CA1034;CA1515;CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" />
+    <!-- The proposed GEN-RFG0005 fixture, compiled by GenFixtureTests, not by this project. -->
+    <Compile Remove="GenFixtures/**" />
+    <None Include="GenFixtures/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Resultful.Generators/Resultful.Generators.csproj" />
+    <!-- The target API's core, for the fixtures' compilations; built, not referenced. -->
+    <ProjectReference Include="../Resultful.TargetApi/Resultful/Resultful.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="CsCheck" />
   </ItemGroup>
 
   <ItemGroup>
-    <AssemblyMetadata Include="RepoRootDir" Value="$(MSBuildThisFileDirectory)..\.." />
+    <AssemblyMetadata Include="RepoRootDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+    <AssemblyMetadata Include="TargetApiCoreDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../Resultful.TargetApi/Resultful/bin/$(Configuration)/$(TargetFramework)'))" />
   </ItemGroup>
-
 </Project>

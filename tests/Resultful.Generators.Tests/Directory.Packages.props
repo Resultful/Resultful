@@ -1,0 +1,11 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring (13a's PR body). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <!-- 5.12.0 is SDK 11.0.100's compiler, as in tests/Resultful.Spec: the in-process compiler must parse C# 15 unions
+         (RFG0007). The generator itself is built against 4.14.0. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="CsCheck" Version="5.0.1" />
+  </ItemGroup>
+</Project>

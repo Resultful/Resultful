@@ -27,6 +27,8 @@ public sealed class BudgetAndIlTests
         };
 
         var checkedShapes = 0;
+        var measured = new List<string>();
+        var failures = new List<string>();
 
         foreach (var (name, src, category, typeFullName, leafCount) in fixtures)
         {
@@ -57,21 +59,28 @@ public sealed class BudgetAndIlTests
             var maxMembers = budget.MemberBase + (budget.MemberPerLeaf * leafCount);
             var maxParamBudget = budget.ParamBase + (budget.ParamPerLeaf * leafCount);
 
-            Assert.True(
-                memberCount <= maxMembers,
-                $"{name} ({category}, L={leafCount}): public members {memberCount} > budget {maxMembers}");
-            Assert.True(
-                maxParams <= maxParamBudget,
-                $"{name} ({category}, L={leafCount}): max parameters {maxParams} > budget {maxParamBudget}");
+            measured.Add($"{name} ({category}, L={leafCount}): MEMBERS={memberCount} (budget {maxMembers}), PARAMETERS={maxParams} (budget {maxParamBudget})");
+            if (memberCount > maxMembers)
+            {
+                failures.Add($"{name} ({category}, L={leafCount}): public members {memberCount} > budget {maxMembers}");
+            }
+
+            if (maxParams > maxParamBudget)
+            {
+                failures.Add($"{name} ({category}, L={leafCount}): max parameters {maxParams} > budget {maxParamBudget}");
+            }
 
             // Inspect compiled IL bytes and box opcodes via System.Reflection.Metadata
             var peBytes = GeneratorTestHarness.EmitAssemblyBytes(output.OutputCompilation);
-            VerifyIlForType(peBytes, typeFullName, generatedPublicMembers, leafCount, ilForwardMax, ilDispatchBase, ilDispatchPerLeaf);
+            VerifyIlForType(peBytes, typeFullName, generatedPublicMembers, leafCount, ilForwardMax, ilDispatchBase, ilDispatchPerLeaf, measured, failures);
             checkedShapes++;
         }
 
         // Fail closed positive control
         Assert.True(checkedShapes > 0, "Budget gate checked 0 shapes.");
+
+        // Every measurement is printed on failure, so a budget can be re-measured from one run.
+        Assert.True(failures.Count == 0, string.Join("\n", failures) + "\nMeasured:\n" + string.Join("\n", measured));
     }
 
     private static bool IsNet11 =>
@@ -88,7 +97,9 @@ public sealed class BudgetAndIlTests
         int leafCount,
         int ilForwardMax,
         int ilDispatchBase,
-        int ilDispatchPerLeaf)
+        int ilDispatchPerLeaf,
+        List<string> measured,
+        List<string> failures)
     {
         var generatedNames = new HashSet<string>(
             generatedMembers.Select(m => m is IPropertySymbol p ? "get_" + p.Name : m.Name),
@@ -98,6 +109,8 @@ public sealed class BudgetAndIlTests
         var md = peReader.GetMetadataReader();
 
         var inspectedMethods = 0;
+        var maxForward = (Size: 0, Name: "");
+        var maxDispatch = (Size: 0, Name: "");
         foreach (var typeHandle in md.TypeDefinitions)
         {
             var typeDef = md.GetTypeDefinition(typeHandle);
@@ -126,12 +139,24 @@ public sealed class BudgetAndIlTests
                 // Value property (IUnion.Value) intentionally boxes value-type T to object?
                 if (methodName != "get_Value")
                 {
-                    Assert.True(
-                        il.Length <= limit,
-                        $"{typeFullName}.{methodName}: IL size {il.Length} bytes > budget {limit} bytes");
-                    Assert.False(
-                        ContainsBoxOpcode(il),
-                        $"{typeFullName}.{methodName} contains a 'box' IL instruction.");
+                    if (isDispatch && il.Length > maxDispatch.Size)
+                    {
+                        maxDispatch = (il.Length, methodName);
+                    }
+                    else if (!isDispatch && il.Length > maxForward.Size)
+                    {
+                        maxForward = (il.Length, methodName);
+                    }
+
+                    if (il.Length > limit)
+                    {
+                        failures.Add($"{typeFullName}.{methodName}: IL size {il.Length} bytes > budget {limit} bytes");
+                    }
+
+                    if (ContainsBoxOpcode(il))
+                    {
+                        failures.Add($"{typeFullName}.{methodName} contains a 'box' IL instruction.");
+                    }
                 }
 
                 inspectedMethods++;
@@ -139,6 +164,7 @@ public sealed class BudgetAndIlTests
         }
 
         Assert.True(inspectedMethods > 0, $"No compiled IL methods inspected for {typeFullName}.");
+        measured.Add($"  IL {typeFullName}: forwarding max {maxForward.Size} ({maxForward.Name}), dispatch max {maxDispatch.Size} ({maxDispatch.Name}), L={leafCount}");
     }
 
     private static bool ContainsBoxOpcode(byte[] il)

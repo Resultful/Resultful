@@ -65,11 +65,11 @@ internal static class ShapeAnalyzer
             return null;
         }
 
-        INamedTypeSymbol? successSymbol = null;
+        ITypeSymbol? successSymbol = null;
         var manyErrors = false;
         foreach (var named in attr.NamedArguments)
         {
-            if (named.Key == "Success" && named.Value.Value is INamedTypeSymbol s)
+            if (named.Key == "Success" && named.Value.Value is ITypeSymbol s)
             {
                 successSymbol = s;
             }
@@ -81,7 +81,7 @@ internal static class ShapeAnalyzer
 
         var compilation = ctx.SemanticModel.Compilation;
         var isValueless = successSymbol is null;
-        var resolvedSuccess = successSymbol ?? compilation.GetTypeByMetadataName("Resultful.Unit");
+        var resolvedSuccess = successSymbol ?? (ITypeSymbol?)compilation.GetTypeByMetadataName("Resultful.Unit");
         var successFullName = resolvedSuccess is not null
             ? resolvedSuccess.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             : UnitFullName;
@@ -89,8 +89,25 @@ internal static class ShapeAnalyzer
         var successIsInterface = resolvedSuccess?.TypeKind == TypeKind.Interface;
         var errorFullName = errorType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var errorDerivesFromError = HierarchyAnalyzer.DerivesFrom(errorType, HierarchyAnalyzer.ErrorMetadataName);
-        var errorIsClosed = errorType.GetAttributes()
-            .Any(a => a.AttributeClass?.ToDisplayString() == HierarchyAnalyzer.ClosedHierarchyAttr);
+        var errorIsClosed = HierarchyAnalyzer.HasAttribute(errorType, HierarchyAnalyzer.ClosedHierarchyAttr);
+
+        // RFG0007 (decision 17): a C# 15 union is a struct that implements IUnion, with one public constructor per
+        // case. Read through symbols only, so the generator built against Roslyn 4.14 sees unions from a 5.x compiler.
+        if (IsUnion(errorType))
+        {
+            foreach (var caseType in UnionCaseTypes(errorType))
+            {
+                if (!IsErrorCase(caseType, depth: 0))
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.UnionCaseNotError,
+                        tds.Identifier.GetLocation(),
+                        structType.Name,
+                        errorType.Name,
+                        caseType.ToDisplayString()));
+                }
+            }
+        }
         var errorIsExternal = !SymbolEqualityComparer.Default.Equals(errorType.ContainingAssembly, compilation.Assembly);
 
         var externalEntries = errorIsClosed && errorIsExternal
@@ -118,7 +135,7 @@ internal static class ShapeAnalyzer
             ErrorDerivesFromError: errorDerivesFromError,
             ErrorIsClosed: errorIsClosed,
             ErrorIsExternal: errorIsExternal,
-            ShapeAccessibilityRank: HierarchyAnalyzer.GetAccessibilityRank(structType.DeclaredAccessibility),
+            ShapeAccessibilityRank: HierarchyAnalyzer.GetEffectiveAccessibilityRank(structType),
             ExternalErrorEntries: externalEntries,
             OverlappingErrorCandidates: new EquatableArray<string>(overlaps.ToArray()),
             Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
@@ -141,7 +158,7 @@ internal static class ShapeAnalyzer
         {
             diagnostics.Add(new DiagnosticInfo(
                 DiagnosticDescriptors.SuccessOverlapsError,
-                decl.Position?.ToLocation(),
+                decl.Position,
                 decl.Name,
                 ShortNameOf(decl.SuccessFullName),
                 decl.OverlappingErrorCandidates[i]));
@@ -164,7 +181,7 @@ internal static class ShapeAnalyzer
                 {
                     diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.SuccessOverlapsError,
-                        decl.Position?.ToLocation(),
+                        decl.Position,
                         decl.Name,
                         ShortNameOf(decl.SuccessFullName),
                         entry.ShortName));
@@ -173,16 +190,17 @@ internal static class ShapeAnalyzer
             }
         }
 
-        // RFG0004: public shape exposing less-accessible leaf
-        if (!decl.ManyErrors && decl.ShapeAccessibilityRank >= 3)
+        // RFG0004: the shape exposes a leaf less accessible than itself (its union constructors, TryGetValue(out Leaf),
+        // conversions and Match would be CS0051).
+        if (!decl.ManyErrors)
         {
             for (var i = 0; i < leaves.Length; i++)
             {
-                if (leaves[i].AccessibilityRank < decl.ShapeAccessibilityRank)
+                if (!HierarchyAnalyzer.IsAccessibleEnough(leaves[i].AccessibilityRank, decl.ShapeAccessibilityRank))
                 {
                     diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.InaccessibleLeaf,
-                        decl.Position?.ToLocation(),
+                        decl.Position,
                         decl.Name,
                         ShortNameOf(leaves[i].FullName)));
                 }
@@ -207,9 +225,24 @@ internal static class ShapeAnalyzer
             Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
     }
 
+    // A case is an Error, or a nested union whose own cases all are (decision 17 keeps a nested union as one case).
+    private static bool IsErrorCase(ITypeSymbol caseType, int depth) =>
+        caseType is INamedTypeSymbol named &&
+        (HierarchyAnalyzer.DerivesFrom(named, HierarchyAnalyzer.ErrorMetadataName) ||
+         (depth < 8 && IsUnion(named) && UnionCaseTypes(named).All(c => IsErrorCase(c, depth + 1))));
+
+    public static bool IsUnion(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Struct &&
+        type.AllInterfaces.Any(i => i.ToDisplayString() == "System.Runtime.CompilerServices.IUnion");
+
+    public static IEnumerable<ITypeSymbol> UnionCaseTypes(INamedTypeSymbol union) =>
+        union.InstanceConstructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length == 1)
+            .Select(c => c.Parameters[0].Type);
+
     private static void CheckStaticOverlaps(
         Compilation compilation,
-        INamedTypeSymbol successType,
+        ITypeSymbol successType,
         INamedTypeSymbol errorType,
         bool manyErrors,
         List<string> overlaps)

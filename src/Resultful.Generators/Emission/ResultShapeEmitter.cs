@@ -23,6 +23,14 @@ internal static class ResultShapeEmitter
             : $"global::Resultful.IResultShape<{ok}, {err}>";
         var errListType = $"global::System.Collections.Generic.IReadOnlyList<{err}>";
 
+        // The target core has no static Ok/Fail on the result structs: the named builders are on Result and Validation.
+        string OkCore(string value) => m.ManyErrors
+            ? $"global::Resultful.Validation.Ok<{ok}, {err}>({value})"
+            : $"global::Resultful.Result.Ok<{ok}, {err}>({value})";
+        string FailCore(string error) => m.ManyErrors
+            ? $"global::Resultful.Validation.Fail<{ok}, {err}>({error})"
+            : $"global::Resultful.Result.Fail<{ok}, {err}>({error})";
+
         w.WriteLine("[global::Resultful.CodeAnalysis.MustObserve]");
         if (unionAvailable)
         {
@@ -54,11 +62,11 @@ internal static class ResultShapeEmitter
         {
             w.WriteLine();
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public {m.Name}({ok} value) => _inner = {coreType}.Ok(value);");
+            w.WriteLine($"public {m.Name}({ok} value) => _inner = {OkCore("value")};");
             if (m.ManyErrors)
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public {m.Name}({errListType} errors) => _inner = {coreType}.Fail(errors);");
+                w.WriteLine($"public {m.Name}({errListType} errors) => _inner = {FailCore("errors")};");
             }
             else if (m.ErrorIsClosed && m.Leaves.Length > 0)
             {
@@ -66,13 +74,13 @@ internal static class ResultShapeEmitter
                 {
                     var leaf = m.Leaves[i];
                     w.WriteLine(InlineAttr);
-                    w.WriteLine($"public {m.Name}({leaf.FullName} error) => _inner = {coreType}.Fail(error);");
+                    w.WriteLine($"public {m.Name}({leaf.FullName} error) => _inner = {FailCore("error")};");
                 }
             }
             else
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public {m.Name}({err} error) => _inner = {coreType}.Fail(error);");
+                w.WriteLine($"public {m.Name}({err} error) => _inner = {FailCore("error")};");
             }
 
             w.WriteLine();
@@ -111,21 +119,37 @@ internal static class ResultShapeEmitter
             }
         }
 
+        // Decision 10: true for the zero value only.
+        w.WriteLine();
+        w.WriteLine("public bool IsDefault");
+        w.OpenBrace();
+        w.WriteLine(InlineAttr);
+        w.WriteLine("get => _inner.IsDefault;");
+        w.CloseBrace();
+
         // Core factories
         w.WriteLine();
         w.WriteLine(InlineAttr);
-        w.WriteLine($"public static {m.Name} Ok({ok} value) => new({coreType}.Ok(value));");
+        if (m.IsValueless)
+        {
+            // A step with no value succeeds with Unit (decision 14).
+            w.WriteLine($"public static {m.Name} Ok() => new({OkCore("global::Resultful.Unit.Value")});");
+            w.WriteLine(InlineAttr);
+        }
+
+        w.WriteLine($"public static {m.Name} Ok({ok} value) => new({OkCore("value")});");
+
         if (m.ManyErrors)
         {
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public static {m.Name} Fail({errListType} errors) => new({coreType}.Fail(errors));");
+            w.WriteLine($"public static {m.Name} Fail({errListType} errors) => new({FailCore("errors")});");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public {coreType} AsValidation() => _inner;");
         }
         else
         {
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public static {m.Name} Fail({err} error) => new({coreType}.Fail(error));");
+            w.WriteLine($"public static {m.Name} Fail({err} error) => new({FailCore("error")});");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public {coreType} AsResult() => _inner;");
         }
@@ -135,7 +159,7 @@ internal static class ResultShapeEmitter
         if (!m.SuccessIsInterface)
         {
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public static implicit operator {m.Name}({ok} value) => Ok(value);");
+            w.WriteLine($"public static implicit operator {m.Name}({ok} value) => new({OkCore("value")});");
         }
 
         if (m.ManyErrors)
@@ -144,11 +168,26 @@ internal static class ResultShapeEmitter
             w.WriteLine($"public static implicit operator {m.Name}({coreType} validation) => new(validation);");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public static implicit operator {coreType}({m.Name} shape) => shape._inner;");
+            if (m.ErrorDerivesFromError)
+            {
+                // The list travels as one ValidationFailed<TError> (decision 14).
+                w.WriteLine(InlineAttr);
+                w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => global::Resultful.Validation.ToResult(shape._inner);");
+            }
         }
         else
         {
             w.WriteLine(InlineAttr);
             w.WriteLine($"public static implicit operator {m.Name}({err} error) => Fail(error);");
+            if (m.ErrorIsClosed)
+            {
+                for (var i = 0; i < m.Leaves.Length; i++)
+                {
+                    w.WriteLine(InlineAttr);
+                    w.WriteLine($"public static implicit operator {m.Name}({m.Leaves[i].FullName} error) => Fail(error);");
+                }
+            }
+
             w.WriteLine(InlineAttr);
             w.WriteLine($"public static implicit operator {m.Name}({coreType} result) => new(result);");
             w.WriteLine(InlineAttr);
@@ -156,8 +195,18 @@ internal static class ResultShapeEmitter
             if (m.ErrorDerivesFromError)
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => shape._inner.AsResult();");
+                w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => global::Resultful.Result.AsResult(shape._inner);");
             }
+        }
+
+        // A note on the error that keeps the shape (decision 16 item 4), so it can still be switched over.
+        if (m.ErrorDerivesFromError)
+        {
+            w.WriteLine();
+            w.WriteLine(InlineAttr);
+            w.WriteLine(m.ManyErrors
+                ? $"public {m.Name} WithContext(string message) => new(_inner.MapError(e => global::Resultful.ErrorExtensions.WithContext(e, message)));"
+                : $"public {m.Name} WithContext(string message) => new(global::Resultful.Result.WithContext(_inner, message));");
         }
 
         // TryGetValue / TryGetError(s)
@@ -169,7 +218,7 @@ internal static class ResultShapeEmitter
             w.WriteLine(InlineAttr);
             w.WriteLine($"public bool TryGetErrors([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {errListType} errors) => _inner.TryGetErrors(out errors);");
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public TOut Match<TOut>(global::System.Func<{ok}, TOut> onSuccess, global::System.Func<{errListType}, TOut> onErrors) => _inner.Match(onSuccess, onErrors);");
+            w.WriteLine($"public TResult Match<TResult>(global::System.Func<{ok}, TResult> onSuccess, global::System.Func<{errListType}, TResult> onErrors) => _inner.Match(onSuccess, onErrors);");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public global::Resultful.Validation<TOut, {err}> Map<TOut>(global::System.Func<{ok}, TOut> map) => _inner.Map(map);");
         }
@@ -189,8 +238,8 @@ internal static class ResultShapeEmitter
             {
                 var leafParams = string.Join(
                     ", ",
-                    m.Leaves.Select(l => $"global::System.Func<{l.FullName}, TOut> on{l.ParamSuffix}"));
-                w.WriteLine($"public TOut Match<TOut>(global::System.Func<{ok}, TOut> onSuccess, {leafParams})");
+                    m.Leaves.Select(l => $"global::System.Func<{l.FullName}, TResult> on{LeafParam(l)}"));
+                w.WriteLine($"public TResult Match<TResult>(global::System.Func<{ok}, TResult> onSuccess, {leafParams})");
                 w.OpenBrace();
                 w.WriteLine("if (_inner.TryGetValue(out var v)) { return onSuccess(v); }");
                 w.WriteLine("_inner.TryGetError(out var err);");
@@ -199,7 +248,7 @@ internal static class ResultShapeEmitter
                 for (var i = 0; i < m.Leaves.Length; i++)
                 {
                     var leaf = m.Leaves[i];
-                    w.WriteLine($"case {leaf.FullName} e: return on{leaf.ParamSuffix}(e);");
+                    w.WriteLine($"case {leaf.FullName} e: return on{LeafParam(leaf)}(e);");
                 }
 
                 w.WriteLine("default: throw new global::System.InvalidOperationException(\"Unexpected error case.\");");
@@ -209,7 +258,7 @@ internal static class ResultShapeEmitter
             else
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public TOut Match<TOut>(global::System.Func<{ok}, TOut> onSuccess, global::System.Func<{err}, TOut> onError) => _inner.Match(onSuccess, onError);");
+                w.WriteLine($"public TResult Match<TResult>(global::System.Func<{ok}, TResult> onSuccess, global::System.Func<{err}, TResult> onError) => _inner.Match(onSuccess, onError);");
             }
         }
 
@@ -217,4 +266,8 @@ internal static class ResultShapeEmitter
         w.CloseNamespaceAndEnclosing(m.Namespace, m.EnclosingTypes);
         return w.ToString();
     }
+
+    // A leaf named Success would clash with Match's onSuccess.
+    private static string LeafParam(LeafModel leaf) =>
+        leaf.ParamSuffix == "Success" ? "SuccessError" : leaf.ParamSuffix;
 }

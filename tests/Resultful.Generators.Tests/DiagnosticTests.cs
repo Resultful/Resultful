@@ -177,13 +177,30 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
-    public void Colliding_short_names_and_same_named_shapes_in_different_namespaces_produce_unique_names()
+    public void RFG0008_reported_on_the_base_when_leaves_share_a_simple_name_and_the_output_still_compiles()
     {
-        var extra = """
+        var comp = GeneratorTestHarness.CreateCompilation([("Colliding.cs", FixtureCatalog.CollidingLeafNames)]);
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        var rfg = Assert.Single(output.GeneratorDiagnostics);
+        Assert.Equal("RFG0008", rfg.Id);
+        Assert.Equal(DiagnosticSeverity.Error, rfg.Severity);
+        Assert.True(rfg.Location.IsInSource);
+        Assert.Equal("RootError", rfg.Location.SourceTree!.GetText(TestContext.Current.CancellationToken).ToString(rfg.Location.SourceSpan));
+
+        // The hierarchy keeps its constructor, so the leaves compile and RFG0008 is the only error.
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GeneratedSources.Values, v => v.Contains("Match<", StringComparison.Ordinal) && v.Contains("abstract partial record RootError", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Same_named_shapes_in_different_namespaces_get_unique_hint_names()
+    {
+        var a = """
             using Resultful;
             using Resultful.CodeAnalysis;
 
-            namespace OtherNamespace
+            namespace One
             {
                 [ClosedHierarchy]
                 public abstract partial record RootError(string Message) : Error(Message);
@@ -194,17 +211,40 @@ public sealed class DiagnosticTests
             }
             """;
 
-        var comp = GeneratorTestHarness.CreateCompilation([
-            ("Colliding.cs", FixtureCatalog.CollidingLeafNames),
-            ("Other.cs", extra),
-        ]);
+        var comp = GeneratorTestHarness.CreateCompilation([("One.cs", a), ("Two.cs", a.Replace("namespace One", "namespace Two", StringComparison.Ordinal))]);
         var output = GeneratorTestHarness.Run(comp, out _);
 
         Assert.Empty(output.GeneratorDiagnostics);
         Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity == DiagnosticSeverity.Error);
-        var collidingFile = output.GeneratedSources.Single(kv => kv.Key == "Fixture.Colliding.RootError.ClosedHierarchy.g.cs").Value;
-        Assert.Contains("onOrdersNotFound", collidingFile, StringComparison.Ordinal);
-        Assert.Contains("onPaymentsNotFound", collidingFile, StringComparison.Ordinal);
-        Assert.Contains("onUniqueError", collidingFile, StringComparison.Ordinal);
+        Assert.Contains("One.CombinedResult.ResultShape.g.cs", output.GeneratedSources.Keys);
+        Assert.Contains("Two.CombinedResult.ResultShape.g.cs", output.GeneratedSources.Keys);
     }
+
+#if NET11_0_OR_GREATER
+    [Fact]
+    public void RFG0007_allows_a_nested_union_of_errors_and_reports_a_nested_case_that_isnt_one()
+    {
+        var src = """
+            using Resultful;
+            using Resultful.CodeAnalysis;
+
+            public sealed record OrderNotFound(int Id) : Error("nf");
+            public sealed record CardDeclined() : Error("declined");
+            public partial union PaymentError(CardDeclined);
+            public partial union OrderError(OrderNotFound, PaymentError);
+            public partial union BadInner(CardDeclined, string);
+            public partial union BadOuter(OrderNotFound, BadInner);
+
+            [ResultShape(typeof(OrderError), Success = typeof(int))] public readonly partial struct GoodResult;
+            [ResultShape(typeof(BadOuter), Success = typeof(int))] public readonly partial struct BadResult;
+            """;
+
+        var comp = GeneratorTestHarness.CreateCompilation([("Unions.cs", src)]);
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        var rfg = Assert.Single(output.GeneratorDiagnostics);
+        Assert.Equal("RFG0007", rfg.Id);
+        Assert.Contains("BadResult", rfg.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+#endif
 }

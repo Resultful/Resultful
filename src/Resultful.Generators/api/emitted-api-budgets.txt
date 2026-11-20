@@ -1,24 +1,34 @@
-# Emitted API and IL budgets for Resultful.Generators.
+# Emitted API and IL budgets for Resultful.Generators, checked by tests/Resultful.Generators.Tests/BudgetAndIlTests.cs.
+# Carried over from #37 as data for 13b, which checks them against the real core.
 # L is the concrete leaf count of the closed hierarchy.
-# Measured on SDK 11.0.100 (net10.0 and net11.0) and tightened to measured + 25%:
-#   narrow_net10:     measured MEMBERS = 13+0L, PARAMETERS = 1+1L
-#   narrow_net11:     measured MEMBERS = 17+2L, PARAMETERS = 1+1L
-#   valueless_net10:  measured MEMBERS = 13+0L, PARAMETERS = 1+1L
-#   valueless_net11:  measured MEMBERS = 17+2L, PARAMETERS = 1+1L
-#   many_errors:      measured MEMBERS = 10+0L (net10) / 15+0L (net11), PARAMETERS = 2+0L
-#   closed_hierarchy: measured MEMBERS = 3+0L,  PARAMETERS = 2+1L
+#
+# #37 measured on SDK 11.0.100 against its stand-in core:
+#   narrow_net10 13+0L, narrow_net11 17+2L, valueless the same, many_errors 10 (net10) / 15 (net11), closed_hierarchy 3+0L
+#
+# 13a re-measured on SDK 11.0.100 against the target API's core (tests/Resultful.TargetApi/Resultful), after adding the
+# members the target's generated-members.tsv lists: IsDefault and WithContext on every shape, an implicit conversion
+# from each leaf (+1L), Ok() on a valueless shape, Result<T> from a ManyErrors shape, and Cases on a hierarchy.
+#   narrow_net10:     measured MEMBERS = 16+1L, PARAMETERS = 1+1L
+#   narrow_net11:     measured MEMBERS = 19+3L, PARAMETERS = 1+1L
+#   valueless_net10:  measured MEMBERS = 17+1L (Ok() and Ok(Unit)), PARAMETERS = 1+1L
+#   valueless_net11:  measured MEMBERS = 20+3L, PARAMETERS = 1+1L
+#   many_errors:      measured MEMBERS = 14+0L (net10) / 19+0L (net11), PARAMETERS = 2+0L
+#   closed_hierarchy: measured MEMBERS = 4+0L (Match, Switch, TryMap, Cases), PARAMETERS = 2+1L
+# Ceilings are the measured value + 25%, rounded up; per-leaf terms are kept as measured.
 
 # Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
-narrow_net10 MEMBERS=16+0L PARAMETERS=2+1L
-narrow_net11 MEMBERS=21+2L PARAMETERS=2+1L
-valueless_net10 MEMBERS=16+0L PARAMETERS=2+1L
-valueless_net11 MEMBERS=21+2L PARAMETERS=2+1L
-many_errors MEMBERS=19+0L PARAMETERS=3+0L
-closed_hierarchy MEMBERS=4+0L PARAMETERS=3+1L
+narrow_net10 MEMBERS=20+1L PARAMETERS=2+1L
+narrow_net11 MEMBERS=24+3L PARAMETERS=2+1L
+valueless_net10 MEMBERS=22+1L PARAMETERS=2+1L
+valueless_net11 MEMBERS=25+3L PARAMETERS=2+1L
+many_errors MEMBERS=24+0L PARAMETERS=3+0L
+closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
 
-# IL byte budgets (Release IL, measured + 25%):
-#   forwarding: measured max = 36 bytes (TryGetValue(out Leaf)); all other forwarders <= 24 bytes
+# IL byte budgets (Release IL, measured + 25%), unchanged from #37 and measured the same in 13a:
+#   forwarding: measured max = 36 bytes (TryGetValue(out Leaf)); 42 bytes for the ManyErrors WithContext (a closure);
+#               all other forwarders <= 24 bytes
 #   dispatch: Match = 38 + 24L bytes, TryMap (foreach Causes()) = 63 + 24L bytes
+#   no `box` outside get_Value
 IL_FORWARDING_MAX=45
 IL_DISPATCH_BASE=80
 IL_DISPATCH_PER_LEAF=30

@@ -12,7 +12,6 @@ public sealed class GeneratedCodeStructureTests
         { "Flat", FixtureCatalog.FlatHierarchy },
         { "DeepFourLevel", FixtureCatalog.DeepFourLevelHierarchy },
         { "ConcreteIntermediate", FixtureCatalog.ConcreteIntermediate },
-        { "CollidingLeafNames", FixtureCatalog.CollidingLeafNames },
         { "NestedShape", FixtureCatalog.NestedShape },
         { "InterfaceSuccess", FixtureCatalog.InterfaceSuccess },
         { "ValuelessShape", FixtureCatalog.ValuelessShape },
@@ -29,8 +28,16 @@ public sealed class GeneratedCodeStructureTests
         Assert.NotEmpty(output.GeneratedSources);
         Assert.DoesNotContain(output.GeneratorDiagnostics, d => d.Severity == DiagnosticSeverity.Error);
         Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        AssertNoWarningsInGeneratedFiles(output);
 
         VerifyAllGeneratedSourceRules(output);
+    }
+
+    // Consumers build with TreatWarningsAsErrors, so a warning in a .g.cs (CS0108 from a nested hierarchy, say) breaks them.
+    private static void AssertNoWarningsInGeneratedFiles(GeneratorRunOutput output)
+    {
+        var generated = output.RunResult.GeneratedTrees.ToHashSet();
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity >= DiagnosticSeverity.Warning && d.Location.SourceTree is { } t && generated.Contains(t));
     }
 
     [Fact]
@@ -44,8 +51,7 @@ public sealed class GeneratedCodeStructureTests
         var apiComp = GeneratorTestHarness.CreateCompilation(
             [("Api.cs", FixtureCatalog.CrossAssemblyConsumer)],
             extraReferences: [domainRef],
-            assemblyName: "ApiConsumer",
-            includeCoreStub: false);
+            assemblyName: "ApiConsumer");
         var apiOut = GeneratorTestHarness.Run(apiComp, out _);
 
         Assert.Empty(apiOut.GeneratorDiagnostics);
@@ -91,6 +97,32 @@ public sealed class GeneratedCodeStructureTests
         var output = GeneratorTestHarness.Run(comp, out _);
 
         Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity == DiagnosticSeverity.Error || d.Id == "CS8509");
+    }
+
+    [Fact]
+    public void Net11_a_leaf_converts_into_a_union_shape_without_ambiguity()
+    {
+        // The shape has both a union constructor and an implicit conversion per leaf; neither may make a plain
+        // assignment, a return or an argument ambiguous.
+        var consumer = """
+            namespace Fixture.Flat
+            {
+                public static class Uses
+                {
+                    public static PlaceOrderResult Locked() => new OrderLocked(1);
+                    public static PlaceOrderResult Value() => new Order(1);
+                    public static PlaceOrderResult Base(OrderError e) => e;
+                    public static int Take(PlaceOrderResult r) => 0;
+                    public static int Call() => Take(new OrderNotFound(2));
+                    public static global::Resultful.Result<Order> Widen(PlaceOrderResult r) => r;
+                }
+            }
+            """;
+
+        var comp = GeneratorTestHarness.CreateCompilation([("Flat.cs", FixtureCatalog.FlatHierarchy), ("Uses.cs", consumer)]);
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning);
     }
 #endif
 

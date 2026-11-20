@@ -64,8 +64,8 @@ internal static class HierarchyAnalyzer
             InterfaceFullNames: new EquatableArray<string>(interfaces),
             IsAbstract: symbol.IsAbstract,
             IsSealed: symbol.IsSealed,
-            IsGeneric: symbol.IsGenericType,
-            AccessibilityRank: GetAccessibilityRank(symbol.DeclaredAccessibility),
+            IsGeneric: IsGenericOrInGeneric(symbol),
+            AccessibilityRank: GetEffectiveAccessibilityRank(symbol),
             Position: SourcePosition.From(location));
     }
 
@@ -92,7 +92,7 @@ internal static class HierarchyAnalyzer
 
         var diagnostics = new List<DiagnosticInfo>();
         var isPartial = tds.Modifiers.Any(SyntaxKind.PartialKeyword);
-        var isSupportedKind = symbol.TypeKind == TypeKind.Class && symbol.IsAbstract && isPartial;
+        var isSupportedKind = symbol.TypeKind == TypeKind.Class && symbol.IsAbstract && isPartial && !IsGenericOrInGeneric(symbol);
 
         if (!isSupportedKind)
         {
@@ -101,7 +101,7 @@ internal static class HierarchyAnalyzer
                 tds.Identifier.GetLocation(),
                 "[ClosedHierarchy]",
                 symbol.Name,
-                "an abstract partial record or class"));
+                "a non-generic abstract partial record or class"));
         }
 
         var enclosing = CollectEnclosingTypes(tds, symbol, diagnostics);
@@ -111,6 +111,16 @@ internal static class HierarchyAnalyzer
 
         var keyword = symbol.IsRecord ? "record" : "class";
         var hintName = BuildHintName(ns, enclosing, symbol.MetadataName, "ClosedHierarchy");
+        var derivesFromError = DerivesFrom(symbol, ErrorMetadataName);
+
+        var closedAncestors = new List<string>();
+        for (var cur = symbol.BaseType; cur is not null; cur = cur.BaseType)
+        {
+            if (HasAttribute(cur, ClosedHierarchyAttr))
+            {
+                closedAncestors.Add(cur.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            }
+        }
 
         return new ClosedHierarchyDeclaration(
             FullName: symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -118,10 +128,74 @@ internal static class HierarchyAnalyzer
             Namespace: ns,
             EnclosingTypes: new EquatableArray<EnclosingTypeModel>(enclosing),
             Accessibility: AccessibilityKeyword(symbol.DeclaredAccessibility),
+            AccessibilityRank: GetEffectiveAccessibilityRank(symbol),
             Keyword: keyword,
             Name: symbol.Name,
-            DerivesFromError: DerivesFrom(symbol, ErrorMetadataName),
-            Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
+            DerivesFromError: derivesFromError,
+            EmitConstructor: derivesFromError && NeedsMessageConstructor(symbol, ct),
+            ClosedAncestorFullNames: new EquatableArray<string>(closedAncestors.ToArray()),
+            Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
+            Position: SourcePosition.From(tds.Identifier.GetLocation()));
+    }
+
+    // The `private protected .ctor(string message)` is emitted only when no matching constructor is written, the type
+    // has no primary constructor (every other constructor would have to call it, CS8862), and the base can take the
+    // message: Resultful.Error itself, another [ClosedHierarchy] (which gets the same constructor), or a base that
+    // declares an accessible (string) constructor.
+    private static bool NeedsMessageConstructor(INamedTypeSymbol symbol, CancellationToken ct)
+    {
+        foreach (var ctor in symbol.InstanceConstructors)
+        {
+            if (!ctor.IsImplicitlyDeclared && IsMessageConstructor(ctor))
+            {
+                return false;
+            }
+        }
+
+        foreach (var reference in symbol.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax(ct) is TypeDeclarationSyntax { ParameterList: not null })
+            {
+                return false;
+            }
+        }
+
+        var baseType = symbol.BaseType;
+        if (baseType is null)
+        {
+            return false;
+        }
+
+        if (baseType.ToDisplayString() == ErrorMetadataName || HasAttribute(baseType, ClosedHierarchyAttr))
+        {
+            return true;
+        }
+
+        foreach (var ctor in baseType.InstanceConstructors)
+        {
+            if (IsMessageConstructor(ctor) && ctor.DeclaredAccessibility != Accessibility.Private)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsMessageConstructor(IMethodSymbol ctor) =>
+        ctor.Parameters.Length == 1 && ctor.Parameters[0].Type.SpecialType == SpecialType.System_String;
+
+    public static bool HasAttribute(ISymbol symbol, string attributeMetadataName)
+    {
+        foreach (var attr in symbol.GetAttributes())
+        {
+            if (attr.AttributeClass?.ToDisplayString() == attributeMetadataName)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static ClosedHierarchyModel ResolveClosedHierarchy(
@@ -129,9 +203,9 @@ internal static class HierarchyAnalyzer
         EquatableArray<BaseIndexEntry> baseIndex)
     {
         var diagnostics = new List<DiagnosticInfo>(decl.Diagnostics);
-        var hasBlockingError = diagnostics.Any(d => d.Descriptor.DefaultSeverity == DiagnosticSeverity.Error);
 
-        if (hasBlockingError)
+        // RFG0005 or RFG0006: the generator can't reopen the type, so it writes nothing for it.
+        if (HasError(diagnostics))
         {
             return new ClosedHierarchyModel(
                 decl.HintName,
@@ -141,11 +215,47 @@ internal static class HierarchyAnalyzer
                 decl.Keyword,
                 decl.Name,
                 decl.DerivesFromError,
+                EmitConstructor: false,
+                EmitMembers: false,
+                DispatchAccessibility: null,
+                HidesDispatch: false,
+                HidesCases: false,
                 EquatableArray<LeafModel>.Empty,
                 new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
         }
 
         var leaves = ResolveLeavesForBase(decl.FullName, decl.Name, baseIndex, diagnostics);
+
+        // RFG0008 (round 4): Resultful.Text.Json writes a leaf's simple name as its "type", so two leaves that share
+        // one can't be read back. Supersedes the prefixing rule in building-the-generator.md; prefixing is kept so the
+        // generated parameters stay distinct while the error is reported.
+        foreach (var group in leaves.GroupBy(l => l.ShortName, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var items = group.ToList();
+            if (items.Count > 1)
+            {
+                diagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.DuplicateLeafSimpleName,
+                    decl.Position,
+                    decl.Name,
+                    group.Key,
+                    string.Join(", ", items.Select(i => StripGlobal(i.FullName)))));
+            }
+        }
+
+        // RFG0003 and RFG0008 leave the case list unusable, but the constructor is still written so the leaves that
+        // are declared keep compiling and only the RFG error is reported.
+        var emitMembers = !HasError(diagnostics) && leaves.Length > 0;
+
+        var hidesDispatch = false;
+        for (var i = 0; i < decl.ClosedAncestorFullNames.Length; i++)
+        {
+            if (CountConcreteCases(decl.ClosedAncestorFullNames[i], baseIndex) == leaves.Length)
+            {
+                // Same leaves, so the ancestor's generated Match/Switch/TryMap have the same signatures (CS0108).
+                hidesDispatch = true;
+            }
+        }
 
         return new ClosedHierarchyModel(
             decl.HintName,
@@ -155,9 +265,63 @@ internal static class HierarchyAnalyzer
             decl.Keyword,
             decl.Name,
             decl.DerivesFromError,
+            EmitConstructor: decl.EmitConstructor,
+            EmitMembers: emitMembers,
+            DispatchAccessibility: DispatchAccessibilityFor(decl.AccessibilityRank, leaves),
+            HidesDispatch: hidesDispatch,
+            HidesCases: decl.ClosedAncestorFullNames.Length > 0,
             leaves,
             new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
     }
+
+    // Match, Switch and TryMap take a delegate per leaf, so they can be no more accessible than the least accessible
+    // leaf (CS0051 otherwise). Null leaves them out: a private or protected leaf can't appear in any of them.
+    private static string? DispatchAccessibilityFor(int ownerRank, EquatableArray<LeafModel> leaves)
+    {
+        var allPublic = true;
+        for (var i = 0; i < leaves.Length; i++)
+        {
+            var rank = leaves[i].AccessibilityRank;
+            if (rank == 3)
+            {
+                continue;
+            }
+
+            if (rank != 1)
+            {
+                return null;
+            }
+
+            allPublic = false;
+        }
+
+        return allPublic || ownerRank <= 1 ? "public" : "internal";
+    }
+
+    // True when a member as accessible as memberRank may mention a type as accessible as typeRank.
+    public static bool IsAccessibleEnough(int typeRank, int memberRank) =>
+        typeRank == 3 || typeRank == memberRank || memberRank == 0 || (typeRank == 1 && memberRank <= 1);
+
+    private static int CountConcreteCases(string baseFullName, EquatableArray<BaseIndexEntry> entries)
+    {
+        var count = 0;
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var entry = entries[i];
+            if (!entry.IsAbstract && !entry.IsGeneric && GetDepthFromBase(entry, baseFullName) > 0)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    public static bool HasError(List<DiagnosticInfo> diagnostics) =>
+        diagnostics.Any(d => d.Descriptor.DefaultSeverity == DiagnosticSeverity.Error);
+
+    public static string StripGlobal(string fullName) =>
+        fullName.StartsWith("global::", StringComparison.Ordinal) ? fullName.Substring("global::".Length) : fullName;
 
     public static EquatableArray<LeafModel> ResolveLeavesForBase(
         string baseFullName,
@@ -180,7 +344,7 @@ internal static class HierarchyAnalyzer
             {
                 diagnostics.Add(new DiagnosticInfo(
                     DiagnosticDescriptors.OpenGenericDerivedType,
-                    entry.Position?.ToLocation(),
+                    entry.Position,
                     entry.ShortName,
                     baseShortName));
                 continue;
@@ -192,7 +356,7 @@ internal static class HierarchyAnalyzer
                 {
                     diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.NonSealedConcreteHierarchyMember,
-                        entry.Position?.ToLocation(),
+                        entry.Position,
                         entry.ShortName,
                         baseShortName));
                 }
@@ -215,6 +379,7 @@ internal static class HierarchyAnalyzer
             var (entry, depth) = derived[i];
             leaves[i] = new LeafModel(
                 FullName: entry.FullName,
+                ShortName: entry.ShortName,
                 ParamSuffix: suffixMap[entry.FullName],
                 Depth: depth,
                 AccessibilityRank: entry.AccessibilityRank);
@@ -462,15 +627,51 @@ internal static class HierarchyAnalyzer
         _ => "internal",
     };
 
+    // 3 public, 1 internal (protected internal counts as internal), 2 protected, 0 private or private protected.
     public static int GetAccessibilityRank(Accessibility a) => a switch
     {
         Accessibility.Public => 3,
-        Accessibility.ProtectedOrInternal => 2,
-        Accessibility.Protected => 2,
+        Accessibility.ProtectedOrInternal => 1,
         Accessibility.Internal => 1,
-        Accessibility.ProtectedAndInternal => 1,
+        Accessibility.Protected => 2,
         _ => 0,
     };
+
+    // The least accessible of the type and the types it's nested in. Protected and internal together count as private.
+    public static int GetEffectiveAccessibilityRank(INamedTypeSymbol symbol)
+    {
+        var hasInternal = false;
+        var hasProtected = false;
+        for (ISymbol? cur = symbol; cur is INamedTypeSymbol t; cur = t.ContainingType)
+        {
+            switch (GetAccessibilityRank(t.DeclaredAccessibility))
+            {
+                case 0:
+                    return 0;
+                case 1:
+                    hasInternal = true;
+                    break;
+                case 2:
+                    hasProtected = true;
+                    break;
+            }
+        }
+
+        return hasProtected ? (hasInternal ? 0 : 2) : (hasInternal ? 1 : 3);
+    }
+
+    public static bool IsGenericOrInGeneric(INamedTypeSymbol symbol)
+    {
+        for (var cur = symbol; cur is not null; cur = cur.ContainingType)
+        {
+            if (cur.IsGenericType)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public static bool IsFirstDeclaration(INamedTypeSymbol symbol, TypeDeclarationSyntax current)
     {

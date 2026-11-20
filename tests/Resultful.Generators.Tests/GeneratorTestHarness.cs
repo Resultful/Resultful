@@ -15,142 +15,43 @@ internal sealed record GeneratorRunOutput(
 
 internal static class GeneratorTestHarness
 {
-    public const string CoreStubSource = """
-        using System;
-        using System.Collections.Generic;
-        using System.Collections.Immutable;
-        using System.Diagnostics.CodeAnalysis;
+    // #37 compiled fixtures against CoreStubSource, a hand-written stand-in core. The fixtures now compile against
+    // the target API's core (tests/Resultful.TargetApi/Resultful, throw-null stubs): only compiled, never run, so the
+    // emitted code is checked against the members the real core will have. This is a thin adapter over the target
+    // stubs, kept here because tests/Resultful.Spec/SpecHarness.cs (04c) wasn't pushed when 13a was drafted; it merges
+    // into SpecHarness when 13a is rebased above 04e.
+    public static string TargetApiCorePath =>
+        Path.Combine(Metadata("TargetApiCoreDir"), "Resultful.dll");
 
-        namespace Resultful.CodeAnalysis
+    public static MetadataReference TargetApiCore { get; } = LoadTargetApiCore();
+
+    private static MetadataReference LoadTargetApiCore()
+    {
+        var path = TargetApiCorePath;
+        if (!File.Exists(path))
         {
-            [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class | AttributeTargets.Method)]
-            public sealed class MustObserveAttribute : Attribute;
-
-            [AttributeUsage(AttributeTargets.Class)]
-            public sealed class ClosedHierarchyAttribute : Attribute;
-
-            [AttributeUsage(AttributeTargets.Struct)]
-            public sealed class ResultShapeAttribute(Type errorType) : Attribute
-            {
-                public Type ErrorType { get; } = errorType;
-                public Type? Success { get; set; }
-                public bool ManyErrors { get; set; }
-            }
+            throw new InvalidOperationException($"The target API's core isn't built at {path}; build tests/Resultful.TargetApi/Resultful first.");
         }
 
-        namespace Resultful
-        {
-            public readonly struct Unit { public static Unit Value => default; }
+        return MetadataReference.CreateFromFile(path);
+    }
 
-            public abstract record Error
-            {
-                protected Error(string message) => Message = message;
-                public string Message { get; }
-                public Error? Cause { get; init; }
-                public ImmutableList<string> Context { get; init; } = ImmutableList<string>.Empty;
-                public IEnumerable<Error> Causes()
-                {
-                    for (var cur = this; cur is not null; cur = cur.Cause)
-                        yield return cur;
-                }
-            }
-
-            public interface IResultShape<T, TError>
-            {
-                Result<T, TError> AsResult();
-            }
-
-            public interface IValidationShape<T, TError>
-            {
-                Validation<T, TError> AsValidation();
-            }
-
-            public readonly struct Result<T>
-            {
-                private readonly byte _state;
-                private readonly T _value;
-                private readonly Error _error;
-                private Result(T v) { _state = 1; _value = v; _error = default!; }
-                private Result(Error e) { _state = 2; _value = default!; _error = e; }
-                public bool IsDefault => _state == 0;
-                public static Result<T> Ok(T v) => new(v);
-                public static Result<T> Fail(Error e) => new(e);
-            }
-
-            public readonly struct Result<T, TError>
-            {
-                private readonly byte _state;
-                private readonly T _value;
-                private readonly TError _error;
-                private Result(T v) { _state = 1; _value = v; _error = default!; }
-                private Result(TError e) { _state = 2; _value = default!; _error = e; }
-                public bool IsDefault => _state == 0;
-                public static Result<T, TError> Ok(T v) => new(v);
-                public static Result<T, TError> Fail(TError e) => new(e);
-                public bool TryGetValue([MaybeNullWhen(false)] out T value)
-                {
-                    if (_state == 0) throw new InvalidOperationException();
-                    if (_state == 1) { value = _value; return true; }
-                    value = default; return false;
-                }
-                public bool TryGetError([MaybeNullWhen(false)] out TError error)
-                {
-                    if (_state == 0) throw new InvalidOperationException();
-                    if (_state == 2) { error = _error; return true; }
-                    error = default; return false;
-                }
-                public Result<TOut, TError> Map<TOut>(Func<T, TOut> map) =>
-                    TryGetValue(out var v) ? Result<TOut, TError>.Ok(map(v)) : Result<TOut, TError>.Fail(_error);
-                public Result<TOut, TError> Bind<TOut>(Func<T, Result<TOut, TError>> bind) =>
-                    TryGetValue(out var v) ? bind(v) : Result<TOut, TError>.Fail(_error);
-                public TOut Match<TOut>(Func<T, TOut> onOk, Func<TError, TOut> onErr) =>
-                    TryGetValue(out var v) ? onOk(v) : onErr(_error);
-                public Result<T> AsResult() =>
-                    TryGetValue(out var v) ? Result<T>.Ok(v) : Result<T>.Fail((Error)(object)_error!);
-            }
-
-            public readonly struct Validation<T, TError>
-            {
-                private readonly byte _state;
-                private readonly T _value;
-                private readonly IReadOnlyList<TError> _errors;
-                private Validation(T v) { _state = 1; _value = v; _errors = default!; }
-                private Validation(IReadOnlyList<TError> e) { _state = 2; _value = default!; _errors = e; }
-                public bool IsDefault => _state == 0;
-                public static Validation<T, TError> Ok(T v) => new(v);
-                public static Validation<T, TError> Fail(IReadOnlyList<TError> e) => new(e);
-                public bool TryGetValue([MaybeNullWhen(false)] out T value)
-                {
-                    if (_state == 0) throw new InvalidOperationException();
-                    if (_state == 1) { value = _value; return true; }
-                    value = default; return false;
-                }
-                public bool TryGetErrors([MaybeNullWhen(false)] out IReadOnlyList<TError> errors)
-                {
-                    if (_state == 0) throw new InvalidOperationException();
-                    if (_state == 2) { errors = _errors; return true; }
-                    errors = default; return false;
-                }
-                public Validation<TOut, TError> Map<TOut>(Func<T, TOut> map) =>
-                    TryGetValue(out var v) ? Validation<TOut, TError>.Ok(map(v)) : Validation<TOut, TError>.Fail(_errors);
-                public TOut Match<TOut>(Func<T, TOut> onOk, Func<IReadOnlyList<TError>, TOut> onErrs) =>
-                    TryGetValue(out var v) ? onOk(v) : onErrs(_errors);
-            }
-        }
-        """;
-
-    public static string RepoRootDir =>
+    private static string Metadata(string key) =>
         typeof(GeneratorTestHarness).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .First(a => a.Key == "RepoRootDir").Value!;
+            .First(a => a.Key == key).Value!;
+
+    public static string RepoRootDir => Metadata("RepoRootDir");
 
     public static List<MetadataReference> GetRuntimeReferences()
     {
+        // The framework only: not the test's own dependencies (Roslyn, xunit, the generator).
+        var runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
         var trustedAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         return trustedAssemblies
-            .Where(File.Exists)
+            .Where(p => File.Exists(p) && string.Equals(Path.GetDirectoryName(p), runtimeDir, StringComparison.Ordinal))
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
             .ToList();
     }
@@ -159,22 +60,22 @@ internal static class GeneratorTestHarness
         IEnumerable<(string FileName, string Source)> sources,
         IEnumerable<MetadataReference>? extraReferences = null,
         string assemblyName = "FixtureAssembly",
-        bool includeCoreStub = true,
+        bool includeCore = true,
         OptimizationLevel optimizationLevel = OptimizationLevel.Release)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
         var trees = new List<SyntaxTree>();
-        if (includeCoreStub)
-        {
-            trees.Add(CSharpSyntaxTree.ParseText(CoreStubSource, parseOptions, path: "CoreStub.cs"));
-        }
-
         foreach (var (name, src) in sources)
         {
             trees.Add(CSharpSyntaxTree.ParseText(src, parseOptions, path: name));
         }
 
         var refs = GetRuntimeReferences();
+        if (includeCore)
+        {
+            refs.Add(TargetApiCore);
+        }
+
         if (extraReferences is not null)
         {
             refs.AddRange(extraReferences);
