@@ -12,6 +12,9 @@ namespace Resultful.Consumption;
 /// Verifies that every public member declared in src/Resultful/PublicAPI.Shipped.txt and
 /// PublicAPI.Unshipped.txt is genuinely invoked, accessed, or converted by the consumption tests in this project.
 /// Only symbols the compiler bound count: an overload that failed to bind is not covered.
+/// The gate proves each member is bound by some call site in the test sources, not that the call executes.
+/// Symbols bound only implicitly (by foreach, await or deconstruction) are not recorded, so such members need
+/// an explicit call somewhere.
 /// </summary>
 public sealed partial class PublicApiCoverageTests
 {
