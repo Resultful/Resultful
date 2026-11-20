@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    UC10's "before": string-error code written against 0.2. It builds against 0.2 (ShopCore=baseline, the default
+    here) and, against 0.3 (ShopCore=target or package), fails with exactly the errors in UC10/expected-0.3.txt
+    (GOAL.md row 12). UC09: a library with its own internal [MustObserve], no Resultful dependency.
+  -->
+  <PropertyGroup>
+    <ShopCore Condition="'$(ShopCore)' == ''">baseline</ShopCore>
+  </PropertyGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Resultful.Shop.Legacy</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.targets" />
+</Project>

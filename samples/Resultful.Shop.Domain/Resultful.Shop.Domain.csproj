@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Shop's closed hierarchies and shapes, in their own assembly on purpose: the generator and the analyzers
+    must work when the leaves and the code that switches over them are in different assemblies (layer 5).
+  -->
+  <Import Project="../Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Resultful.Shop.Domain</RootNamespace>
+  </PropertyGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.targets" />
+</Project>
