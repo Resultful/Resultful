@@ -26,8 +26,8 @@ generated:
      when its errors derive from `Error` (they travel as one `ValidationFailed<TError>`), or through
      `ToResult(combine)`, where the caller says how many errors become one.
    - `Validation.Combine(a, b, c, (x, y, z) => …)` combines more than two without nested tuples.
-   - A step with no value is `Result<Unit, TError>` or `Validation<Unit, TError>`. `Unit` is a core type, and
-     `Result.Ok()` and `Validation.Ok()` build one. There is no separate void type: `VoidResult` and
+   - A step with no value is `Result<Unit, TError>` or `Validation<Unit, TError>`, using the `Unit` that ships
+     today. `return Unit.Value;` converts implicitly. There is no separate void type: `VoidResult` and
      `VoidResult<TError>` are deprecated, so every method is written once.
 2. **`Error` describes one failure.** An `abstract record` with `Message`, an optional `Cause`, a `Context` list,
    `Error.From(string)`, `Inner`, `Causes` and `TryFind<T>`, plus `WithContext`, which adds a note and keeps the
@@ -75,8 +75,9 @@ Consequences, if accepted:
   operators on them and nothing shipped there breaks in M3. `IPlus` and `Result<T, TError>.Plus` are proposed
   for deprecation; when is open.
 - `VoidResult` and `VoidResult<TError>` (169 lines of the shipped API, and a second copy of every extension) are
-  deprecated: M2 adds `Unit` and conversions both ways, M3 marks them `[Obsolete]`, and the 1.0 review removes
-  them. [Decision 4](0004-sequential-composition-is-additive.md)'s `Sequence` chains become `Result<Unit>` steps.
+  deprecated. `Unit` and the conversion from `Result<Unit>` to `VoidResult` already ship; M2 adds the conversion
+  back. M3 marks them `[Obsolete]` and makes `Result.Ok()` (which returns `VoidResult` today) return `Result<Unit>`.
+  The 1.0 review removes them. [Decision 4](0004-sequential-composition-is-additive.md)'s `Sequence` chains become `Result<Unit>` steps.
 - Roadmap M5's additive structured `Error` is replaced. `Resultful.AspNetCore` maps `Validation<T>` and
   `ValidationFailed` to a validation problem and `Result<T>` by error type, walking an error's causes from the
   outside in so the first mapped type wins; `Resultful.FluentValidation` returns `Validation<T>`.
@@ -88,6 +89,8 @@ The one list of open questions for the error design; other documents link here.
 - The plural type's name.
 - Whether it is a new type or today's `Result<T, IEnumerable<TError>>` renamed.
 - `Bind` on `Validation`: none (Haskell, Cats) or one that stops at the first failure (FsToolkit).
+- Whether `Unit` stays a class (as shipped) or becomes a struct in M3, and how a parameterless `Ok()` reaches
+  `Result<Unit, TError>`, whose `TError` it can't infer.
 - `+` on `Validation` values, or only `&` and `Combine`.
 - When `IPlus` and `Result<T, TError>.Plus` are deprecated.
 - Whether `Context` takes part in equality.

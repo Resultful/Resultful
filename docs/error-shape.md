@@ -47,7 +47,7 @@ Result<T, TError>          // a T, or one TError; Bind stops at the first failur
 Validation<T, TError>      // a T, or a non-empty list of TError; & gathers every failure
 Result<T>                  // means Result<T, Error>, but a separate type; AsResult() widens to it
 Validation<T>              // means Validation<T, Error>
-Result<Unit, TError>       // a step with no value; Result.Ok() builds one
+Result<Unit, TError>       // a step with no value; return Unit.Value
 
 public abstract record Error
 {
@@ -110,10 +110,12 @@ public sealed record OrderLocked(int Id) : OrderError($"order {Id} is locked");
 int Status(OrderError e) => e switch { OrderNotFound => 404, OrderLocked => 409 };   // no `_`
 ```
 
-The `private protected` constructor is what keeps other assemblies from adding a case. A positional
-`abstract record OrderError(string Message)` gets a `protected` constructor, which another assembly can call
-(**verified**). Declare the base `partial` and reference `Resultful.Generators`, and the constructor is written for
-you ([decision 16](decisions/0016-source-generated-result-shapes.md)):
+The `private protected` constructor stops other assemblies deriving the ordinary way; a positional
+`abstract record OrderError(string Message)` gets a `protected` one, which they can call (**verified**). It
+doesn't close the set alone: a record's copy constructor must stay `protected`, and another assembly can derive
+through it (**verified**). The analyzer reports a case added outside the base's assembly. Declare the base
+`partial` and reference `Resultful.Generators`, and the constructor is written for you
+([decision 16](decisions/0016-source-generated-result-shapes.md)):
 
 ```csharp
 [ClosedHierarchy] public abstract partial record OrderError : Error;

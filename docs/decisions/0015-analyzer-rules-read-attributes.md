@@ -27,9 +27,11 @@ generated:
    - `[MustObserve]`: a value of the type, or returned by the method, may not be thrown away.
    - `[ClosedHierarchy]`: a `switch` over the base is exhaustive when every derived type is matched, and the
      compiler's CS8509 is suppressed. A nullable input (`OrderError?`) also needs a `null` arm; the probe's
-     suppressor hid the warning without one, which is a gap the rule closes. Types outside the base's assembly
-     may not derive from it, and a base with a `public` or `protected` constructor is reported, since that is
-     what lets another assembly derive (a positional `abstract record` gets a `protected` one, **verified**).
+     suppressor hid the warning without one, which is a gap the rule closes. A type outside the base's assembly
+     that derives from it is reported. That rule is the guard: C# can't close a record hierarchy with
+     constructors, because the copy constructor of a non-sealed record must be `public` or `protected` (CS8878), and another assembly derived
+     through it (**verified**). A `private protected` base constructor
+     still closes the ordinary path, and a rule suggests it.
    Others are added only when a rule or the generator needs them. `[ResultShape(typeof(TError), Success =
    typeof(T), ManyErrors = …)]` is one, defined by [decision 16](0016-source-generated-result-shapes.md).
 5. **The generator is a second reader of the same attributes.** `Resultful.Generators` writes the `private

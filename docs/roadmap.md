@@ -88,8 +88,9 @@ characterisation suite pins every public operator's current behaviour, and cover
   `ToResult(combine)`. They work with string errors now, and take `Error` when it arrives
   in M3 (*proposed in [decision 14](decisions/0014-result-and-validation.md)*, brought forward so nothing M2 ships
   breaks in M3).
-- `Unit`, with `Result.Ok()` and conversions between `VoidResult` and `Result<Unit>`, so a step with no value has
-  one spelling. `VoidResult` is marked `[Obsolete]` in M3 and removed at the 1.0 review (*decision 14*).
+- A conversion from `VoidResult` to `Result<Unit>` (the other direction and `Unit` already ship), so a step with no
+  value can move to one spelling. M3 marks `VoidResult` `[Obsolete]` and makes `Result.Ok()` return
+  `Result<Unit>`; the 1.0 review removes it (*decision 14*).
 - Operators over those methods, opt-in through `using Resultful.Operators;`
   ([decision 9](decisions/0009-operators-are-opt-in-sugar.md)):
   - `+ - *` with error accumulation, on `Validation` (today's `Result.Plus` stays until it's deprecated)

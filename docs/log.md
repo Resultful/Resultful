@@ -22,8 +22,8 @@ generated:
   - Decision 14: `WithContext` adds a note and keeps the error's type (verified); the implicit `string`
     conversion is cut; `ValidationFailed`, `Combine` and `AsResult` added; `Result<Unit>` replaces the void
     types; `Validation` moves to M2. One Still open list.
-  - Decision 15: a `null` arm for nullable inputs, a rule for closing constructors (a positional base's is
-    `protected`, verified), the generator as a second reader; `[ContextWrapper]` dropped.
+  - Decision 15: a `null` arm for nullable inputs; the cross-assembly rule is the guard, since a record's copy
+    constructor must stay `protected` and another assembly derives through it (verified); the generator as a second reader; `[ContextWrapper]` dropped.
   - *The error shape* gains shape 8 (a generated result shape); *Errors in practice* uses it.
 
 - Decision 16 accepted: source-generated `[ClosedHierarchy]` plumbing and `[ResultShape]` union-backed structs

@@ -52,11 +52,12 @@ public sealed record CardDeclined(string Reason) : OrderPaymentError($"Card decl
 
 From this, the generator emits (**verified**):
 
-1. **Compiler-enforced closure:** `private protected OrderError(string message) : base(message) { }` (when no
-   matching constructor is hand-written). No external assembly can derive from `OrderError` even if that consumer
-   never installs `Resultful.Analyzers`. A positional `abstract record OrderError(string Message)` isn't enough: its
-   constructor is `protected`, which another assembly can still call (**verified**). (Positional derived records
-   don't cause CS0108 either: a parameter named like an inherited property reuses it.)
+1. **The base constructor:** `private protected OrderError(string message) : base(message) { }` (when no
+   matching constructor is hand-written), so the ordinary way to derive is closed to other assemblies. It doesn't
+   close the hierarchy on its own: the copy constructor of a non-sealed record must be `public` or `protected` (CS8878), and another assembly derived
+through it (**verified**). The guard is the analyzer rule that reports a derived
+   type outside the base's assembly ([decision 15](../decisions/0015-analyzer-rules-read-attributes.md)). (Positional
+   derived records don't cause CS0108: a parameter named like an inherited property reuses it.)
 2. **Exhaustive `Match<TResult>` and `Switch`:** Generated across all concrete leaves in the assembly, including
    leaves under nested `[ClosedHierarchy]` bases (`OrderNotFound`, `OrderLocked`, `CardDeclined`). Adding a new
    leaf breaks every `Match`/`Switch` call site at compile time on every IDE and compiler version, without
@@ -275,7 +276,8 @@ narrow shape written by hand from the generated code, since the generator doesn'
 | Review: `OrderResult<object>` | Needs a `null` arm (`CS8655`) |
 | Review: hand-written narrow `PlaceOrderResult` with `[Union]` | **Verified** — flat switch over `Order` and every leaf runs; removing an arm gives `CS8509` |
 | Review: conversions into `PlaceOrderResult` from `Result<Order, OrderError>` and from `LoadOrderResult` | **Verified** — compile next to the union conversions with no ambiguity, and classify correctly |
-| Review: accessibility of a positional `abstract record` constructor | `protected`, so not closed to other assemblies without the generated `private protected` constructor |
+| Review: accessibility of a positional `abstract record` constructor | `protected`, so another assembly can call it |
+| Review: another assembly deriving from a base whose constructor is `private protected` | **Compiles**, through the record's synthesized `protected` copy constructor; declaring that `private protected` is CS8878. Constructors can't close a record hierarchy |
 | Structure: `[Union]` shapes wrapping a core value (`Result<T,E>`, `Result<Unit,E>`, `Validation<T,E>`) | **Verified**: exhaustive with no `_`; removing a leaf, the `Unit` arm or the list arm gives `CS8509`; `default` throws |
 | Structure: `switch` over each `OrderError` inside the list, without the analyzer | `CS8509` from the compiler; the generated `Match` compiles clean |
 

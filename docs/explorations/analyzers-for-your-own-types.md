@@ -105,11 +105,18 @@ What the probe did not cover:
 
 ## Closing the base
 
-The attribute says the set is closed; the constructor makes it so. A positional `abstract record
-OrderError(string Message) : Error(Message)` gets a `protected` constructor, and another assembly can call it
-(**verified**). A rule reports a closed base with a `public` or `protected` constructor and suggests
-`private protected`. `Resultful.Generators` writes that constructor when the base is `partial`
-([decision 16](../decisions/0016-source-generated-result-shapes.md)); the analyzers don't need the generator.
+C# can't close a record hierarchy with constructors. A positional `abstract record OrderError(string Message)`
+gets a `protected` constructor, which another assembly can call. A `private protected` one closes that path, but
+the copy constructor of a non-sealed record must be `public` or `protected` (CS8878), and another assembly derived
+through it (**verified**: `sealed record Evil : OrderError { public Evil(OrderError o) : base(o) { } }` compiles in a
+second assembly).
+
+So the analyzer is the guard: a rule reports a type outside the base's assembly that derives from it, and
+another suggests a `private protected` base constructor so the ordinary path is closed too.
+`Resultful.Generators` writes that constructor when the base is `partial`
+([decision 16](../decisions/0016-source-generated-result-shapes.md)); the analyzers don't need the generator. Code
+built without the analyzer can still add a case, which a `switch` then rejects at run time with
+`SwitchExpressionException`.
 
 ## With generated shapes
 
