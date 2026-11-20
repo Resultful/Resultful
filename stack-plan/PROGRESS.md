@@ -11,8 +11,8 @@ Rows are in stack order.
 | 04 | rtkelly13/stack-04-per-package-release | #43 | review | CI green 6eb5116; review: approve + 4 should-fix (nuget.org retry, props and global.json inputs, tag SHA check); fixup! commits in progress |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
-| 04d | rtkelly13/stack-04d-reference-app | #44 | review | the Shop; bd33431; split at ~1,270 sample lines; reviewer running |
-| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | end-to-end runner, broken consumers, snippet check; 1fedf62; 32 e2e tests, 268 spec green locally |
+| 04d | rtkelly13/stack-04d-reference-app | #44 | review | review: approve, with should-fixes (CardDeclined text, a shape over a union in Net11); fixing |
+| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review: changes needed (MissingArm deadlock with 13b; Legacy cases to MIG-LEGACY; pack failures hidden); 4 questions on #39; fixing |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | drafted ahead on 04c@5b8b23a; a74d085; 41/44 generator tests green; 3 spec findings for 04c; reviewer running |
 | 05 | rtkelly13/stack-05-named-methods |  | todo |  |
