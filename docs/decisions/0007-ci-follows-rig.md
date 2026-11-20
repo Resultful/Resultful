@@ -24,6 +24,7 @@ needs extra plumbing to stay safe.
 
 The check `main` requires is named `build`, so the job that gates merges keeps that name.
 
-Publishing uses the org's `NUGET_KEY` secret in the `release` environment. The previous workflow's condition
-read a step-level `env` from the step's own `if`, so it never published. Merging to `main` now publishes, so a pull request that changes the version is only merged when the release is
-intended.
+Publishing is manual: running the workflow on `main` with the `publish` input ticked pushes the packed packages,
+using the org's `NUGET_KEY` secret in the `release` environment. Merging never publishes, so pull requests can
+land freely while the library is being reshaped. (The previous workflow tried to publish on every push to `main`,
+but its condition read a step-level `env` from the step's own `if`, so it never fired.)

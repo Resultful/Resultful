@@ -7,7 +7,7 @@
 - CI hardened: least-privilege tokens, no persisted credentials, SDK from `global.json`, NuGet cache, format check,
   pack and package check on every pull request, zizmor, ls-lint, Dependabot.
 - The package check is a C# file-based app: `dotnet run eng/verify-package.cs -- <nupkg>`.
-- Publishing from `main` works again; the old condition never fired.
+- Publishing is a manual workflow run (`publish` input); merging to `main` never publishes.
 
 ## 0.2.0-beta06
 

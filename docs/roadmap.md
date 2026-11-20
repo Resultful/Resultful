@@ -18,8 +18,7 @@ Resultful is stable when the core package has no dependencies, the API is review
 and every release is cut from CI with its package shape checked.
 
 It gets there as a series of small pull requests, each mergeable on its own and each leaving `main` releasable.
-A pull request only changes the version when it is meant to publish, and CI publishes with `--skip-duplicate`, so
-merging one without a version change publishes nothing.
+Merging never publishes: a release is a manual workflow run on `main`.
 
 ## 1. Packaging fix and sequential composition (`0.2.0-beta06`)
 
@@ -38,7 +37,7 @@ Following [decision 7](decisions/0007-ci-follows-rig.md):
 
 - Least-privilege tokens, `persist-credentials: false`, SDK from `global.json`, NuGet cache.
 - A format check, pack and the package check on every pull request.
-- Fix the publish condition, which never fires today because a step's `if` cannot see its own `env`.
+- Publishing becomes a manual workflow run on `main`; merging never publishes.
 - zizmor, ls-lint (naming, no shell scripts), Dependabot, and the package check as a C# file-based app.
 - The required check stays `build`.
 

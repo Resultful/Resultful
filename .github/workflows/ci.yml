@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   pull_request: # any base branch, so stacked pull requests are checked too
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Push the packed packages to nuget.org
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -99,11 +104,11 @@ jobs:
       - name: Audit workflows (zizmor)
         run: uvx zizmor@1.31.1 --offline --format github .
 
-  # Publishes only from main. `--skip-duplicate` makes a merge that did not change the version a no-op.
+  # Publishing is manual: run the workflow on main with `publish` ticked. Merging never publishes.
   publish:
     name: publish
     needs: [ build, lint ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions: {}
