@@ -79,6 +79,18 @@ This goes before the storage change on purpose: the next pull request is checked
 - A decision with the numbers.
 - The chosen integration ships behind `#if NET11_0_OR_GREATER`.
 
+## Between the steps: seamless with .NET
+
+[Seamless with .NET](explorations/seamless-with-dotnet.md) proposes additive pull requests that slot in after
+step 4:
+
+- nullable-flow members and `TryGetValue`
+- opt-in operators ([decision 9](decisions/0009-operators-are-opt-in-sugar.md))
+- a structured `Error` and `Resultful.AspNetCore`
+- analyzers, and JSON with AOT
+
+Step 5 also takes on [decision 10](decisions/0010-default-is-not-success.md).
+
 ## 7. Stable (`1.0.0`)
 
 - API review of every public member.

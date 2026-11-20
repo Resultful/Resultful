@@ -25,6 +25,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Roadmap](roadmap.md) | From a beta that restores cleanly to 1.0 |
 | [Decisions](decisions/index.md) | Every decision, dated, with why |
 | [Log](log.md) | What changed in these documents, by date |
+| [Seamless with .NET](explorations/seamless-with-dotnet.md) | Exploration: operators, unions, nullable flow and framework integration |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).
