@@ -20,9 +20,9 @@ public static class Cases
     {
         PlaceOrderResult fromValue = new Order(1);
         PlaceOrderResult fromLeaf = new OrderLocked(1, "ann");
-        Check.True(fromValue.TryGetValue(out var o) && o.Id == 1, "from the success type");
+        Check.True(fromValue.TryGetValue(out Order? o) && o.Id == 1, "from the success type");
         Check.True(fromLeaf.TryGetError(out var e) && e is OrderLocked, "from a leaf");
-        Check.True(PlaceOrderResult.Ok(new Order(2)).TryGetValue(out _), "Ok");
+        Check.True(PlaceOrderResult.Ok(new Order(2)).TryGetValue(out Order? _), "Ok");
         Check.True(PlaceOrderResult.Fail(new OrderNotFound(3)).TryGetError(out var nf) && nf is OrderNotFound { Id: 3 }, "Fail");
     }
 }
