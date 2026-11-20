@@ -9,6 +9,11 @@ namespace Resultful
     public static partial class EnumerableExtensions
     {
         //ReduceAsync on List<T>
+        /// <summary>Combines the items in order with <paramref name="aggrFunc"/>.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
+        /// <remarks>Throws <see cref="System.ArgumentException"/> if there are no items.</remarks>
         public static async Task<T> ReduceAsync<T>(this IEnumerable<T> values,
             Func<T, T, Task<T>> aggrFunc)
         {
@@ -19,6 +24,10 @@ namespace Resultful
         }
 
         //TryReduceAsync on List<T>
+        /// <summary>Combines the items in order with <paramref name="aggrFunc"/>. Returns None if there are no items.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static async Task<Option<T>> TryReduceAsync<T>(this IEnumerable<T> values,
             Func<T, T, Task<T>> aggrFunc)
         {
@@ -29,6 +38,11 @@ namespace Resultful
         }
 
         //ReduceUntil on List<T>
+        /// <summary>Combines the items in order with <paramref name="aggrFunc"/>, stopping when it returns None, and returns the last combined value.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
+        /// <remarks>Throws <see cref="System.ArgumentException"/> if there are no items.</remarks>
         public static async Task<T> ReduceUntilAsync<T>(this IEnumerable<T> values,
             Func<T, T, Task<Option<T>>> aggrFunc)
         {
@@ -39,6 +53,10 @@ namespace Resultful
         }
 
         //TryReduceUntil on List<T>
+        /// <summary>Combines the items in order with <paramref name="aggrFunc"/>, stopping when it returns None. Returns the last combined value, or None if there are no items.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static async Task<Option<T>> TryReduceUntilAsync<T>(this IEnumerable<T> values,
             Func<T, T, Task<Option<T>>> aggrFunc)
         {
@@ -49,6 +67,12 @@ namespace Resultful
         }
 
         //FoldAsync on List<T>
+        /// <summary>Combines <paramref name="seed"/> and the items in order with <paramref name="aggrFunc"/>.</summary>
+        /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="seed">The starting value.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static async Task<TResult> FoldAsync<TResult, T>(this IEnumerable<T> values, TResult seed,
             Func<TResult, T, Task<TResult>> aggrFunc)
         {
@@ -59,6 +83,12 @@ namespace Resultful
         }
 
         //FoldUntil on List<T>
+        /// <summary>Combines <paramref name="seed"/> and the items in order with <paramref name="aggrFunc"/>, stopping when it returns None, and returns the last combined value.</summary>
+        /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="seed">The task that gives the starting value. It is awaited first.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static async Task<TResult> FoldUntilAsync<TResult, T>(this IEnumerable<T> values, Task<TResult> seed,
             Func<TResult, T, Task<Option<TResult>>> aggrFunc)
         {
@@ -67,6 +97,12 @@ namespace Resultful
                 .ConfigureAwait(false);
         }
 
+        /// <summary>Combines <paramref name="seed"/> and the items in order with <paramref name="aggrFunc"/>, stopping when it returns None, and returns the last combined value.</summary>
+        /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="values">The items.</param>
+        /// <param name="seed">The starting value.</param>
+        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static async Task<TResult> FoldUntilAsync<TResult, T>(this IEnumerable<T> values, TResult seed,
             Func<TResult, T, Task<Option<TResult>>> aggrFunc)
         {

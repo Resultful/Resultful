@@ -1,1 +1,17 @@
 #nullable enable
+Resultful.Result<T, TError>.Deconstruct(out bool isSuccess, out T? value, out TError? error) -> void
+Resultful.Result<T, TError>.Error.get -> TError
+Resultful.Result<T, TError>.IsFailure.get -> bool
+Resultful.Result<T, TError>.IsSuccess.get -> bool
+Resultful.Result<T, TError>.OrElse(Resultful.Result<T, TError> other) -> Resultful.Result<T, TError>
+Resultful.Result<T, TError>.OrElse(System.Func<TError, Resultful.Result<T, TError>>! other) -> Resultful.Result<T, TError>
+Resultful.Result<T, TError>.TryGetError(out TError error) -> bool
+Resultful.Result<T, TError>.TryGetValue(out T value) -> bool
+Resultful.Result<T, TError>.Value.get -> T
+Resultful.Result<T, TError>.ValueOr(T fallback) -> T
+Resultful.Result<T>.IsFailure.get -> bool
+Resultful.Result<T>.IsSuccess.get -> bool
+Resultful.Result<T>.OrElse(Resultful.Result<T> other) -> Resultful.Result<T>
+Resultful.Result<T>.TryGetValue(out T value) -> bool
+Resultful.Result<T>.Value.get -> T
+Resultful.Result<T>.ValueOr(T fallback) -> T

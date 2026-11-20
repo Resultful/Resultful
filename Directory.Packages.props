@@ -14,5 +14,6 @@
     <PackageVersion Include="NunitXml.TestLogger" Version="5.0.0" />
     <PackageVersion Include="FluentAssertions" Version="7.2.0" />
     <PackageVersion Include="FluentAssertions.OneOf" Version="0.0.5" />
+    <PackageVersion Include="CsCheck" Version="5.0.1" />
   </ItemGroup>
 </Project>

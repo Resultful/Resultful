@@ -93,6 +93,27 @@ private IActionResult Get(string input)
 
 This way we can abstract the HTTP result from from domain logic.
 
+### Named methods
+
+When a callback is more than you need, ask the result directly. These read like the rest of .NET:
+
+```cs
+Result<Order, OrderError> result = FindOrder(id);
+
+if (result.IsSuccess) Ship(result.Value);         // IsSuccess and IsFailure tell the nullable checker which side is set
+if (result.TryGetError(out var error)) Log(error); // like Dictionary.TryGetValue; TryGetValue reads the value
+var (ok, order, failure) = result;                 // Deconstruct
+
+var fromCache = cached.OrElse(result);             // the first success wins
+var retried = result.OrElse(e => Retry(e));        // runs only on a failure, with the error
+var count = CountItems().ValueOr(0);               // the value, or a fallback
+```
+
+`Value` throws `InvalidOperationException` on a failure and `Error` throws on a success. `Result<T>` has
+`IsSuccess`, `IsFailure`, `Value`, `TryGetValue`, `OrElse(other)` and `ValueOr`; its error members come with the
+`Error` type in 0.3. The zero value (`default`) is neither a success nor a failure: `IsSuccess` and `IsFailure` are
+both `false`, and the other named methods throw.
+
 ## Operators
 
 ### Map

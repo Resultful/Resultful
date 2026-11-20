@@ -14,6 +14,12 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- Every public member is documented: the XML file ships in the package, and a missing comment fails the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="\" />
