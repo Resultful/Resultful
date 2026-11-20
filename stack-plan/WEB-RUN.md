@@ -35,3 +35,8 @@ Git push and fetch work as usual over HTTPS.
 
 Foreground `sleep` is blocked. An implementer waits with a background command (`sleep 240` with
 `run_in_background`) and checks `get_check_runs` when it returns. The orchestrator does the same between PRs.
+
+## NuGet
+
+This session has no permission to push to NuGet, and the agents never try: no `dotnet nuget push`, no dispatch
+of a publishing job, previews included. Reading from nuget.org (restore) works.
