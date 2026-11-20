@@ -44,4 +44,48 @@ internal static class CompilationHarness
 
         return compilation.GetDiagnostics();
     }
+
+    public static ImmutableArray<Diagnostic> CompileTwoAssemblies(
+        string baseAssemblySource,
+        string consumerAssemblySource,
+        LanguageVersion languageVersion = LanguageVersion.Preview)
+    {
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(languageVersion);
+        var trustedAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+
+        var refs = trustedAssemblies
+            .Where(File.Exists)
+            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
+            .ToList();
+
+        var baseCompilation = CSharpCompilation.Create(
+            "Resultful.DesignSpec.BaseAssembly",
+            [CSharpSyntaxTree.ParseText(baseAssemblySource, parseOptions)],
+            refs,
+            new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        using var peStream = new MemoryStream();
+        var emitResult = baseCompilation.Emit(peStream);
+        if (!emitResult.Success)
+        {
+            return emitResult.Diagnostics;
+        }
+
+        peStream.Position = 0;
+        var baseRef = MetadataReference.CreateFromStream(peStream);
+        var consumerRefs = refs.Append(baseRef).ToList();
+
+        var consumerCompilation = CSharpCompilation.Create(
+            "Resultful.DesignSpec.ConsumerAssembly",
+            [CSharpSyntaxTree.ParseText(consumerAssemblySource, parseOptions)],
+            consumerRefs,
+            new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        return consumerCompilation.GetDiagnostics();
+    }
 }

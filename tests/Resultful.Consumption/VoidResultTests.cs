@@ -5,6 +5,23 @@ namespace Resultful.Consumption;
 public sealed class VoidResultTests
 {
     [Fact]
+    public void Shipped_Unit_is_a_class_Result_Ok_returns_VoidResult_and_ResultOfUnit_converts_to_VoidResult()
+    {
+        // Pins today's shipped behaviour (pre-M3 / Decision 14):
+        // Unit is a reference type, Result.Ok() returns VoidResult, and Result<Unit> converts to VoidResult.
+        Assert.True(typeof(Unit).IsClass);
+        Assert.NotNull(Unit.Value);
+
+        var ok = Result.Ok();
+        Assert.IsType<VoidResult>(ok);
+        Assert.True(ok.Match(u => ReferenceEquals(u, Unit.Value), _ => false));
+
+        Result<Unit> resultOfUnit = Unit.Value.Ok();
+        VoidResult converted = resultOfUnit;
+        Assert.True(converted.Match(u => ReferenceEquals(u, Unit.Value), _ => false));
+    }
+
+    [Fact]
     public void Default_parameterless_ctor_and_implicit_conversions_for_VoidResult()
     {
         var fromCtor = new VoidResult();
