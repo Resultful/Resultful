@@ -24,6 +24,8 @@ public sealed class MustObserveTests
         public static class ReplyExtensions
         {
             public static void Each<T>(this Reply<T> reply, Action<T> action) { }
+            public static Task Switch<T>(this Task<Reply<T>> reply, Action<T> onOk, Action<string> onError) => reply;
+            public static ValueTask<Reply<T>> Tee<T>(this ValueTask<Reply<T>> reply, Action<T> action) => reply;
         }
 
         public sealed class Plain { public Plain Next() => this; }
@@ -35,6 +37,8 @@ public sealed class MustObserveTests
             public static Task<Reply<int>> MakeAsync(int id) => Task.FromResult(Make(id));
             public static ValueTask<Reply<int>> CheckAsync(int id) => new(Make(id));
             public static Task DoAsync() => Task.CompletedTask;
+            public static async void FireAndForget(int v) => await Task.Yield();
+            public static void Handle(int v) { }
             [MustObserve] public static int Count() => 1;
             public static int Uncounted() => 1;
             public static void Use(Reply<int> reply) { }
@@ -171,6 +175,77 @@ public sealed class MustObserveTests
                 _ = r.Tee(async v => await Task.Yield()); // expect: RF0001
                 r.Each(async delegate (int v) { await Task.Yield(); }); // expect: RF0001
             }
+        }
+        """);
+
+    [Fact]
+    public void An_async_void_handler_on_a_task_or_value_task_of_a_result_is_reported() => Check("""
+        public static class Cases
+        {
+            static async Task Handlers()
+            {
+                await Api.MakeAsync(1).Switch(async v => await Task.Yield(), e => { }); // expect: RF0001
+                _ = await Api.CheckAsync(2).Tee(async v => await Task.Yield()); // expect: RF0001
+                await Api.MakeAsync(3).Switch(v => { }, e => { });
+            }
+        }
+        """);
+
+    [Fact]
+    public void An_async_void_handler_on_the_cores_task_of_result_is_reported() => Check("""
+        public static class Cases
+        {
+            static Task<Resultful.Result<int>> GetAsync() => Task.FromResult(Resultful.Result.Ok(1));
+
+            static async Task Handlers()
+            {
+                await Resultful.Result.Switch(GetAsync(), async v => await Task.Yield(), e => { }); // expect: RF0001
+                _ = await Resultful.Result.Tee(GetAsync(), async v => await Task.Yield()); // expect: RF0001
+                Resultful.Result.Ok(1).Switch(async v => await Task.Yield(), e => { }); // expect: RF0001
+            }
+        }
+        """);
+
+    [Fact]
+    public void An_async_void_method_group_is_a_handler_too() => Check("""
+        public static class Cases
+        {
+            static void Handlers(Reply<int> r)
+            {
+                r.Switch(Api.FireAndForget, e => { }); // expect: RF0001
+                r.Switch(Api.Handle, e => { });
+            }
+        }
+        """);
+
+    [Fact]
+    public void An_array_of_results_dropped_or_awaited_and_dropped_is_reported() => Check("""
+        public static class Cases
+        {
+            static Reply<int>[] All() => [];
+
+            static async Task Forgets()
+            {
+                All(); // expect: RF0001
+                await Task.WhenAll(Api.MakeAsync(1), Api.MakeAsync(2)); // expect: RF0001
+                Task.WhenAll(Api.MakeAsync(1)); // expect: RF0001
+                var all = await Task.WhenAll(Api.MakeAsync(1), Api.MakeAsync(2));
+                _ = await Task.WhenAll(Api.MakeAsync(3));
+            }
+        }
+        """);
+
+    [Fact]
+    public void A_task_of_a_result_converted_to_Task_is_reported() => Check("""
+        public static class Cases
+        {
+            static Task Returns() => Api.MakeAsync(1); // expect: RF0001
+            static readonly Func<Task> Lambda = () => Api.MakeAsync(1); // expect: RF0001
+            static Task Stored() { Task t = Api.MakeAsync(1); return t; } // expect: RF0001
+            static Task Variable(Task<Reply<int>> t) => t;
+            static Task Explicit() => (Task)Api.MakeAsync(1);
+            static Task<Reply<int>> Kept() => Api.MakeAsync(1);
+            static async Task Awaits() { await Task.WhenAny(Api.MakeAsync(1), Api.DoAsync()); } // expect: RF0001
         }
         """);
 

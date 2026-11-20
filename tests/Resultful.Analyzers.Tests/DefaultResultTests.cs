@@ -18,7 +18,30 @@ public sealed class DefaultResultTests
             static Validation<int> D() => default; // expect: RF0002
             static void E(Result<int> r = default) { } // expect: RF0002
             static void F() { Result<int> r = default; _ = r; } // expect: RF0002
-            static bool G(Result<int> r) => r.Equals(default(Result<int>)); // expect: RF0002
+        }
+        """);
+
+    [Fact]
+    public void Comparing_with_default_is_not_reported() => Verify("""
+        using Resultful;
+
+        public static class Cases
+        {
+            static bool A(Result<int> r) => r == default;
+            static bool B(Result<int> r) => r != default(Result<int>);
+            static bool C(Result<int> r) => r.Equals(default(Result<int>));
+            static bool D(Result<int> r) => Equals(r, (object)default(Result<int>));
+            static bool E(Result<int> r) => (default) == r;
+        }
+        """);
+
+    [Fact]
+    public void Default_in_a_pattern_is_left_to_the_compiler() => Verify("""
+        using Resultful;
+
+        public static class Cases
+        {
+            static bool A(Result<int> r) => r is default(Result<int>); // expect: CS9135
         }
         """);
 

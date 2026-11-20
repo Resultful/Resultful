@@ -48,21 +48,6 @@ public sealed class EditorConfigTests
         """, " M:Vendor.Client.Ping , Vendor.ApiResponse`1 ");
 
     [Fact]
-    public void The_target_core_carries_no_attribute_so_its_results_are_checked_only_when_listed()
-    {
-        // Spec finding: the target API's Result<T> has no [MustObserve] (PKG-CODEANALYSIS says the core's does).
-        const string source = """
-            using Resultful;
-            public static class Cases
-            {
-                static void Forgets() { Result.Ok(1); } // expect: RF0001
-            }
-            """;
-        Verify(source, "T:Resultful.Result`1");
-        Verify(source.Replace(" // expect: RF0001", "", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public void Ids_parse_with_commas_semicolons_and_spaces() =>
         Assert.Equal(["M:A.B", "T:C", "T:D`1"], Symbols.ParseIds(" T:C, M:A.B;D`1 ,, ").Order(StringComparer.Ordinal));
 }
