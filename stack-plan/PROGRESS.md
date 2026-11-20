@@ -9,7 +9,7 @@ Rows are in stack order.
 | 02 | rtkelly13/stack-02-test-infra | #40 | green | d083225, CI green: review fixes + release-check gaps closed (ApiCompat strict added); size waiver |
 | 03 | rtkelly13/stack-03-analysis-level | #41 | green | 900f8aa, CI green incl. strict ApiCompat; review fixes as fixup!; carries 02's commits by cherry-pick; nullable lines split into `eng/api-nullable-0.2.0.txt` |
 | 04 | rtkelly13/stack-04-per-package-release | #43 | green | d51d2e3, CI green; review fixups in; carries 03's commits by cherry-pick (drop on restack); api-diff glob loosened to 03's, tighten after restack |
-| 04b | rtkelly13/stack-04b-release-0.2 | #49 | review | CI green; review: release content holds; Ready-to-ship steps conflict (append-only branches aren't ancestors): rewritten to squash #49 alone, or restack first; nits; adversary running |
+| 04b | rtkelly13/stack-04b-release-0.2 | #49 | review | CI green; review: merge steps rewritten; adversary: no unlisted difference, but assembly version 0.2.0.0 < published betas' 1.0.0.0 (default: keep 1.0.0.0, #39 q13) and PE headers unchecked; fixing |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | green | 9a465b0, CI green; review fixes (gate reads api/<tfm>, frozen 0.2.0 baseline, CORE-MATRIX, UERR twins, harness runs cases apart from expected errors), ls-lint rules (f72ad89), [MustObserve]; 268 spec tests, 137 ledger lines pending |
 | 04d | rtkelly13/stack-04d-reference-app | #44 | green | 262b016, CI green; review fixes in; carries 04c's commits to 9a465b0; own ls-lint lines |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | green | 3499c1e, CI green; review fixes in; 3 spec: commits (UC10 fixture back to 23a); 292 spec, 34 e2e green locally |
