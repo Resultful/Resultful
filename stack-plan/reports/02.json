@@ -1,0 +1,58 @@
+{
+  "pr": 40,
+  "branch": "rtkelly13/stack-02-test-infra",
+  "head_sha": "6595f599b26b0537819b3c2d3e92ec2ff44607a5",
+  "ci": "green (build, release-check, lint, suppressions pass; publish skipped as designed) on the first push",
+  "test_count": {
+    "Resultful.Consumption per run": 46,
+    "Resultful.Consumption runs": "net10.0, net11.0 x default, tr-TR, invariant = 6, plus the same 6 [packed]",
+    "Resultful.Tests per run": 19,
+    "Resultful.Tests runs": "net10.0, net11.0",
+    "was": "38 per consumption run (01), 19 NUnit; +7 reference model laws, +1 CultureTests"
+  },
+  "suppressions": [],
+  "changes": [
+    "eng/run-tests.cs: finds tests/*/*.csproj, reads TargetFrameworks/OutputType/TestCultures/CoverageRunArguments via dotnet msbuild -getProperty, runs each TFM (net4x only on Windows), xunit.v3 Exe via dotnet run -- -result-trx, VSTest via dotnet test --logger trx; per-run TRX, counts JSON, markdown summary (also GITHUB_STEP_SUMMARY); --self-test",
+    "Counts gate: eng/test-counts.json keyed 'project tfm [culture=x] [label]'; CI fails on any total or skipped mismatch (fall, unrecorded rise, more skips), a missing run, or a stale entry; normal and packed runs both checked",
+    "Coverage ratchet: coverlet.console 10.1.0 (local tool), Debug build with ContinuousIntegrationBuild=false, both test projects merged on net10.0; eng/coverage-floor.json branch 84.72, line 92.15; CI measured exactly 84.72/92.15",
+    "Suppressions gate: eng/check-suppressions.cs over git diff base...HEAD; .github/workflows/suppressions.yml (pull_request opened/edited/synchronize/reopened) requires each hit's path and diagnostic IDs under '## Suppressions' in the body",
+    "Reference model: tests/Resultful.Consumption/ReferenceModel.cs (Result<T>, Result<T,TError>, VoidResult as bools + values/lists, hazards kept) and ReferenceModelLawTests.cs (Map identity/composition, Bind left/right identity and associativity, Match, random programs of Map/Bind/MapError/Plus on all three types)",
+    "Culture: <TestCultures>tr-TR;invariant</TestCultures> in the consumption csproj; run-tests repeats the suite with xunit -culture per run; CultureTests asserts the requested culture took effect (verified to fail when not applied)",
+    "eng/api-diff.cs: SRM public/protected API per target incl. param names, defaults, constraints, attributes, effective nullable; vs eng/api-diff-0.2.0.txt (empty); --self-test via Roslyn",
+    "eng/il-diff.cs: every method body with tokens resolved to names, locals, maxstack, EH regions; vs eng/il-diff-0.2.0.txt (empty; ~1626-1631 methods per target, 0 differences); --self-test via Roslyn",
+    "eng/verify-package.cs extended: --baseline/--expected/--write diff of file list, dependency groups and other nuspec metadata (version, repository commit and branch, .psmdcp name ignored) vs eng/package-diff-0.2.0.txt (3 lines: net11.0 file and group); --self-test; existing checks unchanged",
+    "ci.yml: Test step replaced by run-tests with counts gate; Coverage ratchet step; packed run uses run-tests --label packed; test-results artifact uploaded at the end (always); new release-check job (needs build): self-tests of all five scripts, packs baseline from 1697a7a with current global.json, uploads baseline-0.2.0-beta06 artifact, runs api-diff, il-diff, verify-package --baseline",
+    ".ls-lint.yml: eng allows .json (kebab-case) and exactly (api|il|package)-diff-0.2.0.txt",
+    ".config/dotnet-tools.json: adds coverlet.console 10.1.0",
+    "docs/decisions/0005 and 0006: one paragraph each on how the checks run",
+    "Nothing under src/ changed"
+  ],
+  "beyond_contract": [
+    "CultureTests proves each culture run used the requested culture",
+    "Counts are per culture and per packed run; a run that disappears fails the gate",
+    "Self-tests for all five scripts, run in CI",
+    "Line coverage floor as well as branch; NUnit suite merged into coverage; note when the floor should be raised",
+    "Job summary table and TRX for every run (normal, packed, coverage) in the test-results artifact",
+    "Suppressions gate also catches WarningsNotAsErrors, TreatWarningsAsErrors false, NUnit Ignore/Explicit, lowered .editorconfig severity; requires diagnostic IDs; own workflow so a body edit reruns it",
+    "Package diff also compares other nuspec metadata",
+    "API diff includes parameter names, defaults, attributes and nullable annotations so 03's re-annotations will show",
+    "ls-lint rules admit only the named new eng files"
+  ],
+  "decisions_taken": [
+    "Baseline packed from commit 1697a7a: no tags exist on the remote and 0.2.0-beta06 is not on nuget.org (latest beta05). DECISIONS-TAKEN row 'The tag exists locally' (04b) is out of date",
+    "net11.0 compared against the baseline's net10.0 (the asset NuGet picks); mapping printed by the scripts; package diff lists the net11.0 file and group as expected differences",
+    "Baseline built with the repository's global.json (SDK 11) so compiler changes can't appear as code changes",
+    "Counts gate requires equality (fall fails, unrecorded rise fails)",
+    "Coverage measured on a Debug, non-CI build on net10.0 only; the uncounted coverage run excludes PackageSourceTests (via CoverageRunArguments) because instrumentation rewrites Resultful.dll",
+    "coverlet.console 10.1.0 rather than 10.1.1 (under two weeks old)",
+    "TestCultures supported only for xunit.v3 runner (Exe) projects; MTP-runner projects make run-tests stop with a message"
+  ],
+  "open_issues": [
+    "Size: ~2,780 changed lines outside tests/ (mostly the five eng scripts), over the ~800-line split guide. Clean split point if wanted: 02a = first three commits, 02b = the release-check commit (6595f59)",
+    "DECISIONS-TAKEN.md (plan branch) should be corrected: no 0.2.0-beta06 tag exists; baseline is commit 1697a7a; beta06 was never published to nuget.org",
+    "Binary-compat run (suite built against baseline, new DLL swapped in) and EnablePackageValidation not done here: 04b",
+    "run-tests does not support Microsoft.Testing.Platform runner projects yet (fails loudly); the first PR that adds one must extend it",
+    "Suppressions gate can't see suppressions in files it doesn't scan (e.g. .md, .json runsettings) and matches only by text; documented in the script header",
+    "eng scripts duplicate Package/Targets/Expected helpers between api-diff.cs and il-diff.cs (file-based apps can't share a source file)"
+  ]
+}

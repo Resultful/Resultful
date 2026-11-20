@@ -9,7 +9,7 @@
 | all | Dependency versions vary by target; the generator and analyzers ship one build per Roslyn version | Ryan, 2026-11-20 |
 | all | Stack reshaped from agy's and Fable's reviews: 04c spec-harness and 04d reference-app above the release; 08 split into 08a/08b; 13 split into 13a (after 04d) and 13b (after 19); 14 dissolved into 04c/13b; 18 and 19 moved up after 12; 23a becomes "finish the Shop" | Both reviews: done must be measured against a target written as code, and the core should be finished before tooling |
 | 01, 13a | #36 and #37 are copied into fresh `stack-NN` branches, not rebased in place | #37's branch is checked out in agy's worktree |
-| 04b | The beta06 baseline is packed in CI from the `0.2.0-beta06` tag | The tag exists locally; no external lookup needed |
+| 04b | ~~The beta06 baseline is packed in CI from the `0.2.0-beta06` tag~~ Superseded: packed from commit 1697a7a (row below) | The tag was only local; the remote has none |
 | 04c | **Proposed:** `Unit` stays a class | As shipped and as the stub assumes; no break. Ryan may switch it to a struct before 04c lands |
 | 04c | **Proposed:** `Validation` has no `Bind` and no `+`; it has `Combine` | Decision 14 lists Haskell/Cats (none) first; *One error or many* says `Validation` has no `Bind`. 18 adds operators only where decision 9 covers them |
 | 04c | **Proposed:** shapes have no async members; use `AsResult()` then the core's async overloads | Decision 16: async is written once, in the core |
