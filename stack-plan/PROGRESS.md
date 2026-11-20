@@ -14,7 +14,7 @@ Rows are in stack order.
 | 04d | rtkelly13/stack-04d-reference-app | #44 | review | review: approve, with should-fixes (CardDeclined text, a shape over a union in Net11); fixing |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review: changes needed (MissingArm deadlock with 13b; Legacy cases to MIG-LEGACY; pack failures hidden); 4 questions on #39; fixing |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | review | a96a660 on 04d2@1fedf62; dry run green (0.3.0-preview.0 packed, restored together); lint red from 04c/04d paths (04c adds .ls-lint.yml rules; cherry-pick up); secret `NUGET_PREVIEW_KEY` |
-| 13a | rtkelly13/stack-13a-generator-target | #46 | review | drafted ahead on 04c@5b8b23a; a74d085; 41/44 generator tests green; 3 spec findings for 04c; reviewer running |
+| 13a | rtkelly13/stack-13a-generator-target | #46 | review | review: changes needed ([Union] ignores language version; fuzz mostly hits early returns); fixing |
 | 05 | rtkelly13/stack-05-named-methods |  | todo |  |
 | 06 | rtkelly13/stack-06-error-record |  | todo |  |
 | 07 | rtkelly13/stack-07-attributes |  | todo |  |
