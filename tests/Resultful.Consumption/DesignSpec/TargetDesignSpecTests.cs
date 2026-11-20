@@ -308,6 +308,43 @@ public sealed class TargetDesignSpecTests
     }
 #endif
 
+    [Fact]
+    public void Decision15_record_copy_ctor_allows_cross_assembly_derivation_so_analyzer_rule_is_required()
+    {
+        // Doc claim: docs/decisions/0015-analyzer-rules-read-attributes.md (27613a4)
+        // Even with a private protected base constructor, C# synthesizes a protected copy constructor
+        // on records, so another assembly can still derive through it; declaring it private protected is CS8878.
+        var externalDerived = """
+            using Resultful.StandIn;
+
+            namespace ExternalAssembly
+            {
+                public sealed record Evil : OrderError
+                {
+                    public Evil(OrderError original) : base(original) { }
+                }
+            }
+            """;
+
+        var crossAssemblyDiags = CompilationHarness.CompileTwoAssemblies(StandInCore, externalDerived);
+        Assert.DoesNotContain(crossAssemblyDiags, d => d.Severity == DiagnosticSeverity.Error);
+
+        var privateProtectedCopyCtor = StandInCore + """
+            namespace Probe
+            {
+                using Resultful.StandIn;
+                public abstract record ClosedAttempt : Error
+                {
+                    private protected ClosedAttempt(string message) : base(message) { }
+                    private protected ClosedAttempt(ClosedAttempt original) : base(original) { }
+                }
+            }
+            """;
+
+        var cs8878Diags = CompilationHarness.Compile(privateProtectedCopyCtor);
+        Assert.Contains(cs8878Diags, d => d.Id == "CS8878" && d.Severity == DiagnosticSeverity.Error);
+    }
+
     // --- Milestone-gated specifications for unbuilt Resultful APIs ---
 
     [Fact(Skip = "Pending M2: opt-in Resultful.Operators (Decision 9: |, ||, >>, &, named OrElse/ValueOr)")]
@@ -322,13 +359,13 @@ public sealed class TargetDesignSpecTests
         // Doc claim: docs/decisions/0010-default-is-not-success.md & docs/decisions/0014-result-and-validation.md
     }
 
-    [Fact(Skip = "Pending M4: Resultful.Analyzers ([MustObserve], [ClosedHierarchy] CS8509 suppressor with nullable guard, bare string on Result<string>, default(Result<T>))")]
+    [Fact(Skip = "Pending M4: Resultful.Analyzers ([MustObserve], [ClosedHierarchy] CS8509 suppressor with nullable guard & cross-assembly derivation rule, bare string on Result<string>, default(Result<T>))")]
     public void M4_analyzers_enforce_MustObserve_ClosedHierarchy_and_hazards()
     {
         // Doc claim: docs/decisions/0015-analyzer-rules-read-attributes.md & docs/roadmap.md (M4)
     }
 
-    [Fact(Skip = "Pending M4: Resultful.Generators ([ClosedHierarchy] private protected ctor + Match/TryMap, [ResultShape] narrow & ManyErrors shapes, overlapping Success generator error)")]
+    [Fact(Skip = "Pending M4: Resultful.Generators ([ClosedHierarchy] Match/TryMap, [ResultShape] narrow & ManyErrors shapes, overlapping Success generator error)")]
     public void M4_generators_emit_shapes_and_report_overlapping_Success_error()
     {
         // Doc claim: docs/decisions/0016-source-generated-result-shapes.md (items 3-8)
