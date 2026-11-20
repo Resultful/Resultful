@@ -3,10 +3,18 @@
   "url": "https://github.com/Resultful/Resultful/pull/43",
   "branch": "rtkelly13/stack-04-per-package-release",
   "started_from": "be6b76a (origin/rtkelly13/stack-03-analysis-level)",
-  "head_sha": "6eb51166062f2f87057985e461a155b26f207722",
-  "commits": ["8cfab52 build: release plan", "17179e7 build: verify-package every packable project", "8b43e02 ci: plan + planned-only publish + tags", "6eb5116 docs: decision 11 How a release works"],
+  "head_sha": "34d01ec3e947a01ce1480ca3583aa6bb411520f6",
+  "commits": [
+    "8cfab52 build: release plan",
+    "17179e7 build: verify-package every packable project",
+    "8b43e02 ci: plan + planned-only publish + tags",
+    "6eb5116 docs: decision 11 How a release works",
+    "3f804b1 fixup (release-plan)",
+    "35d9b27 fixup (ci)",
+    "34d01ec fixup (docs)"
+  ],
   "local_checks": {
-    "release_plan_self_test": "passed, 24 cases",
+    "release_plan_self_test": "passed, 32 cases; with the new logic broken on purpose, the pinning, settings and out-of-folder cases fail",
     "verify_package_self_test": "passed (PackageDiff and the new PackageCheck)",
     "build_and_pack": "dotnet build src/Resultful -c Release -m:2, then pack each src/*/*.csproj: Resultful.0.2.0-beta06.nupkg + snupkg",
     "release_plan_real_repo": "exit 0; Resultful 0.2.0-beta06 pending against bootstrap 1697a7a; nothing to publish",
@@ -29,14 +37,38 @@
     "decision 11 updated instead of a new decision number (avoids stack B's 14-17)",
     "--self-test instead of an xunit project (test-counts unchanged)",
     "VersionPrefix/VersionSuffix kept for Resultful; the plan reads either form",
-    "per-target Directory.Packages.props: deferred to stack B (no stack A package needs it); the plan already handles it"
+    "per-target Directory.Packages.props: deferred to stack B (no stack A package needs it); the plan already handles it",
+    "--nuget kept on every build, PRs included (review item 1 offered either), now with retry and a clear error"
   ],
-  "beyond_contract": ["--packages coverage check", "per-target/global central entries", "duplicate-id and missing-bootstrap-commit errors", "on-demand loading of referenced projects outside src/", "last-release source in the table", "publish needs release-check", "release-check globs tightened", "summary line serves as the publish dry run"],
+  "beyond_contract": [
+    "--packages coverage check",
+    "per-target/global central entries",
+    "duplicate-id and missing-bootstrap-commit errors",
+    "on-demand loading of referenced projects outside src/",
+    "last-release source in the table",
+    "publish needs release-check",
+    "release-check globs tightened",
+    "summary line serves as the publish dry run"
+  ],
   "suppressions": [],
   "open_issues": [
     "CI not observed (pipelining). Risks: the Release plan step calls nuget.org (--nuget); fetch-tags with fetch-depth 0; bash glob Resultful.[0-9]*.nupkg in release-check",
     "release-plan.cs is 843 lines, of which about 510 are the self-test; production logic is about 330 lines",
     "an analyzer-only package (stack B) will need a verify-package exception for lib/<target>/<id>.dll",
-    "Microsoft.CodeAnalysis.PublicApiAnalyzers (PrivateAssets=all) counts as a central input, as in the sibling; harmless but noisy"
-  ]
+    "Microsoft.CodeAnalysis.PublicApiAnalyzers (PrivateAssets=all) counts as a central input, as in the sibling; harmless but noisy",
+    "suppressions: two runs failed because GitHub tests the merge with 03's current head (its fixups rewrote NoWarn lines in Directory.Build.props and src/Resultful/Resultful.csproj) while #43's recorded base.sha is still be6b76a. The body now names those lines as inherited from #41 and the rerun passes. Restacking onto 03's new head removes the cause; the body note can go then."
+  ],
+  "fixup_commits": {
+    "3f804b1": "fixup! build: add a release plan ... (review 1,2,3, nit 6: nuget retry/timeout/clear error; Directory.Packages.props settings and transitive pinning; global.json and out-of-folder imports/includes as inputs; bootstrap skipped below a real tag; 8 new self-test cases, 32 total)",
+    "35d9b27": "fixup! ci: write the release plan ... (review 4: an existing tag must point at GITHUB_SHA; --nuget kept on PRs, comment says why)",
+    "34d01ec": "fixup! docs: record how a per-package release works ... (review 3 docs, nit 5: the --skip-duplicate window, untracked files, retries)"
+  },
+  "ci": {
+    "head": "34d01ec",
+    "build": "success",
+    "release-check": "success (includes release-plan --self-test on the runner)",
+    "lint": "success",
+    "suppressions": "success on the rerun after the body named the opt-outs inherited from #41; two earlier runs failed (see open_issues)",
+    "publish": "skipped (pull_request event)"
+  }
 }
