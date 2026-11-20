@@ -190,10 +190,10 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
   every PR under it is.
 - **Drafting ahead (Ryan, 2026-11-20: as much in parallel as possible).** Once 04c's target API is pushed, a PR
   whose code lives in its own new directory may be drafted against the target stubs before its turn: 13a
-  (generator), 12b (`Resultful.Text.Json`), 18 (`Resultful.Operators`), 16a/16b (analyzers), 20a/20b
+  (generator), 12b (`Resultful.Text.Json`), 16a/16b (analyzers), 20a/20b
   (`Resultful.AspNetCore`), 21 (`Resultful.FluentValidation`, `Resultful.Diagnostics`). Same no-root-files rule.
   Each is rebased into its stack position when its turn comes, switched from the stubs to the real projects, and
-  only then can it be *done*. The core chain (05–12, 19, and 24) edits the same files and stays strictly in order.
+  only then can it be *done*. The core chain (05–12, 18, 19, and 24; 18 too, since 04c found `Resultful.Operators` is a namespace in the core) edits the same files and stays strictly in order.
   If Ryan's review of 04c changes the target, drafted PRs are reworked; that risk is accepted.
 
 ## Known traps

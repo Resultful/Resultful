@@ -1,0 +1,202 @@
+{
+  "pr": 42,
+  "branch": "rtkelly13/stack-04c-spec-harness",
+  "head_sha": "5b8b23a9350bc7ac3e74687dfce1b69dae534038",
+  "ci": "build success, lint success, publish skipped (run 44808805858). New projects are not wired into CI yet.",
+  "local_runs": [
+    {
+      "cmd": "dotnet build tests/Resultful.TargetApi/<pkg> -m:2 (all 6 packages, every TFM)",
+      "result": "0 warnings, 0 errors"
+    },
+    {
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs -- --self-test",
+      "result": "7/7 seeded cases behave; exit 0"
+    },
+    {
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
+      "result": "API gate: passed (core 358/342 target members to add, 141 listed removals to make; satellites skipped: no src project)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Spec -f net10.0",
+      "result": "MTP total 261, failed 0"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Spec -f net11.0",
+      "result": "MTP total 261, failed 0"
+    },
+    {
+      "cmd": "RESULTFUL_SPEC_GENERATOR=<#37 generator dll> dotnet run --project tests/Resultful.Spec -f net11.0",
+      "result": "34 generator fixtures fail target compile: all generator-side gaps (Ok/Fail statics, instance AsResult, no private protected ctor, no IsDefault/WithContext/Cases/unions/shape conversions)"
+    },
+    {
+      "cmd": "ls-lint 2.3.1 (local)",
+      "result": "pass"
+    }
+  ],
+  "ledger_counts": {
+    "total": 135,
+    "pending": 135,
+    "with_fixture": 122,
+    "fixture_to_come": 13,
+    "by_owner": {
+      "05": 4,
+      "06": 6,
+      "07": 2,
+      "08b": 10,
+      "09": 6,
+      "10": 10,
+      "11": 4,
+      "12": 4,
+      "12b": 6,
+      "13a": 7,
+      "13b": 22,
+      "15": 4,
+      "16a": 5,
+      "16b": 7,
+      "17": 3,
+      "18": 7,
+      "19": 7,
+      "20a": 3,
+      "20b": 3,
+      "21": 2,
+      "22": 1,
+      "23a": 10,
+      "24": 2
+    }
+  },
+  "packages": {
+    "Resultful": {
+      "tfms": [
+        "netstandard2.0",
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 28,
+      "api_lines": {
+        "netstandard2.0": 693,
+        "net10.0": 709,
+        "net11.0": 709
+      }
+    },
+    "Resultful.OneOf": {
+      "tfms": [
+        "netstandard2.0",
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 1,
+      "api_lines": 11
+    },
+    "Resultful.Text.Json": {
+      "tfms": [
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 9,
+      "api_lines": 35
+    },
+    "Resultful.AspNetCore": {
+      "tfms": [
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 7,
+      "api_lines": 34
+    },
+    "Resultful.FluentValidation": {
+      "tfms": [
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 2,
+      "api_lines": 15
+    },
+    "Resultful.Diagnostics": {
+      "tfms": [
+        "net10.0",
+        "net11.0"
+      ],
+      "public_types": 3,
+      "api_lines": 9
+    },
+    "Resultful.Generators": "data files: diagnostics.tsv (RFG0001-RFG0008), generated-members.tsv, tracking-names.txt",
+    "Resultful.Analyzers": "data files: diagnostics.tsv (RF0001-RF0010, RFSP0001), editorconfig-keys.tsv, code-fixes.tsv"
+  },
+  "decisions_taken": [
+    "| 04c | Resultful.Operators and Resultful.CodeAnalysis are namespaces in the core, not packages | Decisions 9 and 15 and the architecture's core row; the contract listed Operators as a package |",
+    "| 04c, 24 | The core's .NET 11 union members are left out of the target; UNION-* fixtures use `uses core-union` and are n/a on the target; 24 adds the measured members with a spec: commit | Decision 3 chooses them by measurement |",
+    "| 04c, 09 | Result<T> gets an implicit conversion from T | 0.2 had none (string conversion blocked it); decision 14's `return row;` and 'Result<string> r = \"message\" is a success' need it |",
+    "| 04c, 09 | Gathering on Result<T> with no merge function (Plus, Fold, Reduce, Unroll and async forms) is removed; Result<T, TError> keeps mergeFunc forms; IPlus/Plus not yet deprecated | Decision 14: gathering moves to Validation |",
+    "| 04c, 09, 12 | VoidResult holds Error and keeps all members, [Obsolete] | Lossless two-way conversion with Result<Unit> (row 10) |",
+    "| 04c, 12 | Sequence, Check, DiscardValue, Unwrap take/return Result<Unit>; Result.Ok<TError>() returns Result<Unit, TError>; Fail(string) returns Result<Unit> | Decision 14 on decision 4; the open 'parameterless Ok()' question |",
+    "| 04c, 05 | Value and Error properties (throw on the wrong case), OrElse(other), OrElse(Func<TError,\u2026>), ValueOr(T), Deconstruct | Decision 10 and 16b name Value; seamless section 4 |",
+    "| 04c, 19 | Result.Try/TryAsync take Func<Exception, Error> only (a typed-error overload is CS0121-ambiguous) and never catch OperationCanceledException | Smallest opt-in |",
+    "| 04c, 19 | CancellationToken overloads for MapAsync/BindAsync/TeeAsync (token required, RS0026); ValueTask receivers and CollectAsync/PartitionAsync on net10+ only | netstandard2.0 has neither type and the core has no dependencies |",
+    "| 04c, 18 | Operators: Result |, | T, || (via true/false, which also allows if (result)), >>; Validation &; no + - *; same on Task<Result<\u2026>> | Decisions 9, 14 and the accepted 'Validation has only Combine' |",
+    "| 04c, 06 | Error.Context is IReadOnlyList<string> with init; Error.From returns Error; ValidationFailed throws on an empty list | Row 06, VAL-NONEMPTY |",
+    "| 04c, 16b, 17 | RF IDs fixed: RF0001 not observed, RF0002 default, RF0003 Value unchecked, RF0004 bare string, RF0005 Match->switch, RF0006 unassigned field, RF0007 private protected, RF0008 typed handlers, RF0009 Map->Bind; new RF0010 (foreign derived type, error, 17) and RFSP0001 (CS8509 suppressor) | Needed before the fixtures can name them |",
+    "| 04c, 13b | RFG0007 (union case not Error) and RFG0008 (simple-name collision, on the base; supersedes building-the-generator's prefixing rule); generator emits static Cases on hierarchies and unions (budget 3->4) | Round 4 JSON read rule needs a case list |",
+    "| 04c, 12b | JSON: context always written, cause only when non-null; leaf names follow the options' naming policy; reading via AddErrorCases<TError>(types); unions via ErrorUnionJsonConverter(cases, wrap) | AOT-safe without the generator (12b precedes 13b) |",
+    "| 04c, 20a | AspNetCore: options map Map<TError>(status), ValidationKey (default: type name), ResultHttpResult<T> IResult with OpenAPI metadata | Smallest surface for the accepted HTTP map |",
+    "| 04c, 21 | FluentValidation 12.x, net10/net11 only; Diagnostics references M.E.Logging.Abstractions only on net10 (in-box on net11, NU1510) | Satellites follow their dependency |",
+    "| 04c | Compile-only tool fixtures compile against the target API with the real tool; each fixture uses only API from its owner and earlier PRs | So 13a can flip GEN-* before 07 |",
+    "| 12b, 22 | Decision 10's [Obsolete(error: true)] ctor breaks [JsonSerializable(typeof(Result<T>))] (CS0619); pattern: context lists the value type, result info from JsonMetadataServices.CreateValueInfo<Result<T>>(options, new ResultJsonConverter<T>()) | Found by AOT-JSON-SOURCEGEN |",
+    "| 13b, 25 | On net11, shape.TryGetValue(out var x) is ambiguous (CS0121); document naming the type | Found with #37's generator |",
+    "| 25 | error-shape.md shape 4's MapError(e => new SaveFailed{Cause=e}) into Result<Order> needs .AsResult() | Overload resolution picks the generic MapError |"
+  ],
+  "wiring": {
+    "Resultful.slnx": [
+      "tests/Resultful.TargetApi/{Resultful,Resultful.OneOf,Resultful.Text.Json,Resultful.AspNetCore,Resultful.FluentValidation,Resultful.Diagnostics}/*.csproj",
+      "tests/Resultful.Spec/Resultful.Spec.csproj"
+    ],
+    "Directory.Packages.props": [
+      "Microsoft.CodeAnalysis.CSharp 5.12.0",
+      "Microsoft.CodeAnalysis.CSharp.Workspaces 5.12.0",
+      "xunit.v3 4.0.2",
+      "FluentValidation 12.1.0",
+      "Microsoft.Extensions.Logging.Abstractions 10.0.0 (net10.0; 11.0.0 net11.0 unused)",
+      "then delete tests/Resultful.TargetApi/Directory.Packages.props and tests/Resultful.Spec/Directory.Packages.props; avoid duplicates with 02 (NU1506)"
+    ],
+    "eng": [
+      "git mv tests/Resultful.TargetApi/check-api.cs eng/check-api.cs"
+    ],
+    "ci.yml": [
+      "dotnet run eng/check-api.cs -- --self-test",
+      "dotnet run eng/check-api.cs",
+      "dotnet run --project tests/Resultful.Spec -c Release -f net10.0 and -f net11.0 (or eng/run-tests.cs)",
+      "upload artifacts/spec/spec-report*.json",
+      "replace dotnet test Resultful.slnx with eng/run-tests.cs once an MTP project is in the solution"
+    ],
+    ".ls-lint.yml": [
+      "none needed today (passes locally); if tests/** rules tighten, allow fixture ID dirs, TFM dirs, lib, lib.v2, PublicAPI"
+    ]
+  },
+  "beyond_contract": [
+    "target-consistency check of every fixture incl. expected CS diagnostics",
+    "RESULTFUL_SPEC_GENERATOR candidate-generator check",
+    "expect-fix via AdhocWorkspace",
+    "lib/ and lib.v2/ binary swap",
+    "[ClosedHierarchy] twins for UERR-*",
+    "fixtures for 21, JSON-WIRE, AOT-JSON-SOURCEGEN",
+    "check-api --strict",
+    "RegenApi.cs (C#, ls-lint bans .sh)",
+    "harness prints source line and expected vs actual"
+  ],
+  "suppressions": [
+    "tests/Resultful.TargetApi/Directory.Build.props: EnableNETAnalyzers=false; NoWarn CS0067;CS8597;CS0618;CS0612",
+    "tests/Resultful.Spec/Resultful.Spec.csproj: NoWarn CA1515;CA1001;CA1031;CA1859;CA2007;CA1034;CA1863",
+    "Fixtures/CORE-VOID-TO-UNIT/Cases.cs: #pragma warning disable CS0618",
+    "no Skip, no continue-on-error"
+  ],
+  "open_issues": [
+    "Decision-3 core union surface absent from target (24 must spec: commit)",
+    "Operators/CodeAnalysis as namespaces contradicts contract wording",
+    "STJ source-gen vs decision 10 ctor conflict",
+    "#37 generator gaps vs target (34 fixtures) for 13a/13b",
+    "Generator fixtures only compile-checked with #37's generator, not against a correct one; analyzer fixtures (RF-*) never compile-checked with any analyzer",
+    "Roslyn 5.12.0 chosen vs #37's 5.9.0",
+    "Satellite APIs (Text.Json, AspNetCore, FV, Diagnostics) are first drafts beyond the docs; expect spec: amendments in 12b/20a/21",
+    "No ledger lines owned by 08a, 04e, 23b, 25",
+    "removed-in-0.3 'empty by 12' wording vs contract rule: gate follows contract"
+  ]
+}

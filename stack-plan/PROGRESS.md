@@ -10,7 +10,7 @@ Rows are in stack order.
 | 03 | rtkelly13/stack-03-analysis-level | #41 | review | be6b76a on 02@6595f59; reviewer + adversary running; ~2,100 lines outside tests, almost all XML docs |
 | 04 | rtkelly13/stack-04-per-package-release |  | building | on 03@be6b76a |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
-| 04c | rtkelly13/stack-04c-spec-harness |  | building | drafted alongside 02–04 on 00; contract written |
+| 04c | rtkelly13/stack-04c-spec-harness | #42 | review | 5b8b23a; 261 spec tests green locally, 135 ledger lines pending; 7 items flagged for Ryan; reviewer running |
 | 04d | rtkelly13/stack-04d-reference-app |  | todo | checkpoint; may run alongside 02–04 |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
 | 13a | rtkelly13/stack-13a-generator-target |  | todo | copied from #37 |
