@@ -14,10 +14,16 @@ namespace Resultful.AspNetCore;
 /// type wins over a further one.
 /// </para>
 /// <para>
-/// A <see cref="ValidationFailed{TError}"/> answers 400 with a validation problem unless an entry names its exact
-/// type. Anything else answers <see cref="DefaultStatusCode"/>, 500 by default. A 4xx problem carries the matched
-/// error's <see cref="Error.Message"/> as <c>detail</c>; a 5xx problem carries no message outside the Development
-/// environment.
+/// A <see cref="ValidationFailed{TError}"/> answers 400 with a validation problem when it is the result's error
+/// itself, unless an entry names its exact type. Deeper in the walk (a <see cref="ValidationFailed{TError}"/> as a
+/// cause) only entries match, so a server error that wraps one stays a server error. Anything else answers
+/// <see cref="DefaultStatusCode"/>, 500 by default.
+/// </para>
+/// <para>
+/// A 4xx problem carries the matched error's <see cref="Error.Message"/> as <c>detail</c>, only when an entry (or the
+/// built-in 400) matched it: an unmapped error answering a 4xx <see cref="DefaultStatusCode"/> has no <c>detail</c>.
+/// A 5xx problem never carries the error's messages, validation messages included, outside the Development
+/// environment; it is logged at Error instead, with <see cref="Error.ToString"/>.
 /// </para>
 /// </remarks>
 public sealed class ResultfulHttpOptions
@@ -44,7 +50,7 @@ public sealed class ResultfulHttpOptions
 
     /// <summary>
     /// The key of each entry in a validation problem's <c>errors</c>. Defaults to the error's type name. Errors with
-    /// the same key are listed together, in order.
+    /// the same key are listed together, in order. A null key is treated as an empty one.
     /// </summary>
     /// <exception cref="ArgumentNullException">The value is null.</exception>
     public Func<Error, string> ValidationKey
@@ -53,7 +59,10 @@ public sealed class ResultfulHttpOptions
         set => _validationKey = value ?? throw new ArgumentNullException(nameof(value));
     }
 
-    /// <summary>The status for an error no entry maps. 500 by default; from 400 to 599.</summary>
+    /// <summary>
+    /// The status for an error no entry maps. 500 by default; from 400 to 599. A 4xx default has no <c>detail</c>:
+    /// only a mapped error shows its message. A 5xx default follows the 5xx rule.
+    /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is not between 400 and 599.</exception>
     public int DefaultStatusCode
     {
