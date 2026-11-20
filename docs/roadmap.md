@@ -1,7 +1,7 @@
 ---
 type: roadmap
 title: "Roadmap"
-description: "The goal, Resultful 1.0, and the milestones that reach it: a safe beta, a dependency-free core, unions on .NET 11, and 1.0."
+description: "The path to a stable Resultful as a series of pull requests: packaging, CI, current .NET standards, testing, a dependency-free core, unions, and 1.0."
 status: draft
 tags: [resultful, roadmap]
 generated:
@@ -11,60 +11,78 @@ generated:
 
 # Roadmap
 
-## The goal: Resultful 1.0
+## The goal: a stable Resultful
 
-Resultful is established when the core package has no dependencies, the API is stable across
-`netstandard2.0`, `net10.0` and `net11.0`, the net11 union integration is chosen on evidence, and every release
-is cut from CI with its package shape checked.
+Resultful is stable when the core package has no dependencies, the API is reviewed and fixed across
+`netstandard2.0`, `net10.0` and `net11.0`, the behaviour is pinned by example and property tests on every target,
+and every release is cut from CI with its package shape checked.
 
-## Milestone 1: a beta that restores cleanly
+It gets there as a series of small pull requests, each mergeable on its own and each leaving `main` releasable.
+A pull request only changes the version when it is meant to publish, and CI publishes with `--skip-duplicate`, so
+merging one without a version change publishes nothing.
 
-The packaging regression that broke rig is fixed and cannot recur.
+## 1. Packaging fix and sequential composition (`0.2.0-beta06`)
 
-1. **Dependency fix.** OneOf floor 3.0.271; no `netstandard1.x` or `.NETFramework` groups; no
-   `NETStandard.Library` or `System.ValueTuple` ([decision 5](decisions/0005-package-shape-is-checked.md)).
-2. **Package metadata.** Readme, MIT licence expression, repository and commit (SourceLink), `snupkg`,
-   deterministic CI builds.
-3. **Package check.** A pack-and-inspect step fails on any of the above regressing.
-4. **Sequential composition.** `Then`/`Sequence`/`Check` and their async forms
-   ([decision 4](decisions/0004-sequential-composition-is-additive.md)).
-5. **Hygiene.** AOT/trim flags on net8+, warnings as errors, `dotnet format` check, LF line endings.
+- OneOf floor 3.0.271, with no `netstandard1.x` or `.NETFramework` groups and no `NETStandard.Library` or
+  `System.ValueTuple` ([decision 5](decisions/0005-package-shape-is-checked.md)).
+- Package metadata: readme, licence expression, repository and commit (SourceLink), `snupkg`, deterministic builds.
+- A pack-and-inspect check.
+- `Then`, `Sequence` and `Check` ([decision 4](decisions/0004-sequential-composition-is-additive.md)).
+- LF line endings and a `dotnet format` baseline. This documentation bundle. Release notes.
 
-**Done when** the fresh package resolves alone under Paket `strategy: min` on `net11.0`.
+**Done when** the package resolves alone under Paket `strategy: min` on `net11.0`.
 
-## Milestone 2: a dependency-free core
+## 2. CI to current standards
 
-1. **Own storage.** `Result`, `VoidResult` and `Option` stop wrapping `OneOf<...>`; `Resultful.None` replaces
-   `OneOf.Types.None` ([decision 1](decisions/0001-core-is-dependency-free.md)).
-2. **`Resultful.OneOf`.** `ToOneOf()` (sync and `Task`), `FromOneOf` and `None` interop move into their own package.
-3. **Targets.** `netstandard2.0`, `net10.0`, `net11.0`; SDK 11
-   ([decision 2](decisions/0002-targets-netstandard20-net10-net11.md)).
-4. **Characterisation tests first.** The current behaviour (defaults, nulls, conversions, accumulation, equality,
-   async) is pinned before the storage changes.
-5. **Migration notes** in the release notes.
+Following [decision 7](decisions/0007-ci-follows-rig.md):
 
-**Done when** core packs with no dependency groups and all tests pass on all three targets.
+- Least-privilege tokens, `persist-credentials: false`, SDK from `global.json`, NuGet cache.
+- A format check, pack and the package check on every pull request.
+- Fix the publish condition, which never fires today because a step's `if` cannot see its own `env`.
+- zizmor, and the package check as a C# file-based app.
+- The required check stays `build`.
 
-## Milestone 3: unions on .NET 11
+## 3. Current .NET standards
 
-1. **Experiment.** Candidate integrations: `[Union]`/`IUnion` on the existing structs, union-backed storage, and
-   interop with user-written unions ([decision 3](decisions/0003-unions-are-chosen-by-measurement.md)).
-2. **Correctness matrix first.** Overlapping case types (`Result<List<string>>`, `Result<object>`,
-   `Result<string, string>`), null successes, consumption from another assembly under warnings as errors.
-3. **Benchmarks.** BenchmarkDotNet throughput and allocations, net10 against net11.
-4. **Pick.** A decision document with the numbers; the maintainer can veto it.
+[Decision 2](decisions/0002-targets-netstandard20-net10-net11.md).
 
-**Done when** the chosen integration ships behind `#if NET11_0_OR_GREATER` with its tests.
+- SDK 11.0.100, with `net11.0` added to the targets.
+- Public API tracking (`PublicAPI.*.txt`) so every surface change shows in review.
+- XML documentation generated and required on public members.
+- `AnalysisLevel latest-all` with explicit opt-outs.
+- Nullable annotations audited.
 
-## Milestone 4: tests and CI at scale
+## 4. Testing at scale
 
-1. **Test mix.** Existing NUnit tests stay; new xunit.v3 (Microsoft.Testing.Platform) suites add CsCheck
-   property tests for the laws ([decision 6](decisions/0006-tests-are-a-mix.md)).
-2. **Coverage ratchet** in CI.
-3. **Target matrix.** Every test runs on net10.0 and net11.0, and one run loads the `netstandard2.0` asset.
-4. **CI hardening** in rig's style ([decision 7](decisions/0007-ci-follows-rig.md)).
+Following [decision 6](decisions/0006-tests-are-a-mix.md):
 
-## Milestone 5: 1.0
+- Characterisation tests that pin today's behaviour: defaults, nulls, conversions, accumulation, equality, async.
+- An xunit.v3 project on Microsoft.Testing.Platform with CsCheck property tests for the laws.
+- A coverage ratchet in CI.
+- Tests run on `net10.0` and `net11.0`, and one run loads the `netstandard2.0` asset.
 
-API review of every public member, stable decisions, documentation for every operator, and a non-prerelease
-version.
+This goes before the storage change on purpose: the next pull request is checked against these tests.
+
+## 5. A dependency-free core (`0.3.0-beta01`)
+
+[Decision 1](decisions/0001-core-is-dependency-free.md) and [decision 8](decisions/0008-version-0-3-0.md).
+
+- Own storage in `Result`, `VoidResult` and `Option`, with `Resultful.None`.
+- A new `Resultful.OneOf` package for `ToOneOf()`, `FromOneOf` and `None` interop.
+- The package check covers both packages.
+- Release notes with the migration.
+
+## 6. Unions on .NET 11
+
+[Decision 3](decisions/0003-unions-are-chosen-by-measurement.md).
+
+- Correctness matrix, then BenchmarkDotNet throughput and allocations, net10 against net11.
+- A decision with the numbers.
+- The chosen integration ships behind `#if NET11_0_OR_GREATER`.
+
+## 7. Stable (`1.0.0`)
+
+- API review of every public member.
+- Every decision marked `stable`.
+- Documentation for every operator.
+- A non-prerelease version.
