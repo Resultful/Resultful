@@ -45,7 +45,8 @@ language version on `net11.0`, with no `preview` (**verified**). Resultful suppo
    with `Message`, `Cause`, `WithContext` (which rewraps and keeps the union type) and `TryFind<T>` forwarding to the
    leaf. The interface on a union, and a generic constraint through it, are **verified**. Core helpers take
    `where TError : struct, IErrorUnion` overloads beside their `where TError : Error` ones, in a separate class,
-   since overloads can't differ by constraint alone (both resolve, **verified**). `IErrorUnion` ships on every
+   since overloads can't differ by constraint alone. (Probe 2 **verified** the pair with `where TError : struct, IUnion`;
+   the `IErrorUnion` form is the same shape of overload and is design.) `IErrorUnion` ships on every
    target, so the public API is the same everywhere; only `net11.0` code can declare a union.
 4. **`Fail` and the implicit conversion reject a union with no value** ([decision 10](0010-default-is-not-success.md)).
    `default(OrderError)` reaches a `switch` and throws `SwitchExpressionException` (**verified**), so it must not
@@ -116,7 +117,10 @@ Alternatives rejected:
 ## Consequences
 
 - `IErrorUnion` ships in the core with the attributes (stack PR 07); `Fail`'s zero check with decision 10 (08b).
-- The generator adds `RFG0007` and `RFG0008`, the union members and the nested-union unwrapping (13b).
+- The generator adds `RFG0007` and `RFG0008`, the union members and the nested-union unwrapping (13b). It also writes
+  a `static IReadOnlyList<Type> Cases` on each `[ClosedHierarchy]` base and error union, the case list
+  `Resultful.Text.Json` reads through, so the hierarchy's member budget in
+  [Building the generator](../explorations/building-the-generator.md) goes from 3 to 4.
 - `Resultful.Text.Json` reads unions and hierarchies through a registered case list (12b).
 - RF0002 covers `default` of an error union (16a).
 - Adding a case to a union, like adding a leaf to a hierarchy, changes a shape's `Match` signature: a binary break for
