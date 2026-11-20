@@ -24,3 +24,4 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 
 Note for the local pass: cherry-picked commits aren't ancestors, so a PR's merge base stays at the commit it started from. Files a base rewrote wholesale were split (e.g. `eng/api-nullable-0.2.0.txt`) to keep PRs mergeable; fold them back.
 | rtkelly13/stack-06-error-record | | 05 | 05 | |
+| rtkelly13/stack-21-fluentvalidation-diagnostics | #52 | 04c @ 9a465b0 | 20b | drafted ahead; shares a stand-in core in `tests/Resultful.Satellites.StandIn` |

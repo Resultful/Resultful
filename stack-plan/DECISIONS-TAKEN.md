@@ -86,3 +86,11 @@
 | 04c, 07 | The core's Result<T>, Result<T, TError>, Validation<T>, Validation<T, TError> and Option<T> carry [MustObserve] in the target | Decision 15; 16a finding (#50) |
 | 05, 08a | Until 08a's state byte, `Result<T>`/`Result<T,TError>` carry a private `_initialized` flag so the zero value is told apart: `IsSuccess`/`IsFailure` false on `default`; `default` no longer equals `Ok(default(T))`; `Match` still treats `default` as a success until 08b. `UERR-CUSTOM-IUNION` gained a `Fail` rejection check (spec: 8b58783) so it stays owned by 08b | Taken by 05's implementer |
 | 05, 08b | 0.2's `Fail(null)` gives a failure with a null error and `Ok<string?>(null)` a success with a null value, which contradicts the target's `[MemberNotNullWhen]`; 05 pins it as 0.2 behaviour; 08b makes `Fail(null!)` throw (`ZERO-NULL-ERR`) and decides the null-success case | From 05's review |
+| PR | choice | why |
+| 21 | A FluentValidation failure of any severity becomes a FluentValidationError | FluentValidation's IsValid is false for any failure; an adapter adds no rules (decision 11) |
+| 21 | FluentValidationError keeps only PropertyName, ErrorCode, Message; AttemptedValue and CustomState are dropped; null strings become "" | personal data stays out of errors that reach logs and HTTP bodies |
+| 21 | LogFailure logs one entry: leaf type name, Message, Context, causes as 'Type: Message', as text and structured state (ErrorType, ErrorMessage, ErrorContext, ErrorCauses), EventId(1, "ResultFailure"); Validation<T> logs as one ValidationFailed<Error> | target comment plus the cause chain Error.ToString also carries |
+| 21 | RecordFailure sets status Error (no description) and the type tag only | target comment; Message stays out of traces |
+| 21 | Hooks pass the zero value through without logging, tagging or throwing; LogLevel.None never logs | follows the IsFailure zero default; a hook must not break logging |
+| 21 | A generic leaf's name in logs/tags carries type arguments (ValidationFailed<Error>) | matches 12b's JSON type |
+| 21 | FluentValidation 12.0.0; wiring unifies target and spec on it | contract: lowest version that works on both targets |
