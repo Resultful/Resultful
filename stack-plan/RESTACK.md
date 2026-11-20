@@ -10,7 +10,7 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-02-test-infra | #40 | 01 @ 24d079b | 01 | review fixes are plain commits 6595f59..732a709 (not fixup!); d083225 is a fixup! of the release-check commit |
 | rtkelly13/stack-03-analysis-level | #41 | 02 @ 6595f59 | 02 | fixups d73ff76 and earlier; carries cherry-picks of 02's 6595f59..d083225 (c4d6a61..647f124, drop on restack); `eng/api-nullable-0.2.0.txt` is a split of the api-diff list that exists only to avoid conflicts: merge it back into `eng/api-diff-0.2.0.txt` in the local pass |
 | rtkelly13/stack-04-per-package-release | #43 | 03 @ be6b76a | 03 | lacks 02's commits after 6595f59 |
-| rtkelly13/stack-04b-release-0.2 | | 04 @ 6eb5116 | 04 | may carry cherry-picks (-x) from 02/03 |
+| rtkelly13/stack-04b-release-0.2 | #49 | 04 @ 6eb5116 | 04 | carries cherry-picks of 02 (eee001e..d083225) and 04 (3f804b1..d51d2e3), drop on restack; edfbfdf is an empty merge of 04's head: drop it; `eng/release-check/api-version-0.2.0.txt` is appended at CI time into `api-nullable-0.2.0.txt`: fold both into `eng/api-diff-0.2.0.txt` |
 | rtkelly13/error-design (00) | #34 | main | 04b | moves to the bottom of stack B |
 | rtkelly13/stack-04c-spec-harness | #42 | 00 @ ec55581 | 00 | wiring into root files happens in the local pass |
 | rtkelly13/stack-04d-reference-app | #44 | 04c @ c4ea0e7 | 04c | carries cherry-picks of 04c a3c298d, 0d0c4c5, 5b8b23a (-x); one fixup! commit bd33431 |

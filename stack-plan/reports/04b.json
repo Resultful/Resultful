@@ -1,0 +1,45 @@
+{
+  "pr": 49,
+  "branch": "rtkelly13/stack-04b-release-0.2",
+  "head_sha": "edfbfdf0632f9470209f467ebace960dd4d8b844",
+  "started_from": "6eb5116 (origin/rtkelly13/stack-04-per-package-release at start)",
+  "cherry_picks": {
+    "from_02": ["eee001e", "4b5c400", "168fafe", "732a709", "d083225"],
+    "from_04": ["3f804b1", "35d9b27", "34d01ec", "afaf2cb", "feab5b9", "9bf6a6e", "8d0079e", "1667770", "631a79f", "2d0793e", "3f77959", "5f6355d", "d51d2e3"],
+    "skipped_empty": ["b200386", "614164f", "291f0c8", "c2bd77f"],
+    "merge_commit": "edfbfdf merges origin/04 head d51d2e3 with no tree change (git diff HEAD^1 HEAD empty), because moving Unshipped->Shipped inherently conflicts with 04's later Unshipped lines"
+  },
+  "ci": "green at edfbfdf (run 44817881770): build, release-check, release-check (net481), lint, suppressions all success; publish skipped. Also green at the first push 244d73e (run 44814231938).",
+  "release_check_results": {
+    "same_behaviour": "local sim: suite vs packed 0.2.0 and vs beta06 (net10/net11 x 3 cultures, 50 tests each) outcomes identical; eng/release-check/behaviour-diff-0.2.0.txt empty. First CI run (244d73e): passed.",
+    "binary_compatible": "local sim: built against beta06 on net8.0 (ns2.0 asset), net10.0, net11.0; swapping 0.2.0's DLL changes only PackageSourceTests (Passed->Failed, by design) per target; no MissingMethod/TypeLoad. First CI run: passed.",
+    "same_public_api": "api-diff matches 02's list + 03's api-nullable list + api-version-0.2.0.txt (6 AssemblyInformationalVersion lines). ApiCompat strict package mode vs beta06 passes with 03's apicompat-0.2.0.xml (12 suppressions, all nullable attrs on net10.0). Package validation works with the pre-release baseline.",
+    "same_code": "il-diff: 1631 methods, 0 differences, list empty",
+    "same_package": "verify-package --baseline: only lib/net11.0 dll, net11.0 group+dep, snupkg net11.0 pdb (listed)",
+    "consumers": "NuGet net8/net10/net11 6/6 each with NuGetAudit (pruning off, NU1901-4 errors; beta05 fails locally with NU1903); Paket strategy:min lock = OneOf 3.0.271 + Resultful 0.2.0; net481 6/6 on windows-latest (.NET Framework 4.8.9363)"
+  },
+  "consumers": ["tests/Compatibility/NuGet (net8.0, net10.0, net11.0)", "tests/Compatibility/Net481 (windows-latest)", "tests/Compatibility/Paket (strategy: min)"],
+  "mutation_run_0": {
+    "tool": "Stryker.NET 5.1.0, local, net10.0, src/Resultful",
+    "consumption_suite_mtp_runner_preview": {"killed": 116, "survived": 130, "no_coverage": 24, "ignored": 111, "score": "42.96%"},
+    "nunit_suite_vstest": {"tests": 19, "mutants_tested": 28, "score": "3.33%"},
+    "survivors": "119/130 are ConfigureAwait(false)->true (equivalent). Others: UnwrapAsync await removal (ResultExtensions.Async.cs:404,425); errorAction await removal (ResultExtensions.Async.cs:441, Result.ErrorList.cs:203); next.ThrowIfDefault removal (ResultExtensions.Composition.cs:45,72; Composition.Async.cs:46,73); InternalList exception message (28,56,81). NoCoverage: TupleHelper 21, AggrHelper 2, InternalList 1.",
+    "caveat": "VSTest runner can't run xunit.v3 in-process; used Stryker's preview MTP runner with UseMicrosoftTestingPlatformRunner=true env. Run predates 03's last three annotation-only commits (IL unchanged)."
+  },
+  "decisions_taken": [
+    "Packed 0.2.0 run uses the exact nupkg with -p:ResultfulPackageVersion and a dummy VersionSuffix for the guard",
+    "net8.0 suite build uses CsCheck 4.9.1 (CsCheck 5 has no net8.0)",
+    "Paket consumer checks resolution/lock only, no build; paket.dependencies pins 0.2.0",
+    "Beta06 builds allow CS8625 and CS8604 as warnings (null passed to members only 0.2.0 annotates)",
+    "0.2.0's version lines in eng/release-check/api-version-0.2.0.txt, appended by a CI step to eng/api-nullable-0.2.0.txt at run time so 02/03 lists stay byte-identical",
+    "Merge commit edfbfdf (no tree change) to make the PR mergeable against 04"
+  ],
+  "beyond_contract": ["eng/compare-runs.cs with self-test", "run-tests.cs --project <path>.csproj and skip-build off-OS", "PackageSourceTests nearest-asset; coverage gate net8->netstandard2.0", "NuGet audit with pruning off", "swap step guards against vacuous pass"],
+  "suppressions": ["ci.yml -p:WarningsNotAsErrors=CS8625%3BCS8604 (beta06 builds only)", "ci.yml swap second run exit code ignored (compare-runs judges)", "inherited eng/apicompat-0.2.0.xml (12, from 03 via 04)"],
+  "open_issues": [
+    "The eng/release-check/rt scratch (local sim temp) was deleted by a reviewer after the sim finished; nothing reported depends on it, and CI reproduces every result",
+    "The api-diff version lines are appended to a tracked file at CI run time (a workaround for conflict-free merging); restack should fold them into eng/api-diff-0.2.0.txt",
+    "Merge commit on an append-only branch: orchestrator asked for cherry-picks only; the Unshipped->Shipped move made a clean 3-way merge impossible otherwise",
+    "Stryker numbers are from the preview MTP runner; not run in CI"
+  ]
+}

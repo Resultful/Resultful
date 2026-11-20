@@ -104,3 +104,4 @@
 | 20a | instance = request path; traceId = Activity.Current?.Id ?? TraceIdentifier | contract's shape list |
 | 20a | No Resultful.Text.Json dependency | target project has none; avoids [RequiresDynamicCode] (12b) |
 | 20a | Zero result: ToHttpResult throws | decision 10 |
+| 04b | Same-behaviour check compares per-test outcomes (`eng/compare-runs.cs`, empty expected list); binary swap on net8 (netstandard2.0), net10, net11 with `PackageSourceTests` failing on purpose to prove the swap; beta06 builds relax CS8625/CS8604 to warnings; NuGet consumers run with pruning off; the net8 suite uses CsCheck 4.9.1; Stryker.NET 5.1.0's preview MTP runner for mutation run 0 | Taken by 04b's implementer |
