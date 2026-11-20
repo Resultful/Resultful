@@ -10,7 +10,7 @@ Rows are in stack order.
 | 03 | rtkelly13/stack-03-analysis-level | #41 | review | review: changes needed (12 items, 1 blocking doc error); adversary: no unlisted difference from beta06; fixing as fixup! commits |
 | 04 | rtkelly13/stack-04-per-package-release | #43 | review | CI green 6eb5116; review: approve + 4 should-fix (nuget.org retry, props and global.json inputs, tag SHA check); fixup! commits in progress |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
-| 04c | rtkelly13/stack-04c-spec-harness | #42 | review | 5b8b23a; 261 spec tests green locally, 135 ledger lines pending; 7 items flagged for Ryan; reviewer running |
+| 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
 | 04d | rtkelly13/stack-04d-reference-app | #44 | review | the Shop; bd33431; split at ~1,270 sample lines; reviewer running |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | end-to-end runner, broken consumers, snippet check; 1fedf62; 32 e2e tests, 268 spec green locally |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |
