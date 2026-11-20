@@ -1,0 +1,24 @@
+# Emitted API and IL budgets for Resultful.Generators.
+# L is the concrete leaf count of the closed hierarchy.
+# Measured on SDK 11.0.100 (net10.0 and net11.0) and tightened to measured + 25%:
+#   narrow_net10:     measured MEMBERS = 13+0L, PARAMETERS = 1+1L
+#   narrow_net11:     measured MEMBERS = 17+2L, PARAMETERS = 1+1L
+#   valueless_net10:  measured MEMBERS = 13+0L, PARAMETERS = 1+1L
+#   valueless_net11:  measured MEMBERS = 17+2L, PARAMETERS = 1+1L
+#   many_errors:      measured MEMBERS = 10+0L (net10) / 15+0L (net11), PARAMETERS = 2+0L
+#   closed_hierarchy: measured MEMBERS = 3+0L,  PARAMETERS = 2+1L
+
+# Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
+narrow_net10 MEMBERS=16+0L PARAMETERS=2+1L
+narrow_net11 MEMBERS=21+2L PARAMETERS=2+1L
+valueless_net10 MEMBERS=16+0L PARAMETERS=2+1L
+valueless_net11 MEMBERS=21+2L PARAMETERS=2+1L
+many_errors MEMBERS=19+0L PARAMETERS=3+0L
+closed_hierarchy MEMBERS=4+0L PARAMETERS=3+1L
+
+# IL byte budgets (Release IL, measured + 25%):
+#   forwarding: measured max = 36 bytes (TryGetValue(out Leaf)); all other forwarders <= 24 bytes
+#   dispatch: Match = 38 + 24L bytes, TryMap (foreach Causes()) = 63 + 24L bytes
+IL_FORWARDING_MAX=45
+IL_DISPATCH_BASE=80
+IL_DISPATCH_PER_LEAF=30
