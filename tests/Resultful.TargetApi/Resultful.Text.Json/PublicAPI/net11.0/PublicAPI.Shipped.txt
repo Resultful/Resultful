@@ -2,7 +2,7 @@
 Resultful.Text.Json.ErrorJsonConverter<TError>
 Resultful.Text.Json.ErrorJsonConverter<TError>.ErrorJsonConverter(System.Collections.Generic.IEnumerable<System.Type!>! cases) -> void
 Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>
-Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>.ErrorUnionJsonConverter(System.Collections.Generic.IEnumerable<System.Type!>! cases) -> void
+Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>.ErrorUnionJsonConverter(System.Collections.Generic.IEnumerable<System.Type!>! cases, System.Func<Resultful.Error!, TUnion>! wrap) -> void
 Resultful.Text.Json.ResultJsonConverter<T, TError>
 Resultful.Text.Json.ResultJsonConverter<T, TError>.ResultJsonConverter() -> void
 Resultful.Text.Json.ResultJsonConverter<T>

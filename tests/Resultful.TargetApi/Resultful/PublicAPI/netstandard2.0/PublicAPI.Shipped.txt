@@ -642,6 +642,7 @@ static Resultful.Result<T, TError>.implicit operator Resultful.Result<T, TError>
 static Resultful.Result<T, TError>.operator !=(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> bool
 static Resultful.Result<T, TError>.operator ==(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> bool
 static Resultful.Result<T>.implicit operator Resultful.Result<T>(Resultful.Error! error) -> Resultful.Result<T>
+static Resultful.Result<T>.implicit operator Resultful.Result<T>(T value) -> Resultful.Result<T>
 static Resultful.Result<T>.operator !=(Resultful.Result<T> left, Resultful.Result<T> right) -> bool
 static Resultful.Result<T>.operator ==(Resultful.Result<T> left, Resultful.Result<T> right) -> bool
 static Resultful.Unit.Value.get -> Resultful.Unit!
