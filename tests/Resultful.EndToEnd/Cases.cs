@@ -20,7 +20,8 @@ internal static class Cases
     // A consumer that needs the generator or the analyzers isn't built until that package is packed.
     public static readonly BrokenConsumer[] Broken =
     [
-        new("MissingArm", "RF-SUPPRESS", "UC01", NeedsGenerator: true, NeedsAnalyzers: false),
+        // Needs the analyzers: without the suppressor CS8509 fires on every switch over a closed base, so it proves nothing.
+        new("MissingArm", "RF-SUPPRESS", "UC01", NeedsGenerator: true, NeedsAnalyzers: true),
         new("DiscardedResult", "RF-0001", "UC01", NeedsGenerator: true, NeedsAnalyzers: true),
         new("DefaultResult", "RF-0002", "UC01", NeedsGenerator: true, NeedsAnalyzers: true),
         new("ForeignDerived", "RF-0010", "UC01", NeedsGenerator: true, NeedsAnalyzers: true),
@@ -63,8 +64,9 @@ internal static class Cases
         yield return new("UC08", "Shop.Tests passes", ShopTests);
         yield return new("UC09", "Shop.Legacy's library builds with no Resultful reference", async () =>
             Built("UC09 library", await Build(ShopProject("Legacy"), "UC09", ["-p:ShopCore=none"])));
-        yield return new("UC10", "Shop.Legacy builds against 0.2", LegacyAgainstBaseline);
-        yield return new("UC10", "Shop.Legacy fails against 0.3 with UC10/expected-0.3.txt", LegacyAgainstTarget);
+        // The migration's compiler errors are 12's (MIG-LEGACY); UC10's line keeps the "after" code.
+        yield return new("MIG-LEGACY", "Shop.Legacy builds against 0.2", LegacyAgainstBaseline);
+        yield return new("MIG-LEGACY", "Shop.Legacy fails against 0.3 with UC10/expected-0.3.txt", LegacyAgainstTarget);
 
         foreach (var b in Broken)
         {
@@ -198,7 +200,8 @@ internal static class Cases
         const string name = "Shop.Legacy against 0.3";
         var sarif = Path.Combine(Repo.RunDir, "sarif", "Legacy-UC10.sarif");
         Directory.CreateDirectory(Path.GetDirectoryName(sarif)!);
-        var build = await Build(ShopProject("Legacy"), "UC10", ["-f", "net10.0", $"-p:ErrorLog={sarif}%2Cversion=2.1"]);
+        // Compiler errors only: the analyzers' findings on this code (RF0004 from 16b) aren't part of the comparison.
+        var build = await Build(ShopProject("Legacy"), "UC10", ["-f", "net10.0", $"-p:ErrorLog={sarif}%2Cversion=2.1", "-p:ShopAnalyzers=false"]);
         return CompareSarif(name, build.Process, sarif, Repo.Path("samples", "Resultful.Shop.Legacy", "UC10", "expected-0.3.txt"));
     }
 

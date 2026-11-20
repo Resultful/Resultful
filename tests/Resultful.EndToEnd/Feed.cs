@@ -9,8 +9,9 @@ internal sealed class Feed
 {
     private static readonly Lazy<Task<Feed>> Instance = new(PackAsync);
 
-    private Feed(string dir, string config, string packages, IReadOnlyDictionary<string, string> versions, string packLog)
+    private Feed(string dir, string config, string packages, IReadOnlyDictionary<string, string> versions, string packLog, IReadOnlyList<string> packFailures)
     {
+        PackFailures = packFailures;
         Dir = dir;
         Config = config;
         Packages = packages;
@@ -24,6 +25,9 @@ internal sealed class Feed
     public IReadOnlyDictionary<string, string> Versions { get; }
     public string PackLog { get; }
 
+    // Projects whose `dotnet pack` failed: a test fails on these, so a broken pack never reads as "not packed yet".
+    public IReadOnlyList<string> PackFailures { get; }
+
     public bool Has(string id) => Versions.ContainsKey(id);
 
     public static Task<Feed> Get() => Instance.Value;
@@ -33,18 +37,24 @@ internal sealed class Feed
         var dir = Path.Combine(Repo.RunDir, "feed");
         Directory.CreateDirectory(dir);
         var log = new System.Text.StringBuilder();
+        var failures = new List<string>();
         foreach (var project in Directory.GetFiles(Repo.Path("src"), "*.csproj", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
             // dotnet pack skips a project with IsPackable=false, so "every packable project" is every project.
             var result = await Run.Dotnet(["pack", project, "-c", "Release", "-o", dir, $"-p:VersionSuffix=e2e.{Repo.RunId}", "-p:ContinuousIntegrationBuild=true"]);
             log.AppendLine($"pack {Path.GetRelativePath(Repo.Root, project)}: exit {result.ExitCode}");
-            if (!result.Succeeded) log.AppendLine(result.Tail());
+            if (!result.Succeeded)
+            {
+                failures.Add(Path.GetRelativePath(Repo.Root, project));
+                log.AppendLine(result.Tail());
+            }
         }
 
         var versions = Directory.GetFiles(dir, "*.nupkg").Select(ReadIdentity).ToDictionary(p => p.Id, p => p.Version, StringComparer.OrdinalIgnoreCase);
         var config = Path.Combine(Repo.RunDir, "nuget.config");
         File.WriteAllText(config, NuGetConfig(dir));
-        return new Feed(dir, config, Path.Combine(Repo.RunDir, "packages"), versions, log.ToString());
+        File.WriteAllText(Path.Combine(Repo.RunDir, "pack.log"), log.ToString());
+        return new Feed(dir, config, Path.Combine(Repo.RunDir, "packages"), versions, log.ToString(), failures);
     }
 
     private static (string Id, string Version) ReadIdentity(string nupkg)

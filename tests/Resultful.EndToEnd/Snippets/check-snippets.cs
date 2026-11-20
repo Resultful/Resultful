@@ -4,14 +4,19 @@
 //   dotnet run tests/Resultful.EndToEnd/Snippets/check-snippets.cs [-- --strict | --self-test]
 using System.Text.RegularExpressions;
 
-var strict = args.Contains("--strict");
 if (args.Contains("--self-test")) return SelfTest();
 
 var root = FindRoot(Directory.GetCurrentDirectory());
 var map = Path.Combine(root, "tests", "Resultful.EndToEnd", "Snippets", "snippets.tsv");
-var problems = Check(root, File.ReadAllLines(map), Console.Out);
-Console.WriteLine(problems == 0 ? "snippets: every listed block equals the Shop" : $"snippets: {problems} difference(s){(strict ? "" : " (lenient: not failing; --strict fails)")}");
-return strict && problems > 0 ? 1 : 0;
+return Run(root, File.ReadAllLines(map), args.Contains("--strict"), Console.Out);
+
+// The exit code: 0 when lenient or when nothing differs; 1 under --strict when anything differs.
+static int Run(string root, string[] mapLines, bool strict, TextWriter report)
+{
+    var problems = Check(root, mapLines, report);
+    report.WriteLine(problems == 0 ? "snippets: every listed block equals the Shop" : $"snippets: {problems} problem(s){(strict ? "" : " (lenient: not failing; --strict fails)")}");
+    return strict && problems > 0 ? 1 : 0;
+}
 
 static string FindRoot(string dir)
 {
@@ -26,8 +31,9 @@ static string FindRoot(string dir)
 // Returns the number of blocks that differ or can't be found, writing a report for each.
 static int Check(string root, string[] mapLines, TextWriter report)
 {
-    var regions = Regions(root);
-    var problems = 0;
+    var (regions, duplicates) = Regions(root);
+    var problems = duplicates.Count;
+    foreach (var d in duplicates) report.WriteLine($"DUPLICATE region {d}: a region name must be unique");
     foreach (var line in mapLines.Where(l => l.Length > 0 && !l.StartsWith('#')).Skip(1))
     {
         var f = line.Split('\t');
@@ -43,40 +49,65 @@ static int Check(string root, string[] mapLines, TextWriter report)
 
         var expected = Normalize(block);
         var actual = names.SelectMany(n => Normalize(regions[n])).ToList();
-        var at = Enumerable.Range(0, Math.Max(expected.Count, actual.Count)).FirstOrDefault(i => i >= expected.Count || i >= actual.Count || expected[i] != actual[i], -1);
-        if (at < 0)
+        var diff = Diff(expected, actual);
+        if (diff.Count == 0)
         {
             report.WriteLine($"ok      {doc} [{selector}]");
             continue;
         }
 
         problems++;
-        report.WriteLine($"DIFFERS {doc} [{selector}] = {string.Join(" + ", names)}, from line {at + 1}:");
-        report.WriteLine($"  doc:  {(at < expected.Count ? expected[at] : "(ends)")}");
-        report.WriteLine($"  shop: {(at < actual.Count ? actual[at] : "(ends)")}");
+        report.WriteLine($"DIFFERS {doc} [{selector}] = {string.Join(" + ", names)} (- doc, + shop):");
+        foreach (var d in diff) report.WriteLine("  " + d);
     }
 
     return problems;
 }
 
+// Every differing line, as a line diff over the longest common subsequence.
+static List<string> Diff(List<string> a, List<string> b)
+{
+    var lcs = new int[a.Count + 1, b.Count + 1];
+    for (var i = a.Count - 1; i >= 0; i--)
+        for (var j = b.Count - 1; j >= 0; j--)
+            lcs[i, j] = a[i] == b[j] ? lcs[i + 1, j + 1] + 1 : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+    var result = new List<string>();
+    int x = 0, y = 0;
+    while (x < a.Count || y < b.Count)
+    {
+        if (x < a.Count && y < b.Count && a[x] == b[y]) { x++; y++; }
+        else if (y < b.Count && (x == a.Count || lcs[x, y + 1] >= lcs[x + 1, y])) result.Add("+ " + b[y++]);
+        else result.Add("- " + a[x++]);
+    }
+
+    return result;
+}
+
 // `#region snippet: name` … `#endregion` in the Shop's sources and the broken consumers.
-static Dictionary<string, List<string>> Regions(string root)
+static (Dictionary<string, List<string>> Regions, List<string> Duplicates) Regions(string root)
 {
     var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+    var duplicates = new List<string>();
     var dirs = new[] { Path.Combine(root, "samples"), Path.Combine(root, "tests", "Resultful.EndToEnd", "Broken") }.Where(Directory.Exists);
-    foreach (var file in dirs.SelectMany(d => Directory.EnumerateFiles(d, "*.cs", SearchOption.AllDirectories)).Where(f => !f.Contains("/obj/") && !f.Contains("/bin/")))
+    foreach (var file in dirs.SelectMany(d => Directory.EnumerateFiles(d, "*.cs", SearchOption.AllDirectories)).Where(f => !f.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "obj" or "bin")))
     {
         List<string>? current = null;
         foreach (var line in File.ReadLines(file))
         {
             var start = Regex.Match(line, @"^\s*#region snippet:\s*(\S+)");
-            if (start.Success) { current = result[start.Groups[1].Value] = []; continue; }
+            if (start.Success)
+            {
+                var name = start.Groups[1].Value;
+                if (result.ContainsKey(name)) duplicates.Add($"{name} (again in {Path.GetRelativePath(root, file)})");
+                current = result[name] = [];
+                continue;
+            }
             if (current is not null && Regex.IsMatch(line, @"^\s*#endregion")) { current = null; continue; }
             current?.Add(line);
         }
     }
 
-    return result;
+    return (result, duplicates);
 }
 
 // The n-th fenced block under a heading (`## 1. An endpoint#1`), or the block after `<!-- snippet: name -->`.
@@ -129,15 +160,27 @@ static int SelfTest()
         string[] map = ["doc\tblock\tregions", "docs/guide.md\t## 1. Orders#1\tone", "docs/guide.md\ttag:two\ttwo"];
         var quiet = TextWriter.Null;
 
-        File.WriteAllText(shop, "class A {\n    #region snippet: one\n        var x = 1;\n        return x;\n    #endregion\n    #region snippet: two\n    var y = 2;\n    #endregion\n}\n");
-        var same = Check(dir.FullName, map, quiet);
-        File.WriteAllText(shop, "class A {\n    #region snippet: one\n    var x = 1;\n    return x + 1;\n    #endregion\n    #region snippet: two\n    var y = 2;\n    #endregion\n}\n");
-        var seeded = Check(dir.FullName, map, quiet);
-        File.WriteAllText(shop, "class A { }\n");
-        var gone = Check(dir.FullName, map, quiet);
+        const string same = "class A {\n    #region snippet: one\n        var x = 1;\n        return x;\n    #endregion\n    #region snippet: two\n    var y = 2;\n    #endregion\n}\n";
+        var checks = new List<(string What, int Got, int Want)>();
+        void Expect(string what, string source, bool strict, int want)
+        {
+            File.WriteAllText(shop, source);
+            checks.Add((what, Run(dir.FullName, map, strict, quiet), want));
+        }
 
-        var ok = same == 0 && seeded == 1 && gone == 2;
-        Console.WriteLine($"self-test: identical → {same} differences (want 0), seeded difference → {seeded} (want 1, so --strict exits 1), regions gone → {gone} (want 2): {(ok ? "pass" : "FAIL")}");
+        Expect("identical, --strict", same, true, 0);
+        Expect("seeded difference, --strict", same.Replace("return x;", "return x + 1;", StringComparison.Ordinal), true, 1);
+        Expect("seeded difference, lenient", same.Replace("return x;", "return x + 1;", StringComparison.Ordinal), false, 0);
+        Expect("region gone, --strict", "class A { }\n", true, 1);
+        Expect("duplicate region, --strict", same.Replace("}\n", "    #region snippet: two\n    var y = 2;\n    #endregion\n}\n", StringComparison.Ordinal), true, 1);
+
+        // Every differing line is reported, not just the first.
+        var diff = Diff(["a", "b", "c", "d"], ["a", "x", "c", "y"]);
+        checks.Add(("every differing line", diff.Count, 4));
+
+        foreach (var (what, got, want) in checks) Console.WriteLine($"self-test: {what} → {got} (want {want}){(got == want ? "" : "  FAIL")}");
+        var ok = checks.All(c => c.Got == c.Want);
+        Console.WriteLine($"self-test: {(ok ? "pass" : "FAIL")}");
         return ok ? 0 : 1;
     }
     finally
