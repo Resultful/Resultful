@@ -29,7 +29,7 @@ Rows are in stack order.
 | 19 | rtkelly13/stack-19-async |  | todo | checkpoint: core done |
 | 13b | rtkelly13/stack-13b-generator-package |  | todo |  |
 | 15 | rtkelly13/stack-15-shape-conversions |  | todo |  |
-| 16a | rtkelly13/stack-16a-analyzers-core | #50 | review | drafted ahead on 04c@f72ad89; 9f63086; 44 tests green; RF-0001 waits on [MustObserve] in the target stubs (04c fixing) |
+| 16a | rtkelly13/stack-16a-analyzers-core | #50 | review | review: changes needed (async void handler on Task-receiver Switch missed; RF0002 on comparisons; WhenAll drops); fixing, absorbing 04c's [MustObserve] |
 | 16b | rtkelly13/stack-16b-analyzers-more |  | todo |  |
 | 17 | rtkelly13/stack-17-closed-hierarchy-rules |  | todo | checkpoint: tooling done |
 | 20a | rtkelly13/stack-20a-aspnetcore-errors |  | todo |  |
