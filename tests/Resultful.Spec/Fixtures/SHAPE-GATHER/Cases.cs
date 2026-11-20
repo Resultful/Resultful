@@ -23,7 +23,7 @@ public static class Cases
     public static void Every_error_is_in_the_one_failure()
     {
         Check.True(Register(null, null).TryGetErrors(out var errors) && errors.Count == 2, "both");
-        Check.True(Register("a", "b").TryGetValue(out var reg) && reg.Name == "a", "success");
+        Check.True(Register("a", "b").TryGetValue(out Registration? reg) && reg.Name == "a", "success");
 #if NET11_0_OR_GREATER
         var arms = Register(null, "b") switch { Registration => 0, System.Collections.Generic.IReadOnlyList<InputError> list => list.Count };
         Check.Equal(1, arms, "two arms");

@@ -21,8 +21,8 @@ public static class Cases
     public static void The_outermost_mapped_error_wins()
     {
         Error wrapped = new SaveFailed(1) { Cause = new OrderLocked(1, "ann") { Cause = new OrderNotFound(1) } };
-        Check.True(OrderError.TryMap(wrapped, (OrderNotFound n) => 404, (OrderLocked l) => 409, out var status), "found");
+        Check.True(OrderError.TryMap(wrapped, (OrderLocked l) => 409, (OrderNotFound n) => 404, out var status), "found");
         Check.Equal(409, status, "outer before inner");
-        Check.False(OrderError.TryMap(Error.From("x"), (OrderNotFound n) => 404, (OrderLocked l) => 409, out _), "nothing to map");
+        Check.False(OrderError.TryMap(Error.From("x"), (OrderLocked l) => 409, (OrderNotFound n) => 404, out _), "nothing to map");
     }
 }

@@ -34,7 +34,7 @@ public static class Cases
     [SpecCase]
     public static void Core_steps_and_sibling_shapes_return_straight_into_the_shape()
     {
-        Check.True(Place(3).TryGetValue(out var o) && o.Id == 3, "from Result<T, TError>");
+        Check.True(Place(3).TryGetValue(out Order? o) && o.Id == 3, "from Result<T, TError>");
         Check.True(FromShape(new OrderNotFound(4)).TryGetError(out var e) && e is OrderNotFound, "from another shape");
     }
 }

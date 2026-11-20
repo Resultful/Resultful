@@ -15,7 +15,7 @@ public static class Cases
 {
     static int Locked(OrderLocked l) => 409;
     static int Untyped(PlaceOrderResult r) => r.Match(o => 201, n => 404, l => 409); // expect: RF0008
-    static int Typed(PlaceOrderResult r) => r.Match((Order o) => 201, (OrderNotFound n) => 404, Locked);
+    static int Typed(PlaceOrderResult r) => r.Match((Order o) => 201, Locked, (OrderNotFound n) => 404);
     static int Core(Result<int> r) => r.Match(v => v, e => 0);
 }
 // expect-fix: RF0008

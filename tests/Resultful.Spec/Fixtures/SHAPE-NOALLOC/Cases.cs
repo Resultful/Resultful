@@ -21,8 +21,8 @@ public static class Cases
     [SpecCase]
     public static void The_hot_path_allocates_nothing()
     {
-        Check.Equal(0L, Check.Allocated(() => { PlaceOrderResult r = Order1; _ = r.TryGetValue(out _); }), "build and TryGetValue");
-        Check.Equal(0L, Check.Allocated(() => { PlaceOrderResult r = Locked; _ = r.Match(static (Order o) => 1, static (OrderNotFound n) => 2, static (OrderLocked l) => 3); }), "Match");
+        Check.Equal(0L, Check.Allocated(() => { PlaceOrderResult r = Order1; _ = r.TryGetValue(out Order? _); }), "build and TryGetValue");
+        Check.Equal(0L, Check.Allocated(() => { PlaceOrderResult r = Locked; _ = r.Match(static (Order o) => 1, static (OrderLocked l) => 3, static (OrderNotFound n) => 2); }), "Match");
         Check.Equal(0L, Check.Allocated(() => { PlaceOrderResult r = Order1; Result<Order, OrderError> w = r; _ = w.IsSuccess; }), "widening");
     }
 }
