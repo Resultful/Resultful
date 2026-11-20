@@ -231,4 +231,183 @@ public sealed class ResultExtensionsAsyncTests
         Assert.True((await Result.SequenceAsync(() => Task.FromResult(Result.Ok()), () => Task.FromResult(Result.Ok()))).Match(_ => true, _ => false));
         Assert.True((await Result.SequenceAsync(() => Task.FromResult(Result.Ok<TestError>()), () => Task.FromResult(Result.Ok<TestError>()))).Match(_ => true, _ => false));
     }
+
+    // Failure paths and mixed inputs. Each async operator gives the same outcome as its sync twin.
+
+    [Fact]
+    public async Task Async_Fold_and_Reduce_collect_every_error_like_the_sync_versions()
+    {
+        var aggrCalls = 0;
+        Task<int> AddAsync(int a, int b)
+        {
+            aggrCalls++;
+            return Task.FromResult(a + b);
+        }
+
+        static TestError Merge(TestError left, TestError right) => new($"{left.Message}+{right.Message}");
+
+        IEnumerable<Result<int>> mixed = [1.Ok(), Result.Fail<int>("a"), 3.Ok(), Result.Fail<int>("b", "c")];
+        Assert.Equal(mixed.Fold(0, (a, b) => a + b).Errors(), (await mixed.FoldAsync(0, AddAsync)).Errors());
+        Assert.Equal(["a", "b", "c"], (await mixed.FoldAsync(0, AddAsync)).Errors());
+        Assert.Equal(["s", "a", "b", "c"], (await mixed.FoldAsync(Result.Fail<int>("s"), AddAsync)).Errors());
+        Assert.Equal(["s", "a", "b", "c"], (await mixed.FoldAsync(Task.FromResult(Result.Fail<int>("s")), AddAsync)).Errors());
+        Assert.Equal(["a", "b", "c"], (await mixed.ReduceAsync(AddAsync)).Errors());
+        Assert.Equal(["a", "b", "c"], (await mixed.TryReduceAsync(AddAsync)).Map(r => r.Errors()).Or([]));
+
+        // Each FoldAsync from an Ok seed aggregates the first value, then stops aggregating.
+        Assert.Equal(2, aggrCalls);
+
+        IEnumerable<Result<int, TestError>> gMixed =
+            [1.Ok<int, TestError>(), new TestError("a").Fail<int, TestError>(), 3.Ok<int, TestError>(), new TestError("b").Fail<int, TestError>()];
+        Assert.Equal("a; b", (await gMixed.FoldAsync(0, AddAsync)).Error());
+        Assert.Equal("a+b", (await gMixed.FoldAsync(0, Merge, AddAsync)).Error());
+        Assert.Equal("s+a+b", (await gMixed.FoldAsync(new TestError("s").Fail<int, TestError>(), Merge, AddAsync)).Error());
+        Assert.Equal("s; a; b", (await gMixed.FoldAsync(Task.FromResult(new TestError("s").Fail<int, TestError>()), AddAsync)).Error());
+        Assert.Equal("a; b", (await gMixed.ReduceAsync(AddAsync)).Error());
+        Assert.Equal("a+b", (await gMixed.ReduceAsync(Merge, AddAsync)).Error());
+        Assert.Equal("a; b", (await gMixed.TryReduceAsync(AddAsync)).Map(r => r.Error()).Or(""));
+        Assert.Equal("a+b", (await gMixed.TryReduceAsync(AddAsync, Merge)).Map(r => r.Error()).Or(""));
+        Assert.Equal(4, aggrCalls);
+
+        // Empty input: Fold gives the seed, Reduce throws, TryReduce gives None.
+        Assert.Equal(7, (await Array.Empty<Result<int>>().FoldAsync(7, AddAsync)).Match(v => v, _ => -1));
+        await Assert.ThrowsAsync<ArgumentException>(() => Array.Empty<Result<int>>().ReduceAsync(AddAsync));
+        await Assert.ThrowsAsync<ArgumentException>(() => Array.Empty<Result<int, TestError>>().ReduceAsync(AddAsync));
+        Assert.False((await Array.Empty<Result<int>>().TryReduceAsync(AddAsync)).Map(_ => true).Or(false));
+        Assert.False((await Array.Empty<Result<int, TestError>>().TryReduceUntilAsync(AddAsync)).Map(_ => true).Or(false));
+    }
+
+    [Fact]
+    public async Task Async_Until_variants_keep_the_first_failure_and_stop_pulling_the_source()
+    {
+        var aggrCalls = 0;
+        Task<int> AddAsync(int a, int b)
+        {
+            aggrCalls++;
+            return Task.FromResult(a + b);
+        }
+
+        Result<int>[] items = [1.Ok(), Result.Fail<int>("a"), Result.Fail<int>("b"), 4.Ok()];
+        Result<int, TestError>[] gItems =
+            [1.Ok<int, TestError>(), new TestError("a").Fail<int, TestError>(), new TestError("b").Fail<int, TestError>(), 4.Ok<int, TestError>()];
+
+        // Same pull count as the sync versions: one past the first failure.
+        var pulled = 0;
+        Assert.Equal(["a"], (await Outcome.Counted(items, () => pulled++).FoldUntilAsync(0, AddAsync)).Errors());
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal(["a"], (await Outcome.Counted(items, () => pulled++).ReduceUntilAsync(AddAsync)).Errors());
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal(["a"], (await Outcome.Counted(items, () => pulled++).TryReduceUntilAsync(AddAsync)).Map(r => r.Errors()).Or([]));
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal("a", (await Outcome.Counted(gItems, () => pulled++).FoldUntilAsync(0, AddAsync)).Error());
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal("a", (await Outcome.Counted(gItems, () => pulled++).ReduceUntilAsync(AddAsync)).Error());
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal("a", (await Outcome.Counted(gItems, () => pulled++).TryReduceUntilAsync(AddAsync)).Map(r => r.Error()).Or(""));
+        Assert.Equal(3, pulled);
+
+        pulled = 0;
+        Assert.Equal(["s"], (await Outcome.Counted(items, () => pulled++).FoldUntilAsync(Task.FromResult(Result.Fail<int>("s")), AddAsync)).Errors());
+        Assert.Equal(1, pulled);
+
+        pulled = 0;
+        Assert.Equal("s", (await Outcome.Counted(gItems, () => pulled++).FoldUntilAsync(new TestError("s").Fail<int, TestError>(), AddAsync)).Error());
+        Assert.Equal(1, pulled);
+
+        // The aggregator ran once per FoldUntil, for the value before the first failure.
+        Assert.Equal(2, aggrCalls);
+        Assert.Equal(
+            items.FoldUntil(0, (a, b) => a + b).Errors(),
+            (await items.FoldUntilAsync(0, AddAsync)).Errors());
+    }
+
+    [Fact]
+    public async Task Async_Then_Check_and_Sequence_return_the_first_failure_and_skip_later_steps()
+    {
+        var later = 0;
+        Task<VoidResult> LaterVoid()
+        {
+            later++;
+            return Task.FromResult(Result.Fail("later"));
+        }
+
+        Task<VoidResult<TestError>> LaterGVoid()
+        {
+            later++;
+            return Task.FromResult(new TestError("later").Fail());
+        }
+
+        Assert.Equal(["a"], (await Result.SequenceAsync(() => Task.FromResult(Result.Fail("a")), LaterVoid)).Errors());
+        Assert.Equal("a", (await Result.SequenceAsync(() => Task.FromResult(new TestError("a").Fail()), LaterGVoid)).Error());
+        Assert.Equal(["pre"], (await Result.Fail("pre").ThenAsync(LaterVoid)).Errors());
+        Assert.Equal("pre", (await new TestError("pre").Fail().ThenAsync(LaterGVoid)).Error());
+        Assert.Equal(["pre"], (await Task.FromResult(Result.Fail("pre")).ThenAsync(LaterVoid)).Errors());
+        Assert.Equal(["pre"], (await Task.FromResult(Result.Fail("pre")).Then(() => { later++; return Result.Ok(); })).Errors());
+        Assert.Equal("pre", (await Task.FromResult(new TestError("pre").Fail()).Then(() => { later++; return 1.Ok<int, TestError>(); })).Error());
+        Assert.Equal(["pre"], (await Result.Fail("pre").ThenAsync(() => { later++; return Task.FromResult(1.Ok()); })).Errors());
+
+        Assert.Equal(["a"], (await 10.Ok().ThenAsync(_ => Task.FromResult(Result.Fail<int>("a")), x => { later++; return Task.FromResult(x.Ok()); })).Errors());
+        Assert.Equal("a", (await Task.FromResult(10.Ok<int, TestError>()).ThenAsync(_ => Task.FromResult(new TestError("a").Fail<int, TestError>()), x => { later++; return Task.FromResult(x.Ok<int, TestError>()); })).Error());
+        Assert.Equal(["pre"], (await Task.FromResult(Result.Fail<int>("pre")).Then(x => { later++; return x.Ok(); })).Errors());
+
+        Assert.Equal(["c1"], (await 10.Ok().CheckAsync(_ => Task.FromResult(Result.Fail("c1")), _ => LaterVoid())).Errors());
+        Assert.Equal("c1", (await 10.Ok<int, TestError>().CheckAsync(_ => Task.FromResult(new TestError("c1").Fail()), _ => LaterGVoid())).Error());
+        Assert.Equal(["c1"], (await Task.FromResult(10.Ok()).Check(_ => Result.Fail("c1"), _ => { later++; return Result.Ok(); })).Errors());
+        Assert.Equal("pre", (await Task.FromResult(new TestError("pre").Fail<int, TestError>()).CheckAsync(_ => LaterGVoid())).Error());
+        Assert.Equal(0, later);
+    }
+
+    [Fact]
+    public async Task Task_of_failed_result_skips_success_callbacks_and_runs_error_callbacks()
+    {
+        var successCalls = 0;
+        var errorCalls = new List<string>();
+        var failed = Task.FromResult(Result.Fail<int>("e"));
+        var gFailed = Task.FromResult(new TestError("e").Fail<int, TestError>());
+        var vFailed = Task.FromResult(Result.Fail("e"));
+        var gvFailed = Task.FromResult(new TestError("e").Fail());
+
+        Assert.Equal(["e"], (await failed.Map(x => { successCalls++; return x; })).Errors());
+        Assert.Equal(["e"], (await failed.Bind(x => { successCalls++; return x.Ok(); })).Errors());
+        Assert.Equal(["e"], (await failed.BindAsync(x => { successCalls++; return Task.FromResult(x.Ok()); })).Errors());
+        Assert.Equal(["e"], (await failed.Tee(_ => successCalls++)).Errors());
+        Assert.Equal(["e"], (await failed.TeeError(e => errorCalls.AddRange(e))).Errors());
+        Assert.Equal("E", (await failed.MapError(e => new TestError(e.Single().ToUpperInvariant()))).Error());
+        Assert.Equal("e!", (await gFailed.MapError(e => new TestError(e.Message + "!"))).Error());
+        Assert.Equal("e", (await gFailed.Map(x => { successCalls++; return x; })).Error());
+        Assert.Equal("e", (await gFailed.TeeErrorAsync(e => { errorCalls.Add(e.Message); return Task.CompletedTask; })).Error());
+        Assert.Equal(["e"], (await vFailed.Bind(_ => { successCalls++; return Result.Ok(); })).Errors());
+        Assert.Equal(["e"], (await vFailed.BindValue(_ => { successCalls++; return 1.Ok(); })).Errors());
+        Assert.Equal("e", (await gvFailed.Tee(_ => successCalls++)).Error());
+        Assert.Equal(0, successCalls);
+        Assert.Equal(["e", "e"], errorCalls);
+
+        // Leaving the result: error handlers decide the value, or throw.
+        Assert.Equal(-1, await failed.ReturnOrValue(_ => -1));
+        Assert.Equal(-2, await gFailed.ReturnOrValueAsync(_ => Task.FromResult(-2)));
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => failed.ReturnOrFail(e => new InvalidOperationException(string.Join(",", e))));
+        Assert.Equal("e", thrown.Message);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gFailed.ReturnOrFail(e => new InvalidOperationException(e.Message)));
+
+        var discarded = new List<string>();
+        Assert.False((await failed.DiscardError(e => discarded.AddRange(e))).Map(_ => true).Or(false));
+        Assert.False((await gFailed.DiscardError()).Map(_ => true).Or(false));
+        Assert.Equal(["e"], discarded);
+        Assert.Equal(["e"], (await failed.DiscardValue()).Errors());
+        Assert.Equal("e", (await gFailed.DiscardValue()).Error());
+
+        // A failed Task-valued result is not awaited, and keeps its errors.
+        Assert.Equal(["e"], (await Result.Fail<Task<int>>("e").Unwrap()).Errors());
+        Assert.Equal("e", (await new TestError("e").Fail<Task<int>, TestError>().UnwrapAsync()).Error());
+    }
 }
