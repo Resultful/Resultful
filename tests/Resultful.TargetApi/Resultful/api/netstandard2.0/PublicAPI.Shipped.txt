@@ -261,7 +261,7 @@ Resultful.VoidResult<TError>.VoidResult() -> void
 abstract Resultful.Error.<Clone>$() -> Resultful.Error!
 override Resultful.Error.Equals(object? obj) -> bool
 override Resultful.Error.GetHashCode() -> int
-override Resultful.MessageError.<Clone>$() -> Resultful.MessageError!
+override Resultful.MessageError.<Clone>$() -> Resultful.Error!
 override Resultful.MessageError.Equals(object? obj) -> bool
 override Resultful.MessageError.GetHashCode() -> int
 override Resultful.None.Equals(object? obj) -> bool
@@ -279,6 +279,7 @@ override Resultful.Validation<T, TError>.ToString() -> string!
 override Resultful.Validation<T>.Equals(object? obj) -> bool
 override Resultful.Validation<T>.GetHashCode() -> int
 override Resultful.Validation<T>.ToString() -> string!
+override Resultful.ValidationFailed<TError>.<Clone>$() -> Resultful.Error!
 override Resultful.ValidationFailed<TError>.Equals(object? obj) -> bool
 override Resultful.ValidationFailed<TError>.GetHashCode() -> int
 override Resultful.ValidationFailed<TError>.Inner() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
@@ -412,15 +413,11 @@ static Resultful.Result.AsResult<T, TError>(this Resultful.Result<T, TError!> re
 static Resultful.Result.Bind(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, Resultful.VoidResult>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.Bind<TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, Resultful.VoidResult<TError>>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!
 static Resultful.Result.Bind<TResult, T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, Resultful.Result<TResult, TError>>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
-static Resultful.Result.Bind<TResult, T, TError>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Func<T, Resultful.Result<TResult, TError>>! bindFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult, TError>>
 static Resultful.Result.Bind<TResult, T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, Resultful.Result<TResult>>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
-static Resultful.Result.Bind<TResult, T>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Func<T, Resultful.Result<TResult>>! bindFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult>>
 static Resultful.Result.BindAsync(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task<Resultful.VoidResult>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.BindAsync<TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!
 static Resultful.Result.BindAsync<TResult, T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
-static Resultful.Result.BindAsync<TResult, T, TError>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Func<T, System.Threading.Tasks.ValueTask<Resultful.Result<TResult, TError>>>! bindFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult, TError>>
 static Resultful.Result.BindAsync<TResult, T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult>>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
-static Resultful.Result.BindAsync<TResult, T>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Func<T, System.Threading.Tasks.ValueTask<Resultful.Result<TResult>>>! bindFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult>>
 static Resultful.Result.BindValue<T, TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, Resultful.Result<T, TError>>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
 static Resultful.Result.BindValue<T>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, Resultful.Result<T>>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.BindValueAsync<T, TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task<Resultful.Result<T, TError>>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
@@ -433,8 +430,6 @@ static Resultful.Result.CheckAsync<T, TError>(this Resultful.Result<T, TError> v
 static Resultful.Result.CheckAsync<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, params System.Func<T, System.Threading.Tasks.Task<Resultful.Result<Resultful.Unit!, TError>>!>![]! checks) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
 static Resultful.Result.CheckAsync<T>(this Resultful.Result<T> value, params System.Func<T, System.Threading.Tasks.Task<Resultful.Result<Resultful.Unit!>>!>![]! checks) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.CheckAsync<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, params System.Func<T, System.Threading.Tasks.Task<Resultful.Result<Resultful.Unit!>>!>![]! checks) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
-static Resultful.Result.CollectAsync<T, TError>(this System.Collections.Generic.IAsyncEnumerable<Resultful.Result<T, TError>>! values, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Resultful.Result<System.Collections.Generic.IReadOnlyList<T>!, TError>>
-static Resultful.Result.CollectAsync<T>(this System.Collections.Generic.IAsyncEnumerable<Resultful.Result<T>>! values, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Resultful.Result<System.Collections.Generic.IReadOnlyList<T>!>>
 static Resultful.Result.DiscardError<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
 static Resultful.Result.DiscardError<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Action<TError>! errorAction) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
 static Resultful.Result.DiscardError<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
@@ -495,10 +490,8 @@ static Resultful.Result.Map2Async<TResult, T, TError>(this System.Threading.Task
 static Resultful.Result.Map2Async<TResult, TError, TErrorResult>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<TError, System.Threading.Tasks.Task<TErrorResult>!>! errorMapFunc, System.Func<System.Threading.Tasks.Task<TResult>!>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TErrorResult>>!
 static Resultful.Result.Map2Async<TResult, TError>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Error!, System.Threading.Tasks.Task<TError>!>! errorMapFunc, System.Func<System.Threading.Tasks.Task<TResult>!>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
 static Resultful.Result.Map<T, TResult>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, TResult>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
-static Resultful.Result.Map<T, TResult>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Func<T, TResult>! mapFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult>>
 static Resultful.Result.Map<T>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, T bindFunc) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.Map<TResult, T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, TResult>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
-static Resultful.Result.Map<TResult, T, TError>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Func<T, TResult>! mapFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<TResult, TError>>
 static Resultful.Result.Map<TResult, TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, TResult>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
 static Resultful.Result.Map<TResult, TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, TResult mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
 static Resultful.Result.Map<TResult>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, TResult>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
@@ -510,10 +503,8 @@ static Resultful.Result.MapAsync<TResult, TError>(this System.Threading.Tasks.Ta
 static Resultful.Result.MapAsync<TResult>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Threading.Tasks.Task<TResult>! mapFunc) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
 static Resultful.Result.MapError(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Error!, Resultful.Error!>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.MapError<T, TError, TErrorResult>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<TError, TErrorResult>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.Result<T, TErrorResult>>!
-static Resultful.Result.MapError<T, TError, TErrorResult>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Func<TError, TErrorResult>! errorMapFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<T, TErrorResult>>
 static Resultful.Result.MapError<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<TError, Resultful.Error!>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.MapError<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<Resultful.Error!, TError>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
-static Resultful.Result.MapError<T, TError>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Func<Resultful.Error!, TError>! errorMapFunc) -> System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>>
 static Resultful.Result.MapError<TError, TErrorResult>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<TError, TErrorResult>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TErrorResult>>!
 static Resultful.Result.MapError<TErrorResult>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Error!, TErrorResult>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TErrorResult>>!
 static Resultful.Result.MapErrorAsync(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Error!, System.Threading.Tasks.Task<Resultful.Error!>!>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
@@ -524,10 +515,8 @@ static Resultful.Result.MapErrorAsync<TError, TErrorResult>(this System.Threadin
 static Resultful.Result.MapErrorAsync<TErrorResult>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Error!, System.Threading.Tasks.Task<TErrorResult>!>! errorMapFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TErrorResult>>!
 static Resultful.Result.Match<T, TError, TResult>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, TResult>! successFunc, System.Func<TError, TResult>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
 static Resultful.Result.Match<T, TError, TResult>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, TResult>! successFunc, System.Func<TError, TResult>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
-static Resultful.Result.Match<T, TError, TResult>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Func<T, TResult>! successFunc, System.Func<TError, TResult>! errorFunc) -> System.Threading.Tasks.ValueTask<TResult>
 static Resultful.Result.Match<T, TResult>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, TResult>! successFunc, System.Func<Resultful.Error!, TResult>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
 static Resultful.Result.Match<T, TResult>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, TResult>! successFunc, System.Func<Resultful.Error!, TResult>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
-static Resultful.Result.Match<T, TResult>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Func<T, TResult>! successFunc, System.Func<Resultful.Error!, TResult>! errorFunc) -> System.Threading.Tasks.ValueTask<TResult>
 static Resultful.Result.MatchAsync<T, TError, TResult>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, System.Threading.Tasks.Task<TResult>!>! successFunc, System.Func<TError, System.Threading.Tasks.Task<TResult>!>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
 static Resultful.Result.MatchAsync<T, TError, TResult>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task<TResult>!>! successFunc, System.Func<TError, System.Threading.Tasks.Task<TResult>!>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
 static Resultful.Result.MatchAsync<T, TResult>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, System.Threading.Tasks.Task<TResult>!>! successFunc, System.Func<Resultful.Error!, System.Threading.Tasks.Task<TResult>!>! errorFunc) -> System.Threading.Tasks.Task<TResult>!
@@ -536,8 +525,6 @@ static Resultful.Result.Ok() -> Resultful.Result<Resultful.Unit!>
 static Resultful.Result.Ok<T, TError>(this T value) -> Resultful.Result<T, TError>
 static Resultful.Result.Ok<T>(this T value) -> Resultful.Result<T>
 static Resultful.Result.Ok<TError>() -> Resultful.Result<Resultful.Unit!, TError>
-static Resultful.Result.PartitionAsync<T, TError>(this System.Collections.Generic.IAsyncEnumerable<Resultful.Result<T, TError>>! values, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(System.Collections.Generic.IReadOnlyList<T>! Values, System.Collections.Generic.IReadOnlyList<TError>! Errors)>
-static Resultful.Result.PartitionAsync<T>(this System.Collections.Generic.IAsyncEnumerable<Resultful.Result<T>>! values, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(System.Collections.Generic.IReadOnlyList<T>! Values, System.Collections.Generic.IReadOnlyList<Resultful.Error!>! Errors)>
 static Resultful.Result.Plus<T0, T1, T2, T3, T4, T5, T6, T7, TError>(this Resultful.Result<T0, TError> result0, Resultful.Result<T1, TError> result1, Resultful.Result<T2, TError> result2, Resultful.Result<T3, TError> result3, Resultful.Result<T4, TError> result4, Resultful.Result<T5, TError> result5, Resultful.Result<T6, TError> result6, Resultful.Result<T7, TError> result7) -> Resultful.Result<(T0, T1, T2, T3, T4, T5, T6, T7), TError>
 static Resultful.Result.Plus<T0, T1, T2, T3, T4, T5, T6, T7, TError>(this Resultful.Result<T0, TError> result0, Resultful.Result<T1, TError> result1, Resultful.Result<T2, TError> result2, Resultful.Result<T3, TError> result3, Resultful.Result<T4, TError> result4, Resultful.Result<T5, TError> result5, Resultful.Result<T6, TError> result6, Resultful.Result<T7, TError> result7, System.Func<TError, TError, TError>! mergeFunc) -> Resultful.Result<(T0, T1, T2, T3, T4, T5, T6, T7), TError>
 static Resultful.Result.Plus<T0, T1, T2, T3, T4, T5, T6, TError>(this Resultful.Result<T0, TError> result0, Resultful.Result<T1, TError> result1, Resultful.Result<T2, TError> result2, Resultful.Result<T3, TError> result3, Resultful.Result<T4, TError> result4, Resultful.Result<T5, TError> result5, Resultful.Result<T6, TError> result6) -> Resultful.Result<(T0, T1, T2, T3, T4, T5, T6), TError>
@@ -595,9 +582,7 @@ static Resultful.Result.SwitchAsync<T>(this System.Threading.Tasks.Task<Resultfu
 static Resultful.Result.SwitchAsync<T>(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task!>! successFunc, System.Func<Resultful.Error!, System.Threading.Tasks.Task!>! errorFunc) -> System.Threading.Tasks.Task!
 static Resultful.Result.Tee(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Action<Resultful.Unit!>! action) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.Tee<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Action<T>! action) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
-static Resultful.Result.Tee<T, TError>(this System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>> value, System.Action<T>! action) -> System.Threading.Tasks.ValueTask<Resultful.Result<T, TError>>
 static Resultful.Result.Tee<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Action<T>! action) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
-static Resultful.Result.Tee<T>(this System.Threading.Tasks.ValueTask<Resultful.Result<T>> value, System.Action<T>! action) -> System.Threading.Tasks.ValueTask<Resultful.Result<T>>
 static Resultful.Result.Tee<TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value, System.Action<Resultful.Unit!>! action) -> System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!
 static Resultful.Result.TeeAsync(this System.Threading.Tasks.Task<Resultful.VoidResult>! value, System.Func<Resultful.Unit!, System.Threading.Tasks.Task!>! asyncFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.TeeAsync<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, System.Threading.Tasks.Task!>! asyncFunc) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
@@ -696,15 +681,14 @@ static Resultful.Validation<T>.operator !=(Resultful.Validation<T> left, Resultf
 static Resultful.Validation<T>.operator ==(Resultful.Validation<T> left, Resultful.Validation<T> right) -> bool
 static Resultful.VoidResult.implicit operator Resultful.Result<Resultful.Unit!>(Resultful.VoidResult value) -> Resultful.Result<Resultful.Unit!>
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Result<Resultful.Unit!> value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit! value) -> Resultful.VoidResult
+static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit? value) -> Resultful.VoidResult
 static Resultful.VoidResult<TError>.implicit operator Resultful.Result<Resultful.Unit!, TError>(Resultful.VoidResult<TError> value) -> Resultful.Result<Resultful.Unit!, TError>
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Result<Resultful.Unit!, TError> value) -> Resultful.VoidResult<TError>
-static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit! value) -> Resultful.VoidResult<TError>
+static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit? value) -> Resultful.VoidResult<TError>
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(TError value) -> Resultful.VoidResult<TError>
 virtual Resultful.Error.EqualityContract.get -> System.Type!
 virtual Resultful.Error.Equals(Resultful.Error? other) -> bool
 virtual Resultful.Error.Inner() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
 virtual Resultful.Error.PrintMembers(System.Text.StringBuilder! builder) -> bool
-~override Resultful.ValidationFailed<TError>.<Clone>$() -> Resultful.ValidationFailed<TError>!
 ~static Resultful.ValidationFailed<TError>.operator !=(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool
 ~static Resultful.ValidationFailed<TError>.operator ==(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool
