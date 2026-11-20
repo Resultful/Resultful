@@ -27,7 +27,7 @@
       OneOf's floor matters to consumers using lowest-matching resolution (Paket strategy: min).
       OneOf 3.0.178 only had a .NETStandard1.3 group, which drags NETStandard.Library 1.6.1 and the
       vulnerable System.Net.Http / System.Text.RegularExpressions 4.3.0 into net8+ apps.
-      3.0.271 adds an empty netstandard2.0 group. eng/verify-package.sh enforces this floor.
+      3.0.271 adds an empty netstandard2.0 group. eng/verify-package.cs enforces this floor.
     -->
     <PackageReference Include="OneOf" />
   </ItemGroup>
