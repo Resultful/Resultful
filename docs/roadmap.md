@@ -14,8 +14,23 @@ generated:
 ## The goal
 
 Resultful should make failure part of a C# signature without making the code around it any less C#
-([vision](vision.md)). Long term, that means:
+([vision](vision.md)). The target consumer experience is a stack-allocated, domain-named result shape that
+switches exhaustively over success and every error case ([decision 16](decisions/0016-source-generated-result-shapes.md)):
+
+```csharp
+var status = orderResult switch
+{
+    int v => v,
+    OrderNotFound nf => nf.Id == 42 ? 404 : 500,
+    OrderLocked => 409,
+    CardDeclined => 402,
+};
+```
+
+Long term, that means:
 - a dependency-free core that feels native to the language
+- opt-in analyzers and source generators (`Resultful.Analyzers`, `Resultful.Generators`) that turn closed error
+  hierarchies and `[ResultShape]` declarations into zero-boilerplate, union-backed result structs
 - satellite packages that remove the friction at each framework boundary
 - an assertions family for every assertion library people use
 
@@ -107,8 +122,17 @@ table.
 - Code fixes where the rewrite is unambiguous.
 - *Proposed in [decision 15](decisions/0015-analyzer-rules-read-attributes.md):* rules read attributes, so a
   user's own types get the same checks, plus exhaustive `switch` over a `[ClosedHierarchy]`.
+- `Resultful.Generators`, a separate incremental source-generator package
+  ([decision 16](decisions/0016-source-generated-result-shapes.md),
+  [exploration](explorations/source-generated-shapes.md)):
+  - **Tier 1 (`[ClosedHierarchy]`):** `private protected` constructor for compiler-enforced cross-assembly closure,
+    exhaustive `Match`/`Switch` across nested hierarchies, and deterministic outer-to-inner `Causes()` `TryMap`.
+  - **Tier 2 (`[ResultShape(typeof(TError))]`):** stack-allocated `readonly partial struct` with Decision 10's
+    zero-value guard, `[MustObserve]`, implicit conversions from `T` and error leaves, railway methods, and
+    automatic widening to `Result<T>` / `Result<T, TError>` (including `WithContext`).
 
-**Done when** each rule has positive and negative tests, and the samples build with no analyzer warnings.
+**Done when** each analyzer rule and generator tier has positive and negative tests, generated shapes obey
+Decision 10 and widen cleanly to `Result<T>`, and the samples build with no warnings.
 
 ## M5. Framework packages
 
@@ -129,15 +153,20 @@ publishes with no trim or AOT warnings.
 
 ## M6. Unions on .NET 11
 
-[Decision 3](decisions/0003-unions-are-chosen-by-measurement.md).
+[Decisions 3](decisions/0003-unions-are-chosen-by-measurement.md) and
+[16](decisions/0016-source-generated-result-shapes.md).
 
-- A custom `[Union]` with a member provider and non-boxing `TryGetValue`.
+- A custom `[Union]` with a member provider and non-boxing `TryGetValue` on the core result types.
+- `[ResultShape]` union scaffolding in `Resultful.Generators` behind `#if NET11_0_OR_GREATER`: emits `[Union]`,
+  `IUnion`, `HasValue`, `public object? Value`, and per-leaf union constructors + non-boxing `TryGetValue(out Leaf)`
+  for `[ClosedHierarchy]` errors, enabling flat and grouped exhaustive `switch` expressions with no `_` arm and no
+  suppressor.
 - A correctness matrix covering overlapping case types and the zero value, then BenchmarkDotNet results for
   net10 against net11.
 - Shipped behind `#if NET11_0_OR_GREATER`, with a decision recording the numbers.
 
-**Done when** `result switch { … }` is exhaustive on `net11.0` with no boxing on the hot path, or the decision
-records why not.
+**Done when** both `result switch { … }` and generated `orderResult switch { int v => …, OrderNotFound => …, OrderLocked => …, CardDeclined => … }`
+are exhaustive on `net11.0` with no boxing on the hot path, or the decision records why not.
 
 ## M7. Stable (`1.0.0`)
 

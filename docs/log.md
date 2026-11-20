@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- Decision 16 accepted: source-generated `[ClosedHierarchy]` plumbing and `[ResultShape]` union-backed structs
+  (`Resultful.Generators`) become the centrepiece consumer experience — flat, exhaustive `.NET 11` `[Union]`
+  switching over success and every closed error leaf. Roadmap (goal, M4, M6), architecture, and vision updated.
+
 - Exploration *Source-generated error hierarchies and result shapes* added: Tier 1 (`[ClosedHierarchy]` closure,
   exhaustive `Match`/`Switch`, outer-to-inner `Causes()` mapper) and Tier 2 (`[ResultShape]` domain result structs
   with widening to `Result<T>` and `.NET 11 [Union]` flat/grouped exhaustive `switch` over closed error leaves),
