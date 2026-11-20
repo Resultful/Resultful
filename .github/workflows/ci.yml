@@ -61,7 +61,10 @@ jobs:
         run: dotnet build Resultful.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
 
       - name: Test
-        run: dotnet test Resultful.slnx --configuration Release --no-build --logger "trx" --results-directory TestResults
+        run: |
+          dotnet test tests/Resultful.Tests/Resultful.Tests.csproj --configuration Release --no-build --logger "trx" --results-directory TestResults
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net10.0
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net11.0
 
       - name: Upload test results
         if: always()
@@ -76,6 +79,13 @@ jobs:
 
       - name: Check package shape
         run: dotnet run eng/verify-package.cs -- artifacts/*.nupkg
+
+      - name: Test consumption against packed package
+        run: |
+          dotnet restore tests/Resultful.Consumption/Resultful.Consumption.csproj -p:UsePackedPackage=true -p:RestoreAdditionalProjectSources="$PWD/artifacts"
+          dotnet build tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-restore -p:UsePackedPackage=true
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net10.0 -p:UsePackedPackage=true
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net11.0 -p:UsePackedPackage=true
 
       - name: Upload packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

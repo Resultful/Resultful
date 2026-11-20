@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UsePackedPackage Condition="'$(UsePackedPackage)' == ''">false</UsePackedPackage>
+    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == ''">0.2.0-beta06</ResultfulPackageVersion>
+    <!-- Test code exercises intentional hazards (e.g. default(Result<T>), bare string errors) and async lambdas. -->
+    <NoWarn>$(NoWarn);CS1998;CA1859;CA2007;CA1034</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UsePackedPackage)' != 'true'">
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UsePackedPackage)' == 'true'">
+    <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="ConsumptionTestsDir" Value="$(MSBuildProjectDirectory)" />
+    <AssemblyMetadata Include="RepoRootDir" Value="$(MSBuildThisFileDirectory)..\.." />
+    <AssemblyMetadata Include="BuildConfiguration" Value="$(Configuration)" />
+    <AssemblyMetadata Include="UsePackedPackage" Value="$(UsePackedPackage)" />
+  </ItemGroup>
+
+</Project>
