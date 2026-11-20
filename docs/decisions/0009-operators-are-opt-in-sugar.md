@@ -2,10 +2,10 @@
 type: decision
 title: "Operators are opt-in sugar over named methods"
 description: "C# 14 extension operators live in a Resultful.Operators namespace, and every operator has a named equivalent."
-status: proposed
+status: stable
 tags: [resultful, decision, language]
 decided:
-  by: ""
+  by: human:rtkelly13
   at: 2026-11-20
 generated:
   by: claude-opus-5.5

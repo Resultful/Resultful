@@ -11,9 +11,10 @@ generated:
 
 # Architecture
 
-> Draft. The package family and the layout are proposals ([decision 11](decisions/0011-package-family.md),
-> [decision 12](decisions/0012-assertions-live-in-resultful-assertions.md),
-> [decision 13](decisions/0013-repository-layout.md)). Package names in *italics* don't exist yet.
+> The package family, the assertions repository and the layout are decided
+> ([decisions 11](decisions/0011-package-family.md), [12](decisions/0012-assertions-live-in-resultful-assertions.md)
+> and [13](decisions/0013-repository-layout.md)). Each satellite is confirmed when its milestone starts. Package
+> names in *italics* don't exist yet.
 
 ## Two repositories
 
@@ -32,13 +33,13 @@ for `Resultful`). Most of its users don't use Resultful, so it keeps its package
 ## This repository's packages
 
 Each satellite is a separate package, so the core stays dependency-free
-([decision 1](decisions/0001-core-is-dependency-free.md)). All packages in this repository share one version and
-release together.
+([decision 1](decisions/0001-core-is-dependency-free.md)). Each package has its own version, and a release
+publishes only the packages that changed, as in `Resultful.Assertions`.
 
 | Package | Purpose | May depend on | Targets |
 |---|---|---|---|
 | `Resultful` | `Result<T>`, `Result<T, TError>`, `VoidResult`, `VoidResult<TError>`, `Option<T>`, composition, LINQ, async, operators | **nothing** | `netstandard2.0`, `net10.0`, `net11.0` |
-| *`Resultful.Analyzers`* | Roslyn analyzers and code fixes, packed into `Resultful` under `analyzers/dotnet/cs` (not a separate package) | Roslyn (build time only) | `netstandard2.0` (analyzer) |
+| *`Resultful.Analyzers`* | Roslyn analyzers and code fixes, a separate package that a project opts into (the core carries no analyzer assets) | Roslyn (build time only), as a development dependency | `netstandard2.0` (analyzer) |
 | `Resultful.OneOf` | `ToOneOf`, `FromOneOf`, `None` interop | `OneOf` ≥ 3.0.271 | as core |
 | *`Resultful.AspNetCore`* | `ToHttpResult()`, `Results<Ok<T>, ProblemHttpResult>`, ProblemDetails, endpoint filter, error-to-status map, Minimal API validation bridge | `Microsoft.AspNetCore.App` framework reference | `net10.0`, `net11.0` |
 | *`Resultful.Text.Json`* | `System.Text.Json` converters, source-generation friendly, AOT-safe | in-box `System.Text.Json` | `net10.0`, `net11.0` |
@@ -55,6 +56,8 @@ Rules:
 - **Every package passes the package check** (`eng/verify-package.cs`): no `netstandard1.x` or `.NETFramework`
   groups, metadata, SourceLink and symbols.
 - **Every package tracks its public API** with `PublicAPI.*.txt`, kept per target where the surface differs.
+- **Every package is versioned on its own.** A satellite depends on the lowest core version it needs, and a release
+  publishes only the packages whose sources, or whose project dependencies, changed.
 
 ## Packages in `Resultful.Assertions`
 
@@ -79,7 +82,7 @@ The target layout, following the sibling projects (Iceberg.NET, Diffra):
 ```text
 src/
   Resultful/                      core
-  Resultful.Analyzers/            packed into Resultful
+  Resultful.Analyzers/            separate package
   Resultful.OneOf/  Resultful.AspNetCore/  Resultful.Text.Json/  ...
 tests/
   Resultful.Tests/                NUnit examples (today's suite)
@@ -100,3 +103,4 @@ Moving to this layout touches:
 - the `EndsWith("Tests")`/`EndsWith("Examples")` conditions and the `README.md`/`LICENSE` pack paths in
   `Directory.Build.props`, plus a `src/Directory.Build.props` for package settings
 - the `PublicAPI` `AdditionalFiles`
+- the path the package check is run with

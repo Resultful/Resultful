@@ -24,8 +24,8 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 6 | [Tests are a mix: NUnit examples, xunit.v3 property tests](0006-tests-are-a-mix.md) | proposed | 20 November 2026 |
 | 7 | [CI follows rig's hardening, not its whole job graph](0007-ci-follows-rig.md) | proposed | 20 November 2026 |
 | 8 | [The dependency-free release is `0.3.0-beta01`](0008-version-0-3-0.md) | proposed | 20 November 2026 |
-| 9 | [Operators are opt-in sugar over named methods](0009-operators-are-opt-in-sugar.md) | proposed | 20 November 2026 |
+| 9 | [Operators are opt-in sugar over named methods](0009-operators-are-opt-in-sugar.md) | stable | 20 November 2026 |
 | 10 | [`default` is not a success](0010-default-is-not-success.md) | stable | 20 November 2026 |
-| 11 | [A family of satellite packages around a dependency-free core](0011-package-family.md) | proposed | 20 November 2026 |
+| 11 | [A family of satellite packages around a dependency-free core](0011-package-family.md) | stable | 20 November 2026 |
 | 12 | [Assertions live in `Resultful.Assertions`](0012-assertions-live-in-resultful-assertions.md) | stable | 20 November 2026 |
-| 13 | [Repository layout: `src`, `tests`, `samples`, `benchmarks`](0013-repository-layout.md) | proposed | 20 November 2026 |
+| 13 | [Repository layout: `src`, `tests`, `samples`, `benchmarks`](0013-repository-layout.md) | stable | 20 November 2026 |

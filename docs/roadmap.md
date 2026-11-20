@@ -33,12 +33,17 @@ is done when its "Done when" holds.
 | **CI to current standards**: least privilege, format check, pack and package check, manual publishing, zizmor, ls-lint, Dependabot ([decision 7](decisions/0007-ci-follows-rig.md)) | #22 |
 | **Current .NET standards, part one**: SDK 11, `net11.0`, public API tracking ([decision 2](decisions/0002-targets-netstandard20-net10-net11.md)) | #24 |
 | **Direction**: [Seamless with .NET](explorations/seamless-with-dotnet.md), [decision 10](decisions/0010-default-is-not-success.md) | #28, #29 |
+| **Long-term plan**: this roadmap, [the architecture](architecture.md), decisions 9, 11, 12 and 13 accepted | #30, #31, #32 |
 
 ## M1. Foundations (`0.2.x`, no break)
 
 Structure and safety nets before anything changes behaviour.
 
 - Repository layout: `src/`, `tests/`, `samples/`, `benchmarks/`, `.slnx` ([decision 13](decisions/0013-repository-layout.md)).
+  The first pull request, with no code changes.
+- Per-package releases ([decision 11](decisions/0011-package-family.md)): a version per project, change detection
+  by path and project graph, a tag per package, and the package check run on every package. Follows the design
+  in `Resultful.Assertions`.
 - XML documentation required on public members; `AnalysisLevel latest-all` with explicit opt-outs; nullable
   audit; per-target `PublicAPI` files.
 - Testing at scale ([decision 6](decisions/0006-tests-are-a-mix.md)):
@@ -48,8 +53,8 @@ Structure and safety nets before anything changes behaviour.
   - A coverage ratchet in CI.
   - A run that loads the `netstandard2.0` asset.
 
-**Done when** the new layout builds in CI, the characterisation suite pins every public operator's current
-behaviour, and coverage can't fall.
+**Done when** the new layout builds in CI, a release run publishes only the packages that changed, the
+characterisation suite pins every public operator's current behaviour, and coverage can't fall.
 
 ## M2. The language surface (`0.2.x`, additive)
 
@@ -60,7 +65,8 @@ behaviour, and coverage can't fall.
   - `TryGetValue`/`TryGetError`
   - `Deconstruct`
   - `OrElse`, `ValueOr`
-- Operators over those methods, opt-in if [decision 9](decisions/0009-operators-are-opt-in-sugar.md) is accepted:
+- Operators over those methods, opt-in through `using Resultful.Operators;`
+  ([decision 9](decisions/0009-operators-are-opt-in-sugar.md)):
   - `+ - *` with error accumulation
   - `|` and `||` fallback
   - `>>` bind
@@ -91,7 +97,7 @@ table.
 
 ## M4. Tooling
 
-- `Resultful.Analyzers`, packed into the core package. Rules:
+- `Resultful.Analyzers`, a separate package ([decision 11](decisions/0011-package-family.md)). Rules:
   - a result that is never observed
   - `Value` used without a check
   - `default(Result<T>)` or a `default` literal where a result is expected
@@ -132,7 +138,8 @@ records why not.
 ## M7. Stable (`1.0.0`)
 
 - API review of every public member, every decision `stable`, documentation for every operator and package.
-- All of this repository's packages move to `1.0.0` together.
+- The core and every satellite that is ready move to `1.0.0`. Packages are versioned on their own, so a satellite
+  that isn't ready stays in preview.
 
 ## Beyond 1.0
 
