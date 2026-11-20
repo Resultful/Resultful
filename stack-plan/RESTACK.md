@@ -23,7 +23,8 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-05-named-methods | #51 | 04e @ a96a660 | 13a | cherry-picks of 04c c4d7ead..9a465b0 (-x) and the `///` lines of 03's be6b76a/3516048 (drop on restack); single PublicAPI pair (03's per-target split arrives in the restack) 2104c15 is an `-s ours` merge commit: drop it |
 
 Note for the local pass: cherry-picked commits aren't ancestors, so a PR's merge base stays at the commit it started from. Files a base rewrote wholesale were split (e.g. `eng/api-nullable-0.2.0.txt`) to keep PRs mergeable; fold them back.
-| rtkelly13/stack-06-error-record | | 05 | 05 | |
+| rtkelly13/stack-06-error-record | #54 | 05 @ 04cca83 | 05 | two `<Clone>$` lines in `src/Resultful/PublicApi/{Net,NetStandard}/`: fold into `api/<tfm>/` |
+| rtkelly13/stack-07-attributes | | 06 | 06 | |
 | rtkelly13/stack-21-fluentvalidation-diagnostics | #52 | 04c @ 9a465b0 | 20b | drafted ahead; shares a stand-in core in `tests/Resultful.Satellites.StandIn` |
 | rtkelly13/stack-20a-aspnetcore-errors | #53 | 04c @ 9a465b0 | 17 | drafted ahead; spec: 8329250 |
 | rtkelly13/stack-16b-analyzers-more | | 16a | 16a | drafted ahead |
