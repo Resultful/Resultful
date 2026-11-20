@@ -185,11 +185,16 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
 - **Implementers don't wait on CI.** An implementer pushes, opens the draft and reports. The orchestrator watches CI
   and hands a red job to a fixer agent with the log, so the implementer slot is free for the next PR.
 - **Contracts one or two ahead.** The orchestrator writes the next contracts while PRs build.
-- **Up to three agents building at once** (implementers and fixers; reviewers and adversaries don't count), at most
-  three PRs deep in flight above the last green one. A PR is still *done* only by rule 3, and a checkpoint only when
+- **Up to four agents building at once** (implementers and fixers; reviewers and adversaries don't count; the
+  session has four cores). A PR is still *done* only by rule 3, and a checkpoint only when
   every PR under it is.
-- **Drafting ahead.** Besides 04c and 04d, 13a may be drafted as soon as 04c's target API is pushed (it depends only
-  on the target), on the same no-root-files rule.
+- **Drafting ahead (Ryan, 2026-11-20: as much in parallel as possible).** Once 04c's target API is pushed, a PR
+  whose code lives in its own new directory may be drafted against the target stubs before its turn: 13a
+  (generator), 12b (`Resultful.Text.Json`), 18 (`Resultful.Operators`), 16a/16b (analyzers), 20a/20b
+  (`Resultful.AspNetCore`), 21 (`Resultful.FluentValidation`, `Resultful.Diagnostics`). Same no-root-files rule.
+  Each is rebased into its stack position when its turn comes, switched from the stubs to the real projects, and
+  only then can it be *done*. The core chain (05–12, 19, and 24) edits the same files and stays strictly in order.
+  If Ryan's review of 04c changes the target, drafted PRs are reworked; that risk is accepted.
 
 ## Known traps
 
