@@ -32,42 +32,56 @@ public static class JsonAssert
     public static void Equal<T>([StringSyntax(StringSyntaxAttribute.Json)] string expectedJson, T actual) => Equal(expectedJson, actual, Options);
 
     /// <summary>Asserts that <paramref name="actual"/>, written with <paramref name="options"/>, is <paramref name="expectedJson"/>.</summary>
+    /// <remarks>Member order is ignored; use <see cref="EqualOrdered{T}(string, T)"/> to pin it too.</remarks>
     /// <exception cref="JsonAssertException">The JSON differs, or <paramref name="expectedJson"/> isn't JSON.</exception>
     [RequiresUnreferencedCode("Serializes with reflection-based metadata.")]
     [RequiresDynamicCode("Serializes with reflection-based metadata.")]
     public static void Equal<T>([StringSyntax(StringSyntaxAttribute.Json)] string expectedJson, T actual, JsonSerializerOptions options)
     {
-        ArgumentNullException.ThrowIfNull(expectedJson);
         ArgumentNullException.ThrowIfNull(options);
-        JsonNode? expected;
-        try
-        {
-            expected = JsonNode.Parse(expectedJson);
-        }
-        catch (JsonException ex)
-        {
-            throw new JsonAssertException("The expected JSON isn't valid: " + ex.Message + Environment.NewLine + expectedJson, ex);
-        }
-
-        var actualJson = JsonSerializer.Serialize(actual, options);
-        EqualJson(expected, actualJson);
+        Compare(Parse(expectedJson, "expected"), JsonSerializer.Serialize(actual, options), ordered: false);
     }
+
+    /// <summary>
+    /// Like <see cref="Equal{T}(string, T)"/>, but member order matters too: the wire format's order is part of the
+    /// contract.
+    /// </summary>
+    /// <exception cref="JsonAssertException">The JSON or its member order differs, or <paramref name="expectedJson"/> isn't JSON.</exception>
+    [RequiresUnreferencedCode("Serializes with reflection-based metadata.")]
+    [RequiresDynamicCode("Serializes with reflection-based metadata.")]
+    public static void EqualOrdered<T>([StringSyntax(StringSyntaxAttribute.Json)] string expectedJson, T actual) =>
+        Compare(Parse(expectedJson, "expected"), JsonSerializer.Serialize(actual, Options), ordered: true);
 
     /// <summary>Asserts that two JSON texts are equal, member order and whitespace aside.</summary>
     /// <exception cref="JsonAssertException">They differ, or either isn't JSON.</exception>
     public static void EqualJson([StringSyntax(StringSyntaxAttribute.Json)] string expectedJson, [StringSyntax(StringSyntaxAttribute.Json)] string actualJson)
     {
-        ArgumentNullException.ThrowIfNull(expectedJson);
-        EqualJson(JsonNode.Parse(expectedJson), actualJson);
+        var expected = Parse(expectedJson, "expected");
+        Parse(actualJson, "actual");
+        Compare(expected, actualJson, ordered: false);
     }
 
-    private static void EqualJson(JsonNode? expected, string actualJson)
+    private static JsonNode? Parse(string json, string which)
+    {
+        ArgumentNullException.ThrowIfNull(json, which + "Json");
+        try
+        {
+            return JsonNode.Parse(json);
+        }
+        catch (JsonException ex)
+        {
+            throw new JsonAssertException($"The {which} JSON isn't valid: " + ex.Message + Environment.NewLine + json, ex);
+        }
+    }
+
+    private static void Compare(JsonNode? expected, string actualJson, bool ordered)
     {
         var actual = JsonNode.Parse(actualJson);
-        if (JsonNode.DeepEquals(expected, actual)) return;
+        var where = FirstDifference(expected, actual, "$", ordered);
+        if (where is null) return;
 
         var message = new StringBuilder()
-            .AppendLine("JSON differs" + (FirstDifference(expected, actual, "$") is { } where ? " at " + where : "") + ".")
+            .AppendLine((JsonNode.DeepEquals(expected, actual) ? "JSON member order differs at " : "JSON differs at ") + where + ".")
             .AppendLine("Expected:")
             .AppendLine(Show(expected))
             .AppendLine("Actual:")
@@ -81,17 +95,26 @@ public static class JsonAssert
 
     private static string Show(JsonNode? node) => node is null ? "null" : node.ToJsonString(Indented);
 
-    /// <summary>The path of the first difference, with what each side has there.</summary>
-    internal static string? FirstDifference(JsonNode? expected, JsonNode? actual, string path)
+    /// <summary>The path of the first difference, with what each side has there; null when equal.</summary>
+    internal static string? FirstDifference(JsonNode? expected, JsonNode? actual, string path, bool ordered)
     {
-        if (JsonNode.DeepEquals(expected, actual)) return null;
         switch (expected, actual)
         {
             case (JsonObject e, JsonObject a):
+                if (ordered)
+                {
+                    var keys = e.Select(p => p.Key).ToList();
+                    var actualKeys = a.Select(p => p.Key).ToList();
+                    for (var i = 0; i < Math.Min(keys.Count, actualKeys.Count); i++)
+                    {
+                        if (keys[i] != actualKeys[i]) return $"{path}: member {i.ToString(CultureInfo.InvariantCulture)} expected \"{keys[i]}\", actual \"{actualKeys[i]}\"";
+                    }
+                }
+
                 foreach (var (key, value) in e)
                 {
                     if (!a.TryGetPropertyValue(key, out var other)) return $"{path}.{key} (missing from actual)";
-                    if (FirstDifference(value, other, path + "." + key) is { } inner) return inner;
+                    if (FirstDifference(value, other, path + "." + key, ordered) is { } inner) return inner;
                 }
 
                 foreach (var (key, _) in a)
@@ -99,16 +122,16 @@ public static class JsonAssert
                     if (!e.ContainsKey(key)) return $"{path}.{key} (not expected)";
                 }
 
-                return path;
+                return null;
             case (JsonArray e, JsonArray a):
                 for (var i = 0; i < Math.Min(e.Count, a.Count); i++)
                 {
-                    if (FirstDifference(e[i], a[i], path + "[" + i.ToString(CultureInfo.InvariantCulture) + "]") is { } inner) return inner;
+                    if (FirstDifference(e[i], a[i], path + "[" + i.ToString(CultureInfo.InvariantCulture) + "]", ordered) is { } inner) return inner;
                 }
 
-                return $"{path} (expected {e.Count} items, actual {a.Count})";
+                return e.Count == a.Count ? null : $"{path} (expected {e.Count} items, actual {a.Count})";
             default:
-                return $"{path}: expected {Show(expected)}, actual {Show(actual)}";
+                return JsonNode.DeepEquals(expected, actual) ? null : $"{path}: expected {Show(expected)}, actual {Show(actual)}";
         }
     }
 }
