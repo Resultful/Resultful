@@ -10,6 +10,7 @@ namespace Resultful
     /// <summary>A success holding a <typeparamref name="T"/> value, or a failure holding a list of error messages.</summary>
     /// <typeparam name="T">The type of the success value.</typeparam>
     /// <remarks>The 0.2 members (<c>Match</c>, <c>Map</c>, …) treat the zero value (<c>default</c>) as a success holding <c>default(T)</c>. The named members don't: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>, and the others throw <see cref="InvalidOperationException"/>. A bare <see cref="string"/> converts to a failure, even when <typeparamref name="T"/> is <see cref="string"/>.</remarks>
+    [CodeAnalysis.MustObserve]
     public partial struct Result<T>
     {
         //Private Members
