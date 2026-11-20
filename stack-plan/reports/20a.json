@@ -2,17 +2,19 @@
   "pr": 53,
   "pr_url": "https://github.com/Resultful/Resultful/pull/53",
   "branch": "rtkelly13/stack-20a-aspnetcore-errors",
-  "head_sha": "4d17410c946493901030ddc6f5a3c345fe5f3e6b",
+  "head_sha": "97637cf9c2728b209daa013d1ae14beebc01a472",
   "started_from": "9a465b0 (origin/rtkelly13/stack-04c-spec-harness), no cherry-picks",
   "commits": [
     "8329250 spec: ToHttpResult keeps the error type, ResultHttpResult<T, TError>",
     "91fdaac feat(aspnetcore): the error-to-status map and ProblemDetails against the 0.3 target",
-    "4d17410 test(aspnetcore): the map, ProblemDetails and no-leak rules on TestServer, both targets"
+    "4d17410 test(aspnetcore): the map, ProblemDetails and no-leak rules on TestServer, both targets",
+    "a11da85 fixup! feat(aspnetcore): the error-to-status map and ProblemDetails against the 0.3 target",
+    "97637cf fixup! test(aspnetcore): the map, ProblemDetails and no-leak rules on TestServer, both targets"
   ],
   "local_runs": [
     {
       "cmd": "dotnet build src/Resultful.AspNetCore -m:2",
-      "result": "0 warnings, 0 errors (net10.0, net11.0; IsAotCompatible, CS1591 on)"
+      "result": "0 warnings, 0 errors (head 97637cf)"
     },
     {
       "cmd": "dotnet build tests/Resultful.AspNetCore.Tests -m:2",
@@ -20,27 +22,31 @@
     },
     {
       "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net10.0 --no-build",
-      "result": "total 69, failed 0 (stand-in core)"
+      "result": "total 78, failed 0"
     },
     {
       "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net10.0 --no-build -- --culture tr-TR",
-      "result": "total 69, failed 0"
+      "result": "total 78, failed 0"
     },
     {
       "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net11.0 --no-build",
-      "result": "total 70, failed 0"
+      "result": "total 79, failed 0"
     },
     {
       "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net11.0 --no-build -- --culture tr-TR",
-      "result": "total 70, failed 0"
+      "result": "total 79, failed 0"
+    },
+    {
+      "cmd": "dotnet publish tests/Resultful.AspNetCore.Tests/AotProbe -c Release -r linux-x64 -o temp/aotprobe -m:2",
+      "result": "no warnings (TreatWarningsAsErrors); binary: 200, 404 detail, 500 no detail + Error log line, 400 errors"
     },
     {
       "cmd": "dotnet build tests/Resultful.Spec -f net10.0 -m:2 && dotnet run --project tests/Resultful.Spec -f net10.0 --no-build",
-      "result": "total 268, failed 0 (real core, after the spec: change)"
+      "result": "total 268, failed 0 (real core, after the spec: change) (run at 4d17410; fixups touch neither the spec project nor the target)"
     },
     {
       "cmd": "dotnet build tests/Resultful.Spec -f net11.0 -m:2 && dotnet run --project tests/Resultful.Spec -f net11.0 --no-build",
-      "result": "total 268, failed 0"
+      "result": "total 268, failed 0 (run at 4d17410; fixups touch neither the spec project nor the target)"
     },
     {
       "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
@@ -91,19 +97,22 @@
   ],
   "decisions_taken": [
     "| 20a | ResultHttpResult<T, TError>; Result<T> -> <T, Error>; Validation -> <T, ValidationFailed<...>>; internal ctor (spec: 8329250) | #39 q11 default; 20b's OpenAPI reads statuses from TError |",
-    "| 20a | Per error in Causes(): exact-type entry, then built-in ValidationFailed 400, then base-type entries nearest first; first error with any status wins | 'first mapped type wins' with leaf overrides for closed hierarchies; Map<Error> doesn't swallow validation |",
-    "| 20a | Any 5xx (default or mapped) hides Message outside Development; Development detail = Error.ToString(); no IHostEnvironment = Production | HTTP-500-NOLEAK for every server error, failing safe |",
-    "| 20a | 4xx detail = the matched error's Message, not the outer wrapper's | the mapped error is what the app chose to show |",
-    "| 20a | Map/DefaultStatusCode accept 400-599 only | a failure must not answer 2xx/3xx |",
     "| 20a | Unit success = 200 with no body | http-cases UC07; no Unit JSON metadata under AOT |",
     "| 20a | AddResultful(IServiceCollection) also calls AddProblemDetails() (idempotent) | consistent bodies, traceId |",
-    "| 20a | instance = request path; traceId = Activity.Current?.Id ?? TraceIdentifier | contract's shape list |",
     "| 20a | No Resultful.Text.Json dependency | target project has none; avoids [RequiresDynamicCode] (12b) |",
-    "| 20a | Zero result: ToHttpResult throws | decision 10 |"
+    "| 20a | Zero result: ToHttpResult throws | decision 10 |",
+    "| 20a | Per error in Causes(): exact-type entry, then the built-in ValidationFailed 400 (top-level error only), then base-type entries nearest first; first error with any status wins | 'first mapped type wins' with leaf overrides; Map<Error> doesn't swallow validation |",
+    "| 20a | Built-in 400 only when the result's own error is the ValidationFailed; deeper in Causes() only explicit Map entries match | review: a wrapped validation failure must not turn a server error into a 400 exposing inner messages |",
+    "| 20a | 5xx checked before the validation branch: ValidationFailed mapped to 5xx writes the plain 5xx problem | review: no validation messages in a 5xx |",
+    "| 20a | Any 5xx hides Message outside Development; Development detail = Error.ToString(); no IHostEnvironment = Production | HTTP-500-NOLEAK for every server error |",
+    "| 20a | Every 5xx logged once at Error (category Resultful.AspNetCore.ResultHttpResult, event 1 ResultServerError) with Error.ToString(); 4xx not logged | review: hidden errors must be visible; ToString never prints leaf properties |",
+    "| 20a | 4xx detail = matched error's Message, only when an entry or the built-in 400 matched; 4xx DefaultStatusCode gives no detail | review nit 7 |",
+    "| 20a | Map/DefaultStatusCode accept 400-599 only; null ValidationKey result = \"\" | a failure must not answer 2xx/3xx; no null key |",
+    "| 20a | instance = PathBase + Path (no query); traceId = Activity.Current?.Id ?? TraceIdentifier | contract shape list; query may hold personal data |"
   ],
   "wiring": [
     "csproj: ResultfulCoreProject -> ProjectReference ../Resultful/Resultful.csproj; drop IsPackable=false; per-package version",
-    "tests: delete StandInCore/, Compile glob -> ProjectReference; tests use internal ResultfulHttpOptions.TryGetStatus twice (InternalsVisibleTo or assert via HTTP)",
+    "tests: delete StandInCore/, Compile glob -> ProjectReference; same for AotProbe/ (tests now use public API only)",
     "Resultful.slnx: add both projects",
     "root Directory.Packages.props: xunit.v3 4.0.2, Microsoft.AspNetCore.TestHost 10.0.0 (net10.0) / 11.0.0 (net11.0); delete nested props",
     "CI: run-tests.cs runs the MTP project on both TFMs, invariant and tr-TR; until then CI does not run these tests",
@@ -111,7 +120,7 @@
     "package check / release-check; README section (root file)"
   ],
   "beyond_contract": [
-    "native AOT publish probe",
+    "native AOT probe, now in tests/Resultful.AspNetCore.Tests/AotProbe/ with README",
     "4 seeded faults caught",
     "endpoint metadata through real routing",
     "tr-TR byte-identical bodies + full suite under --culture tr-TR",
@@ -122,6 +131,7 @@
   "suppressions": [
     "tests csproj NoWarn CA1515;CA1034;CA2007",
     "StandInCore EnableNETAnalyzers=false (temporary)",
+    "AotProbe csproj NoWarn CA1515;CA1852",
     "none in src/; no pragma, Skip or continue-on-error"
   ],
   "open_issues": [
@@ -129,6 +139,23 @@
     "DECISIONS-TAKEN.md rows for the spec: change and the defaults are in the PR body and here, not committed (that file lives on the plan branch, owned by the orchestrator).",
     "All evidence for behaviour is against the stand-in core; the gate at 20a's turn is the real core.",
     "Not implemented here (20b's): ResultEndpointFilter, WithResultful, MinimalApiValidationError; map statuses in OpenAPI.",
-    "StandInCore is a copy of 12b's; if 12b's changes, the two diverge until both are deleted."
-  ]
+    "StandInCore is a copy of 12b's; if 12b's changes, the two diverge until both are deleted.",
+    "Spec harness and stand-in spec run not repeated after the fixups (they change neither the spec project nor the fixtures; the HTTP fixtures' validation cases have the ValidationFailed at the top level)."
+  ],
+  "fixup_commits": {
+    "a11da85b464b1b210637cfa6389b129f7aef7c74": "review items 1,2,3,6,7,8 (src)",
+    "97637cf9c2728b209daa013d1ae14beebc01a472": "tests for those, items 4,5,9 (TestCultures, no internal calls, AotProbe/)"
+  },
+  "review_round_1": {
+    "1_validation_5xx_leak": "fixed: 5xx check before validation branch; tests A_ValidationFailed_mapped_to_a_5xx_shows_no_messages(500,503)",
+    "2_builtin_400_anywhere": "fixed: built-in 400 only for the top-level ValidationFailed; deeper only explicit Map entries; tests ValidationFailed_as_a_cause_is_not_a_400_by_default, ..._is_a_400_when_mapped, A_context_note_keeps_the_built_in_400",
+    "3_5xx_not_logged": "fixed: LoggerMessage at Error, category Resultful.AspNetCore.ResultHttpResult, event 1 ResultServerError, Error.ToString(); tests A_hidden_5xx_is_logged_once_at_error_without_leaf_properties, A_4xx_is_not_logged_by_the_package",
+    "4_TestCultures": "added invariant;tr-TR",
+    "5_internal_TryGetStatus_in_tests": "replaced with Execute(...) assertions (Http.Execute gained moreServices and log params)",
+    "6_instance": "PathBase + Path, no query; test The_instance_is_path_base_and_path_without_the_query",
+    "7_4xx_default_detail": "chose to limit: detail only when an entry or the built-in 400 matched; documented; test A_4xx_default_status_shows_no_message",
+    "8_null_validation_key": "falls back to \"\"; test A_null_key_is_an_empty_key",
+    "9_aot_probe": "tests/Resultful.AspNetCore.Tests/AotProbe/ (Resultful.AspNetCore.AotProbe.csproj, Program.cs, README.md), excluded from test project compile, not in slnx",
+    "regression_check": "the 7 new-behaviour tests all fail against the pre-fixup ErrorProblems.cs"
+  }
 }
