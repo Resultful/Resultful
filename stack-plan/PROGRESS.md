@@ -11,9 +11,9 @@ Rows are in stack order.
 | 04 | rtkelly13/stack-04-per-package-release | #43 | green | d51d2e3, CI green; review fixups in; carries 03's commits by cherry-pick (drop on restack); api-diff glob loosened to 03's, tighten after restack |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | green | 9a465b0, CI green; review fixes (gate reads api/<tfm>, frozen 0.2.0 baseline, CORE-MATRIX, UERR twins, harness runs cases apart from expected errors), ls-lint rules (f72ad89), [MustObserve]; 268 spec tests, 137 ledger lines pending |
-| 04d | rtkelly13/stack-04d-reference-app | #44 | review | review fixes in (c3647e1); conflicts with 04c's newer commits, so no CI: absorbs 04c once 04c's fixes finish |
-| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
-| 04e | rtkelly13/stack-04e-publish-preview | #47 | review | review fixes in (a77f228): environment is the real boundary, stack-plan refused; lint red until 04c's f72ad89 comes up the chain |
+| 04d | rtkelly13/stack-04d-reference-app | #44 | green | 262b016, CI green; review fixes in; carries 04c's commits to 9a465b0; own ls-lint lines |
+| 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | green | 3499c1e, CI green; review fixes in; 3 spec: commits (UC10 fixture back to 23a); 292 spec, 34 e2e green locally |
+| 04e | rtkelly13/stack-04e-publish-preview | #47 | green | 4f37dca, CI green incl. lint and preview dry run; review fixes in |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review fixes in (46a46fd, 5 fixup! commits): language-version gate, stronger fuzz (catches the seeded order fault), no CS0109; 42/47 tests green |
 | 05 | rtkelly13/stack-05-named-methods | #51 | review | 870518e, CI green; CORE-NAMED/TRYGET/DECONSTRUCT/ORELSE done (290 spec tests, local); adding a spec CI job; reviewer running |
 | 06 | rtkelly13/stack-06-error-record |  | building | on 05@870518e |
@@ -45,3 +45,4 @@ Rows are in stack order.
 - 2026-11-20 (web run 1): resumed on Claude Code on the web. SDKs pulled from the MCR images, GitHub through the MCP tools (`WEB-RUN.md`). Starting 02.
 - Live tracker (private artifact, updated at each PR boundary): https://claude.ai/artifact/KPm6VvRnY2U7moMKKZufrE
 - Done in 04c (eb8beb9, 156481b, 9a465b0, a36c3d4): the `spec:` fixes batched with 04c's review: from 13a, `GEN-RFG0005` can't pass as written (CS1729; give `NestedError` its own protected constructor, see 13a's `GenRfg0005Proposed.cs`), `building-the-generator.md` still says colliding names are prefixed (now RFG0008), `SHAPE-UNIT` calls `Ok(Unit.Value)` but the tsv says `Ok()`; from 04d, the UC10 "before" snippet in `errors-in-practice.md` doesn't compile on 0.2, GOAL row 12 misses CS0411.
+- 2026-11-21 ~02:40 UTC: **checkpoint, the 0.3 target is reviewable.** 04c (#42), 04d (#44), 04d2 (#45) green after review; 12 design questions on #39 with defaults taken. Stack A: #38, #40, #41, #43 green; 04b building.
