@@ -12,6 +12,8 @@
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- 02's eng/run-tests.cs adds one run per culture: messages and log text hold under tr-TR. -->
+    <TestCultures>invariant;tr-TR</TestCultures>
     <IsPackable>false</IsPackable>
     <RootNamespace>Resultful.Diagnostics.Tests</RootNamespace>
     <!-- CA1515 doesn't fit a test project; the test types are public for xunit and CsCheck. -->
