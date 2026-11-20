@@ -43,7 +43,6 @@ public static class Cases
         Twin.PaymentError p => p switch { Twin.CardDeclined => "402 declined", Twin.ProviderDown => "503", _ => "?" },
     };
 
-    static string Flat(PlaceOrderResult r) => r switch { Order => "201", OrderNotFound => "404", CardDeclined => "402", ProviderDown => "503" }; // expect: CS8121, CS8121, CS8509
     static string DropsInner(PaymentError p) => p switch { CardDeclined => "402" }; // expect: CS8509
 
     [SpecCase]

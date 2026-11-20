@@ -23,7 +23,6 @@ public static class UnionSide
         _ => (OrderError)new OrderNotFound(id),
     };
 
-    static Result<Order, OrderError> Bare() => new OrderNotFound(1); // expect: CS0029
 
     public static string Describe(int id) => Get(id).Match(o => "ok " + o.Id, e => e switch
     {

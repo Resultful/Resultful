@@ -14,6 +14,7 @@ public static class Cases
         Check.SequenceEqual(new[] { "name is required", "email is required" }, e.Inner().Select(i => i.Message), "Inner");
         Check.True(e.TryFind<Required>(out var first) && first.Field == "name", "TryFind finds the first");
         Check.Equal(3, e.Causes().Count(), "this, then each inner error");
+        Check.Equal("Validation failed.", e.Message, "Message");
     }
 
     [SpecCase]
