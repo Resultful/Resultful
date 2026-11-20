@@ -1,0 +1,73 @@
+{
+  "pr": 48,
+  "url": "https://github.com/Resultful/Resultful/pull/48",
+  "branch": "rtkelly13/stack-12b-text-json",
+  "base": "rtkelly13/stack-04c-spec-harness",
+  "started_from": "5b8b23a9350bc7ac3e74687dfce1b69dae534038",
+  "cherry_picks": [],
+  "base_moved": "04c is now a36c3d4; per the append-only rule this branch was NOT rebased. 04c's changed JSON fixtures (JSON-WIRE simple-name collision case, UERR-JSON-NESTED Twin.cs) were checked out temporarily and pass against the stand-in; files restored.",
+  "head_sha": "f7b40ca90403c45bca155aab726b7ebcbf7e02e9",
+  "commits": [
+    "2af2515 feat(json): Resultful.Text.Json converters against the 0.3 target API",
+    "886aac2 test(json): JsonAssert.Equal, a shared assertion on a result's whole JSON",
+    "f7b40ca test(json): wire format, read rules, round-trip laws and unions for Resultful.Text.Json"
+  ],
+  "local_runs": [
+    {"cmd": "dotnet build src/Resultful.Text.Json -m:2", "result": "0 warnings, 0 errors (net10.0, net11.0; IsAotCompatible, TreatWarningsAsErrors)"},
+    {"cmd": "dotnet build tests/Resultful.Testing.Json -m:2", "result": "0 warnings, 0 errors"},
+    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net10.0", "result": "total 96, failed 0"},
+    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net11.0", "result": "total 104, failed 0"},
+    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net10.0|net11.0 --no-build -- --culture tr-TR", "result": "96 / 104, failed 0"},
+    {"cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs", "result": "API gate: passed; Resultful.Text.Json [net10.0|net11.0]: 35 added, 0 removed, 0 target members still to add"},
+    {"cmd": "npx -y @ls-lint/ls-lint@2.3.1", "result": "exit 1, but no findings under src/Resultful.Text.Json, tests/Resultful.Testing.Json, tests/Resultful.Text.Json.Tests; all findings are 04c's folders"},
+    {"cmd": "seeded: remove [RequiresDynamicCode] from ResultfulJsonConverterFactory; dotnet build src/Resultful.Text.Json -f net10.0", "result": "2x IL3050 (analyzer is live); reverted"},
+    {"cmd": "dotnet build src/Resultful.Text.Json -f <tfm> -p:ResultfulCoreProject=<StandInCore csproj> -o scratch; copy Resultful.dll + Resultful.Text.Json.dll into tests/Resultful.Spec/bin/Debug/<tfm>/; dotnet tests/Resultful.Spec/bin/Debug/<tfm>/Resultful.Spec.dll --filter-method Resultful.Spec.SpecTests.Fixture_agrees_with_its_ledger_line", "result": "net11.0: 122 total, 23 failed, all 23 are 'flip this line' (6 are 12b's); net10.0: 122 total, 18 failed, all flips (3 are 12b's). Repeated with a36c3d4's JSON-WIRE/UERR-JSON-NESTED: same. Spec bin rebuilt afterwards. Not committed."},
+    {"cmd": "native AOT probe outside the repo (scratchpad): PublishAot, linux-x64, net10.0, stand-in core, source-generated context, JsonSerializerIsReflectionEnabledByDefault=false, TreatWarningsAsErrors", "result": "published with 0 warnings; binary round-tripped failure+cause, success, Validation failure, Result<Unit>; unknown type -> JsonException. Not committed."}
+  ],
+  "ledger_ids_passing_locally": {
+    "note": "against the stand-in core only; ledger left pending (drafted ahead)",
+    "net11.0": ["JSON-WIRE", "CULTURE-JSON-TR", "AOT-JSON-SOURCEGEN", "UERR-JSON-FLAT", "UERR-JSON-NESTED", "UERR-JSON-UNKNOWN"],
+    "net10.0": ["JSON-WIRE", "CULTURE-JSON-TR", "AOT-JSON-SOURCEGEN"]
+  },
+  "spec_findings": [
+    "AddResultful and ResultfulJsonConverterFactory carry [RequiresDynamicCode] (MakeGenericType). Not visible in PublicAPI; AOT callers get IL3050 and must use the converters + AddErrorCases (AOT-JSON-SOURCEGEN pattern). Affects 20a (if its AddResultful calls it) and 22.",
+    "DECISIONS 'leaf names follow the options' naming policy' implemented as leaf PROPERTY names; 'type' stays the simple name (fixtures need \"OrderNotFound\" under camelCase); envelope/error keys fixed lowercase. Wording should be clarified.",
+    "Source generation can't call init-only setters (JsonPropertyInfo.Set throws); reader passes Cause/Context through object creation. 06 must keep them init (not private set).",
+    "ValidationFailed<TError> with TError != Error reads back only via the factory; ValidationFailed<Error> works without reflection.",
+    "ls-lint 2.3.1 fails on 04c's PublicAPI/<tfm> folders, fixture IDs and check-api.cs at 5b8b23a, though #42 says it passes; this package uses a flat PublicAPI pair to stay clean."
+  ],
+  "wiring": [
+    "Resultful.Text.Json.csproj: ResultfulCoreProject -> ProjectReference ../Resultful/Resultful.csproj; remove IsPackable=false; per-package version",
+    "tests/Resultful.Text.Json.Tests: delete StandInCore/, replace the two Compile Include globs with ProjectReferences to src/Resultful.Text.Json and tests/Resultful.Testing.Json",
+    "Resultful.slnx: add the three projects",
+    "root Directory.Packages.props: xunit.v3 4.0.2, CsCheck 5.0.1; delete the nested Directory.Packages.props",
+    "CI via eng/run-tests.cs on net10.0/net11.0, invariant and tr-TR",
+    "Resultful.Spec.csproj: ProjectReference to src/Resultful.Text.Json; flip the six ledger lines",
+    "package check / release-check take the new package",
+    "README section (root file)"
+  ],
+  "beyond_contract": [
+    "laws also with no naming policy, through converters alone (AOT path), and write-stability; CsCheck found and I fixed a ValidationFailed.Errors naming bug",
+    "source-gen test proves no reflection fallback (NotSupportedException for unlisted leaf)",
+    "local native AOT publish probe (0 warnings)",
+    "UnmappedMemberHandling.Disallow and PropertyNameCaseInsensitive honoured",
+    "error messages name the AddErrorCases/ErrorUnionJsonConverter to add",
+    "JsonAssert prints path of first difference",
+    "registry survives options copies; explicit ErrorJsonConverter cases win over the registry",
+    "XML docs on every public member"
+  ],
+  "suppressions": [
+    "tests/Resultful.Text.Json.Tests csproj: NoWarn CA1515;CA1034;CA2007",
+    "StandInCore csproj: EnableNETAnalyzers=false (temporary)",
+    "JsonAssert.cs: 2x [SuppressMessage(\"AOT\",\"IL3050\")] on the fixed options (test helper)"
+  ],
+  "open_issues": [
+    "Tests run against a stand-in core, not the real one; semantics may differ from 05-12's core (equality, ValidationFailed message). Re-run at 12b's turn.",
+    "Ledger lines not flipped (drafted ahead).",
+    "src/ is ~990 lines (incl. 70 PublicAPI lines and XML docs), above the ~800 guideline; not split.",
+    "No README/docs change (root files out of bounds while drafting); AOT pattern documented in XML docs and PR body only.",
+    "Branch is based on 5b8b23a while 04c is at a36c3d4 (append only); the orchestrator places it at its turn.",
+    "CI not waited on; the new projects aren't in Resultful.slnx, so CI runs only existing jobs.",
+    "PR body was first created with a footer that GitHub/tooling rewrote; restored via update."
+  ]
+}
