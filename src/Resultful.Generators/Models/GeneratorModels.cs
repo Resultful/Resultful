@@ -7,6 +7,8 @@ internal readonly record struct EnclosingTypeModel(
     bool IsPartial);
 
 // AccessibilityRank is the effective accessibility: the least accessible of the type and its enclosing types.
+// IsClosed: the type carries [ClosedHierarchy]; IsExtendable: the generator can reopen it (no RFG0005 or RFG0006).
+// ClosedAncestorFullNames: the [ClosedHierarchy] types in its base chain, nearest first.
 internal sealed record BaseIndexEntry(
     string FullName,
     string ShortName,
@@ -18,7 +20,10 @@ internal sealed record BaseIndexEntry(
     bool IsSealed,
     bool IsGeneric,
     int AccessibilityRank,
-    SourcePosition? Position);
+    SourcePosition? Position,
+    bool IsClosed,
+    bool IsExtendable,
+    EquatableArray<string> ClosedAncestorFullNames);
 
 internal sealed record LeafModel(
     string FullName,
@@ -39,6 +44,7 @@ internal sealed record ClosedHierarchyDeclaration(
     bool DerivesFromError,
     bool EmitConstructor,
     EquatableArray<string> ClosedAncestorFullNames,
+    bool MetadataAncestorHasCases,
     EquatableArray<DiagnosticInfo> Diagnostics,
     SourcePosition? Position);
 

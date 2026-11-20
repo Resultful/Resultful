@@ -66,7 +66,44 @@ internal static class HierarchyAnalyzer
             IsSealed: symbol.IsSealed,
             IsGeneric: IsGenericOrInGeneric(symbol),
             AccessibilityRank: GetEffectiveAccessibilityRank(symbol),
-            Position: SourcePosition.From(location));
+            Position: SourcePosition.From(location),
+            IsClosed: HasAttribute(symbol, ClosedHierarchyAttr),
+            IsExtendable: IsExtendable(symbol),
+            ClosedAncestorFullNames: new EquatableArray<string>(ClosedAncestors(symbol).ToArray()));
+    }
+
+    // The generator can reopen it: an abstract, non-generic partial class or record, nested only in partial types.
+    public static bool IsExtendable(INamedTypeSymbol symbol)
+    {
+        if (symbol.TypeKind != TypeKind.Class || !symbol.IsAbstract || IsGenericOrInGeneric(symbol) || !AllPartial(symbol))
+        {
+            return false;
+        }
+
+        for (var parent = symbol.ContainingType; parent is not null; parent = parent.ContainingType)
+        {
+            if (!AllPartial(parent))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AllPartial(INamedTypeSymbol symbol) =>
+        symbol.DeclaringSyntaxReferences.Length > 0 &&
+        symbol.DeclaringSyntaxReferences.All(r => r.GetSyntax() is TypeDeclarationSyntax t && t.Modifiers.Any(SyntaxKind.PartialKeyword));
+
+    private static IEnumerable<string> ClosedAncestors(INamedTypeSymbol symbol)
+    {
+        for (var cur = symbol.BaseType; cur is not null; cur = cur.BaseType)
+        {
+            if (HasAttribute(cur, ClosedHierarchyAttr))
+            {
+                yield return cur.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+        }
     }
 
     public static ClosedHierarchyDeclaration? ExtractClosedHierarchyDeclaration(
@@ -113,12 +150,15 @@ internal static class HierarchyAnalyzer
         var hintName = BuildHintName(ns, enclosing, symbol.MetadataName, "ClosedHierarchy");
         var derivesFromError = DerivesFrom(symbol, ErrorMetadataName);
 
-        var closedAncestors = new List<string>();
+        var closedAncestors = ClosedAncestors(symbol).ToList();
+
+        // A [ClosedHierarchy] base from another assembly already carries its generated Cases.
+        var metadataAncestorHasCases = false;
         for (var cur = symbol.BaseType; cur is not null; cur = cur.BaseType)
         {
-            if (HasAttribute(cur, ClosedHierarchyAttr))
+            if (cur.DeclaringSyntaxReferences.Length == 0 && HasAttribute(cur, ClosedHierarchyAttr) && cur.GetMembers("Cases").Length > 0)
             {
-                closedAncestors.Add(cur.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                metadataAncestorHasCases = true;
             }
         }
 
@@ -134,6 +174,7 @@ internal static class HierarchyAnalyzer
             DerivesFromError: derivesFromError,
             EmitConstructor: derivesFromError && NeedsMessageConstructor(symbol, ct),
             ClosedAncestorFullNames: new EquatableArray<string>(closedAncestors.ToArray()),
+            MetadataAncestorHasCases: metadataAncestorHasCases,
             Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
             Position: SourcePosition.From(tds.Identifier.GetLocation()));
     }
@@ -225,34 +266,49 @@ internal static class HierarchyAnalyzer
         }
 
         var leaves = ResolveLeavesForBase(decl.FullName, decl.Name, baseIndex, diagnostics);
+        var analysis = AnalyzeCases(decl.FullName, baseIndex);
 
         // RFG0008 (round 4): Resultful.Text.Json writes a leaf's simple name as its "type", so two leaves that share
         // one can't be read back. Supersedes the prefixing rule in building-the-generator.md; prefixing is kept so the
-        // generated parameters stay distinct while the error is reported.
-        foreach (var group in leaves.GroupBy(l => l.ShortName, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+        // generated parameters stay distinct while the error is reported. Reported once: on the nearest
+        // [ClosedHierarchy] that holds all of the colliding leaves.
+        foreach (var group in analysis.Collisions)
         {
-            var items = group.ToList();
-            if (items.Count > 1)
-            {
-                diagnostics.Add(new DiagnosticInfo(
-                    DiagnosticDescriptors.DuplicateLeafSimpleName,
-                    decl.Position,
-                    decl.Name,
-                    group.Key,
-                    string.Join(", ", items.Select(i => StripGlobal(i.FullName)))));
-            }
+            diagnostics.Add(new DiagnosticInfo(
+                DiagnosticDescriptors.DuplicateLeafSimpleName,
+                decl.Position,
+                decl.Name,
+                group[0].ShortName,
+                string.Join(", ", group.Select(i => StripGlobal(i.FullName)))));
         }
 
-        // RFG0003 and RFG0008 leave the case list unusable, but the constructor is still written so the leaves that
-        // are declared keep compiling and only the RFG error is reported.
-        var emitMembers = !HasError(diagnostics) && leaves.Length > 0;
+        // An open generic or a shared simple name anywhere below leaves the case list unusable, wherever the RFG
+        // error is reported. The constructor is still written so the leaves that are declared keep compiling.
+        var emitMembers = analysis.Usable && leaves.Length > 0;
+        var dispatchAccessibility = DispatchAccessibilityFor(decl.AccessibilityRank, leaves.Select(l => l.AccessibilityRank).ToArray());
 
+        // `new` only where an ancestor's generated member really exists, so neither CS0108 nor CS0109 can fire.
+        var hidesCases = decl.MetadataAncestorHasCases;
         var hidesDispatch = false;
         for (var i = 0; i < decl.ClosedAncestorFullNames.Length; i++)
         {
-            if (CountConcreteCases(decl.ClosedAncestorFullNames[i], baseIndex) == leaves.Length)
+            var ancestor = Find(baseIndex, decl.ClosedAncestorFullNames[i]);
+            if (ancestor is null || !ancestor.IsExtendable)
             {
-                // Same leaves, so the ancestor's generated Match/Switch/TryMap have the same signatures (CS0108).
+                continue;
+            }
+
+            var ancestorCases = AnalyzeCases(ancestor.FullName, baseIndex);
+            if (!ancestorCases.Usable || ancestorCases.Leaves.Count == 0)
+            {
+                continue;
+            }
+
+            hidesCases = true;
+
+            // Same leaves, so the ancestor's Match/Switch/TryMap have the same signatures.
+            if (ancestorCases.Leaves.Count == leaves.Length && DispatchAccessibilityFor(ancestor.AccessibilityRank, ancestorCases.Leaves.Select(l => l.AccessibilityRank).ToArray()) is not null)
+            {
                 hidesDispatch = true;
             }
         }
@@ -267,21 +323,21 @@ internal static class HierarchyAnalyzer
             decl.DerivesFromError,
             EmitConstructor: decl.EmitConstructor,
             EmitMembers: emitMembers,
-            DispatchAccessibility: DispatchAccessibilityFor(decl.AccessibilityRank, leaves),
-            HidesDispatch: hidesDispatch,
-            HidesCases: decl.ClosedAncestorFullNames.Length > 0,
+            DispatchAccessibility: dispatchAccessibility,
+            HidesDispatch: hidesDispatch && emitMembers && dispatchAccessibility is not null,
+            HidesCases: hidesCases && emitMembers,
             leaves,
             new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
     }
 
     // Match, Switch and TryMap take a delegate per leaf, so they can be no more accessible than the least accessible
     // leaf (CS0051 otherwise). Null leaves them out: a private or protected leaf can't appear in any of them.
-    private static string? DispatchAccessibilityFor(int ownerRank, EquatableArray<LeafModel> leaves)
+    private static string? DispatchAccessibilityFor(int ownerRank, int[] leafRanks)
     {
         var allPublic = true;
-        for (var i = 0; i < leaves.Length; i++)
+        for (var i = 0; i < leafRanks.Length; i++)
         {
-            var rank = leaves[i].AccessibilityRank;
+            var rank = leafRanks[i];
             if (rank == 3)
             {
                 continue;
@@ -302,19 +358,76 @@ internal static class HierarchyAnalyzer
     public static bool IsAccessibleEnough(int typeRank, int memberRank) =>
         typeRank == 3 || typeRank == memberRank || memberRank == 0 || (typeRank == 1 && memberRank <= 1);
 
-    private static int CountConcreteCases(string baseFullName, EquatableArray<BaseIndexEntry> entries)
+    private sealed record CaseAnalysis(List<BaseIndexEntry> Leaves, bool HasGeneric, List<List<BaseIndexEntry>> Collisions, bool HasAnyCollision)
     {
-        var count = 0;
+        public bool Usable => !HasGeneric && !HasAnyCollision;
+    }
+
+    // The concrete cases under a base, whether an open generic sits anywhere below it, and the simple-name collisions
+    // this base reports (those not wholly inside one deeper [ClosedHierarchy], which reports them itself).
+    private static CaseAnalysis AnalyzeCases(string baseFullName, EquatableArray<BaseIndexEntry> entries)
+    {
+        var leaves = new List<BaseIndexEntry>();
+        var hasGeneric = false;
         for (var i = 0; i < entries.Length; i++)
         {
             var entry = entries[i];
-            if (!entry.IsAbstract && !entry.IsGeneric && GetDepthFromBase(entry, baseFullName) > 0)
+            if (GetDepthFromBase(entry, baseFullName) <= 0)
             {
-                count++;
+                continue;
+            }
+
+            if (entry.IsGeneric)
+            {
+                hasGeneric = true;
+            }
+            else if (!entry.IsAbstract)
+            {
+                leaves.Add(entry);
             }
         }
 
-        return count;
+        var collisions = new List<List<BaseIndexEntry>>();
+        var any = false;
+        foreach (var group in leaves.GroupBy(l => l.ShortName, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var items = group.OrderBy(e => e.FullName, StringComparer.Ordinal).ToList();
+            if (items.Count < 2)
+            {
+                continue;
+            }
+
+            any = true;
+            var shared = items
+                .Select(e => ClosedAncestorsBelow(e, baseFullName))
+                .Aggregate((x, y) => x.Intersect(y, StringComparer.Ordinal).ToList());
+            if (shared.Count == 0)
+            {
+                collisions.Add(items);
+            }
+        }
+
+        return new CaseAnalysis(leaves, hasGeneric, collisions, any);
+    }
+
+    // The [ClosedHierarchy] ancestors strictly between the entry and the base, nearest first.
+    private static List<string> ClosedAncestorsBelow(BaseIndexEntry entry, string baseFullName) =>
+        entry.ClosedAncestorFullNames.TakeWhile(a => !string.Equals(a, baseFullName, StringComparison.Ordinal)).ToList();
+
+    private static bool NearestClosedIs(BaseIndexEntry entry, string baseFullName) =>
+        entry.ClosedAncestorFullNames.Length == 0 || string.Equals(entry.ClosedAncestorFullNames[0], baseFullName, StringComparison.Ordinal);
+
+    private static BaseIndexEntry? Find(EquatableArray<BaseIndexEntry> entries, string fullName)
+    {
+        for (var i = 0; i < entries.Length; i++)
+        {
+            if (string.Equals(entries[i].FullName, fullName, StringComparison.Ordinal))
+            {
+                return entries[i];
+            }
+        }
+
+        return null;
     }
 
     public static bool HasError(List<DiagnosticInfo> diagnostics) =>
@@ -340,19 +453,25 @@ internal static class HierarchyAnalyzer
                 continue;
             }
 
+            // RFG0002 and RFG0003 are reported once, by the nearest [ClosedHierarchy] above the type.
+            var reports = NearestClosedIs(entry, baseFullName);
             if (entry.IsGeneric)
             {
-                diagnostics.Add(new DiagnosticInfo(
-                    DiagnosticDescriptors.OpenGenericDerivedType,
-                    entry.Position,
-                    entry.ShortName,
-                    baseShortName));
+                if (reports)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.OpenGenericDerivedType,
+                        entry.Position,
+                        entry.ShortName,
+                        baseShortName));
+                }
+
                 continue;
             }
 
             if (!entry.IsAbstract)
             {
-                if (!entry.IsSealed)
+                if (!entry.IsSealed && reports)
                 {
                     diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.NonSealedConcreteHierarchyMember,

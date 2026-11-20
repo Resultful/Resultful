@@ -220,6 +220,58 @@ public sealed class DiagnosticTests
         Assert.Contains("Two.CombinedResult.ResultShape.g.cs", output.GeneratedSources.Keys);
     }
 
+    [Fact]
+    public void Leaf_diagnostics_are_reported_once_by_the_nearest_closed_hierarchy()
+    {
+        var src = """
+            using Resultful;
+            using Resultful.CodeAnalysis;
+
+            [ClosedHierarchy] public abstract partial record AppError : Error;
+            [ClosedHierarchy] public abstract partial record OrderError : AppError;
+            public record Open() : OrderError("open");
+            public sealed record Wrapped<T>() : OrderError("wrapped");
+            namespace A { public sealed record Gone() : global::OrderError("a"); }
+            namespace B { public sealed record Gone() : global::OrderError("b"); }
+            """;
+
+        var comp = GeneratorTestHarness.CreateCompilation([("Nested.cs", src)]);
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        // Each once, all from OrderError, none repeated by AppError.
+        Assert.Single(output.GeneratorDiagnostics, d => d.Id == "RFG0002");
+        Assert.Single(output.GeneratorDiagnostics, d => d.Id == "RFG0003");
+        var rfg0008 = Assert.Single(output.GeneratorDiagnostics, d => d.Id == "RFG0008");
+        Assert.Contains("'OrderError'", rfg0008.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_nested_hierarchy_marks_new_only_what_its_ancestor_really_emits()
+    {
+        // AppError lists no cases (an open generic under it, RFG0003), so it emits no Cases or Match: OrderError's
+        // members hide nothing, and `new` there would be CS0109.
+        var src = """
+            using Resultful;
+            using Resultful.CodeAnalysis;
+
+            [ClosedHierarchy] public abstract partial record AppError : Error;
+            public sealed record Wrapped<T>() : AppError("wrapped");
+            [ClosedHierarchy] public abstract partial record OrderError : AppError;
+            public sealed record Missing() : OrderError("missing");
+            """;
+
+        var comp = GeneratorTestHarness.CreateCompilation([("Nested.cs", src)]);
+        var output = GeneratorTestHarness.Run(comp, out _);
+
+        Assert.Single(output.GeneratorDiagnostics, d => d.Id == "RFG0003");
+        var generated = output.RunResult.GeneratedTrees.ToHashSet();
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Location.SourceTree is { } t && generated.Contains(t));
+        var order = output.GeneratedSources["OrderError.ClosedHierarchy.g.cs"];
+        Assert.DoesNotContain("static new ", order, StringComparison.Ordinal);
+        Assert.DoesNotContain("public new ", order, StringComparison.Ordinal);
+        Assert.Contains("Cases", order, StringComparison.Ordinal);
+    }
+
 #if NET11_0_OR_GREATER
     [Fact]
     public void RFG0007_allows_a_nested_union_of_errors_and_reports_a_nested_case_that_isnt_one()
