@@ -84,15 +84,28 @@ public sealed class ResultExtensionsAsyncTests
         Assert.Equal(1, await tVoidOk.MatchAsync<Unit, int>(_ => Task.FromResult(1), _ => Task.FromResult(0)));
         Assert.Equal(1, await tGenVoidOk.MatchAsync<Unit, TestError, int>(_ => Task.FromResult(1), _ => Task.FromResult(0)));
 
-        await tOk.Switch(_ => { }, _ => { });
-        await tGenOk.Switch(_ => { }, _ => { });
-        await tVoidOk.Switch<Unit>(_ => { }, _ => { });
-        await tGenVoidOk.Switch<Unit, TestError>(_ => { }, _ => { });
+        var calls = new List<string>();
+        Task Record(string call)
+        {
+            calls.Add(call);
+            return Task.CompletedTask;
+        }
 
-        await tOk.SwitchAsync(_ => Task.CompletedTask, _ => Task.CompletedTask);
-        await tGenOk.SwitchAsync(_ => Task.CompletedTask, _ => Task.CompletedTask);
-        await tVoidOk.SwitchAsync<Unit>(_ => Task.CompletedTask, _ => Task.CompletedTask);
-        await tGenVoidOk.SwitchAsync<Unit, TestError>(_ => Task.CompletedTask, _ => Task.CompletedTask);
+        await tOk.Switch(v => calls.Add($"switch:{v}"), _ => calls.Add("switch:error"));
+        await tGenOk.Switch(v => calls.Add($"genSwitch:{v}"), _ => calls.Add("genSwitch:error"));
+        await tVoidOk.Switch<Unit>(_ => calls.Add("voidSwitch"), _ => calls.Add("voidSwitch:error"));
+        await tGenVoidOk.Switch<Unit, TestError>(_ => calls.Add("genVoidSwitch"), _ => calls.Add("genVoidSwitch:error"));
+
+        await tOk.SwitchAsync(v => Record($"switchAsync:{v}"), _ => Record("switchAsync:error"));
+        await tGenOk.SwitchAsync(v => Record($"genSwitchAsync:{v}"), _ => Record("genSwitchAsync:error"));
+        await tVoidOk.SwitchAsync<Unit>(_ => Record("voidSwitchAsync"), _ => Record("voidSwitchAsync:error"));
+        await tGenVoidOk.SwitchAsync<Unit, TestError>(_ => Record("genVoidSwitchAsync"), _ => Record("genVoidSwitchAsync:error"));
+
+        Assert.Equal(
+            ["switch:10", "genSwitch:10", "voidSwitch", "genVoidSwitch",
+             "switchAsync:10", "genSwitchAsync:10", "voidSwitchAsync", "genVoidSwitchAsync"],
+            calls);
+        calls.Clear();
 
         Assert.True((await tOk.ToOneOf()).IsT0);
         Assert.True((await tGenOk.ToOneOf()).IsT0);
@@ -100,25 +113,32 @@ public sealed class ResultExtensionsAsyncTests
         Assert.True((await tGenVoidOk.ToOneOf<Unit, TestError>()).IsT0);
 
         // Tee / TeeAsync / TeeError / TeeErrorAsync
-        await tOk.Tee(_ => { });
-        await tGenOk.Tee(_ => { });
-        await tVoidOk.Tee(_ => { });
-        await tGenVoidOk.Tee(_ => { });
+        Assert.Equal(10, (await tOk.Tee(v => calls.Add($"tee:{v}"))).Match(v => v, _ => -1));
+        Assert.Equal(10, (await tGenOk.Tee(v => calls.Add($"genTee:{v}"))).Match(v => v, _ => -1));
+        Assert.Equal(Outcome.Succeeded, (await tVoidOk.Tee(_ => calls.Add("voidTee"))).Errors().Single());
+        Assert.Equal(Outcome.Succeeded, (await tGenVoidOk.Tee(_ => calls.Add("genVoidTee"))).Error());
 
-        await tOk.TeeAsync(_ => Task.CompletedTask);
-        await tGenOk.TeeAsync(_ => Task.CompletedTask);
-        await tVoidOk.TeeAsync(_ => Task.CompletedTask);
-        await tGenVoidOk.TeeAsync(_ => Task.CompletedTask);
+        Assert.Equal(10, (await tOk.TeeAsync(v => Record($"teeAsync:{v}"))).Match(v => v, _ => -1));
+        Assert.Equal(10, (await tGenOk.TeeAsync(v => Record($"genTeeAsync:{v}"))).Match(v => v, _ => -1));
+        Assert.Equal(Outcome.Succeeded, (await tVoidOk.TeeAsync(_ => Record("voidTeeAsync"))).Errors().Single());
+        Assert.Equal(Outcome.Succeeded, (await tGenVoidOk.TeeAsync(_ => Record("genVoidTeeAsync"))).Error());
 
-        await tFail.TeeError(_ => { });
-        await tGenFail.TeeError(_ => { });
-        await tVoidFail.TeeError(_ => { });
-        await tGenVoidFail.TeeError(_ => { });
+        Assert.Equal(["bad"], (await tFail.TeeError(e => calls.Add($"teeError:{string.Join(",", e)}"))).Errors());
+        Assert.Equal("bad", (await tGenFail.TeeError(e => calls.Add($"genTeeError:{e.Message}"))).Error());
+        Assert.Equal(["bad"], (await tVoidFail.TeeError(e => calls.Add($"voidTeeError:{string.Join(",", e)}"))).Errors());
+        Assert.Equal("bad", (await tGenVoidFail.TeeError(e => calls.Add($"genVoidTeeError:{e.Message}"))).Error());
 
-        await tFail.TeeErrorAsync(_ => Task.CompletedTask);
-        await tGenFail.TeeErrorAsync(_ => Task.CompletedTask);
-        await tVoidFail.TeeErrorAsync(_ => Task.CompletedTask);
-        await tGenVoidFail.TeeErrorAsync(_ => Task.CompletedTask);
+        Assert.Equal(["bad"], (await tFail.TeeErrorAsync(e => Record($"teeErrorAsync:{string.Join(",", e)}"))).Errors());
+        Assert.Equal("bad", (await tGenFail.TeeErrorAsync(e => Record($"genTeeErrorAsync:{e.Message}"))).Error());
+        Assert.Equal(["bad"], (await tVoidFail.TeeErrorAsync(e => Record($"voidTeeErrorAsync:{string.Join(",", e)}"))).Errors());
+        Assert.Equal("bad", (await tGenVoidFail.TeeErrorAsync(e => Record($"genVoidTeeErrorAsync:{e.Message}"))).Error());
+
+        Assert.Equal(
+            ["tee:10", "genTee:10", "voidTee", "genVoidTee",
+             "teeAsync:10", "genTeeAsync:10", "voidTeeAsync", "genVoidTeeAsync",
+             "teeError:bad", "genTeeError:bad", "voidTeeError:bad", "genVoidTeeError:bad",
+             "teeErrorAsync:bad", "genTeeErrorAsync:bad", "voidTeeErrorAsync:bad", "genVoidTeeErrorAsync:bad"],
+            calls);
 
         // DiscardError / DiscardErrorAsync / DiscardValue / DiscardValueAsync
         Assert.Equal(10, (await tOk.DiscardError()).Or(-1));

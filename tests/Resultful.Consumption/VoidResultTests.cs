@@ -13,7 +13,7 @@ public sealed class VoidResultTests
         Assert.NotNull(Unit.Value);
 
         var ok = Result.Ok();
-        Assert.IsType<VoidResult>(ok);
+        Assert.Equal([Outcome.Succeeded], ok.Errors());
         Assert.True(ok.Match(u => ReferenceEquals(u, Unit.Value), _ => false));
 
         Result<Unit> resultOfUnit = Unit.Value.Ok();
@@ -69,13 +69,19 @@ public sealed class VoidResultTests
         Assert.Equal("bad", (await fail.MapErrorAsync(e => Task.FromResult(string.Join(",", e)))).Match(_ => "", e => e));
 
         Assert.Equal(1, await ok.MatchAsync(_ => Task.FromResult(1), _ => Task.FromResult(0)));
-        var hit = false;
-        ok.Switch(_ => hit = true, _ => hit = false);
-        Assert.True(hit);
-        ok.SwitchAsync(_ => { hit = true; return Task.CompletedTask; }, _ => Task.CompletedTask);
+        var hit = "";
+        ok.Switch(_ => hit = "switch", _ => hit = "switch-error");
+        Assert.Equal("switch", hit);
+        // Pinned hazard: the struct SwitchAsync returns void and drops the callback's Task, so it
+        // can't be awaited and a late exception is lost. Only the synchronous part is observable.
+        Assert.Equal(typeof(void), typeof(VoidResult).GetMethod(nameof(VoidResult.SwitchAsync))!.ReturnType);
+        ok.SwitchAsync(_ => { hit = "switchAsync"; return Task.CompletedTask; }, _ => { hit = "switchAsync-error"; return Task.CompletedTask; });
+        Assert.Equal("switchAsync", hit);
 
-        ok.Tee(_ => hit = true);
-        await ok.TeeAsync(_ => { hit = true; return Task.CompletedTask; });
+        ok.Tee(_ => hit = "tee");
+        Assert.Equal("tee", hit);
+        await ok.TeeAsync(_ => { hit = "teeAsync"; return Task.CompletedTask; });
+        Assert.Equal("teeAsync", hit);
         var errMsg = "";
         fail.TeeError(e => errMsg = string.Join(",", e));
         Assert.Equal("bad", errMsg);
@@ -121,13 +127,19 @@ public sealed class VoidResultTests
         Assert.Equal("e", (await fail.MapErrorAsync(e => Task.FromResult(e.Message))).Match(_ => "", e => e));
 
         Assert.Equal(1, await ok.MatchAsync(_ => Task.FromResult(1), _ => Task.FromResult(0)));
-        var hit = false;
-        ok.Switch(_ => hit = true, _ => hit = false);
-        Assert.True(hit);
-        ok.SwitchAsync(_ => { hit = true; return Task.CompletedTask; }, _ => Task.CompletedTask);
+        var hit = "";
+        ok.Switch(_ => hit = "switch", _ => hit = "switch-error");
+        Assert.Equal("switch", hit);
+        // Pinned hazard: the struct SwitchAsync returns void and drops the callback's Task, so it
+        // can't be awaited and a late exception is lost. Only the synchronous part is observable.
+        Assert.Equal(typeof(void), typeof(VoidResult<TestError>).GetMethod(nameof(VoidResult<TestError>.SwitchAsync))!.ReturnType);
+        ok.SwitchAsync(_ => { hit = "switchAsync"; return Task.CompletedTask; }, _ => { hit = "switchAsync-error"; return Task.CompletedTask; });
+        Assert.Equal("switchAsync", hit);
 
-        ok.Tee(_ => hit = true);
-        await ok.TeeAsync(_ => { hit = true; return Task.CompletedTask; });
+        ok.Tee(_ => hit = "tee");
+        Assert.Equal("tee", hit);
+        await ok.TeeAsync(_ => { hit = "teeAsync"; return Task.CompletedTask; });
+        Assert.Equal("teeAsync", hit);
         var errMsg = "";
         fail.TeeError(e => errMsg = e.Message);
         Assert.Equal("e", errMsg);

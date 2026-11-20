@@ -97,7 +97,10 @@ public sealed class ResultErrorListTests
         var switched = 0;
         ok.Switch(x => switched = x, _ => switched = -1);
         Assert.Equal(10, switched);
-        ok.SwitchAsync(x => { switched = x + 1; return Task.CompletedTask; }, _ => Task.CompletedTask);
+        // Pinned hazard: the struct SwitchAsync returns void and drops the callback's Task, so it
+        // can't be awaited and a late exception is lost. Only the synchronous part is observable.
+        Assert.Equal(typeof(void), typeof(Result<int>).GetMethod(nameof(Result<int>.SwitchAsync))!.ReturnType);
+        ok.SwitchAsync(x => { switched = x + 1; return Task.CompletedTask; }, _ => { switched = -1; return Task.CompletedTask; });
         Assert.Equal(11, switched);
 
         var seen = 0;

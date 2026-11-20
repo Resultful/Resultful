@@ -27,6 +27,14 @@
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" SetTargetFramework="TargetFramework=netstandard2.0" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!--
+    A packed run without a VersionSuffix would restore the file's version (e.g. 0.2.0-beta06), which may
+    come from nuget.org or the global package cache rather than a fresh pack. Require a unique suffix.
+  -->
+  <Target Name="_RequireVersionSuffixForPackedRun" BeforeTargets="CollectPackageReferences;Restore;Build" Condition="'$(UsePackedPackage)' == 'true' and '$(VersionSuffix)' == ''">
+    <Error Text="UsePackedPackage=true needs -p:VersionSuffix=&lt;unique suffix&gt; matching a freshly packed Resultful, so the run can't silently test a published or cached package." />
+  </Target>
+
   <ItemGroup Condition="'$(UsePackedPackage)' == 'true'">
     <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" GeneratePathProperty="true" />
   </ItemGroup>

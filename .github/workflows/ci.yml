@@ -82,7 +82,7 @@ jobs:
 
       # The packed run must not pick up a published or cached Resultful. So the same binaries are packed
       # again with a run-unique version into their own folder, restored into an empty packages folder,
-      # and source mapping sends Resultful* to that folder only. The `artifacts` packages are untouched.
+      # and source mapping sends the Resultful package (exact id) to that folder only. The `artifacts` packages are untouched.
       - name: Test consumption against packed package
         run: |
           suffix="ci.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"

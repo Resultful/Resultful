@@ -80,8 +80,10 @@ public sealed class OptionTests
         Assert.Equal(10, hit);
         await taskOpt.SwitchAsync(x => { hit = x + 1; return Task.CompletedTask; }, _ => Task.CompletedTask);
         Assert.Equal(11, hit);
-        await taskOpt.Tee(x => hit = x + 2);
-        await taskOpt.TeeAsync(x => { hit = x + 3; return Task.CompletedTask; });
+        Assert.Equal(10, (await taskOpt.Tee(x => hit = x + 2)).Or(-1));
+        Assert.Equal(12, hit);
+        Assert.Equal(10, (await taskOpt.TeeAsync(x => { hit = x + 3; return Task.CompletedTask; })).Or(-1));
+        Assert.Equal(13, hit);
         Assert.True((await taskOpt.ToOneOf()).IsT0);
 
         Assert.Equal(5, await taskNone.Or(5));
