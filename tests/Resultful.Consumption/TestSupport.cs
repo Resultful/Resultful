@@ -18,6 +18,9 @@ internal static class AssemblyPaths
     public static string ConsumptionTestsDir => GetMetadata("ConsumptionTestsDir");
     public static string RepoRootDir => GetMetadata("RepoRootDir");
     public static string BuildConfiguration => GetMetadata("BuildConfiguration");
+    public static bool UsePackedPackage => bool.Parse(GetMetadata("UsePackedPackage"));
+    public static string ResultfulPackageVersion => GetMetadata("ResultfulPackageVersion");
+    public static string ResultfulPackageDir => GetMetadata("ResultfulPackageDir");
 
     private static string GetMetadata(string key) =>
         typeof(AssemblyPaths).Assembly

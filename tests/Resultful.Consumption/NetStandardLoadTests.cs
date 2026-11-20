@@ -14,25 +14,18 @@ public sealed class NetStandardLoadTests
     [Fact]
     public void NetStandard20_asset_loads_and_executes_core_operations()
     {
-        var netStandardDll = Path.Combine(
-            AssemblyPaths.RepoRootDir,
-            "src",
-            "Resultful",
-            "bin",
-            AssemblyPaths.BuildConfiguration,
-            "netstandard2.0",
-            "Resultful.dll");
-
-        // When running against a packed package without a local netstandard2.0 build, locate the package asset.
-        if (!File.Exists(netStandardDll))
-        {
-            var currentDir = Path.GetDirectoryName(typeof(Result).Assembly.Location)!;
-            var candidate = Path.GetFullPath(Path.Combine(currentDir, "..", "netstandard2.0", "Resultful.dll"));
-            if (File.Exists(candidate))
-            {
-                netStandardDll = candidate;
-            }
-        }
+        // Packed run: the netstandard2.0 asset inside the restored package, never the local build.
+        // Project-reference run: the local netstandard2.0 build, which the test project builds first.
+        var netStandardDll = AssemblyPaths.UsePackedPackage
+            ? Path.Combine(AssemblyPaths.ResultfulPackageDir, "lib", "netstandard2.0", "Resultful.dll")
+            : Path.Combine(
+                AssemblyPaths.RepoRootDir,
+                "src",
+                "Resultful",
+                "bin",
+                AssemblyPaths.BuildConfiguration,
+                "netstandard2.0",
+                "Resultful.dll");
 
         Assert.True(File.Exists(netStandardDll), $"Expected netstandard2.0 asset at {netStandardDll}");
 
