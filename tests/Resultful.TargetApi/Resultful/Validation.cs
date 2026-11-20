@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Resultful
 {
     // Decision 14: a T, or a non-empty list of TError. Gathers every failure. No Bind and no + (DECISIONS-TAKEN 04c).
+    [Resultful.CodeAnalysis.MustObserve]
     public readonly struct Validation<T, TError> : IEquatable<Validation<T, TError>>
     {
         [Obsolete(ObsoleteMessages.Default, error: true)]
@@ -54,6 +55,7 @@ namespace Resultful
     }
 
     // Validation<T> means Validation<T, Error>: a separate type in C#.
+    [Resultful.CodeAnalysis.MustObserve]
     public readonly struct Validation<T> : IEquatable<Validation<T>>
     {
         [Obsolete(ObsoleteMessages.Default, error: true)]
