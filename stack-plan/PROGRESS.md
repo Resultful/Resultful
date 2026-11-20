@@ -7,7 +7,7 @@ Rows are in stack order.
 | 00 | rtkelly13/error-design | #34 | green | stack B base: rebase onto 04b, retarget |
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
 | 02 | rtkelly13/stack-02-test-infra | #40 | review | CI green 6595f59; review: changes needed (counts gate hole, MTP support, 7 smaller); fixes as new commits; size waiver recorded |
-| 03 | rtkelly13/stack-03-analysis-level |  | building | pipelined on 02 |
+| 03 | rtkelly13/stack-03-analysis-level | #41 | review | be6b76a on 02@6595f59; reviewer + adversary running; ~2,100 lines outside tests, almost all XML docs |
 | 04 | rtkelly13/stack-04-per-package-release |  | todo |  |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
 | 04c | rtkelly13/stack-04c-spec-harness |  | building | drafted alongside 02–04 on 00; contract written |

@@ -1,0 +1,61 @@
+{
+  "pr": 41,
+  "url": "https://github.com/Resultful/Resultful/pull/41",
+  "branch": "rtkelly13/stack-03-analysis-level",
+  "base": "rtkelly13/stack-02-test-infra",
+  "base_sha": "6595f599b26b0537819b3c2d3e92ec2ff44607a5",
+  "head_sha": "be6b76a42e3a6f0969ab310d90b9a2d6a657488c",
+  "commits": [
+    "cf20fc3 build: turn on AnalysisLevel latest-all for src with one opt-out per rule",
+    "0ea4d5b build: keep PublicAPI files per target framework",
+    "28813be fix(api): mark the Fail overloads that accept null as nullable",
+    "be6b76a docs: document every public type and member of Resultful"
+  ],
+  "local_checks": {
+    "build_release_slnx": "pass, no warnings (SDK 11.0.100)",
+    "build_doccheck_GenerateDocumentationFile": "pass, no CS1591/CS15xx (all 3 targets)",
+    "dotnet_format_verify": "pass",
+    "ls_lint_2.3.1": "pass (also checked it rejects a stray file and a non-PublicAPI name in api/<tfm>/)",
+    "run_tests_normal": "pass: Consumption 49 x 6 runs, Resultful.Tests 19 x 2; counts gate passes after updating eng/test-counts.json 46 -> 49",
+    "run_tests_packed": "pass: 49 x 6 packed runs, counts gate passes (local pack with a unique VersionSuffix, isolated packages folder, source mapping as in CI)",
+    "api_diff": "pass: 30 differences, all listed in eng/api-diff-0.2.0.txt",
+    "il_diff": "pass: 0 differences (1626/1626/1631 methods for net10.0/net11.0/netstandard2.0)",
+    "verify_package_baseline": "pass: only the 3 listed net11.0 lines; no XML doc file in the nupkg",
+    "verify_package_shape": "pass",
+    "check_suppressions": "6 NoWarn lines; gate passes against a body naming them (the PR body does)",
+    "how_release_check_was_run": "No CI result yet. Baseline packed locally: git worktree of 1697a7a762feb8c6be383ce8b25ee9d6e584029e, this repo's global.json copied in, dotnet pack -c Release -p:ContinuousIntegrationBuild=true. Current: dotnet build + pack src/Resultful -c Release -p:ContinuousIntegrationBuild=true. Then dotnet run eng/api-diff.cs / eng/il-diff.cs / eng/verify-package.cs --baseline exactly as the release-check job does.",
+    "not_run_locally": ["coverage ratchet (no code change, docs only)", "the gate scripts' --self-test (scripts unchanged from 02)", "zizmor"]
+  },
+  "suppressions": [
+    "src/Directory.Build.props NoWarn CA1002: List<string> conversions are public API",
+    "src/Directory.Build.props NoWarn CA1052: sealing Unit changes a public type",
+    "src/Directory.Build.props NoWarn CA1062: null checks would change method bodies",
+    "src/Directory.Build.props NoWarn CA1815: Equals/== would be new public API",
+    "src/Directory.Build.props NoWarn CA2007: ConfigureAwait would change method bodies",
+    "src/Directory.Build.props NoWarn CA2225: named operator alternates would be new public API"
+  ],
+  "api_diff_lines": 30,
+  "il_diff_lines": 0,
+  "changes": [
+    "AnalysisLevel latest-all for src/ only; tests and samples stay latest-recommended",
+    "Per-target PublicAPI files in src/Resultful/api/{netstandard2.0,net10.0,net11.0}/ via conditional AdditionalFiles; a build error if a target's folder is missing; .ls-lint.yml updated; PublicApiCoverageTests reads all targets",
+    "Nullable audit: 5 Fail overloads re-annotated ? (they already coalesce null to no errors); Unshipped *REMOVED*/new pairs per target; eng/api-diff-0.2.0.txt lists the 30 lines",
+    "XML docs on every public type and member (about 490), house style; written by a one-off template script (not committed) and then reviewed by hand",
+    "CI build job step 'Check XML docs': dotnet build src/Resultful -c DocCheck -p:GenerateDocumentationFile=true (CS1591 an error; Release/pack untouched)",
+    "eng/test-counts.json: Consumption 46 -> 49 for all 12 entries"
+  ],
+  "beyond_contract": [
+    "XmlDocTests: non-empty summary, a param for every parameter and a typeparam for every type parameter, on every public member; a partial class needs a comment on at least one part",
+    "NullabilityTests: pins the null behaviour behind each re-annotation and each deliberate non-annotation",
+    "Build error if a target has no PublicAPI folder",
+    "ls-lint allows only PublicAPI.{Shipped,Unshipped}.txt in api/<tfm>/"
+  ],
+  "open_issues": [
+    "CI hasn't run yet (pipelining rule). The new CI step uses --no-restore with -c DocCheck; it worked locally, but only CI shows whether it works in the workflow.",
+    "If 02 (#40) moves, 03 must be rebased; eng/test-counts.json may conflict, since 02 is tightening the counts gate.",
+    "The doc text was generated from templates and reviewed by distinct sentence, not member by member. The adversary or reviewer should spot-check accuracy, especially the collection Reduce/Fold/Until semantics and the ArgumentException-on-empty remarks.",
+    "Option.ToOption<T>(this T value) left unannotated: T? changes inference and the PublicAPI analyzer can't express it as an Unshipped change (RS0050/RS0036). Recorded in the PR body under Decisions taken; not added to DECISIONS-TAKEN.md (I don't own the plan branch).",
+    "About 2,100 added lines outside tests (mostly ///), over the 800-line split guide; noted in the PR body.",
+    "The PR body lists decisions taken but I did not edit stack-plan/DECISIONS-TAKEN.md; the orchestrator should copy them there."
+  ]
+}
