@@ -93,8 +93,17 @@ The one list of open questions for the error design; other documents link here.
   `Result<Unit, TError>`, whose `TError` it can't infer.
 - `+` on `Validation` values, or only `&` and `Combine`.
 - When `IPlus` and `Result<T, TError>.Plus` are deprecated.
-- Whether `Context` takes part in equality.
-- Whether the base seals `ToString`, so typed data stays out of logs.
-
 Decided in review: no implicit conversion from `string`; context is a note that keeps the type; a `Validation`
 crosses into a `Result` chain as `ValidationFailed`.
+
+Decided when `Error` was built (0.3, stack PR 06):
+- `Context` takes part in equality, compared element by element, so two identical errors are equal before and
+  after the same `WithContext`. It is an `IReadOnlyList<string>` (no dependency, [decision 1](0001-core-is-dependency-free.md)),
+  copied when set.
+- The base seals `ToString`. It prints the type name, `Message`, `Context`, inner errors and the cause chain, never a
+  derived record's own properties, which may hold personal data. The text doesn't depend on the culture. A record
+  deriving from `Error` therefore needs C# 10 or later (C# 9 reports CS8912).
+- `Causes()` is depth first: the error, then its `Cause`'s tree, then each `Inner` error's tree. `TryFind` returns
+  the first match in that order. Each error object is visited once, so an `Inner` that points back up still ends,
+  and `ToString` writes `…` for a cycle or past 64 levels; diagnostics never throw.
+- `ValidationFailed`'s `Message` is "Validation failed.", and it rejects an empty list.

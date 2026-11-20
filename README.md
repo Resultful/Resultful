@@ -114,6 +114,29 @@ var count = CountItems().ValueOr(0);               // the value, or a fallback
 `Error` type in 0.3. The zero value (`default`) is neither a success nor a failure: `IsSuccess` and `IsFailure` are
 both `false`, and the other named methods throw.
 
+### Errors
+
+`Error` is an abstract record for one failure. Derive a record for each kind of failure and keep its data in typed
+properties:
+
+```cs
+public sealed record OrderNotFound(int Id) : Error($"order {Id} was not found");
+public sealed record SaveFailed(int Id) : Error($"order {Id} was not saved");
+
+var plain = Error.From("something went wrong");               // a MessageError
+var noted = new OrderNotFound(3).WithContext("checkout");      // still an OrderNotFound, with one note in Context
+var wrapped = new SaveFailed(3) { Cause = new OrderNotFound(3) };
+if (wrapped.TryFind<OrderNotFound>(out var missing)) { }       // searches the error, its Cause chain and Inner errors
+var many = new ValidationFailed<Error>([plain, noted]);       // several errors as one; Message is "Validation failed."
+```
+
+Two errors are equal when their type, `Message`, `Cause` and `Context` (element by element) are equal, as well as
+the derived record's own properties. `ToString()` is sealed: it prints the type name, `Message`, `Context`, inner
+errors and the cause chain, and never a derived record's own properties, because they may hold personal data. There
+is no conversion from `string`; write `Error.From("…")`. Deriving from `Error` needs C# 10 or later: C# 9
+reports CS8912, because the base seals `ToString`. `Result<T>` still holds a list of strings in this
+version; it holds an `Error` from 0.3.
+
 ## Operators
 
 ### Map

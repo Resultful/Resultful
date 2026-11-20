@@ -1,4 +1,18 @@
 #nullable enable
+Resultful.Error
+Resultful.Error.Cause.get -> Resultful.Error?
+Resultful.Error.Cause.init -> void
+Resultful.Error.Causes() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
+Resultful.Error.Context.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Resultful.Error.Context.init -> void
+Resultful.Error.Error(Resultful.Error! original) -> void
+Resultful.Error.Error(string! message) -> void
+Resultful.Error.Message.get -> string!
+Resultful.Error.TryFind<TError>(out TError? found) -> bool
+Resultful.ErrorExtensions
+Resultful.MessageError
+Resultful.MessageError.Equals(Resultful.MessageError? other) -> bool
+Resultful.MessageError.MessageError(string! message) -> void
 Resultful.Result<T, TError>.Deconstruct(out bool isSuccess, out T? value, out TError? error) -> void
 Resultful.Result<T, TError>.Error.get -> TError
 Resultful.Result<T, TError>.IsFailure.get -> bool
@@ -15,3 +29,30 @@ Resultful.Result<T>.OrElse(Resultful.Result<T> other) -> Resultful.Result<T>
 Resultful.Result<T>.TryGetValue(out T value) -> bool
 Resultful.Result<T>.Value.get -> T
 Resultful.Result<T>.ValueOr(T fallback) -> T
+Resultful.ValidationFailed<TError>
+Resultful.ValidationFailed<TError>.Equals(Resultful.ValidationFailed<TError!>? other) -> bool
+Resultful.ValidationFailed<TError>.Errors.get -> System.Collections.Generic.IReadOnlyList<TError!>!
+Resultful.ValidationFailed<TError>.ValidationFailed(System.Collections.Generic.IReadOnlyList<TError!>! errors) -> void
+abstract Resultful.Error.<Clone>$() -> Resultful.Error!
+override Resultful.Error.Equals(object? obj) -> bool
+override Resultful.Error.GetHashCode() -> int
+override Resultful.MessageError.Equals(object? obj) -> bool
+override Resultful.MessageError.GetHashCode() -> int
+override Resultful.ValidationFailed<TError>.Equals(object? obj) -> bool
+override Resultful.ValidationFailed<TError>.GetHashCode() -> int
+override Resultful.ValidationFailed<TError>.Inner() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
+override sealed Resultful.Error.ToString() -> string!
+override sealed Resultful.MessageError.Equals(Resultful.Error? other) -> bool
+override sealed Resultful.ValidationFailed<TError>.Equals(Resultful.Error? other) -> bool
+static Resultful.Error.From(string! message) -> Resultful.Error!
+static Resultful.Error.operator !=(Resultful.Error? left, Resultful.Error? right) -> bool
+static Resultful.Error.operator ==(Resultful.Error? left, Resultful.Error? right) -> bool
+static Resultful.ErrorExtensions.WithContext<TError>(this TError! error, string! message) -> TError!
+static Resultful.MessageError.operator !=(Resultful.MessageError? left, Resultful.MessageError? right) -> bool
+static Resultful.MessageError.operator ==(Resultful.MessageError? left, Resultful.MessageError? right) -> bool
+virtual Resultful.Error.EqualityContract.get -> System.Type!
+virtual Resultful.Error.Equals(Resultful.Error? other) -> bool
+virtual Resultful.Error.Inner() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
+virtual Resultful.Error.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~static Resultful.ValidationFailed<TError>.operator !=(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool
+~static Resultful.ValidationFailed<TError>.operator ==(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool

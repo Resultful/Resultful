@@ -136,11 +136,11 @@ public abstract record Error
 
     public string Message { get; }
     public Error? Cause { get; init; }
-    public ImmutableList<string> Context { get; init; }          // notes added on the way up, innermost first
+    public IReadOnlyList<string> Context { get; init; }          // notes added on the way up, innermost first
 
     public static Error From(string message);                    // a MessageError
-    public virtual IEnumerable<Error> Inner();                   // Cause, if any; ValidationFailed: its errors
-    public IEnumerable<Error> Causes();                          // this, then Inner() depth-first
+    public virtual IEnumerable<Error> Inner();                   // none; ValidationFailed: its errors
+    public IEnumerable<Error> Causes();                          // this, then Cause and Inner() depth-first
     public bool TryFind<TError>([NotNullWhen(true)] out TError? found) where TError : Error;
 }
 
@@ -360,6 +360,6 @@ The list is kept in [decision 14](../decisions/0014-result-and-validation.md#sti
 - **`Bind` on `Validation`.** None (Haskell, Cats), or one that stops at the first failure (FsToolkit).
 - **`+` on `Validation` values** (`a + b` adding two successful numbers), or only `&` and `Combine`.
 - **When `IPlus` and `Result<T, TError>.Plus` are deprecated.**
-- **Whether `Context` takes part in equality.** As a record property it does, so an error with context isn't
-  equal to the same error without it. Excluding it keeps test assertions simple.
-- **Whether the base seals `ToString`**, so typed data stays out of logs unless a type opts in.
+
+Since decided (see [decision 14](../decisions/0014-result-and-validation.md)): `Context` takes part in equality,
+compared element by element, and the base seals `ToString`, so a record's own data stays out of logs.
