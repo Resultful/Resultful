@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace Resultful
 {
+    [Resultful.CodeAnalysis.MustObserve]
     public readonly partial struct Option<T>
     {
         //Implicit Converters
