@@ -47,7 +47,7 @@ Result<T, TError>          // a T, or one TError; Bind stops at the first failur
 Validation<T, TError>      // a T, or a non-empty list of TError; & gathers every failure
 Result<T>                  // means Result<T, Error>, but a separate type; AsResult() widens to it
 Validation<T>              // means Validation<T, Error>
-VoidResult, VoidValidation // the same, with no value
+Result<Unit, TError>       // a step with no value; Result.Ok() builds one
 
 public abstract record Error
 {

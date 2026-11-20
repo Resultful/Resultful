@@ -97,8 +97,9 @@ parameters of its own to flatten them, so `Validation.Combine` has overloads up 
 that names them. Flat `&` overloads need C# 14 extension operators and stay opt-in sugar
 ([decision 9](../decisions/0009-operators-are-opt-in-sugar.md)).
 
-A check that produces no value has its own pair, as `Result` does: `VoidValidation` and `VoidValidation<TError>`,
-for "all of these rules pass" without a `Validation<Unit>`.
+A check that produces no value is a `Validation<Unit, TError>`, as a step with no value is a `Result<Unit, TError>`.
+There's no separate void type: today's `VoidResult` repeats every extension method, and the maintainer chose to
+deprecate it rather than add `VoidValidation` beside it.
 
 It has no `Bind`, following Haskell and Cats rather than FsToolkit. Running a step that needs the value means the
 checks are over, so the code moves to `Result` with `ToResult`. That's the line between the two shapes, and the
@@ -325,8 +326,8 @@ A break, shipped with the others in `0.3.0-beta01` ([decision 8](../decisions/00
 - **`Result<int> F() => "bad";` stops compiling** (CS0029, **verified**). It becomes `Fail<int>("bad")` or
   `Error.From("bad")`. A compile error is the safe kind of break.
 - **`string[]` and `List<string>` conversions** move to `Validation<T>`.
-- **`VoidResult` fails with one `Error`**, like `Result<T>`; its string, `string[]` and `List<string>` conversions
-  go, and checks that gather move to `VoidValidation`. `VoidResult<TError>` doesn't change.
+- **`VoidResult` and `VoidResult<TError>` are deprecated** in favour of `Result<Unit>` and `Result<Unit, TError>`,
+  with conversions both ways while they last. Checks that gather become `Validation<Unit>`.
 - **`Result<Error>` is ambiguous** (CS0457, **verified**). It's rare, and `Ok`/`Fail` still work.
 - **Allocation is about the same.** A failure allocates a record (or a list for `Validation`) where it allocated an
   array before. Success doesn't allocate.
@@ -339,7 +340,7 @@ which the core declares internally (**verified** with the prototype).
 
 - Roadmap M5's "structured `Error` type… additive" item is replaced: `Error` and `Validation` move to M3 with the
   other breaks.
-- `Validation<T, TError>` and `VoidValidation` move forward to roadmap M2 as new types, so nothing breaks there:
+- `Validation<T, TError>` and `Unit` move forward to roadmap M2 as new types, so nothing breaks there:
   they work with string errors before `Error` exists. M2's accumulating operators (`+ - *`, `&`) are built on
   `Validation` from the start. `Result`'s existing `Plus` stays until it's deprecated. This changes the operator
   table in [decision 9](../decisions/0009-operators-are-opt-in-sugar.md).

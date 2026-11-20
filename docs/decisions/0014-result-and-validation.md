@@ -26,8 +26,9 @@ generated:
      when its errors derive from `Error` (they travel as one `ValidationFailed<TError>`), or through
      `ToResult(combine)`, where the caller says how many errors become one.
    - `Validation.Combine(a, b, c, (x, y, z) => …)` combines more than two without nested tuples.
-   - `VoidValidation` and `VoidValidation<TError>` cover checks that produce no value, as `VoidResult` does for
-     `Result`.
+   - A step with no value is `Result<Unit, TError>` or `Validation<Unit, TError>`. `Unit` is a core type, and
+     `Result.Ok()` and `Validation.Ok()` build one. There is no separate void type: `VoidResult` and
+     `VoidResult<TError>` are deprecated, so every method is written once.
 2. **`Error` describes one failure.** An `abstract record` with `Message`, an optional `Cause`, a `Context` list,
    `Error.From(string)`, `Inner`, `Causes` and `TryFind<T>`, plus `WithContext`, which adds a note and keeps the
    error's type. `MessageError` and `ValidationFailed<TError>` are built in. Categories are records the user
@@ -36,12 +37,18 @@ generated:
 3. **`Result<T>` means `Result<T, Error>`**, replacing `IEnumerable<string>`, and **`Validation<T>` means
    `Validation<T, Error>`**. They are separate types in C#. `AsResult()` widens `Result<T, TError>` to `Result<T>`
    when `TError : Error`; generated shapes ([decision 16](0016-source-generated-result-shapes.md)) widen
-   implicitly. `VoidResult` fails with one `Error` too.
+   implicitly.
 4. **The name is `Error`.** It clashes with `OneOf.Types.Error`, `ErrorOr.Error` and `FluentResults.Error`
    (CS0104); the README shows `global using Error = Resultful.Error;`, which resolves it. Nothing in .NET 11 or
    ASP.NET Core 11 has the name.
 
 `Validation` is checked for clashes: none in .NET 11 or ASP.NET Core 11; LanguageExt has `Validation<F, A>`.
+`Unit` clashes with `System.Reactive.Unit`, `MediatR.Unit` and `LanguageExt.Unit` when their namespaces are
+imported; the same global alias resolves it.
+
+Amended the same day, by the maintainer's choice: `Result<Unit, TError>` replaces the void types, including the
+proposed `VoidValidation`, and a generated shape can gather errors
+([decision 16](0016-source-generated-result-shapes.md)), with `Validation` kept in the core for the steps between.
 
 Why: a signature should say whether failures stop or gather. A handler should be able to match on a failure
 without comparing strings. The satellites ([decision 11](0011-package-family.md)) need one error type to map
@@ -64,9 +71,12 @@ Consequences, if accepted:
 - `Result<string> r = "message"` changes from failure to success silently, because today's conversion from a
   string to a failure goes. The analyzer rule for a bare string (roadmap M4) ships in the same release.
 - **Changes [decision 9](0009-operators-are-opt-in-sugar.md):** the accumulating operators (`+ - *`, `&`) belong
-  to `Validation`, not `Result`. `Validation` and `VoidValidation` arrive in roadmap M2 as new types, so M2 builds
-  the operators on them and nothing shipped there breaks in M3. `IPlus` and `Result<T, TError>.Plus` are proposed
+  to `Validation`, not `Result`. `Validation` and `Unit` arrive in roadmap M2 as new types, so M2 builds the
+  operators on them and nothing shipped there breaks in M3. `IPlus` and `Result<T, TError>.Plus` are proposed
   for deprecation; when is open.
+- `VoidResult` and `VoidResult<TError>` (169 lines of the shipped API, and a second copy of every extension) are
+  deprecated: M2 adds `Unit` and conversions both ways, M3 marks them `[Obsolete]`, and the 1.0 review removes
+  them. [Decision 4](0004-sequential-composition-is-additive.md)'s `Sequence` chains become `Result<Unit>` steps.
 - Roadmap M5's additive structured `Error` is replaced. `Resultful.AspNetCore` maps `Validation<T>` and
   `ValidationFailed` to a validation problem and `Result<T>` by error type, walking an error's causes from the
   outside in so the first mapped type wins; `Resultful.FluentValidation` returns `Validation<T>`.

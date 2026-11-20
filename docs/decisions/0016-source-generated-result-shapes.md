@@ -33,7 +33,8 @@ var status = placeOrder(cart) switch
 To make this the centrepiece of the library while keeping the core dependency-free and cross-target:
 
 1. **Attributes live in the core** (`Resultful.CodeAnalysis`), matched by full name: `[ClosedHierarchy]` and
-   `[ResultShape(typeof(TError), Success = typeof(T))]` ([decision 15](0015-analyzer-rules-read-attributes.md)).
+   `[ResultShape(typeof(TError), Success = typeof(T), ManyErrors = false)]`
+   ([decision 15](0015-analyzer-rules-read-attributes.md)).
 2. **Generation lives in an opt-in package, `Resultful.Generators`** (Roslyn incremental generator targeting
    `netstandard2.0`, build-time development dependency only).
 3. **Tier 1 (`[ClosedHierarchy]` on `abstract partial record`):** emits a `private protected` constructor,
@@ -42,8 +43,9 @@ To make this the centrepiece of the library while keeping the core dependency-fr
    `abstract record OrderError(string Message)` gets a `protected` constructor, which another assembly can still
    call (**verified**).
 4. **Tier 2 shapes are narrow, not generic.** A `[ResultShape]` names one success type with `Success = typeof(T)`,
-   or none for a step with no value (`[ResultShape(typeof(OrderError))] partial struct CancelOrderResult;`). The
-   generated `readonly struct` has Decision 10's zero-value guard, `[MustObserve]`, implicit conversions from the
+   or none for a step with no value (`[ResultShape(typeof(OrderError))] partial struct CancelOrderResult;`), whose
+   success case is `Unit` ([decision 14](0014-result-and-validation.md)). The generated `readonly struct` has
+   Decision 10's zero-value guard, `[MustObserve]`, implicit conversions from the
    success type and each error leaf, `TryGetValue`/`TryGetError`/`Match`, and implicit widening to
    `Result<T, TError>` and `Result<T>`. `WithContext` keeps the shape: context is a note on the error
    ([decision 14](0014-result-and-validation.md)), so the result can still be switched over. `Map` and `Bind`
@@ -61,11 +63,25 @@ To make this the centrepiece of the library while keeping the core dependency-fr
    C# applies one user-defined conversion at a time, so every conversion is emitted directly; none relies on
    chaining.
 6. **A success type that overlaps an error case is a generator error.** If `Success` is a leaf, a base of a leaf,
-   `Error`, `object`, or an interface a leaf implements, a type pattern can't tell success from failure. In a
+   `Error`, `object`, or an interface a leaf implements (or, with `ManyErrors`, a type assignable to
+   `IReadOnlyList<TError>`), a type pattern can't tell success from failure. In a
    generic `OrderResult<OrderNotFound>`, a success compiled with no warning and threw `SwitchExpressionException`
    at runtime (**verified**). A narrow shape names its success type when it's declared, so the generator reports
    it there and no use-site analyzer is needed.
-7. **.NET 11 `[Union]` scaffolding (`#if NET11_0_OR_GREATER`):** when `TError` is `[ClosedHierarchy]`, the
+7. **`ManyErrors = true` makes a shape that gathers**, the named form of `Validation<T, TError>` as the shape above is
+   of `Result<T, TError>`: `[ResultShape(typeof(InputError), Success = typeof(Registration), ManyErrors = true)]
+   partial struct RegisterResult;`. Its failure case is the non-empty `IReadOnlyList<InputError>`, so the switch has
+   two arms, the success type and the list, and each error is handled inside it. The outer switch is exhaustive
+   (**verified**). A `switch` over each `InputError` needs the analyzer's suppression or the generated `Match`; the
+   compiler alone reports CS8509 there (**verified**). The steps that gather use the core `Validation` and its
+   `Combine`, since C# can't infer a success type from a generic constraint over generated shapes.
+8. **The core holds what works for every shape; the generator writes what depends on your types.** A shape is a
+   named wrapper over one core value (`Result<T, TError>`, `Result<Unit, TError>` or `Validation<T, TError>`), so
+   `Map`, `Bind`, async, widening and decision 10's guard are written once, in the core. The generator writes the
+   case constructors, conversions, `Match` parameters, `[Union]` members and the diagnostics. A `[Union]` struct
+   that wraps a core value still switches exhaustively, and its `default` throws when the core value's does
+   (**verified** with stand-in core types). Details, and what the generator forwards, are in the exploration.
+9. **.NET 11 `[Union]` scaffolding (`#if NET11_0_OR_GREATER`):** when `TError` is `[ClosedHierarchy]`, the
    generated struct emits `[System.Runtime.CompilerServices.Union]`, `IUnion`, `HasValue`, `public object? Value`,
    and one `public` union constructor and non-boxing `TryGetValue(out Leaf)` per concrete leaf. Flat switches
    (every leaf) and grouped switches (intermediate bases) are checked by `csc` itself with no `_` arm and no
@@ -84,12 +100,20 @@ Why:
 
 Amended the same day, by the maintainer's choice, after review: narrow shapes replace the generic
 `OrderResult<T>` (which misclassified an overlapping `T`), the overlap rule became a generator error,
-`WithContext` keeps the shape instead of widening, and conversions into a shape were added.
+`WithContext` keeps the shape instead of widening, conversions into a shape were added, a valueless shape
+succeeds with `Unit`, and `ManyErrors` was added. Item 8, the split between the core and the generator, is
+proposed by the agent and awaits the maintainer.
 
 Consequences:
 - The core package stays dependency-free (`Resultful.Generators` is a separate opt-in package, per
   [decision 11](0011-package-family.md)).
-- One type per operation that returns a shape. The steps between use the core `Result`.
+- One type per operation that returns a shape. The steps between use the core `Result` and `Validation`.
+- Generated code calls the core, so `Resultful.Generators` requires the `Resultful` package. Declaring your own
+  copy of an attribute without referencing Resultful ([decision 15](0015-analyzer-rules-read-attributes.md))
+  works for the analyzers only.
+- Core extension methods don't bind to a shape: generic inference ignores user-defined conversions, so neither
+  `placeOrderResult.Tap(…)` nor an `await` on `Task<PlaceOrderResult>` finds them. The generator forwards the
+  common members; which ones, and the async story, are open.
 - Roslyn source generators can't see code emitted by other generators in the same compilation (verified on the
   exploration's branch with `System.Text.Json.SourceGeneration`), so shapes either widen to `Result<T>` at
   JSON/HTTP boundaries or emit their own AOT-safe converters.

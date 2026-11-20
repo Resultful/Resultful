@@ -182,12 +182,74 @@ More broadly, this generator pattern can scaffold custom `[Union]` structs as a 
 generator's lasting value is one declaration that works from `netstandard2.0` to `net11.0`, plus the railway
 surface, the conversions, and the `Causes()` boundary mappers that raw unions don't provide.
 
+### Shapes that gather: `ManyErrors`
+
+`ManyErrors = true` makes the named form of `Validation<T, TError>`, as a plain shape is the named form of
+`Result<T, TError>`. The maintainer chose this over moving `Validation` out of the core: the generator lands in
+M4, M2's accumulating operators need a type now, and `Combine` has to take inputs with different success types,
+which C# can't infer through a generic constraint over generated shapes. So the gathering steps use the core
+`Validation`, and the endpoint names the operation:
+
+```csharp
+[ResultShape(typeof(InputError), Success = typeof(Registration), ManyErrors = true)]
+public readonly partial struct RegisterResult;
+
+RegisterResult Register(Request r) =>
+    Validation.Combine(Name(r.Name), Email(r.Email), Age(r.Age), (n, e, a) => new Registration(n, e, a));
+
+var response = Register(request) switch
+{
+    Registration reg => Created(reg),
+    IReadOnlyList<InputError> errors => ValidationProblem(errors.Select(e => e.Match(…))),
+};
+```
+
+The switch isn't flat over the leaves, because one failure holds many. The two arms are checked by the compiler.
+Each error inside is handled with the generated `Match`, or a `switch` that the analyzer's suppression covers;
+the compiler alone reports CS8509 for a `switch` over the closed base (**verified**).
+
+## The core and the generator
+
+Two questions decide where a piece lives:
+
+| Question | If yes |
+|---|---|
+| Does it depend on the user's list of types? | **Generated**: case constructors, conversions, `Match` and `TryMap` parameters, `[Union]` members (`TryGetValue` per case, `Value`), the `private protected` constructor, the overlap and `partial` diagnostics |
+| Must it exist without the generator, or before M4? | **Core**: `Result`, `Validation`, `Unit`, `Error`, `ValidationFailed`, the attributes, and any behaviour that's the same for every shape |
+
+A shape is a named wrapper over one core value:
+
+| Declaration | Wraps | Success arm | Failure arms |
+|---|---|---|---|
+| `Success = typeof(Order)` | `Result<Order, OrderError>` | `Order` | each leaf |
+| no `Success` | `Result<Unit, OrderError>` | `Unit` | each leaf |
+| `Success = typeof(Registration), ManyErrors = true` | `Validation<Registration, InputError>` | `Registration` | `IReadOnlyList<InputError>` |
+| no `Success`, `ManyErrors = true` | `Validation<Unit, InputError>` | `Unit` | `IReadOnlyList<InputError>` |
+
+What follows:
+
+- **Behaviour is written once.** `Map`, `Bind`, `WithContext`, widening and the zero-value guard live on the core
+  type; generated members forward to the wrapped value. The struct is the same size as the core value.
+- **Widening is free.** `AsResult()` returns the wrapped value, and the implicit conversion does the same.
+- **Generated code is thin.** It holds only what the user's types decide, so a generator bug can't change how
+  `Bind` behaves.
+- **The generator depends on the core.** Generated code calls core types, so `Resultful.Generators` requires
+  `Resultful`. The analyzers don't: a library can still declare its own attribute copy and get the checks.
+- **Extension methods don't reach a shape.** Generic inference ignores user-defined conversions, so a core
+  extension on `Result<T, TError>` doesn't bind to `PlaceOrderResult`, and the async extensions don't bind to
+  `Task<PlaceOrderResult>`. The generator forwards the common instance members (`Map`, `Bind`, `Match`,
+  `TryGetValue`, `TryGetError`, `WithContext`, `AsResult`); the rest, and async, are open below.
+
+**Verified** on SDK 11.0.100 (`temp/gen-check/Consumer/WrapProbe.cs.txt`, with stand-in core types that have the
+decision 10 guard): `[Union]` structs wrapping a core `Result<Order, OrderError>`, `Result<Unit, OrderError>` and
+`Validation<Order, OrderError>` each switch exhaustively with no `_` arm. Removing the `CardDeclined` arm, the
+`Unit` arm or the list arm each gives CS8509, and `default` of a shape throws through the wrapped value. The real
+core `Result` doesn't have the guard yet; it arrives with decision 10.
+
 ### Opt-in shape knobs (design)
 
 Not prototyped yet, but natural extensions on `[ResultShape]`:
 
-- `Cardinality = ResultErrors.One | ResultErrors.Many` (emits a `Validation`-shaped type with `IReadOnlyList<TError>`
-  and `&`, omitting `Bind` unless requested).
 - `Async = true` (emits `Task`/`ValueTask` extension methods).
 - `Operators = true` (emits opt-in operators in a nested or sibling `Operators` namespace).
 - `JsonConverter = true` (emits an AOT-safe `JsonConverterFactory` — see the STJ finding below).
@@ -214,6 +276,8 @@ narrow shape written by hand from the generated code, since the generator doesn'
 | Review: hand-written narrow `PlaceOrderResult` with `[Union]` | **Verified** — flat switch over `Order` and every leaf runs; removing an arm gives `CS8509` |
 | Review: conversions into `PlaceOrderResult` from `Result<Order, OrderError>` and from `LoadOrderResult` | **Verified** — compile next to the union conversions with no ambiguity, and classify correctly |
 | Review: accessibility of a positional `abstract record` constructor | `protected`, so not closed to other assemblies without the generated `private protected` constructor |
+| Structure: `[Union]` shapes wrapping a core value (`Result<T,E>`, `Result<Unit,E>`, `Validation<T,E>`) | **Verified**: exhaustive with no `_`; removing a leaf, the `Unit` arm or the list arm gives `CS8509`; `default` throws |
+| Structure: `switch` over each `OrderError` inside the list, without the analyzer | `CS8509` from the compiler; the generated `Match` compiles clean |
 
 ## Key constraint: generator-to-generator blindness
 
@@ -258,10 +322,13 @@ members directly in the same compilation.
 ## Still open
 
 Decided in [decision 16](../decisions/0016-source-generated-result-shapes.md): a separate `Resultful.Generators`
-package, both attributes in `Resultful.CodeAnalysis` in the core, narrow shapes, and void shapes (no `Success`).
+package, both attributes in `Resultful.CodeAnalysis` in the core, narrow shapes, void shapes succeeding with `Unit`,
+and `ManyErrors`. The split between the core and the generator above is proposed.
 
-- **Validation shapes:** should `[ResultShape]` support `Errors = ResultErrors.Many`, generating a
-  `Validation`-like struct with a non-empty list of errors?
+- **Members a shape forwards, and async:** which core extensions the generator repeats on a shape, and whether
+  async callers `await` to a core `Result` and convert, or the generator emits `Task<Shape>` extensions.
+- **The list type in a gathering shape:** `IReadOnlyList<TError>` as the case type, or a generated wrapper
+  (`RegisterErrors`) that can carry its own `Match`.
 - **Mapping between error hierarchies:** the `static partial OrderError From(PaymentError e)` form is design only.
 - **Conversions between shapes with nested error sets:** from a shape whose error type is a closed base nested
   under this one. Only the same error type was run.
