@@ -16,7 +16,8 @@ generated:
 > (analyzer rules that read attributes). The reasoning is in [One error or many](explorations/one-error-or-many.md)
 > and [Analyzers for your own types](explorations/analyzers-for-your-own-types.md); the libraries and languages it
 > learned from are in [Error handling: prior art](references/error-handling-prior-art.md). Claims marked
-> **verified** were compiled on SDK 11.0.100. Everything else is design.
+> **verified** were compiled on SDK 11.0.100. Everything else is design. For the code an application writes, use
+> case by use case, see [Errors in practice](errors-in-practice.md).
 
 ## How it differs
 

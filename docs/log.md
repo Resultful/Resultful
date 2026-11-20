@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- *Errors in practice* added: ten use cases from a consuming application (endpoint statuses, a sign-up form,
+  validate then act, database context, a payment adapter, a queue handler, ignored results, tests, a library's
+  own result type, migrating from strings), each with what it catches.
+
 - *The error shape* added: how decisions 14 and 15 fit together, how it differs from other .NET result libraries,
   and seven shapes an application builds (open, closed, nested closed, layered context, validation, boundary
   mapping, your own result type). Nested closed hierarchies verified with the suppressor probe.

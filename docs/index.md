@@ -25,6 +25,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Roadmap](roadmap.md) | Long-term milestones to 1.0 and beyond, and the assertions track |
 | [Architecture](architecture.md) | The package family across both repositories, dependency rules, layout |
 | [The error shape](error-shape.md) | How Resultful models failure, and the shapes an application builds from it (proposed) |
+| [Errors in practice](errors-in-practice.md) | Ten use cases from an application's side: the code, how to use it well, and what each catches (proposed) |
 | [Decisions](decisions/index.md) | Every decision, dated, with why |
 | [Log](log.md) | What changed in these documents, by date |
 | [Seamless with .NET](explorations/seamless-with-dotnet.md) | Exploration: operators, unions, nullable flow and framework integration |
