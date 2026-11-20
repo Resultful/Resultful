@@ -8,8 +8,8 @@
     "04d2": "rtkelly13/stack-04d2-end-to-end"
   },
   "head_sha": {
-    "04d": "bd334314e05f0b31ed3cc7b44833b3456c4983ec",
-    "04d2": "1fedf62dbd873aee5072973009e1d6388bec236e"
+    "04d": "c3647e153b5362d03ed3bb30d12dfae3d940f2d3",
+    "04d2": "a688af87181423c7d0fbe789bc3c30198d69de99"
   },
   "split": "Contract split rule: the Shop alone is ~1270 lines of samples/, so 04d = Shop (#44, base 04c) and 04d2 = EndToEnd + snippets + ledger fixtures (#45, base 04d).",
   "started_from": "04c c4ea0e7",
@@ -19,7 +19,10 @@
     "5b8b23a -> c5ac91f"
   ],
   "fixups": [
-    "bd33431 fixup! test: the Shop, a reference app against the 0.3 target API"
+    "bd33431 fixup! test: the Shop... (04d)",
+    "c3647e1 fixup! test: the Shop... (04d, review fixes)",
+    "be8114e cherry-pick -x of c3647e1 onto 04d2",
+    "4681c5d fixup! test: the end-to-end oracle... (04d2, review fixes)"
   ],
   "note_on_history": "Before the append-only rule arrived I rebased an UNPUSHED local 04d2 branch onto new 04c; I discarded it and rebuilt 04d2 on the pushed 04d head. No pushed branch was rebased or force-pushed.",
   "local_runs": [
@@ -31,7 +34,11 @@
     "cd tests/Resultful.EndToEnd && dotnet run --no-build -- -class Resultful.EndToEnd.RunnerSelfTests -> 13 passed; seeded http-cases.json edit -> pin test fails",
     "dotnet run tests/Resultful.EndToEnd/Snippets/check-snippets.cs -- --self-test -> pass; default -> 10 differences exit 0; --strict -> exit 1",
     "cd tests/Resultful.EndToEnd/Broken && dotnet build <B> -p:ShopForce=UC01 -p:WarningsNotAsErrors=  (target stubs) -> MissingArm CS8509, ReorderedMatch CS0411, analyzer-only consumers compile clean",
-    "cd tests/Resultful.Spec && dotnet run -f net10.0 -- --filter-query \"/*/*/SpecTests/*\" -> 268 passed, 0 failed (net11.0 not run locally)"
+    "cd tests/Resultful.Spec && dotnet run -f net10.0 -- --filter-query \"/*/*/SpecTests/*\" -> 268 passed, 0 failed (net11.0 not run locally)",
+    "(round 1) samples: all 6 projects build with -p:ShopForce=all and default",
+    "(round 1) tests/Resultful.EndToEnd dotnet run -> Total 34, Failed 0; report 21 entries (PACK pass, 20 lines pending/fail)",
+    "(round 1) check-snippets --self-test -> 6/6 checks pass; default -> 10 problems exit 0",
+    "(round 1) tests/Resultful.Spec SpecTests net10.0 272/272 and net11.0 272/272"
   ],
   "use_cases": {
     "UC01": "Domain OrderError+GetOrderResult; Api docs endpoint, shape endpoint (union switch on net11, typed Match on net10), /api via ToHttpResult; Net11 union",
@@ -83,8 +90,11 @@
     "docs: errors-in-practice UC10 'before' snippet does not compile on 0.2 (CS0029: no T->Result<T> conversion in 0.2); Shop uses o.Ok()",
     "GOAL row 12 lists CS0029, CS0618 for Shop.Legacy; the docs' caller errors.First() also gives CS0411 against 0.3; expected-0.3.txt lists all three",
     "target lacked implicit operator Result<T>(T) at c4ea0e7; 04c added it in a3c298d (cherry-picked)",
-    "OpenAPI check needs per-route 404/409; ResultHttpResult<T>.PopulateMetadata cannot see the user's ResultfulHttpOptions map -> 20b must solve (or the Shop adds Produces)",
-    "chosen here: 4xx ProblemDetails carry Error.Message as detail (decisions silent)"
+    "chosen here: 4xx ProblemDetails carry Error.Message as detail (decisions silent)",
+    "OpenAPI (corrected): PopulateMetadata can reach the map via EndpointBuilder.ApplicationServices; blocker is ToHttpResult<T,TError> returning ResultHttpResult<T> (TError lost); fix for 20a: ResultHttpResult<T,TError>",
+    "UC07 docs fix discards a result (RF0001); Shop uses `_ =`, doc changes in 25",
+    "UC05 docs CardDeclined(Reason) leaks provider text via detail; Shop uses fixed message",
+    "MapError(e => new InvoiceFailed(id){Cause=e}) on Result<T> picks generic overload -> Result<Order, InvoiceFailed>; needs `Error (e) =>`"
   ],
   "wiring": [
     "Resultful.slnx: Shop projects + tests/Resultful.EndToEnd",
@@ -119,8 +129,34 @@
   "open_issues": [
     "HTTP/worker/test runtime paths never executed (nothing compiles against 0.2); first real run when a UC compiles from packages",
     "Shop.Domain lacks net8.0 for the SDK 9 leg (13b)",
-    "Spec harness verified on net10.0 only locally",
     "CI not awaited (pipelining)",
     "snippet check: 10 doc/Shop differences reported (mostly access modifiers, renamed routes, doc placeholders) for 25"
-  ]
+  ],
+  "spec_commits": [
+    "1fedf62 spec: ledger fixtures for UC01-UC10 and HTTP-CASES",
+    "a688af8 spec: fixtures for MIG-LEGACY and AOT-PUBLISH; UC fixtures require E2E_REPORT in CI"
+  ],
+  "review_round_1": {
+    "44": [
+      "CardDeclined fixed message, provider reason logged only; http case mustNotContain 'insufficient funds'",
+      "UC07 `_ =`",
+      "Net11 CheckoutResult [ResultShape] over union with typed Match (stand-in)",
+      "generated Switch typed (Baskets.Report)",
+      "InvoiceFailed Cause/TryFind<DbTimeout> path",
+      "Legacy csproj comment on CS0436"
+    ],
+    "45": [
+      "MissingArm NeedsAnalyzers=true",
+      "Legacy cases -> MIG-LEGACY with fixture; AOT-PUBLISH fixture",
+      "LegacyAgainstTarget -p:ShopAnalyzers=false",
+      "Every_project_packs + PACK report entry + pack.log",
+      "check-snippets: line diff, duplicate regions error, separator-agnostic bin/obj filter, self-test checks exit codes",
+      "DiscardedResult verbatim docs",
+      "OpenAPI finding corrected; wiring CI steps added; unmatched snippet blocks listed"
+    ]
+  },
+  "ci": {
+    "44": "no check runs reported on #44's head (CI appears not to trigger for this base)",
+    "45": "lint and build queued at report time; not awaited"
+  }
 }
