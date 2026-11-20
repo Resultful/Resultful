@@ -69,6 +69,85 @@ jobs:
           path: artifacts
           if-no-files-found: error
 
+  compatibility:
+    name: compatibility (NuGet + Paket)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Download packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: packages
+          path: artifacts
+
+      - name: Consumers (NuGet, net8.0, net10.0, net11.0)
+        run: dotnet run eng/build.cs -- --target=CompatNuGet
+
+      - name: Library built against 0.2.0-beta05, app on the packed package (net8.0, net10.0)
+        run: dotnet run eng/build.cs -- --target=CompatUpgrade
+
+      - name: Consumers (Paket, strategy min)
+        working-directory: tests/Compatibility/Paket
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}/packages-paket
+        run: |
+          set -euo pipefail
+          version=$(basename ../../../artifacts/Resultful.[0-9]*.nupkg .nupkg); version=${version#Resultful.}
+          dotnet tool install paket --version 12.0.0 --tool-path "$RUNNER_TEMP/paket"
+          "$RUNNER_TEMP/paket/paket" clear-cache
+          "$RUNNER_TEMP/paket/paket" install --force
+          cat paket.lock
+          found=$(awk '/^  remote: /{remote=$2} /^    [^ ]+ \(/{sub(/^ +/, ""); print remote " | " $0}' paket.lock | sort)
+          expected=$(printf '%s\n' "https://api.nuget.org/v3/index.json | OneOf (3.0.271)" "../../../artifacts | Resultful ($version)" | sort)
+          if [ "$found" != "$expected" ]; then
+            echo "::error::paket.lock resolved:"$'\n'"$found"$'\n'"expected:"$'\n'"$expected"
+            exit 1
+          fi
+
+  compatibility-net481:
+    name: compatibility (net481)
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: '10.0.x'
+
+      - name: Download packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: packages
+          path: artifacts
+
+      - name: Consumer (net481)
+        run: dotnet run eng/build.cs -- --target=CompatNet481
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -91,13 +170,15 @@ jobs:
         run: uvx zizmor@1.31.1 --offline --format github .
 
   # Publishing is manual: run the workflow on main with `publish` ticked. Merging never publishes.
+  # Lockstep (decision 11): every package shares one version, and the run's commit is tagged v<version>.
   publish:
     name: publish
-    needs: [ build, lint ]
+    needs: [ build, lint, compatibility, compatibility-net481 ]
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions: {}
+    permissions:
+      contents: write # the release tag
     environment: release
     steps:
       - name: Download packages
@@ -120,3 +201,29 @@ jobs:
             exit 1
           fi
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Tag the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cores=(artifacts/Resultful.[0-9]*.nupkg)
+          if [ "${#cores[@]}" -ne 1 ]; then
+            echo "::error::expected one Resultful.<version>.nupkg, found ${#cores[@]}; nothing was tagged."
+            exit 1
+          fi
+          version=$(basename "${cores[0]}" .nupkg)
+          tag="v${version#Resultful.}"
+          existing=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq .object.sha 2>/dev/null || true)
+          if [ -z "$existing" ]; then
+            gh api "repos/$REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" > /dev/null
+            echo "Tagged $tag at $SHA."
+          elif [ "$existing" = "$SHA" ]; then
+            echo "$tag already points at $SHA."
+          else
+            echo "::error::$tag already points at $existing, not $SHA."
+            exit 1
+          fi

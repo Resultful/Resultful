@@ -254,14 +254,14 @@ static Resultful.Result.DiscardValue<T>(this System.Threading.Tasks.Task<Resultf
 static Resultful.Result.DiscardValue<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
 static Resultful.Result.DiscardValueAsync<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, System.Func<T, System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!
 static Resultful.Result.DiscardValueAsync<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<T, System.Threading.Tasks.Task<Resultful.VoidResult>!>! bindFunc) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
-static Resultful.Result.Fail(params string![]! errors) -> Resultful.VoidResult
-static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>! value) -> Resultful.VoidResult
-static Resultful.Result.Fail<T, TError>(params TError[]! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail(params string![]? errors) -> Resultful.VoidResult
+static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>? value) -> Resultful.VoidResult
+static Resultful.Result.Fail<T, TError>(params TError[]? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
 static Resultful.Result.Fail<T, TError>(this TError value) -> Resultful.Result<T, TError>
 static Resultful.Result.Fail<T>(params string![]! errors) -> Resultful.Result<T>
 static Resultful.Result.Fail<T>(this System.Collections.Generic.IEnumerable<string!>! errors) -> Resultful.Result<T>
-static Resultful.Result.Fail<TError>(params TError[]! errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail<TError>(params TError[]? errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
 static Resultful.Result.Fail<TError>(this TError value) -> Resultful.VoidResult<TError>
 static Resultful.Result.Flatten(this Resultful.Result<Resultful.VoidResult> value) -> Resultful.VoidResult
 static Resultful.Result.Flatten(this System.Threading.Tasks.Task<Resultful.Result<Resultful.VoidResult>>! value) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
@@ -482,11 +482,11 @@ static Resultful.Result<T>.implicit operator Resultful.Result<T>(System.Collecti
 static Resultful.Unit.Value.get -> Resultful.Unit!
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Result<Resultful.Unit!, System.Collections.Generic.IEnumerable<string!>!> value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Result<Resultful.Unit!> value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit! value) -> Resultful.VoidResult
+static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit? value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.VoidResult<System.Collections.Generic.IEnumerable<string!>!> value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(string! value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]! value) -> Resultful.VoidResult
+static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]? value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(System.Collections.Generic.List<string!>! value) -> Resultful.VoidResult
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Result<Resultful.Unit!, TError> value) -> Resultful.VoidResult<TError>
-static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit! value) -> Resultful.VoidResult<TError>
+static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit? value) -> Resultful.VoidResult<TError>
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(TError value) -> Resultful.VoidResult<TError>

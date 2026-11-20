@@ -18,12 +18,12 @@
   </PropertyGroup>
 
   <!--
-    The package version under test comes from the core project, so it can't drift from what is packed.
+    The package version under test comes from src/Directory.Build.props (lockstep), so it can't drift from what is packed.
     A VersionSuffix passed on the command line (CI packs a run-unique one) replaces the file's suffix.
     ResultfulPackageVersion can still be passed directly.
   -->
   <PropertyGroup>
-    <_ResultfulProjectText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../src/Resultful/Resultful.csproj'))</_ResultfulProjectText>
+    <_ResultfulProjectText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../src/Directory.Build.props'))</_ResultfulProjectText>
     <_ResultfulVersionPrefix>$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionPrefix&gt;\s*([^&lt;]*?)\s*&lt;/VersionPrefix&gt;').Groups[1].Value)</_ResultfulVersionPrefix>
     <_ResultfulVersionSuffix>$(VersionSuffix)</_ResultfulVersionSuffix>
     <_ResultfulVersionSuffix Condition="'$(_ResultfulVersionSuffix)' == ''">$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionSuffix&gt;\s*([^&lt;]*?)\s*&lt;/VersionSuffix&gt;').Groups[1].Value)</_ResultfulVersionSuffix>
@@ -53,6 +53,13 @@
     <PackageReference Include="CsCheck" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <!--
+    A net8.0 build of the suite (-p:TargetFrameworks=net8.0) takes the package's netstandard2.0 asset. CsCheck 5 has no net8.0 build, so that build uses the last CsCheck 4.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Update="CsCheck" VersionOverride="4.9.1" />
   </ItemGroup>
 
   <ItemGroup>

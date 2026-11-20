@@ -7,9 +7,15 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- Keep the betaNN form: NuGet compares pre-release labels lexically, so beta.6 would sort below beta05. -->
-    <VersionPrefix>0.2.0</VersionPrefix>
-    <VersionSuffix>beta06</VersionSuffix>
+    <!-- The version is shared by every package (lockstep, decision 11): VersionPrefix in src/Directory.Build.props. -->
+    <!--
+      Every published 0.2.0 pre-release (beta03 to beta05) has assembly and file version 1.0.0.0. A lower assembly
+      version breaks apps on .NET Core that use a library compiled against one of them (FileNotFoundException:
+      Resultful, Version=1.0.0.0), so 0.2.x keeps 1.0.0.0. The CompatUpgrade target in eng/build.cs checks it.
+    -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <EnablePackageValidation>true</EnablePackageValidation>
     <PackageId>Resultful</PackageId>
     <PackageTags>result;railway-oriented-programming;error-handling;functional;oneof</PackageTags>
     <PackageReleaseNotes>See https://github.com/Resultful/Resultful/blob/main/RELEASE_NOTES.md</PackageReleaseNotes>
@@ -19,7 +25,7 @@
 
   <!--
     AnalysisLevel is latest-all for src/ (src/Directory.Build.props). 0.2.0 must be the same library as 0.2.0-beta06:
-    the same IL and the same public API (eng/il-diff.cs, eng/api-diff.cs). So a rule whose fix would change a method
+    the same IL and the same public API (PublicAPI.Shipped.txt). So a rule whose fix would change a method
     body or add, remove or change a public member is turned off here instead, one entry per rule, each with its
     reason. CA1000 and CA1716 are off for every project, in the root Directory.Build.props.
   -->

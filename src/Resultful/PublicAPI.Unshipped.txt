@@ -1,17 +1,1 @@
 #nullable enable
-*REMOVED*static Resultful.Result.Fail(params string![]! errors) -> Resultful.VoidResult
-static Resultful.Result.Fail(params string![]? errors) -> Resultful.VoidResult
-*REMOVED*static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>! value) -> Resultful.VoidResult
-static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>? value) -> Resultful.VoidResult
-*REMOVED*static Resultful.Result.Fail<T, TError>(params TError[]! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-static Resultful.Result.Fail<T, TError>(params TError[]? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-*REMOVED*static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-*REMOVED*static Resultful.Result.Fail<TError>(params TError[]! errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
-static Resultful.Result.Fail<TError>(params TError[]? errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
-*REMOVED*static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit! value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit? value) -> Resultful.VoidResult
-*REMOVED*static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]! value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]? value) -> Resultful.VoidResult
-*REMOVED*static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit! value) -> Resultful.VoidResult<TError>
-static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit? value) -> Resultful.VoidResult<TError>
