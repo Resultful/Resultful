@@ -33,7 +33,7 @@ is done when its "Done when" holds.
 | **CI to current standards**: least privilege, format check, pack and package check, manual publishing, zizmor, ls-lint, Dependabot ([decision 7](decisions/0007-ci-follows-rig.md)) | #22 |
 | **Current .NET standards, part one**: SDK 11, `net11.0`, public API tracking ([decision 2](decisions/0002-targets-netstandard20-net10-net11.md)) | #24 |
 | **Direction**: [Seamless with .NET](explorations/seamless-with-dotnet.md), [decision 10](decisions/0010-default-is-not-success.md) | #28, #29 |
-| **Long-term plan**: this roadmap, [the architecture](architecture.md), decisions 9, 11, 12 and 13 accepted | #30, #31, and this pull request |
+| **Long-term plan**: this roadmap, [the architecture](architecture.md), decisions 9, 11, 12 and 13 accepted | #30, #31, #32 |
 
 ## M1. Foundations (`0.2.x`, no break)
 
