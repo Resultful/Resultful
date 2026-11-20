@@ -53,6 +53,17 @@ internal sealed partial class Invoicing(ILogger<Invoicing> log)
 
         return Retry.Never;
     }
+
+    // "Using it well": a layer that turns the failure into a different one wraps it with Cause, and the edge finds the
+    // timeout with TryFind, which walks the Cause chain. The lambda says it returns Error: without that, MapError's
+    // generic overload wins and the result becomes Result<Order, InvoiceFailed> (a spec finding in the PR body).
+    public Result<Order> Issue(int id) =>
+        LoadForInvoice(id).MapError(Error (e) => new InvoiceFailed(id) { Cause = e });
+
+    public Retry RunIssueJob(int id) =>
+        Issue(id).TryGetError(out var error) && error.TryFind<DbTimeout>(out var timeout)
+            ? Retry.After(timeout.After * 2)
+            : Retry.Never;
 }
 
 internal static class InvoiceEndpoints
@@ -62,5 +73,6 @@ internal static class InvoiceEndpoints
     {
         app.MapGet("/api/invoices/{id}", (int id, Invoicing invoicing) => invoicing.LoadForInvoice(id).ToHttpResult());
         app.MapPost("/invoices/{id}/run", (int id, Invoicing invoicing) => Results.Ok(invoicing.RunJob(id)));
+        app.MapPost("/invoices/{id}/issue", (int id, Invoicing invoicing) => Results.Ok(invoicing.RunIssueJob(id)));
     }
 }

@@ -6,7 +6,9 @@ namespace Resultful.Shop.Domain;
 #region snippet: uc05-errors
 [ClosedHierarchy]
 public abstract partial record PaymentError : Error;
-public sealed record CardDeclined(string Reason) : PaymentError($"card declined: {Reason}");
+// Not the docs' CardDeclined(string Reason): a mapped 4xx shows Message to the client, so the provider's own words
+// stay in the adapter's log (DECISIONS-TAKEN, 04d review).
+public sealed record CardDeclined() : PaymentError("The card was declined.");
 public sealed record ProviderUnavailable() : PaymentError("the payment provider is unavailable");
 public sealed record FraudSuspected() : PaymentError("payment blocked");
 #endregion
