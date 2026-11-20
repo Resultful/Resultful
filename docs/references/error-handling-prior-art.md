@@ -168,7 +168,8 @@ stopping at the first failure.
 - Errors are usually discriminated unions you define.
 
 **Taken:** the central idea. `Result` holds one error and stops at the first; `Validation` holds a list and
-gathers them all, and the count is in the type. F# is also Resultful's original inspiration
+gathers them all, and the count is in the type. FsToolkit's `Validation` also has a `bind` that stops at the first
+failure; whether Resultful's has one is open. F# is also Resultful's original inspiration
 ([F# for Fun and Profit](https://fsharpforfunandprofit.com/posts/recipe-part2/)). See
 [the exploration](../explorations/one-error-or-many.md#the-idea).
 
@@ -181,7 +182,8 @@ gathers them all, and the count is in the type. F# is also Resultful's original 
   required.
 - **Zig.** Error sets are merged with `||` at compile time.
 
-**Taken:** the name `Validation` (Haskell; `Validated` in Cats) and non-empty accumulation (Arrow, Haskell): a
+**Taken:** the working name `Validation` (Haskell; `Validated` in Cats), Haskell's choice to give it no monad
+(no `Bind`), and non-empty accumulation (Arrow, Haskell): a
 failed `Validation` always has at least one error.
 
 ## What the survey says

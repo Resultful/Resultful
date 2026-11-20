@@ -23,7 +23,8 @@ FsToolkit, Haskell and Cats keep two shapes apart:
 - **`Result`** holds **one** error. `Bind` stops at the first failure, because the next step needs the value the
   failed step didn't produce.
 - **`Validation`** holds **one or more** errors. Its checks don't depend on each other, so all of them run and
-  every failure is kept. It combines with `Apply` (`&`), not `Bind`.
+  every failure is kept. It combines with `Apply` (`&`). Haskell and Cats give it no `Bind` at all; FsToolkit
+  gives it a `bind` that stops at the first failure, like `Result`'s.
 
 How many errors there can be is part of the signature, not a property of the error value. Resultful today blurs
 the two: `Result<T>` fails with `IEnumerable<string>`, the plural shape under the singular name, and
@@ -40,9 +41,16 @@ Validation<T>  = Validation<T, Error>
 ```
 
 `Validation` is the established functional name (F#, Haskell, Scalaz; `Validated` in Cats). It fits what the
-plural shape is used for: input checks whose failures are expected, can be fixed by the caller and compose.
-No public type in .NET 11 or ASP.NET Core 11 is called `Validation` or `Validated` (**verified**, metadata scan).
-LanguageExt has a `Validation<F, A>`.
+plural shape is used for: input checks whose failures are expected, can be fixed by the caller and compose. The
+name is still open (see the end); `Validation` is used here as the working name.
+
+| Package | Its type | Checked |
+|---|---|---|
+| .NET 11 and ASP.NET Core 11 | no public `Validation` or `Validated`; the nearest is `System.ComponentModel.DataAnnotations.Validator` | metadata scan, with `Validator` as the positive control |
+| LanguageExt | `LanguageExt.Validation<F, A>`, the same arity as `Validation<T, TError>` | from its documentation, not compiled |
+| FluentValidation, DataAnnotations | `ValidationResult`, `ValidationFailure`: different names | not a clash |
+
+A project using LanguageExt and Resultful together would need an alias, as with `Error` below.
 
 ## The two shapes
 
@@ -52,6 +60,8 @@ Unchanged in behaviour for anyone using their own `TError`. It keeps `Map`, `Bin
 `Sequence`, `Check` and the LINQ query syntax. `Bind` short-circuits.
 
 ### `Validation<T, TError>`: one or more errors
+
+Not compiled yet: the prototype covered `Error` only.
 
 ```csharp
 public readonly struct Validation<T, TError>
@@ -70,8 +80,9 @@ public readonly struct Validation<T, TError>
 // & combines two validations into a tuple, keeping every error from both sides, in order.
 ```
 
-It has no `Bind`. Running a step that needs the value means the checks are over, so the code moves to `Result`
-with `ToResult`. That's the line between the two shapes, and the compiler draws it.
+It has no `Bind`, following Haskell and Cats rather than FsToolkit. Running a step that needs the value means the
+checks are over, so the code moves to `Result` with `ToResult`. That's the line between the two shapes, and the
+compiler draws it. This is a choice, listed under "Still open".
 
 Errors are an `IReadOnlyList<TError>`: `IEnumerable<T>` with a count and an index. No .NET interface promises a
 non-empty list, so `Validation` only ever builds a failure from at least one error. `default(Validation<…>)` is
@@ -84,9 +95,9 @@ invalid at run time like every result type ([decision 10](../decisions/0010-defa
 | `Result` | `Validation` | implicit | One error is a list of one. Nothing is lost. |
 | `Validation` | `Result` | `ToResult(combine)` | Many errors become one only when the caller says how. |
 
-Once there's a single error type, `IPlus` no longer has to make `TError` combinable, because the list does that.
-`Result<T, TError>.Plus` and `IPlus` stay for now so existing code compiles, and are proposed for deprecation in
-favour of `Validation` before 1.0.
+With the list in `Validation`, `IPlus` no longer has to make `TError` combinable. `Result<T, TError>.Plus` and
+`IPlus` stay so existing code compiles, and are proposed for deprecation in favour of `Validation`; when is still
+open.
 
 ## The error type
 
@@ -200,22 +211,26 @@ from 409 without comparing messages.
 own context wrapper. `Resultful.AspNetCore` and `Resultful.FluentValidation` each need a callback for `AppError`.
 The next project writes it all again.
 
-**With `Result`, `Validation` and `Error`.**
+**With `Result`, `Validation` and `Error`** (design, not compiled):
 
 ```csharp
 Validation<Registration> Validate(string email, string name) =>
     (CheckEmail(email) & CheckName(name))                         // both failures kept
         .Map(t => new Registration(t.Item1, t.Item2));
 
-Result<User> Register(string email, string name) =>
-    Validate(email, name)
-        .ToResult(errors => new InvalidRegistration(errors))      // many to one, by the caller
-        .Bind(r => EmailTaken(r.Email) ? new Conflict("email taken") : CreateUser(r))
+Result<User> Register(Registration r) =>
+    (EmailTaken(r.Email) ? new Conflict("email taken") : CreateUser(r))
         .MapError(e => e.WithContext("registering user"));
 ```
 
-`Resultful.AspNetCore` takes a `Validation<T>` and returns a validation problem (400) listing each error, and
-takes a `Result<T>` and maps the error by type with a table the user extends. The signatures say which is which.
+The endpoint validates first. `Resultful.AspNetCore` turns a failed `Validation<T>` into a validation problem
+(400) listing each error. On success it calls `Register` and maps the `Result<User>` error by type: `TryFind`
+finds the `Conflict` under the context (409), and anything else is 500. The signatures say which is which, and
+the user writes no aggregate and no callback.
+
+The gap: if a single `Result` chain has to carry a validation failure onward, `ToResult(combine)` makes the user
+write a record that holds the list, and `TryFind` only walks `Cause`, so it can't see inside that record. That's
+the case the earlier `AggregateError` covered. It's listed under "Still open" rather than solved here.
 
 ## The name `Error`
 
@@ -278,7 +293,7 @@ which the core declares internally (**verified** with the prototype).
 - Roadmap M5's "structured `Error` type… additive" item is replaced: `Error` and `Validation` move to M3 with the
   other breaks.
 - Roadmap M2's accumulating operators (`+ - *`, `&`) belong to `Validation`. On `Result` they short-circuit, or
-  don't exist.
+  don't exist. This changes the operator table in [decision 9](../decisions/0009-operators-are-opt-in-sugar.md).
 - The architecture's core row lists `Validation` and `Error`.
 - `Resultful.AspNetCore` maps `Validation<T>` to a validation problem and `Result<T>` by error type.
 - `Resultful.FluentValidation` returns `Validation<T>`.
@@ -286,6 +301,14 @@ which the core declares internally (**verified** with the prototype).
 
 ## Still open
 
-- Whether `ToResult` also has an overload returning `Result<T, IReadOnlyList<TError>>`, as FsToolkit does.
+- **The name of the plural type.** `Validation` is the functional idiom; whether it's the right name for
+  Resultful is undecided.
+- **Two readings of `Validation<T, TError>`.** This document builds a new type with an `IReadOnlyList<TError>`.
+  The lighter reading keeps today's `Result<T, IEnumerable<TError>>` machinery and gives it the name
+  `Validation`, so only `Error` is new.
+- **`Bind` on `Validation`.** None (Haskell, Cats), or one that stops at the first failure (FsToolkit).
+- **Many to one inside a `Result` chain.** Whether the core offers a built-in error that holds a list and that
+  `TryFind` searches, or `ToResult` also returns `Result<T, IReadOnlyList<TError>>` as FsToolkit does, or the user
+  always supplies `combine`.
 - Whether `Validation` keeps `IPlus`-style `+` on values (`a + b` adding two successful numbers), or only `&`.
 - When `IPlus` and `Result<T, TError>.Plus` are deprecated.
