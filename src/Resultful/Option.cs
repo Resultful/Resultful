@@ -9,6 +9,7 @@ namespace Resultful
     /// <summary>A <typeparamref name="T"/> value, or none.</summary>
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <remarks>The zero value (<c>default</c>) holds <c>default(T)</c>; it is not <see cref="None"/>.</remarks>
+    [CodeAnalysis.MustObserve]
     public struct Option<T>
     {
         //Private Members
