@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Broken consumers: each must not build. The runner builds each one from the packed packages and compares the
+    rule IDs in its SARIF log (ErrorLog) with expected.txt, both ways. Each is a Shop consumer, so it shares the
+    Shop's switches (samples/Resultful.Shop.Build/Shop.props); the runner forces the use cases it needs.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <Import Project="$(MSBuildThisFileDirectory)../../../samples/Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <ErrorLog Condition="'$(BrokenSarif)' != ''">$(BrokenSarif),version=2.1</ErrorLog>
+  </PropertyGroup>
+</Project>
