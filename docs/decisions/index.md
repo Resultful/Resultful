@@ -25,4 +25,4 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 7 | [CI follows rig's hardening, not its whole job graph](0007-ci-follows-rig.md) | proposed | 20 November 2026 |
 | 8 | [The dependency-free release is `0.3.0-beta01`](0008-version-0-3-0.md) | proposed | 20 November 2026 |
 | 9 | [Operators are opt-in sugar over named methods](0009-operators-are-opt-in-sugar.md) | proposed | 20 November 2026 |
-| 10 | [`default` is not a success](0010-default-is-not-success.md) | proposed | 20 November 2026 |
+| 10 | [`default` is not a success](0010-default-is-not-success.md) | stable | 20 November 2026 |
