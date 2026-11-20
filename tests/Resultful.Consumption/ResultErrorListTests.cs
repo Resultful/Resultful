@@ -20,6 +20,45 @@ public sealed class ResultErrorListTests
     }
 
     [Fact]
+    public void Default_is_a_success_for_every_result_type()
+    {
+        // Today every result struct's zero value is a success. Decision 10 makes it throw in 0.3 (08b).
+        Assert.Equal(0, default(Result<int, TestError>).Match(v => v, _ => -1));
+        Assert.Null(default(Result<string, TestError>).Match(v => v, _ => "failed"));
+        Assert.Null(default(Result<string>).Match(v => v, _ => "failed"));
+
+        // The VoidResult types succeed with a null Unit, not Unit.Value.
+        Assert.True(default(VoidResult).Match(u => u is null, _ => false));
+        Assert.True(default(VoidResult<TestError>).Match(u => u is null, _ => false));
+        Assert.True(new VoidResult().Match(u => u is null, _ => false));
+        Assert.True(new VoidResult<TestError>().Match(u => u is null, _ => false));
+        Assert.Same(Unit.Value, Result.Ok().Match(u => u, _ => null!));
+
+        // A default inside a collection is a success too, so it's silently folded in.
+        Result<int>[] withDefault = [1.Ok(), default, 2.Ok()];
+        Assert.Equal(3, withDefault.Fold(0, (a, b) => a + b).Match(v => v, _ => -1));
+    }
+
+    [Fact]
+    public void A_bare_string_converts_to_an_error_wherever_a_Result_of_T_is_expected()
+    {
+        // Even when T is string, the conversion picks the error side.
+        static Result<string> Greet(bool ok) => ok ? "hello".Ok() : "hello";
+        Assert.Equal(["hello"], Greet(false).Match(_ => Array.Empty<string>(), e => e.ToArray()));
+        Assert.Equal("hello", Greet(true).Match(v => v, _ => ""));
+
+        // An empty string is still an error, with one empty message.
+        Result<int> empty = string.Empty;
+        Assert.Equal([string.Empty], empty.Match(_ => Array.Empty<string>(), e => e.ToArray()));
+
+        // A string array and a List<string> convert to errors as well.
+        Result<string> fromArray = new[] { "x", "y" };
+        Result<string> fromList = new List<string> { "z" };
+        Assert.Equal(["x", "y"], fromArray.Match(_ => Array.Empty<string>(), e => e.ToArray()));
+        Assert.Equal(["z"], fromList.Match(_ => Array.Empty<string>(), e => e.ToArray()));
+    }
+
+    [Fact]
     public void Implicit_conversions_and_ToOneOf_cover_all_operators()
     {
         Result<int> fromString = "e1";
