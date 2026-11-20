@@ -8,8 +8,9 @@
     "04d2": "rtkelly13/stack-04d2-end-to-end"
   },
   "head_sha": {
-    "04d": "c3647e153b5362d03ed3bb30d12dfae3d940f2d3",
-    "04d2": "a688af87181423c7d0fbe789bc3c30198d69de99"
+    "04d": "262b016862c2d239f8c15a520e9db554fb000514",
+    "04d2": "3499c1e07b49409aa38259e96d7a256593eb9d6d",
+    "04e": "4f37dca8afb73648d89d4011fdadd1a35c6ed0a9"
   },
   "split": "Contract split rule: the Shop alone is ~1270 lines of samples/, so 04d = Shop (#44, base 04c) and 04d2 = EndToEnd + snippets + ledger fixtures (#45, base 04d).",
   "started_from": "04c c4ea0e7",
@@ -156,7 +157,41 @@
     ]
   },
   "ci": {
-    "44": "no check runs reported on #44's head (CI appears not to trigger for this base)",
-    "45": "lint and build queued at report time; not awaited"
+    "44 @262b016": "lint success, build success",
+    "45 @3499c1e": "lint success, build success",
+    "47 @4f37dca": "lint success, build success, preview-dry-run success (publish jobs skipped)",
+    "caveat": "CI's build job doesn't build the unwired Shop/EndToEnd/Spec projects yet (wiring is a later step); those were run locally"
+  },
+  "absorb_04c_round": {
+    "04c_head": "9a465b0",
+    "04d_cherry_picked_from_04c": [
+      "eb8beb9->6274bec",
+      "1dbb86f->347acde",
+      "fb1d240->da25189",
+      "156481b->9cfae0d",
+      "c4d7ead->36b7c87 (decision 17 doc, needed by a36c3d4)",
+      "a36c3d4->248c9b4",
+      "654ff44->f745d75",
+      "f72ad89->91aca9e",
+      "9a465b0->43a65cd"
+    ],
+    "04d_own": [
+      "262b016 ci: let ls-lint accept the Shop's use case folders and the broken consumers (.ls-lint.yml ignore entries placed above 04c's so branches merge)"
+    ],
+    "04d2": "cherry-picked 04d's 10 new commits (ledger conflict in 9cfae0d resolved: kept own UC/AOT hashes, took 04c's UNION-MATRIX), plus 3499c1e spec: UC10's fixture waits for 23a (UC10 back to '-' with no fixture, because UNION-MATRIX right after UC10 changed on 04c and made 04d2 vs 04d conflict)",
+    "04e": "cherry-picked 04d2's 14 commits since 1fedf62 (be8114e..3499c1e); no conflicts",
+    "merge_tree": {
+      "04c vs 04d": "clean",
+      "04d vs 04d2": "clean",
+      "04d2 vs 04e": "clean"
+    },
+    "local": [
+      "Shop forced builds x6 green; Legacy UC10 target -> CS0029, CS0411, CS0618",
+      "04d spec net10/net11 268/268",
+      "04d2 spec net10/net11 292/292",
+      "04d2 e2e dotnet run 34/34; check-snippets self-test pass",
+      "ls-lint 2.3.1 on clean exports of 04d, 04d2, 04e: 0 failures in 10-20 runs each"
+    ],
+    "note": "UC10 now has no spec fixture (23a adds it); the e2e runner still holds UC10's cases to the line. Spec commits on #45 are now three (1fedf62, a688af8, 3499c1e)."
   }
 }
