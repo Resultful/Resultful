@@ -38,8 +38,9 @@ publishes only the packages that changed, as in `Resultful.Assertions`.
 
 | Package | Purpose | May depend on | Targets |
 |---|---|---|---|
-| `Resultful` | `Result<T>`, `Result<T, TError>`, `VoidResult`, `VoidResult<TError>`, `Option<T>`, composition, LINQ, async, operators | **nothing** | `netstandard2.0`, `net10.0`, `net11.0` |
+| `Resultful` | `Result<T>`, `Result<T, TError>`, `Validation<T, TError>` and `Error` (*decision 14*), `Unit`, `VoidResult` (deprecated), `Option<T>`, `Resultful.CodeAnalysis` attributes, composition, LINQ, async, operators | **nothing** | `netstandard2.0`, `net10.0`, `net11.0` |
 | *`Resultful.Analyzers`* | Roslyn analyzers and code fixes, a separate package that a project opts into (the core carries no analyzer assets) | Roslyn (build time only), as a development dependency | `netstandard2.0` (analyzer) |
+| *`Resultful.Generators`* | Incremental source generator for Tier 1 `[ClosedHierarchy]` plumbing/mappers and Tier 2 `[ResultShape]` union-backed structs ([decision 16](decisions/0016-source-generated-result-shapes.md)) | Roslyn (build time only), as a development dependency | `netstandard2.0` (analyzer) |
 | `Resultful.OneOf` | `ToOneOf`, `FromOneOf`, `None` interop | `OneOf` ≥ 3.0.271 | as core |
 | *`Resultful.AspNetCore`* | `ToHttpResult()`, `Results<Ok<T>, ProblemHttpResult>`, ProblemDetails, endpoint filter, error-to-status map, Minimal API validation bridge | `Microsoft.AspNetCore.App` framework reference | `net10.0`, `net11.0` |
 | *`Resultful.Text.Json`* | `System.Text.Json` converters, source-generation friendly, AOT-safe | in-box `System.Text.Json` | `net10.0`, `net11.0` |
@@ -83,12 +84,14 @@ The target layout, following the sibling projects (Iceberg.NET, Diffra):
 src/
   Resultful/                      core
   Resultful.Analyzers/            separate package
+  Resultful.Generators/           separate incremental generator package
   Resultful.OneOf/  Resultful.AspNetCore/  Resultful.Text.Json/  ...
 tests/
   Resultful.Tests/                NUnit examples (today's suite)
   Resultful.Properties.Tests/     xunit.v3 + CsCheck laws
   Resultful.NetStandard.Tests/    loads the netstandard2.0 asset
   Resultful.Analyzers.Tests/
+  Resultful.Generators.Tests/
   Resultful.AotSmoke/             native-AOT publish check
 samples/                          Minimal API, MediatR, Polly, EF Core
 benchmarks/Resultful.Benchmarks/  BenchmarkDotNet

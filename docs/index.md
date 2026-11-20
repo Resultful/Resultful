@@ -24,9 +24,17 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Vision](vision.md) | Why Resultful exists, what it is and is not, who it is for |
 | [Roadmap](roadmap.md) | Long-term milestones to 1.0 and beyond, and the assertions track |
 | [Architecture](architecture.md) | The package family across both repositories, dependency rules, layout |
+| [The error shape](error-shape.md) | How Resultful models failure, and the shapes an application builds from it (proposed) |
+| [Errors in practice](errors-in-practice.md) | Ten use cases from an application's side: the code, how to use it well, and what each catches (proposed) |
 | [Decisions](decisions/index.md) | Every decision, dated, with why |
 | [Log](log.md) | What changed in these documents, by date |
 | [Seamless with .NET](explorations/seamless-with-dotnet.md) | Exploration: operators, unions, nullable flow and framework integration |
+| [One error or many](explorations/one-error-or-many.md) | Exploration: `Result` and `Validation`, and an `Error` type that earns its place |
+| [Error handling: prior art](references/error-handling-prior-art.md) | Reference: how other .NET libraries and languages shape and compose errors, and what Resultful took |
+| [Analyzers for your own types](explorations/analyzers-for-your-own-types.md) | Exploration: analyzer rules driven by attributes, and exhaustive switches over a closed hierarchy |
+| [Source-generated shapes](explorations/source-generated-shapes.md) | Exploration: Tier 1 closed-hierarchy & mapper generation, Tier 2 domain result shapes |
+| [Building the generator](explorations/building-the-generator.md) | Exploration: generator diagnostics, incremental pipeline, size budget, and checks on the emitted code |
+| [Testing the shapes](explorations/testing-the-shapes.md) | Exploration: the target state for result shapes and the core under them, and the layers of tests that prove each behaviour |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).

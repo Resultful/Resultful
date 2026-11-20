@@ -14,8 +14,26 @@ generated:
 ## The goal
 
 Resultful should make failure part of a C# signature without making the code around it any less C#
-([vision](vision.md)). Long term, that means:
+([vision](vision.md)). The target consumer experience is a stack-allocated result shape, named after the
+operation, that switches exhaustively over its success and every error case ([decision 16](decisions/0016-source-generated-result-shapes.md)):
+
+```csharp
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+var response = Place(cart) switch
+{
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
+};
+```
+
+Long term, that means:
 - a dependency-free core that feels native to the language
+- opt-in analyzers and source generators (`Resultful.Analyzers`, `Resultful.Generators`) that turn closed error
+  hierarchies and `[ResultShape]` declarations into zero-boilerplate, union-backed result structs
 - satellite packages that remove the friction at each framework boundary
 - an assertions family for every assertion library people use
 
@@ -66,12 +84,19 @@ characterisation suite pins every public operator's current behaviour, and cover
   - `TryGetValue`/`TryGetError`
   - `Deconstruct`
   - `OrElse`, `ValueOr`
+- `Validation<T, TError>`, a new type that gathers errors into a non-empty list, with `Validation.Combine` and
+  `ToResult(combine)`. They work with string errors now, and take `Error` when it arrives
+  in M3 (*proposed in [decision 14](decisions/0014-result-and-validation.md)*, brought forward so nothing M2 ships
+  breaks in M3).
+- A conversion from `VoidResult` to `Result<Unit>` (the other direction and `Unit` already ship), so a step with no
+  value can move to one spelling. M3 marks `VoidResult` `[Obsolete]` and makes `Result.Ok()` return
+  `Result<Unit>`; the 1.0 review removes it (*decision 14*).
 - Operators over those methods, opt-in through `using Resultful.Operators;`
   ([decision 9](decisions/0009-operators-are-opt-in-sugar.md)):
-  - `+ - *` with error accumulation
+  - `+ - *` with error accumulation, on `Validation` (today's `Result.Plus` stays until it's deprecated)
   - `|` and `||` fallback
   - `>>` bind
-  - `&` tuple combine
+  - `&` tuple combine, on `Validation`
   - the same operators on `Task<Result<T>>`
   - a precedence table in the README
 - Collection operators on results of arrays, immutable lists, sets and dictionaries, with equality from the
@@ -105,15 +130,28 @@ table.
   - `Result<string>` built from a bare string
   - a `Match` that should be a `switch`
 - Code fixes where the rewrite is unambiguous.
+- *Proposed in [decision 15](decisions/0015-analyzer-rules-read-attributes.md):* rules read attributes, so a
+  user's own types get the same checks, plus exhaustive `switch` over a `[ClosedHierarchy]`.
+- `Resultful.Generators`, a separate incremental source-generator package
+  ([decision 16](decisions/0016-source-generated-result-shapes.md),
+  [exploration](explorations/source-generated-shapes.md)):
+  - **Tier 1 (`[ClosedHierarchy]`):** `private protected` constructor for compiler-enforced cross-assembly closure,
+    exhaustive `Match`/`Switch` across nested hierarchies, and deterministic outer-to-inner `Causes()` `TryMap`.
+  - **Tier 2 (`[ResultShape(typeof(TError), Success = typeof(T))]`):** a narrow, non-generic `readonly partial struct` with Decision 10's
+    zero-value guard, `[MustObserve]`, implicit conversions from `T` and error leaves, railway methods, and
+    widening to `Result<T>` / `Result<T, TError>`, conversions in from `Result<T, TError>` and other shapes,
+    `WithContext` that keeps the shape, and a generator error when the success type overlaps an error case.
 
-**Done when** each rule has positive and negative tests, and the samples build with no analyzer warnings.
+**Done when** each analyzer rule and generator tier has positive and negative tests, generated shapes obey
+Decision 10 and widen cleanly to `Result<T>`, and the samples build with no warnings.
 
 ## M5. Framework packages
 
 [The architecture](architecture.md) lists each package's dependencies.
 
 - A structured `Error` type in the core: `Code`, `Description`, `Type`, `Metadata`. **This is additive**:
-  `Result<T>` keeps message errors, and `Error` is used through `Result<T, Error>`.
+  `Result<T>` keeps message errors, and `Error` is used through `Result<T, Error>`. *Under review: proposed
+  [decision 14](decisions/0014-result-and-validation.md) would replace this item.*
 - `Resultful.AspNetCore`: typed results, ProblemDetails (RFC 9457), endpoint filter, error-to-status map,
   Minimal API validation bridge.
 - `Resultful.Text.Json` and an AOT smoke test: `IsAotCompatible` on the core, and a native-AOT sample published
@@ -126,15 +164,20 @@ publishes with no trim or AOT warnings.
 
 ## M6. Unions on .NET 11
 
-[Decision 3](decisions/0003-unions-are-chosen-by-measurement.md).
+[Decisions 3](decisions/0003-unions-are-chosen-by-measurement.md) and
+[16](decisions/0016-source-generated-result-shapes.md).
 
-- A custom `[Union]` with a member provider and non-boxing `TryGetValue`.
+- A custom `[Union]` with a member provider and non-boxing `TryGetValue` on the core result types.
+- `[ResultShape]` union scaffolding in `Resultful.Generators` behind `#if NET11_0_OR_GREATER`: emits `[Union]`,
+  `IUnion`, `HasValue`, `public object? Value`, and per-leaf union constructors + non-boxing `TryGetValue(out Leaf)`
+  for `[ClosedHierarchy]` errors, enabling flat and grouped exhaustive `switch` expressions with no `_` arm and no
+  suppressor.
 - A correctness matrix covering overlapping case types and the zero value, then BenchmarkDotNet results for
   net10 against net11.
 - Shipped behind `#if NET11_0_OR_GREATER`, with a decision recording the numbers.
 
-**Done when** `result switch { … }` is exhaustive on `net11.0` with no boxing on the hot path, or the decision
-records why not.
+**Done when** both `result switch { … }` and a generated shape's `Place(cart) switch { Order o => …, OrderNotFound => …, OrderLocked => …, CardDeclined => … }`
+are exhaustive on `net11.0` with no boxing on the hot path, or the decision records why not.
 
 ## M7. Stable (`1.0.0`)
 

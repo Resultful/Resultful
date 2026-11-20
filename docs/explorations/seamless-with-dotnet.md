@@ -187,8 +187,11 @@ Ranked by how much friction each removes:
    error-to-status map, and an endpoint filter so a Minimal API handler can simply return `Result<T>`.
 2. **A structured `Error`** (in the core, opt-in): `Code`, `Description`, `Type` (validation, not found,
    conflict, unexpected) and `Metadata`, with no HTTP coupling. `Type` is what the AspNetCore map reads. It also
-   removes the string-as-error ambiguity.
-3. **`Resultful.Analyzers`** (shipped inside the core package as an analyzer asset, no runtime dependency):
+   removes the string-as-error ambiguity. *Under review: proposed
+   [decision 14](../decisions/0014-result-and-validation.md) replaces this with `Result`, `Validation` and a
+   smaller `Error`; see [One error or many](one-error-or-many.md).*
+3. **`Resultful.Analyzers`** (a separate package, per [decision 11](../decisions/0011-package-family.md); no
+   runtime dependency):
    - a result that is never observed
    - `Value` used without a check
    - a `Match` that should be a `switch`

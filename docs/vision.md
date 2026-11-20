@@ -23,7 +23,23 @@ In idiomatic C#, failure is usually hidden: exceptions, `null`, `TryX(out ...)` 
 knows nothing about. Callers forget to handle it, errors from independent checks cannot be gathered together,
 and a sequence of fallible steps becomes nested `if`s and `try` blocks. Railway Oriented Programming solves this
 in functional languages. Resultful brings it to C# in C#'s own idiom, so it doesn't feel like a foreign language
-inside your codebase.
+inside your codebase:
+
+```csharp
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+var response = Place(cart) switch
+{
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
+};
+```
+
+No base class to inherit, no `_` catch-all, and no boxing — add a new failure case and the compiler tells every
+caller that hasn't handled it.
 
 ## What Resultful is
 
@@ -36,7 +52,9 @@ inside your codebase.
 - **A foundation that costs nothing to take.** The core has no dependencies, allocates as little as the language
   allows, and works under trimming and native AOT. Interop with other libraries ships separately.
 - **In step with the language.** As C# gains native features for this (discriminated unions, exhaustive
-  matching), Resultful adopts them rather than competing with them.
+  matching), Resultful adopts them rather than competing with them. Domain result shapes generated from closed
+  error hierarchies lower directly to `.NET 11` `[Union]` structs, so callers `switch` exhaustively over success
+  and every error case with no `_` arm and no base-class inheritance.
 
 ## What Resultful is not
 
