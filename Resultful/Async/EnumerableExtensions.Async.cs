@@ -77,6 +77,6 @@ namespace Resultful
             }
         }
 
-        
+
     }
 }

@@ -121,6 +121,43 @@ If you do not want to provide a plus function upfront for your success values th
 This is a way to take an `IEnumerable<Result<T, TError>>` and return either `Result<T, TError>` or `Result<TResult, TError>` based on what you want for the result.
 You always provide an accumulator function which should be `Func<TResult, T, TResult>` or `Func<T, T, T>`
 
+### Then, Sequence and Check
+
+`Plus` and `Fold` collect every error, which suits independent checks. When each step depends on the one before,
+use `Then`, `Sequence` and `Check`: every step runs only if everything before it succeeded, and the first failure is
+returned unchanged, including any errors it already carried.
+
+```cs
+VoidResult PlaceOrder(Order order)
+    => Result.Sequence(
+        () => Validate(order),
+        () => Reserve(order.Items),
+        () => Charge(order.Payment))
+    .Then(() => Notify(order.Customer));
+
+Result<string> NormaliseName(string input)
+    => input.Ok()
+        .Then(Trim, NotEmpty, ToTitleCase)                        // Func<string, Result<string>> steps
+        .Check(name => name.Length <= 100 ? Result.Ok() : "name is too long"); // can fail, keeps the value
+```
+
+- `Sequence(...)` starts a chain of `VoidResult` steps.
+- `Then(...)` continues it, either with more `VoidResult` steps or with a single step that produces a value
+  (`VoidResult.Then(() => 42.Ok())`, with no `Unit` argument to ignore).
+- On `Result<T>`, `Then` pipes the value through steps that return the same type, and `Check` runs steps that can
+  fail without replacing the value.
+
+Each method has the same forms for `Result<T, TError>` and `VoidResult<TError>`, an `Async` variant whose steps return a
+`Task`, and an overload on `Task<...>` so that sync and async steps can be mixed in one chain:
+
+```cs
+var result = await Result.SequenceAsync(() => LoadAsync(id))
+    .Then(Validate)
+    .ThenAsync(() => FetchNameAsync(id))
+    .Then(Trim, NotEmpty)
+    .CheckAsync(name => AuditAsync(name));
+```
+
 ## IPlus
 
 When adding two or more items together of the same type. You have the option to pass in a addition function for both `TError` type and `T`, but as an alternative to this you can add the `IPlus<>` Interface to your type.

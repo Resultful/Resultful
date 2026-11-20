@@ -134,7 +134,7 @@ namespace Resultful
                 return error;
             });
 
-        public async Task<VoidResult<TError>> TeeErrorAsync(Func<TError,Task> asyncFunc)
+        public async Task<VoidResult<TError>> TeeErrorAsync(Func<TError, Task> asyncFunc)
             => await MapErrorAsync(async error =>
             {
                 await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(error).ConfigureAwait(false);

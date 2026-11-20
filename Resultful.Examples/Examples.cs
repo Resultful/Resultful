@@ -11,7 +11,7 @@ namespace Resultful.Examples
         }
     }
 
-    public class Examples: Controller
+    public class Examples : Controller
     {
         #region Build
         private Result<int, Error> ParseInt(string input)
