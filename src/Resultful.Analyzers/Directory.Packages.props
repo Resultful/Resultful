@@ -1,0 +1,10 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring (16a's PR body). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <!-- One build for now, against Roslyn 4.14.0 (SDK 9.0.3xx), the lowest the plan names: it loads in every later
+         compiler. The per-Roslyn split (roslyn4.14 and roslyn5.x folders) is 13b/17. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+  </ItemGroup>
+</Project>
