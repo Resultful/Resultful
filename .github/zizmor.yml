@@ -1,7 +1,7 @@
 # zizmor configuration (lint job). Every suppression says why and when it can go.
 rules:
   use-trusted-publishing:
-    # Publishing uses the org NUGET_KEY secret until a NuGet trusted-publishing policy is set up on nuget.org
-    # (NuGet/login with id-token: write). Remove this when the publish job moves to it.
+    # Publishing (publish, publish-preview-push) uses NuGet API key secrets until a NuGet trusted-publishing policy
+    # is set up on nuget.org (NuGet/login with id-token: write). Remove this when both jobs move to it.
     ignore:
       - ci.yml

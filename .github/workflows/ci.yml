@@ -10,6 +10,14 @@ on:
         description: Push the packed packages to nuget.org
         type: boolean
         default: false
+      preview:
+        description: Publish 0.3.0-preview.N from a rtkelly13/stack-* branch; give N (a positive integer), or leave empty
+        type: string
+        default: ''
+      dry-run:
+        description: With preview, pack and check but push nothing
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -135,3 +143,135 @@ jobs:
             exit 1
           fi
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  # Every run except a dispatch: pack every package as 0.3.0-preview.0 the way publish-preview does, and push nothing.
+  preview-dry-run:
+    name: preview-dry-run
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # SourceLink and the package's repository commit
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: '10.0.x'
+
+      - name: Pack, check versions, restore together
+        run: dotnet run eng/preview-packages.cs -- 0 artifacts/preview
+
+      - name: Check package shape
+        run: dotnet run eng/verify-package.cs -- artifacts/preview/*.nupkg
+
+  # Previews are dispatched by the maintainer, never by merging or pushing (docs/decisions/0007-ci-follows-rig.md):
+  #   gh workflow run ci.yml --ref rtkelly13/stack-NN-name -f preview=N -f dry-run=false
+  # publish-preview packs and checks with no secrets; publish-preview-push alone uses the nuget-preview environment.
+  publish-preview:
+    name: publish-preview
+    if: github.event_name == 'workflow_dispatch' && inputs.preview != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check the branch and the preview number
+        env:
+          PREVIEW: ${{ inputs.preview }}
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/heads/rtkelly13/stack-plan) echo "::error::the plan branch is never published; nothing was packed."; exit 1 ;;
+            refs/heads/rtkelly13/stack-*) ;;
+            *) echo "::error::previews are published only from a rtkelly13/stack-* branch, not $REF; nothing was packed."; exit 1 ;;
+          esac
+          if ! [[ "$PREVIEW" =~ ^[1-9][0-9]{0,8}$ ]]; then
+            echo "::error::preview must be a positive integer N (for 0.3.0-preview.N), not '$PREVIEW'; nothing was packed."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # SourceLink and the package's repository commit
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: '10.0.x'
+
+      - name: Pack, check versions, restore together
+        env:
+          PREVIEW: ${{ inputs.preview }}
+        run: dotnet run eng/preview-packages.cs -- "$PREVIEW" artifacts/preview
+
+      - name: Check package shape
+        run: dotnet run eng/verify-package.cs -- artifacts/preview/*.nupkg
+
+      - name: Upload packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-packages
+          path: artifacts/preview
+          if-no-files-found: error
+
+  publish-preview-push:
+    name: publish-preview-push
+    needs: [ build, lint, publish-preview ]
+    if: github.event_name == 'workflow_dispatch' && inputs.preview != '' && !inputs.dry-run && startsWith(github.ref, 'refs/heads/rtkelly13/stack-') && github.ref != 'refs/heads/rtkelly13/stack-plan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    environment: nuget-preview
+    # One push at a time across all branches, and never cancelled midway: a pull request run can't stop it.
+    concurrency:
+      group: publish-preview
+      cancel-in-progress: false
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: preview-packages
+          path: artifacts
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Refuse anything but 0.3.0-preview.N
+        env:
+          PREVIEW: ${{ inputs.preview }}
+        run: |
+          shopt -s nullglob
+          packages=(artifacts/*.nupkg)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "::error::no packages to push"
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            case "$package" in
+              *".0.3.0-preview.$PREVIEW.nupkg") echo "push $package" ;;
+              *) echo "::error::$package is not version 0.3.0-preview.$PREVIEW; nothing was published."; exit 1 ;;
+            esac
+          done
+
+      # No --skip-duplicate: a preview number is used once. If a push fails, the next preview uses the next number.
+      - name: Push to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_PREVIEW_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::the nuget-preview environment's NUGET_PREVIEW_KEY secret is not available; nothing was published."
+            exit 1
+          fi
+          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
