@@ -24,7 +24,7 @@ Rows are in stack order.
 | 10 | rtkelly13/stack-10-validation |  | todo |  |
 | 11 | rtkelly13/stack-11-oneof-split |  | todo |  |
 | 12 | rtkelly13/stack-12-void-to-unit |  | todo |  |
-| 12b | rtkelly13/stack-12b-text-json |  | todo | JSON structural assertions for every later PR |
+| 12b | rtkelly13/stack-12b-text-json | #48 | review | drafted ahead on 04c@5b8b23a; f7b40ca; API equals target; 96/104 tests green against a stand-in core; reviewer running |
 | 18 | rtkelly13/stack-18-operators |  | todo |  |
 | 19 | rtkelly13/stack-19-async |  | todo | checkpoint: core done |
 | 13b | rtkelly13/stack-13b-generator-package |  | todo |  |
