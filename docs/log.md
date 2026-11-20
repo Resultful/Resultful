@@ -13,6 +13,9 @@ generated:
 
 ## 2026-11-20
 
+- Long-term plan: roadmap rewritten as milestones (M1 to M7, beyond 1.0, and an assertions track); architecture
+  added; decisions 11 to 13 proposed (package family, `Resultful.Assertions`, repository layout). The
+  exploration gains the collections probe.
 - Decision 10 accepted: an invalid zero value, an obsolete-error parameterless constructor, and an analyzer rule.
 - Exploration *Seamless with .NET*: C# 14 extension operators probed against the current types; two
   existing hazards found (`default` is success; a bare string converts to an error). Decisions 9 and 10 proposed.

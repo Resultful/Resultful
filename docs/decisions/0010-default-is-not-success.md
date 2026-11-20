@@ -4,7 +4,7 @@ title: "default is not a success"
 description: "C# can't stop a struct's zero value from existing: `default`, array elements, uninitialised fields and `new T()`
 under a `new()` constraint all produce it. This was verified on .NET 11. So the zero value is made harmless and
 the ways of writing it are caught, in three layers. All three ship with the dependency-free storage
-([decision 1](0001-core-is-dependency-free.md), roadmap step 5):
+([decision 1](0001-core-is-dependency-free.md), roadmap M3):
 
 1. **The zero value is invalid at run time.** The storage keeps a state byte, where 0 means uninitialised and the
    other values mean success and failure. On an uninitialised value, `Match`, `Switch`, `Value` and the operators
@@ -28,4 +28,4 @@ Still to check: the .NET 11 union experiment ([decision 3](0003-unions-are-chose
 whether a union's zero value (`HasValue == false`) gets extra compile-time checks in an exhaustive `switch`.
 
 Consequences: this is a behaviour break and ships with `0.3.0-beta01` ([decision 8](0008-version-0-3-0.md)), with
-characterisation tests from roadmap step 4 showing the change.
+characterisation tests from roadmap M1 showing the change.
