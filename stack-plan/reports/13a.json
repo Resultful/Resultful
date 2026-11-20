@@ -2,36 +2,73 @@
   "pr": 46,
   "pr_url": "https://github.com/Resultful/Resultful/pull/46",
   "branch": "rtkelly13/stack-13a-generator-target",
-  "head_sha": "a74d0854364e6584ad46d43a80ab925cf81120e8",
+  "head_sha": "46a46fd2765dc9bc893203a44efd060e542875bf",
   "started_from": "origin/rtkelly13/stack-04c-spec-harness at 5b8b23a (worktree created at c4ea0e7, fast-forwarded to 5b8b23a before the first commit; nothing had been pushed)",
   "cherry_picks": [],
   "commits": [
     "9ed766b feat(generators): copy the generator experiment from #37 unchanged",
-    "a74d085 feat(generators): compile the generator against the 0.3 target API"
+    "a74d085 feat(generators): compile the generator against the 0.3 target API",
+    "9c4ac5b fixup! (review 1, 8) [Union] gated on language version >= 1500 as well as UnionAttribute; test with C# 14 on net11 refs; one path->tree lookup per diagnostic output call",
+    "396336b fixup! (review 3, 6) `new` only where a closed ancestor really emits the member (no CS0109); RFG0002/0003/0008 reported once by the nearest [ClosedHierarchy]; tests",
+    "d863b61 fixup! (review 2) fuzz: OpenLeaf becomes a base, generated trees must have no diagnostic of any severity even with RFG errors, weights rebalanced (39-47% clean, 30% floor asserted)",
+    "c2fd6ef fixup! (review 4) VersionOverride=4.14.0 restored, generator's nested Directory.Packages.props removed",
+    "46a46fd fixup! (review 5, 9) OtherShape half deferred to 15; Ok(Unit) dropped; budgets re-measured; IL forwarding 45 vs doc 32 noted for 13b"
   ],
   "local_runs": [
-    {"command": "dotnet build src/Resultful.Generators/Resultful.Generators.csproj -m:2 -c Release", "result": "succeeded, 0 warnings"},
-    {"command": "dotnet build tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -m:2 -c Release", "result": "succeeded"},
-    {"command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net10.0", "result": "total 41, succeeded 40, skipped 1 (UERR-RFG0007, net11.0-only), failed 0"},
-    {"command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net11.0", "result": "total 44, succeeded 44, failed 0"},
-    {"command": "RESULTFUL_FUZZ_ITER=400 (both TFMs, before the final small edits)", "result": "all passed"},
-    {"command": "dotnet build tests/Resultful.Spec/Resultful.Spec.csproj -m:2 -c Release; RESULTFUL_SPEC_GENERATOR=src/Resultful.Generators/bin/Release/netstandard2.0/Resultful.Generators.dll dotnet run --project tests/Resultful.Spec/Resultful.Spec.csproj -c Release --no-build -f net10.0 -- --filter-method '*Fixture_compiles_against_the_target_api'", "result": "total 122, failed 2: GEN-RFG0005 (spec bug), SHAPE-INTO (owner 15)"},
-    {"command": "same, -f net11.0", "result": "total 122, failed 9: GEN-RFG0005 (spec bug), SHAPE-INTO and UERR-WIDEN (owner 15), UERR-SHAPE, UERR-NESTED-TRYFIND, UERR-NESTED-CONTEXT, UERR-NESTED-LEAF-CONVERSION, UERR-NESTED-ERROR, UERR-NESTED-ONECASE (owner 13b)"},
-    {"command": "mutation check: HidesCases=false, then hidesDispatch=false", "result": "fuzz failed with CS0108 both times (restored afterwards)"}
+    {
+      "command": "dotnet build tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -m:2 -c Release",
+      "result": "succeeded, 0 warnings"
+    },
+    {
+      "command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net10.0",
+      "result": "total 43, succeeded 42, skipped 1 (UERR-RFG0007, net11-only), failed 0; fuzz 65/150 plans clean"
+    },
+    {
+      "command": "dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj -c Release --no-build -f net11.0",
+      "result": "total 47, succeeded 47, failed 0; fuzz 70/150 plans clean"
+    },
+    {
+      "command": "seeded fault: derived.Sort depth ascending (order reversal), then the FuzzTests class on net10.0 and net11.0",
+      "result": "fuzz failed on both TFMs with CS8120 in the generated switch; fault reverted"
+    },
+    {
+      "command": "earlier seeded faults: HidesCases=false; hidesDispatch=false",
+      "result": "fuzz failed with CS0108 each time"
+    },
+    {
+      "command": "RESULTFUL_SPEC_GENERATOR=<generator dll> dotnet run --project tests/Resultful.Spec -c Release --no-build -f net10.0 -- --filter-method '*Fixture_compiles_against_the_target_api'",
+      "result": "total 122, failed 3: GEN-RFG0005 (spec fix pending in 04c), SHAPE-UNIT (now Ok() only; 04c moving the fixture to Ok()), SHAPE-INTO (owner 15)"
+    },
+    {
+      "command": "same, -f net11.0",
+      "result": "total 122, failed 10: the 3 above plus UERR-WIDEN (owner 15), UERR-SHAPE and UERR-NESTED-{TRYFIND,CONTEXT,LEAF-CONVERSION,ERROR,ONECASE} (owner 13b)"
+    }
   ],
-  "gen_ids_passing_locally": ["GEN-CLEAN", "GEN-RFG0001", "GEN-RFG0002", "GEN-RFG0003", "GEN-RFG0004", "GEN-RFG0006", "GEN-RFG0008 (ledger owner 13b)", "UERR-RFG0007 (net11.0; ledger owner 13b)"],
-  "gen_ids_failing": {"GEN-RFG0005": "the fixture as written is CS1729 on its marked line, whatever the generator does; the proposed fix passes (tests/Resultful.Generators.Tests/GenFixtures/GenRfg0005Proposed.cs)"},
+  "gen_ids_passing_locally": [
+    "GEN-CLEAN",
+    "GEN-RFG0001",
+    "GEN-RFG0002",
+    "GEN-RFG0003",
+    "GEN-RFG0004",
+    "GEN-RFG0006",
+    "GEN-RFG0008 (ledger owner 13b)",
+    "UERR-RFG0007 (net11.0; ledger owner 13b)"
+  ],
+  "gen_ids_failing": {
+    "GEN-RFG0005": "the fixture as written is CS1729 on its marked line, whatever the generator does; the proposed fix passes (tests/Resultful.Generators.Tests/GenFixtures/GenRfg0005Proposed.cs)"
+  },
   "ledger_changes": "none; every line stays pending (drafted ahead)",
   "roslyn_version": "generator compiled against Microsoft.CodeAnalysis.CSharp 4.14.0 (as #37); tests use 5.12.0 (as tests/Resultful.Spec)",
   "spec_findings": [
     "GEN-RFG0005 can't pass: Outer.NestedError has no constructor and the generator can't reopen non-partial Outer, so CS1729 is reported on the marked line. Proposed: give it `protected NestedError(string m) : base(m) { }`.",
     "Contract gives RFG0007/RFG0008 to 13a; diagnostics.tsv and the ledger say 13b. Implemented here; ledger owners untouched.",
     "building-the-generator.md's prefixing rule for colliding short names is superseded by RFG0008 (round 4); the doc still says prefix.",
-    "SHAPE-UNIT calls Ok(Unit.Value) while generated-members.tsv says Ok() for a valueless shape; both emitted."
+    "SHAPE-UNIT calls Ok(Unit.Value) while generated-members.tsv says Ok() for a valueless shape; both emitted.",
+    "04c is fixing GEN-RFG0005 (proposed constructor), SHAPE-UNIT (-> Ok()) and the doc bullet"
   ],
   "wiring": [
     "Resultful.slnx: add src/Resultful.Generators and tests/Resultful.Generators.Tests",
-    "Directory.Packages.props: Microsoft.CodeAnalysis.CSharp 4.14.0 (generator) / 5.12.0 (tests), xunit.v3 4.0.2, CsCheck 5.0.1; delete the two nested Directory.Packages.props",
+    "Directory.Packages.props: central Microsoft.CodeAnalysis.CSharp 5.12.0 (tests); the generator keeps VersionOverride=4.14.0 until 13b's per-Roslyn split; xunit.v3 4.0.2, CsCheck 5.0.1; delete tests/Resultful.Generators.Tests/Directory.Packages.props",
     ".ls-lint.yml: | regex:api for src/*/api/",
     "ci.yml or eng/run-tests.cs: run the generator tests on net10.0 and net11.0",
     "merge GeneratorTestHarness into SpecHarness; delete GenFixtureTests.cs and GenFixtures/ once SpecHarness runs GEN-* against the real generator"
@@ -55,6 +92,16 @@
     "Budgets re-measured against the target stubs; 13b must re-measure against the real core.",
     "Generated code uses MaybeNullWhen; a netstandard2.0 consumer without the polyfill would fail. Not tested (fixtures are net10/net11 only).",
     "Leaves from another assembly that are internal there are not filtered out of the case list.",
-    "CI not waited on."
+    "CI not waited on.",
+    "Intermediate fixup commits were not each built on their own; the head builds and passes",
+    "A leaf whose nearest [ClosedHierarchy] has RFG0005/RFG0006 loses its own RFG0002/RFG0003, because that hierarchy stops before resolving leaves. An RFG error is still reported"
+  ],
+  "fixup_policy": "append only: fixups pushed with a normal push, no rebase or force-push",
+  "decisions_taken": [
+    "a generic [ClosedHierarchy] base is RFG0006",
+    "RFG0004 covers any shape exposing a less accessible leaf (effective accessibility)",
+    "a protected/private leaf silently drops Match/Switch/TryMap from its hierarchy (documented; a diagnostic would need a spec: change to diagnostics.tsv)",
+    "valueless shape: Ok() only, no Ok(Unit)",
+    "ManyErrors shape: no AsResult(); Result<T> through Validation.ToResult; WithContext through MapError (one closure)"
   ]
 }
