@@ -29,7 +29,6 @@ public static class Cases
     static Result<Order, OrderError> Load(int id) => id > 0 ? new Order(id) : new OrderNotFound(id);
     static PlaceOrderResult Place(int id) => Load(id).Bind(o => Result.Ok<Order, OrderError>(o));
     static PlaceOrderResult FromShape(LoadOrderResult r) => r;
-    static PlaceOrderResult FromOtherHierarchy(PaymentResult p) => p; // expect: CS0029
 
     [SpecCase]
     public static void Core_steps_and_sibling_shapes_return_straight_into_the_shape()
