@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net10.0;net11.0</TargetFrameworks>
     <AssemblyName>Resultful</AssemblyName>
     <Description>Functional Error Handling library that is intended to be idiomatic for C#. Based on the Railway Oriented Programming idea</Description>
   </PropertyGroup>
@@ -30,6 +30,10 @@
       3.0.271 adds an empty netstandard2.0 group. eng/verify-package.cs enforces this floor.
     -->
     <PackageReference Include="OneOf" />
+    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt in review. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- A `net11.0` target. The SDK is now 11.0.100.
+
 ### Build
 
 - CI hardened: least-privilege tokens, no persisted credentials, SDK from `global.json`, NuGet cache, format check,
   pack and package check on every pull request, zizmor, ls-lint, Dependabot.
+- Public API tracking with `Microsoft.CodeAnalysis.PublicApiAnalyzers`.
 - The package check is a C# file-based app: `dotnet run eng/verify-package.cs -- <nupkg>`.
 - Publishing is a manual workflow run (`publish` input); merging to `main` never publishes.
 
