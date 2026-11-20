@@ -13,6 +13,13 @@ generated:
 
 ## 2026-11-20
 
+- *Building the generator* added, folded into the error design branch: diagnostics `RFG0001`–`RFG0006` for deep
+  and awkward hierarchies, cases ordered most-derived first, a two-stage incremental pipeline after
+  `Parquet.SourceGenerator`, a size budget for generated members and IL, and checks on the emitted `.g.cs` with no
+  golden files. Verified: CS0051, CS0552 and CS8510 behind three of the rules, and that an extension on an
+  interface the shape implements binds (boxing) while a constrained generic doesn't (CS0411). Decision 16 gains
+  item 10.
+
 - Review of the error design, folded into one branch (decisions 14, 15 and 16):
   - Decision 16 amended by the maintainer: narrow, operation-named shapes (`PlaceOrderResult`) replace the generic
     `OrderResult<T>`, which misclassified an overlapping `T` at run time (verified); an overlapping success type

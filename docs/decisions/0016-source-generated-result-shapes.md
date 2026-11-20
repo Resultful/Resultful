@@ -87,6 +87,11 @@ To make this the centrepiece of the library while keeping the core dependency-fr
    (every leaf) and grouped switches (intermediate bases) are checked by `csc` itself with no `_` arm and no
    `CS8509` suppressor (**verified** for a generic and a hand-written narrow shape; removing an arm gives CS8509).
    On `netstandard2.0` and `net10.0`, the same declaration falls back to the generated `Match`/`Switch`.
+10. **How the generator is built and checked** is specified in
+   [Building the generator](../explorations/building-the-generator.md): the `RFG0001`–`RFG0006` diagnostics,
+   cases ordered most-derived first (CS8510 otherwise, **verified**), a two-stage incremental pipeline that caches
+   only plain data, a budget on generated members and IL, and checks on the emitted `.g.cs` without golden files.
+   The generator experiment builds against that page.
 
 Why:
 - Replaces `OneOfBase`'s heap-allocated class inheritance and `.Match(...)` boilerplate with a stack-allocated
@@ -111,9 +116,11 @@ Consequences:
 - If item 8 is accepted: generated code calls the core, so `Resultful.Generators` requires the `Resultful` package. Declaring your own
   copy of an attribute without referencing Resultful ([decision 15](0015-analyzer-rules-read-attributes.md))
   works for the analyzers only.
-- Whatever item 8 decides, core extension methods don't bind to a shape: generic inference ignores user-defined conversions, so neither
-  `placeOrderResult.Tap(…)` nor an `await` on `Task<PlaceOrderResult>` finds them. The generator forwards the
-  common members; which ones, and the async story, are open.
+- Whatever item 8 decides, core extension methods on `Result<T, TError>` don't bind to a shape: generic inference
+  ignores user-defined conversions, so neither `placeOrderResult.Tap(…)` nor an `await` on `Task<PlaceOrderResult>`
+  finds them. An extension on a core interface the shape implements (`this IResultShape<T, TError>`) does bind, but
+  boxes the struct; a constrained generic gives CS0411 (both **verified**). The generator forwards `Map` and `Bind`
+  until the box is measured; the async story is open.
 - Roslyn source generators can't see code emitted by other generators in the same compilation (verified on the
   exploration's branch with `System.Text.Json.SourceGeneration`), so shapes either widen to `Result<T>` at
   JSON/HTTP boundaries or emit their own AOT-safe converters.

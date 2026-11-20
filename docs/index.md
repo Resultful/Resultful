@@ -33,6 +33,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Error handling: prior art](references/error-handling-prior-art.md) | Reference: how other .NET libraries and languages shape and compose errors, and what Resultful took |
 | [Analyzers for your own types](explorations/analyzers-for-your-own-types.md) | Exploration: analyzer rules driven by attributes, and exhaustive switches over a closed hierarchy |
 | [Source-generated shapes](explorations/source-generated-shapes.md) | Exploration: Tier 1 closed-hierarchy & mapper generation, Tier 2 domain result shapes |
+| [Building the generator](explorations/building-the-generator.md) | Exploration: generator diagnostics, incremental pipeline, size budget, and checks on the emitted code |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).

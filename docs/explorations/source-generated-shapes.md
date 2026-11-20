@@ -239,7 +239,9 @@ What follows:
 - **Extension methods don't reach a shape.** Generic inference ignores user-defined conversions, so a core
   extension on `Result<T, TError>` doesn't bind to `PlaceOrderResult`, and the async extensions don't bind to
   `Task<PlaceOrderResult>`. The generator forwards the common instance members (`Map`, `Bind`, `Match`,
-  `TryGetValue`, `TryGetError`, `WithContext`, `AsResult`); the rest, and async, are open below.
+  `TryGetValue`, `TryGetError`, `WithContext`, `AsResult`); the rest, and async, are open below. An extension on
+  an interface the shape implements does bind, at the cost of a box
+  ([Building the generator](building-the-generator.md#assembly-size)).
 
 **Verified** on SDK 11.0.100 (`temp/gen-check/Consumer/WrapProbe.cs.txt`, with stand-in core types that have the
 decision 10 guard): `[Union]` structs wrapping a core `Result<Order, OrderError>`, `Result<Unit, OrderError>` and
@@ -308,7 +310,7 @@ members directly in the same compilation.
 
 ## Costs and boundaries
 
-- **Incremental pipeline hygiene:** The generator must extract value-equatable models (`ClosedHierarchyModel`,
+- **Incremental pipeline hygiene** (specified in [Building the generator](building-the-generator.md)): The generator must extract value-equatable models (`ClosedHierarchyModel`,
   `ResultShapeModel`) inside `ForAttributeWithMetadataName` and never cache `ISymbol` or `SyntaxNode`, so IDE
   typing stays fast.
 - **Assembly-wide scan for Tier 1:** Finding all derived types of a `[ClosedHierarchy]` base touches compilation
