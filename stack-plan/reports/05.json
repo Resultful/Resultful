@@ -3,27 +3,108 @@
   "pr_url": "https://github.com/Resultful/Resultful/pull/51",
   "branch": "rtkelly13/stack-05-named-methods",
   "base": "rtkelly13/stack-04e-publish-preview",
-  "head_sha": "870518ec248d2bda8bf7284843b003cf2032c284",
-  "started_from": "a96a660 (origin/rtkelly13/stack-04e-publish-preview at start; 04e has since gained fixups a77f228, 8034500, c149b89, not picked: git merge-tree shows no conflict)",
+  "head_sha": "04cca83aa7b85b0ec13a071361dabae25e249955",
+  "started_from": "a96a660 (04e at start); 04e then moved to 4f37dca, and its new commits were cherry-picked",
   "cherry_picks": [
-    {"from": "c4d7ead", "as": "3e5d2ed", "source": "04c"},
-    {"from": "eb8beb9", "as": "dc81b1f", "source": "04c"},
-    {"from": "1dbb86f", "as": "91d45e9", "source": "04c"},
-    {"from": "fb1d240", "as": "4880873", "source": "04c"},
-    {"from": "156481b", "as": "385dfad", "source": "04c", "note": "ledger.tsv conflict with 04d's 1fedf62: kept 04d's UC01-UC10 hashes, took 04c's new UNION-MATRIX hash"},
-    {"from": "a36c3d4", "as": "c41ab2d", "source": "04c"},
-    {"from": "654ff44", "as": "8df060a", "source": "04c"},
-    {"from": "f72ad89", "as": "0cc47fc", "source": "04c"},
-    {"from": "9a465b0", "as": "94b762f", "source": "04c", "note": "pushed to 04c after this PR started; picked before pushing"},
-    {"from": "be6b76a + 3516048", "as": "7d2f462", "source": "03 (stack A)", "note": "only the src/ doc comment lines; conflicts at 28813be's nullable Fail signatures resolved by keeping this branch's signatures; staged diff checked to be only added /// lines"}
+    {
+      "from": "c4d7ead",
+      "as": "3e5d2ed",
+      "source": "04c"
+    },
+    {
+      "from": "eb8beb9",
+      "as": "dc81b1f",
+      "source": "04c"
+    },
+    {
+      "from": "1dbb86f",
+      "as": "91d45e9",
+      "source": "04c"
+    },
+    {
+      "from": "fb1d240",
+      "as": "4880873",
+      "source": "04c"
+    },
+    {
+      "from": "156481b",
+      "as": "385dfad",
+      "source": "04c",
+      "note": "ledger.tsv conflict with 04d's 1fedf62: kept 04d's UC01-UC10 hashes, took 04c's new UNION-MATRIX hash"
+    },
+    {
+      "from": "a36c3d4",
+      "as": "c41ab2d",
+      "source": "04c"
+    },
+    {
+      "from": "654ff44",
+      "as": "8df060a",
+      "source": "04c"
+    },
+    {
+      "from": "f72ad89",
+      "as": "0cc47fc",
+      "source": "04c"
+    },
+    {
+      "from": "9a465b0",
+      "as": "94b762f",
+      "source": "04c",
+      "note": "pushed to 04c after this PR started; picked before pushing"
+    },
+    {
+      "from": "be6b76a + 3516048",
+      "as": "7d2f462",
+      "source": "03 (stack A)",
+      "note": "only the src/ doc comment lines; conflicts at 28813be's nullable Fail signatures resolved by keeping this branch's signatures; staged diff checked to be only added /// lines"
+    },
+    {
+      "from": "a96a660..4f37dca (04e)",
+      "picked": [
+        "c149b89",
+        "8034500",
+        "a77f228",
+        "13e79ef",
+        "a102719",
+        "7ac5c4b",
+        "544a66c",
+        "4f37dca"
+      ],
+      "skipped_empty": [
+        "294ba99",
+        "b286ccc",
+        "f569720",
+        "68d27ed",
+        "bb535ab",
+        "d1426b5",
+        "3487e2c",
+        "aca8e8c",
+        "0439521"
+      ],
+      "note": "ledger conflicts: kept the four done lines and the UERR-CUSTOM-IUNION hash, took 04d2's UC/AOT/MIG hashes, UC10 at '-'; on decision 17 the newer wording (already here) was kept"
+    }
   ],
   "commits_owned": [
     "8b58783 spec: UERR-CUSTOM-IUNION checks the IUnion path, so TryGetError alone doesn't pass it",
     "3fd8c0e build: ship the XML docs of every src/ project, with CS1591 an error",
-    "870518e feat: IsSuccess, TryGetValue, Deconstruct, OrElse and ValueOr on Result<T, TError> and Result<T>"
+    "870518e feat: IsSuccess, TryGetValue, Deconstruct, OrElse and ValueOr on Result<T, TError> and Result<T>",
+    "7d69361 ci: run the executable spec on every pull request and hold it to the ledger",
+    "2104c15 chore: record 04e's head as merged so the pull request has a clean merge base (merge -s ours, tree unchanged; the restack drops it)",
+    "05f79d6 fixup! feat: ... (struct remarks: the 0.2 members treat default as a success, the named members don't)",
+    "8c0c9aa fixup! spec: UERR-CUSTOM-IUNION ... (sentinel 42, not default(StatusCode); new hash 037a92dfd2988c4e705d07f5d6b371c9e63703fc5a1351573cbe310a684e4edd)",
+    "9f8096b fixup! feat: ... (null-error test commented as 0.2 behaviour, owner 08b ZERO-NULL-ERR)",
+    "04cca83 fixup! ci: ... (a culture with no spec-report.json fails the job; no || true)"
   ],
-  "ledger_flipped": ["CORE-NAMED", "CORE-TRYGET", "CORE-DECONSTRUCT", "CORE-ORELSE"],
-  "ledger_other_changes": ["UERR-CUSTOM-IUNION: hash only (spec: commit), still pending"],
+  "ledger_flipped": [
+    "CORE-NAMED",
+    "CORE-TRYGET",
+    "CORE-DECONSTRUCT",
+    "CORE-ORELSE"
+  ],
+  "ledger_other_changes": [
+    "UERR-CUSTOM-IUNION: hash only (spec: commit), still pending"
+  ],
   "local_runs": [
     "dotnet run --project tests/Resultful.Spec -f net10.0: 290/290 passed",
     "dotnet run --project tests/Resultful.Spec -f net11.0: 290/290 passed",
@@ -35,29 +116,61 @@
     "dotnet build Resultful.slnx -c Release: no warnings",
     "dotnet pack + eng/verify-package.cs: passed; package now has lib/*/Resultful.xml",
     "eng/preview-packages.cs 0: packed 0.3.0-preview.0 and restored, nothing pushed",
-    "check-api.cs: 30 problems before and after (all from 03's nullable Fail/Unit re-annotations missing on stack B); none involves the 16 added lines, which are all in the target"
+    "check-api.cs: 30 problems before and after (all from 03's nullable Fail/Unit re-annotations missing on stack B); none involves the 16 added lines, which are all in the target",
+    "after the fixups: spec 292/292 on net10.0 and net11.0 (invariant); tr-TR runs passed on both before the fixups; NUnit 30/30 on both; UERR-CUSTOM-IUNION fails with 'expected ArgumentException, nothing was thrown' (pending)"
   ],
-  "ci": {"run": "https://github.com/Resultful/Resultful/actions/runs/44816495733", "build": "success", "lint": "success", "preview-dry-run": "success", "publish/publish-preview/publish-preview-push": "skipped (as designed)"},
+  "ci": {
+    "latest_run": "https://github.com/Resultful/Resultful/actions/runs/44818983473",
+    "head": "04cca83",
+    "build": "success",
+    "lint": "success",
+    "spec": "success",
+    "preview-dry-run": "success",
+    "publish/publish-preview/publish-preview-push": "skipped (as designed)",
+    "earlier": {
+      "870518e": "run 44816495733 all green (no spec job yet)",
+      "7d69361": "not run: the PR was conflicting (mergeable_state dirty)",
+      "2104c15": "run 44818348856 all green, spec included"
+    }
+  },
   "decisions_taken": [
-    "Zero value per the contract and DECISIONS-TAKEN default: IsSuccess/IsFailure false; Value, Error, TryGet*, Deconstruct, OrElse, ValueOr throw InvalidOperationException. Detected with a private bool _initialized set by the constructors (0.2 OneOf storage can't tell default from Ok(default)). 0.2 members (Match etc.) unchanged. Side effect: ValueType.Equals(default, Ok(default(T))) is now false (was true); unpinned in 0.2's suite and the direction 0.3 takes.",
+    "Zero value per the contract and DECISIONS-TAKEN default: IsSuccess/IsFailure false; Value, Error, TryGet*, Deconstruct, OrElse, ValueOr throw InvalidOperationException. Detected with a private bool _initialized set by the constructors (0.2 OneOf storage can't tell default from Ok(default)). 0.2 members (Match etc.) unchanged. Side effect: ValueType.Equals(default, Ok(default(T))) is now false (was true); unpinned in 0.2's suite and the direction 0.3 takes. Costs up to 8 bytes per struct after padding; 08a's own storage removes it.",
     "Result<T> gets only IsSuccess, IsFailure, Value, TryGetValue, OrElse(other), ValueOr; Error, TryGetError, Deconstruct, OrElse(Func<Error,...>) and the Error half of [MemberNotNullWhen] wait for 06/09 because they take the Error record.",
     "Kept the single 0.2-layout PublicAPI pair (the gate reads it for every target); 03's per-target split is on stack A and arrives in the restack.",
     "Docs copied from 03 verbatim instead of written fresh, so the restack meets identical text."
   ],
   "spec_commits": [
-    {"sha": "8b58783", "subject": "spec: UERR-CUSTOM-IUNION checks the IUnion path, so TryGetError alone doesn't pass it", "why": "the 08b fixture passed as soon as 05 added TryGetError; it now also expects Fail to reject a hand-written IUnion whose Value is null (ArgumentException)", "decisions_taken_line": "05, 08b | UERR-CUSTOM-IUNION also asserts Fail rejects a hand-written IUnion with a null Value | TryGetError alone made it pass at 05"}
+    {
+      "sha": "8b58783 + fixup 8c0c9aa",
+      "subject": "spec: UERR-CUSTOM-IUNION checks the IUnion path, so TryGetError alone doesn't pass it",
+      "why": "the 08b fixture passed as soon as 05 added TryGetError; it now also expects Fail to reject a hand-written IUnion whose Value is null (sentinel Number == 42, not default) with ArgumentException",
+      "decisions_taken_line": "05, 08b | UERR-CUSTOM-IUNION also asserts that Fail rejects, with ArgumentException, a hand-written IUnion whose Value is null; the sentinel is a non-default value (42), so neither a comparison with default nor reading the long as a reference passes | TryGetError alone made the fixture pass at 05, three PRs before 08b"
+    }
   ],
   "beyond_contract": [
+    "spec CI job (7d69361 + fixup 04cca83): ledger checked on every push, net10/net11 x invariant/tr-TR, spec-report artifact",
     "CsCheck laws also cover Result<T> with error lists",
     "exception messages name the case and how to check first; the zero-value message names the type",
     "README 'Named methods' section"
   ],
   "suppressions": [],
   "open_issues": [
-    "tests/Resultful.Spec is not in Resultful.slnx, so CI does not run the ledger; flips are verified locally only.",
     "API gate fails on stack B independently of 05 (30 problems from 03's nullable re-annotations, 28813be); clears at restack.",
     "After restack, stack A's PublicApiCoverageTests (reads Unshipped) will need the 16 new members exercised in tests/Resultful.Consumption.",
-    "04e gained three fixups after this branch started; no conflict, not cherry-picked.",
-    "CsCheck 5.0.1 added to root Directory.Packages.props (same version as stack A)."
+    "CsCheck 5.0.1 added to root Directory.Packages.props (same version as stack A).",
+    "2104c15 is a merge commit (-s ours, no file change), kept per the orchestrator; the local restack must drop it. No further merge commits.",
+    "Ask for a DECISIONS-TAKEN row: the null-error test pins 0.2 behaviour that contradicts the target's [MemberNotNullWhen]; owner 08b (ZERO-NULL-ERR)."
+  ],
+  "spec_ci_job": {
+    "name": "spec",
+    "what": "builds tests/Resultful.Spec (Release); runs net10.0 and net11.0 under LC_ALL=C (invariant) and LC_ALL=tr_TR.UTF-8 (tr-TR); fails on any ledger violation or a missing report; uploads artifact 'spec-report' (spec-reports/<culture>/spec-report*.json)"
+  },
+  "review_fixes": [
+    "1 struct remarks (05f79d6)",
+    "2 non-zero sentinel (8c0c9aa)",
+    "3 null-error test comment (9f8096b)",
+    "4 PR body updated",
+    "5 +8 bytes noted",
+    "6 no || true (04cca83)"
   ]
 }

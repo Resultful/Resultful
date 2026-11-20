@@ -105,3 +105,4 @@
 | 20a | No Resultful.Text.Json dependency | target project has none; avoids [RequiresDynamicCode] (12b) |
 | 20a | Zero result: ToHttpResult throws | decision 10 |
 | 04b | Same-behaviour check compares per-test outcomes (`eng/compare-runs.cs`, empty expected list); binary swap on net8 (netstandard2.0), net10, net11 with `PackageSourceTests` failing on purpose to prove the swap; beta06 builds relax CS8625/CS8604 to warnings; NuGet consumers run with pruning off; the net8 suite uses CsCheck 4.9.1; Stryker.NET 5.1.0's preview MTP runner for mutation run 0 | Taken by 04b's implementer |
+| 05, 08b | UERR-CUSTOM-IUNION also asserts that `Fail` rejects, with `ArgumentException`, a hand-written `IUnion` whose `Value` is null; the sentinel is a non-default value (42), so neither a comparison with `default` nor reading the `long` as a reference passes | `TryGetError` alone made the fixture pass at 05, three PRs before 08b |
