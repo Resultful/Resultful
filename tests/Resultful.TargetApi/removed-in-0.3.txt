@@ -1,5 +1,5 @@
-# 0.2 shipped members (PublicAPI format) that the 0.3 target drops. The API gate (check-api.cs) allows a
-# member missing from the real API only if it is listed here. Generated: 0.2 Shipped minus the target's files.
+# 0.2.0 members (PublicAPI format) that the 0.3 target drops: baseline-0.2.0 minus the target, every target framework.
+# Regenerate with: dotnet run tests/Resultful.TargetApi/check-api.cs -- --regenerate-removed
 Resultful.Option<T>.Match<TResult>(System.Func<T, TResult>! successfulFunc, System.Func<OneOf.Types.None, TResult>! noneFunc) -> TResult
 Resultful.Option<T>.MatchAsync<TResult>(System.Func<T, System.Threading.Tasks.Task<TResult>!>! someFunc, System.Func<OneOf.Types.None, System.Threading.Tasks.Task<TResult>!>! noneFunc) -> System.Threading.Tasks.Task<TResult>!
 Resultful.Option<T>.Switch(System.Action<T>! successfulFunc, System.Action<OneOf.Types.None>! noneFunc) -> void
@@ -64,13 +64,13 @@ static Resultful.Result.CheckAsync<T>(this Resultful.Result<T> value, params Sys
 static Resultful.Result.CheckAsync<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, params System.Func<T, System.Threading.Tasks.Task<Resultful.VoidResult>!>![]! checks) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.DiscardError<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Action<System.Collections.Generic.IEnumerable<string!>!>! errorAction) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
 static Resultful.Result.DiscardErrorAsync<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, System.Func<System.Collections.Generic.IEnumerable<string!>!, System.Threading.Tasks.Task!>! errorAction) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
-static Resultful.Result.Fail(params string![]! errors) -> Resultful.VoidResult
-static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>! value) -> Resultful.VoidResult
-static Resultful.Result.Fail<T, TError>(params TError[]! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
-static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>! errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail(params string![]? errors) -> Resultful.VoidResult
+static Resultful.Result.Fail(this System.Collections.Generic.IEnumerable<string!>? value) -> Resultful.VoidResult
+static Resultful.Result.Fail<T, TError>(params TError[]? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail<T, TError>(this System.Collections.Generic.IEnumerable<TError>? errors) -> Resultful.Result<T, System.Collections.Generic.IEnumerable<TError>!>
 static Resultful.Result.Fail<T>(params string![]! errors) -> Resultful.Result<T>
 static Resultful.Result.Fail<T>(this System.Collections.Generic.IEnumerable<string!>! errors) -> Resultful.Result<T>
-static Resultful.Result.Fail<TError>(params TError[]! errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
+static Resultful.Result.Fail<TError>(params TError[]? errors) -> Resultful.VoidResult<System.Collections.Generic.IEnumerable<TError>!>
 static Resultful.Result.Fail<TError>(this TError value) -> Resultful.VoidResult<TError>
 static Resultful.Result.Fold<TResult, T>(this System.Collections.Generic.IEnumerable<Resultful.Result<T>>! values, Resultful.Result<TResult> seed, System.Func<TResult, T, TResult>! aggrFunc) -> Resultful.Result<TResult>
 static Resultful.Result.Fold<TResult, T>(this System.Collections.Generic.IEnumerable<Resultful.Result<T>>! values, TResult seed, System.Func<TResult, T, TResult>! aggrFunc) -> Resultful.Result<TResult>
@@ -140,4 +140,4 @@ static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Res
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.VoidResult<System.Collections.Generic.IEnumerable<string!>!> value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(System.Collections.Generic.List<string!>! value) -> Resultful.VoidResult
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(string! value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]! value) -> Resultful.VoidResult
+static Resultful.VoidResult.implicit operator Resultful.VoidResult(string![]? value) -> Resultful.VoidResult

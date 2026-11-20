@@ -696,10 +696,10 @@ static Resultful.Validation<T>.operator !=(Resultful.Validation<T> left, Resultf
 static Resultful.Validation<T>.operator ==(Resultful.Validation<T> left, Resultful.Validation<T> right) -> bool
 static Resultful.VoidResult.implicit operator Resultful.Result<Resultful.Unit!>(Resultful.VoidResult value) -> Resultful.Result<Resultful.Unit!>
 static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Result<Resultful.Unit!> value) -> Resultful.VoidResult
-static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit! value) -> Resultful.VoidResult
+static Resultful.VoidResult.implicit operator Resultful.VoidResult(Resultful.Unit? value) -> Resultful.VoidResult
 static Resultful.VoidResult<TError>.implicit operator Resultful.Result<Resultful.Unit!, TError>(Resultful.VoidResult<TError> value) -> Resultful.Result<Resultful.Unit!, TError>
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Result<Resultful.Unit!, TError> value) -> Resultful.VoidResult<TError>
-static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit! value) -> Resultful.VoidResult<TError>
+static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(Resultful.Unit? value) -> Resultful.VoidResult<TError>
 static Resultful.VoidResult<TError>.implicit operator Resultful.VoidResult<TError>(TError value) -> Resultful.VoidResult<TError>
 virtual Resultful.Error.EqualityContract.get -> System.Type!
 virtual Resultful.Error.Equals(Resultful.Error? other) -> bool

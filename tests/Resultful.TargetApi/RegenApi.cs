@@ -18,7 +18,7 @@ foreach (var package in args)
     var dir = Path.Combine(root, package);
     var project = Path.Combine(dir, package + ".csproj");
     if (!File.Exists(project)) { Console.Error.WriteLine($"no project {project}"); return 1; }
-    foreach (var tfmDir in Directory.GetDirectories(Path.Combine(dir, "PublicAPI")).Order(StringComparer.Ordinal))
+    foreach (var tfmDir in Directory.GetDirectories(Path.Combine(dir, "api")).Order(StringComparer.Ordinal))
     {
         var tfm = Path.GetFileName(tfmDir);
         var shipped = Path.Combine(tfmDir, "PublicAPI.Shipped.txt");

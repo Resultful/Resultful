@@ -11,6 +11,7 @@ namespace Resultful.Diagnostics
         public const string ErrorTypeTag = "resultful.error.type";
     }
 
+    // A result whose error is a union (decision 17) widens first: result.AsResult().LogFailure(…).
     public static class ResultLoggingExtensions
     {
         // Logs a failure's Message, Context and leaf type name (never the leaf's properties) and returns the result.
