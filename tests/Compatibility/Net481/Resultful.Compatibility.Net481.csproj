@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The only run of the package's netstandard2.0 asset off .NET Core: .NET Framework 4.8.1, on the windows-latest
+    compatibility (net481) job, by eng/build.cs's CompatNet481 target.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+  </PropertyGroup>
+
+</Project>

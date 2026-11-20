@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    An app that references the packed package and a library compiled against 0.2.0-beta05: upgrading from the last
+    published pre-release must not break the library at run time. Run by eng/build.cs, CompatUpgrade.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Library/Resultful.Compatibility.UpgradeLibrary.csproj" />
+  </ItemGroup>
+
+</Project>
