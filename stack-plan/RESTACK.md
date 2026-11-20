@@ -20,6 +20,7 @@ name with `git rebase --autosquash`; cherry-picked commits (`-x`) drop out where
 | rtkelly13/stack-04e-publish-preview | #47 | 04d2 @ 1fedf62 | 04d2 | edits `ci.yml`, conflicts with stack A's CI changes are expected in the local pass |
 | rtkelly13/stack-12b-text-json | #48 | 04c @ 5b8b23a | 12 | drafted ahead; tests use a temporary StandInCore |
 | rtkelly13/stack-16a-analyzers-core | #50 | 04c @ f72ad89 | 15 | drafted ahead |
-| rtkelly13/stack-05-named-methods | | 04e @ a96a660 (+ cherry-picks of 04c's spec fixes) | 13a | first core PR |
+| rtkelly13/stack-05-named-methods | #51 | 04e @ a96a660 | 13a | cherry-picks of 04c c4d7ead..9a465b0 (-x) and the `///` lines of 03's be6b76a/3516048 (drop on restack); single PublicAPI pair (03's per-target split arrives in the restack) |
 
 Note for the local pass: cherry-picked commits aren't ancestors, so a PR's merge base stays at the commit it started from. Files a base rewrote wholesale were split (e.g. `eng/api-nullable-0.2.0.txt`) to keep PRs mergeable; fold them back.
+| rtkelly13/stack-06-error-record | | 05 | 05 | |

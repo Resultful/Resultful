@@ -84,3 +84,4 @@
 | 04c, 13a | GEN-RFG0005: a nested decl in a non-partial type declares its own constructor (the generator can't reopen the parent) | 13a finding |
 | 04c | .ls-lint.yml ignores exactly 04c's paths (Fixtures, */api, */PublicAPI, baseline-0.2.0, check-api.cs) | ls-lint '**' rules can't be overridden per folder |
 | 04c, 07 | The core's Result<T>, Result<T, TError>, Validation<T>, Validation<T, TError> and Option<T> carry [MustObserve] in the target | Decision 15; 16a finding (#50) |
+| 05, 08a | Until 08a's state byte, `Result<T>`/`Result<T,TError>` carry a private `_initialized` flag so the zero value is told apart: `IsSuccess`/`IsFailure` false on `default`; `default` no longer equals `Ok(default(T))`; `Match` still treats `default` as a success until 08b. `UERR-CUSTOM-IUNION` gained a `Fail` rejection check (spec: 8b58783) so it stays owned by 08b | Taken by 05's implementer |

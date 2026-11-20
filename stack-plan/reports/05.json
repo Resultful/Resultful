@@ -1,0 +1,63 @@
+{
+  "pr": 51,
+  "pr_url": "https://github.com/Resultful/Resultful/pull/51",
+  "branch": "rtkelly13/stack-05-named-methods",
+  "base": "rtkelly13/stack-04e-publish-preview",
+  "head_sha": "870518ec248d2bda8bf7284843b003cf2032c284",
+  "started_from": "a96a660 (origin/rtkelly13/stack-04e-publish-preview at start; 04e has since gained fixups a77f228, 8034500, c149b89, not picked: git merge-tree shows no conflict)",
+  "cherry_picks": [
+    {"from": "c4d7ead", "as": "3e5d2ed", "source": "04c"},
+    {"from": "eb8beb9", "as": "dc81b1f", "source": "04c"},
+    {"from": "1dbb86f", "as": "91d45e9", "source": "04c"},
+    {"from": "fb1d240", "as": "4880873", "source": "04c"},
+    {"from": "156481b", "as": "385dfad", "source": "04c", "note": "ledger.tsv conflict with 04d's 1fedf62: kept 04d's UC01-UC10 hashes, took 04c's new UNION-MATRIX hash"},
+    {"from": "a36c3d4", "as": "c41ab2d", "source": "04c"},
+    {"from": "654ff44", "as": "8df060a", "source": "04c"},
+    {"from": "f72ad89", "as": "0cc47fc", "source": "04c"},
+    {"from": "9a465b0", "as": "94b762f", "source": "04c", "note": "pushed to 04c after this PR started; picked before pushing"},
+    {"from": "be6b76a + 3516048", "as": "7d2f462", "source": "03 (stack A)", "note": "only the src/ doc comment lines; conflicts at 28813be's nullable Fail signatures resolved by keeping this branch's signatures; staged diff checked to be only added /// lines"}
+  ],
+  "commits_owned": [
+    "8b58783 spec: UERR-CUSTOM-IUNION checks the IUnion path, so TryGetError alone doesn't pass it",
+    "3fd8c0e build: ship the XML docs of every src/ project, with CS1591 an error",
+    "870518e feat: IsSuccess, TryGetValue, Deconstruct, OrElse and ValueOr on Result<T, TError> and Result<T>"
+  ],
+  "ledger_flipped": ["CORE-NAMED", "CORE-TRYGET", "CORE-DECONSTRUCT", "CORE-ORELSE"],
+  "ledger_other_changes": ["UERR-CUSTOM-IUNION: hash only (spec: commit), still pending"],
+  "local_runs": [
+    "dotnet run --project tests/Resultful.Spec -f net10.0: 290/290 passed",
+    "dotnet run --project tests/Resultful.Spec -f net11.0: 290/290 passed",
+    "before flipping, exactly the 4 CORE-* lines were reported as pending-but-passing on net10.0; on net11.0 also UERR-CUSTOM-IUNION (fixed by the spec: commit; it now fails with 'expected ArgumentException, nothing was thrown')",
+    "dotnet test tests/Resultful.Tests: 30/30 on net10.0 and net11.0",
+    "seeded mutation (OrElse(other) always returns other) fails 2 tests",
+    "CS1591 probe: an undocumented public type fails the build with CS1591 (and RS0016)",
+    "dotnet format Resultful.slnx --verify-no-changes: clean",
+    "dotnet build Resultful.slnx -c Release: no warnings",
+    "dotnet pack + eng/verify-package.cs: passed; package now has lib/*/Resultful.xml",
+    "eng/preview-packages.cs 0: packed 0.3.0-preview.0 and restored, nothing pushed",
+    "check-api.cs: 30 problems before and after (all from 03's nullable Fail/Unit re-annotations missing on stack B); none involves the 16 added lines, which are all in the target"
+  ],
+  "ci": {"run": "https://github.com/Resultful/Resultful/actions/runs/44816495733", "build": "success", "lint": "success", "preview-dry-run": "success", "publish/publish-preview/publish-preview-push": "skipped (as designed)"},
+  "decisions_taken": [
+    "Zero value per the contract and DECISIONS-TAKEN default: IsSuccess/IsFailure false; Value, Error, TryGet*, Deconstruct, OrElse, ValueOr throw InvalidOperationException. Detected with a private bool _initialized set by the constructors (0.2 OneOf storage can't tell default from Ok(default)). 0.2 members (Match etc.) unchanged. Side effect: ValueType.Equals(default, Ok(default(T))) is now false (was true); unpinned in 0.2's suite and the direction 0.3 takes.",
+    "Result<T> gets only IsSuccess, IsFailure, Value, TryGetValue, OrElse(other), ValueOr; Error, TryGetError, Deconstruct, OrElse(Func<Error,...>) and the Error half of [MemberNotNullWhen] wait for 06/09 because they take the Error record.",
+    "Kept the single 0.2-layout PublicAPI pair (the gate reads it for every target); 03's per-target split is on stack A and arrives in the restack.",
+    "Docs copied from 03 verbatim instead of written fresh, so the restack meets identical text."
+  ],
+  "spec_commits": [
+    {"sha": "8b58783", "subject": "spec: UERR-CUSTOM-IUNION checks the IUnion path, so TryGetError alone doesn't pass it", "why": "the 08b fixture passed as soon as 05 added TryGetError; it now also expects Fail to reject a hand-written IUnion whose Value is null (ArgumentException)", "decisions_taken_line": "05, 08b | UERR-CUSTOM-IUNION also asserts Fail rejects a hand-written IUnion with a null Value | TryGetError alone made it pass at 05"}
+  ],
+  "beyond_contract": [
+    "CsCheck laws also cover Result<T> with error lists",
+    "exception messages name the case and how to check first; the zero-value message names the type",
+    "README 'Named methods' section"
+  ],
+  "suppressions": [],
+  "open_issues": [
+    "tests/Resultful.Spec is not in Resultful.slnx, so CI does not run the ledger; flips are verified locally only.",
+    "API gate fails on stack B independently of 05 (30 problems from 03's nullable re-annotations, 28813be); clears at restack.",
+    "After restack, stack A's PublicApiCoverageTests (reads Unshipped) will need the 16 new members exercised in tests/Resultful.Consumption.",
+    "04e gained three fixups after this branch started; no conflict, not cherry-picked.",
+    "CsCheck 5.0.1 added to root Directory.Packages.props (same version as stack A)."
+  ]
+}
