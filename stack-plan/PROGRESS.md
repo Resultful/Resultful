@@ -16,8 +16,8 @@ Rows are in stack order.
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | green | 4f37dca, CI green incl. lint and preview dry run; review fixes in |
 | 13a | rtkelly13/stack-13a-generator-target | #46 | review | review fixes in (46a46fd, 5 fixup! commits): language-version gate, stronger fuzz (catches the seeded order fault), no CS0109; 42/47 tests green |
 | 05 | rtkelly13/stack-05-named-methods | #51 | green | 04cca83, CI green incl. `spec` job (net10/net11 × invariant/tr-TR); 4 lines done; review fixes in; carries 04e's commits; empty merge 2104c15 |
-| 06 | rtkelly13/stack-06-error-record |  | building | on 05@870518e |
-| 07 | rtkelly13/stack-07-attributes |  | todo |  |
+| 06 | rtkelly13/stack-06-error-record | #54 | review | 5128734; ERR-* (6 lines) done, pending 133→127; spec: UERR-ZERO-NOALLOC asserts Fail rejects a default union; reviewer running |
+| 07 | rtkelly13/stack-07-attributes |  | building | on 06@5128734 |
 | 08a | rtkelly13/stack-08a-own-storage |  | todo |  |
 | 08b | rtkelly13/stack-08b-zero-guard |  | todo |  |
 | 09 | rtkelly13/stack-09-result-error |  | todo |  |

@@ -1,0 +1,75 @@
+{
+  "pr": 54,
+  "pr_url": "https://github.com/Resultful/Resultful/pull/54",
+  "branch": "rtkelly13/stack-06-error-record",
+  "base": "rtkelly13/stack-05-named-methods",
+  "head_sha": "5128734f8d3575f4459311c5a54268c86448e343",
+  "started_from": "870518e (05's head when the worktree was made); before pushing, the two unpushed commits were rebased onto 05's new head 04cca83, which includes 05's merge commit 2104c15 and the spec CI job 7d69361. So the effective start is 04cca83",
+  "cherry_picks": [],
+  "commits_owned": [
+    "f05b053 spec: UERR-ZERO-NOALLOC checks the zero check is there, so 06's Error alone doesn't pass it",
+    "5128734 feat: the abstract Error record with context, causes and structural equality"
+  ],
+  "ledger_flipped": [
+    "CULTURE-ERR-TR",
+    "ERR-CONTEXT",
+    "ERR-EQ",
+    "ERR-RECORD",
+    "ERR-TOSTRING",
+    "ERR-VALIDATIONFAILED"
+  ],
+  "ledger_other_changes": [
+    "UERR-ZERO-NOALLOC: hash only (spec: commit), still pending, owner 08b"
+  ],
+  "local_runs": [
+    "before flipping: exactly the 6 ERR lines were pending-but-passing on net10.0; on net11.0 also UERR-ZERO-NOALLOC (fixed by the spec: commit)",
+    "after the rebase, spec in Release: 292/292 on net10.0 and net11.0 under LC_ALL=C and tr_TR.UTF-8 (as the CI spec job runs it); also --culture tr-TR",
+    "dotnet test tests/Resultful.Tests: 42/42 on net10.0 and net11.0",
+    "seeded mutations (equality ignores Context; Inner before Cause; ToString prints members; WithContext mutates the original): each fails at least 1 law",
+    "dotnet build Resultful.slnx -c Release: no warnings; dotnet format --verify-no-changes: clean",
+    "dotnet pack + eng/verify-package.cs: passed",
+    "check-api.cs: the same 30 problems as on 05 (stack A's nullable re-annotations); none from 06; all 43 added lines per target are in the target",
+    "check-snippets.cs (lenient): 10 pre-existing differences, none in the docs this PR touched"
+  ],
+  "ci": {
+    "run": "https://github.com/Resultful/Resultful/actions/runs/44819707930",
+    "lint": "success",
+    "build": "in_progress",
+    "spec": "in_progress",
+    "preview-dry-run": "in_progress",
+    "publish-preview": "skipped (as designed)",
+    "note": "CI ran, so the PR doesn't conflict with its base. Results as of about 8 minutes after the push"
+  },
+  "decisions_taken": [
+    "| PR | choice | why |",
+    "|---|---|---|",
+    "| 06 | Causes() is pre-order depth first: the error, then its Cause's tree, then each Inner error's tree; TryFind returns the first match in that order | the docs don't say which comes first; cause first follows the order the docs list them in |",
+    "| 06 | ToString format: `Type: Message (context: a; b) [inner; inner] ---> Cause...`, with generic names as C# writes them | the docs fix what it contains, not the layout; one line suits logs |",
+    "| 06 | the netstandard2.0-only <Clone>$ lines go in per-target src/Resultful/PublicApi/{Net,NetStandard}/PublicAPI.Unshipped.txt, added beside the single 0.2 pair | one file can't hold both signatures; they merge into api/<tfm>/ at restack; check-api.cs doesn't read them (4 lines show as still to add) |",
+    "| 06 | laws are NUnit + CsCheck in tests/Resultful.Tests, not a new xunit.v3 project | an xunit.v3 MTP project in the slnx breaks CI's dotnet test (Known traps); this way CI runs them; same as 05 |",
+    "| 06 | Result<T>'s deferred Error members land in 09 | they need Result<T> to store an Error |",
+    "| 06 | rebased the unpushed commits onto 05's new head instead of cherry-picking 05's 17 new commits | not pushed yet, so append-only didn't apply; the merge base is 05's head, so the PR can't conflict |"
+  ],
+  "spec_commits": [
+    {
+      "sha": "f05b053",
+      "subject": "spec: UERR-ZERO-NOALLOC checks the zero check is there, so 06's Error alone doesn't pass it",
+      "why": "once Error existed the fixture compiled and passed on net11.0, because 0.2's storage has no zero check; it now also expects Fail(default union) to throw ArgumentException",
+      "decisions_taken_line": "06, 08b | UERR-ZERO-NOALLOC also asserts Fail rejects a default union | Error alone made it pass at 06"
+    }
+  ],
+  "beyond_contract": [
+    "ToString prints ValidationFailed's inner errors and generic type names as C# writes them",
+    "Context and ValidationFailed.Errors are held as ReadOnlyCollection (can't be cast back to a writable array); null notes and null errors are rejected",
+    "Causes is iterative (no nested iterators)",
+    "README 'Errors' section",
+    "decision 14: the two open questions recorded as decided; exploration and error-shape.md synced to the target"
+  ],
+  "suppressions": [],
+  "open_issues": [
+    "DECISIONS-TAKEN.md lines (above) are for the orchestrator to add on the plan branch",
+    "the per-target PublicApi/{Net,NetStandard} files must be folded into 03's api/<tfm>/ layout at restack",
+    "Causes()/ToString have no cycle guard: a custom Inner() override that returns an ancestor would loop forever (records can't form a cycle through Cause alone)"
+  ],
+  "cherry_picks_note": "The orchestrator's cherry-pick list (05's commits after 870518e up to 04cca83) was not needed: the branch was rebased onto 04cca83 before its first push, so 04cca83 is an ancestor and every pick would be empty. 2104c15 is in the history as an ancestor. No merge commit was added."
+}
