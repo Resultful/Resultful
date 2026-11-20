@@ -99,6 +99,10 @@ namespace Resultful
         public static bool operator !=(Result<T> left, Result<T> right) => throw null!;
         public Task<Result<TResult>> BindAsync<TResult>(Func<T, CancellationToken, Task<Result<TResult>>> bindFunc, CancellationToken cancellationToken) => throw null!;
 
+        // Decision 14: with no conversion from string to an error, Result<T> converts from its value, like
+        // Result<T, TError> (`return row;`). `Result<string> r = "message"` is now a success (RF0004 flags it).
+        public static implicit operator Result<T>(T value) => throw null!;
+
         // Decision 14: a failure from any Error, including a leaf (`Result<T> r = new OrderNotFound(1);`).
         public static implicit operator Result<T>(Error error) => throw null!;
 
