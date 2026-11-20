@@ -39,6 +39,12 @@ checkpoint it writes a summary to `PROGRESS.md` and keeps going. Each checkpoint
 stops there: after 04b (0.2.0 is ready to ship), after 04d (the 0.3 target is reviewable), after 19 (the core is
 finished), after 17 (the tooling is finished).
 
+**The plan PR (#39, `rtkelly13/stack-plan`, never merged).** Whenever the orchestrator changes `GOAL.md`,
+`VERIFY.md`, `DECISIONS-TAKEN.md` or a contract, it copies them into `stack-plan/` in `temp/stack/wt/plan`, commits
+with a one-line message saying what changed, and pushes. It reads review comments on #39 (`gh pr view 39 --comments`,
+`gh api repos/Resultful/Resultful/pulls/39/comments`) at each PR boundary and treats them as Ryan's instructions.
+Never mark #39 ready, never merge it.
+
 ## Rules for every PR
 
 1. **Contract.** The PR body opens with: the roadmap item and decision it implements, the ledger IDs it flips,
