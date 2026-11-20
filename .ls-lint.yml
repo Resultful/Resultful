@@ -50,3 +50,12 @@ ignore:
   - TestResults
   - "**/bin"
   - "**/obj"
+  # 04c (spec harness and target API). ls-lint's "**" rules above can't be overridden per folder, so these exact
+  # paths are left out: fixture folders named by capability ID (CORE-NAMED) with lib/ and lib.v2/, per-target
+  # PublicAPI folders (api/<target>/, or PublicAPI/<target>/ on branches cut before the 04c review) and the frozen
+  # baseline-0.2.0/, and check-api.cs, a file-based app that moves to eng/ at wiring.
+  - tests/Resultful.Spec/Fixtures
+  - tests/Resultful.TargetApi/*/api
+  - tests/Resultful.TargetApi/*/PublicAPI
+  - tests/Resultful.TargetApi/baseline-0.2.0
+  - tests/Resultful.TargetApi/check-api.cs
