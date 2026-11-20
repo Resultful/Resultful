@@ -23,7 +23,20 @@ In idiomatic C#, failure is usually hidden: exceptions, `null`, `TryX(out ...)` 
 knows nothing about. Callers forget to handle it, errors from independent checks cannot be gathered together,
 and a sequence of fallible steps becomes nested `if`s and `try` blocks. Railway Oriented Programming solves this
 in functional languages. Resultful brings it to C# in C#'s own idiom, so it doesn't feel like a foreign language
-inside your codebase.
+inside your codebase:
+
+```csharp
+var status = orderResult switch
+{
+    int v => v,
+    OrderNotFound nf => nf.Id == 42 ? 404 : 500,
+    OrderLocked => 409,
+    CardDeclined => 402,
+};
+```
+
+No base class to inherit, no `_` catch-all, and no boxing — add a new failure case and the compiler tells every
+caller that hasn't handled it.
 
 ## What Resultful is
 
