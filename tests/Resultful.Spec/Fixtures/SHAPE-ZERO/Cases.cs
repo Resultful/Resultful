@@ -20,11 +20,11 @@ public static class Cases
     {
         var zero = default(PlaceOrderResult);
         Check.True(zero.IsDefault, "IsDefault");
-        Check.Throws<System.InvalidOperationException>(() => zero.TryGetValue(out _), "TryGetValue");
+        Check.Throws<System.InvalidOperationException>(() => zero.TryGetValue(out Order? _), "TryGetValue");
         Check.Throws<System.InvalidOperationException>(() => zero.TryGetError(out _), "TryGetError");
         Check.Throws<System.InvalidOperationException>(() => zero.AsResult(), "AsResult");
         Check.Throws<System.InvalidOperationException>(() => { Result<Order> widened = zero; }, "widening");
-        Check.Throws<System.InvalidOperationException>(() => zero.Match((Order o) => 1, (OrderNotFound n) => 2, (OrderLocked l) => 3), "Match");
+        Check.Throws<System.InvalidOperationException>(() => zero.Match((Order o) => 1, (OrderLocked l) => 3, (OrderNotFound n) => 2), "Match");
 #if NET11_0_OR_GREATER
         Check.False(zero.HasValue, "HasValue is false and doesn't throw");
         Check.Throws<System.Runtime.CompilerServices.SwitchExpressionException>(() => _ = zero switch { Order => 1, OrderNotFound => 2, OrderLocked => 3 }, "switch");

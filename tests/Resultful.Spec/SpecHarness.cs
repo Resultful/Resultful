@@ -235,8 +235,8 @@ public sealed class SpecHarness
     /// </summary>
     Outcome EvaluateAgainstTarget(Fixture fixture)
     {
-        if (fixture.Uses.Contains("generator"))
-            return new(fixture.Id, _tfm, Status.NotApplicable, "needs generated code; checked against the real generator");
+        if (fixture.Uses.Contains("generator") && CandidateGenerator is null)
+            return new(fixture.Id, _tfm, Status.NotApplicable, "needs generated code; checked against the real generator (or set " + CandidateGeneratorVariable + ")");
         if (fixture.Uses.Contains("core-union"))
             return new(fixture.Id, _tfm, Status.NotApplicable, "the core's union members are chosen by measurement (decision 3) and added to the target in 24");
         var missing = MissingFor(fixture);
@@ -245,7 +245,8 @@ public sealed class SpecHarness
         var compiled = CompileFixture(fixture, fixture.LibSources);
         if (compiled.Error is { } libError) return new(fixture.Id, _tfm, Status.Fail, libError);
         // Compiler errors the fixture expects are allowed; RF and RFG markers need tools the target doesn't have.
-        var expected = fixture.Markers.Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal)).Select(m => (m.File, m.Line, m.Id)).ToHashSet();
+        var expected = fixture.Markers.Where(m => m.Id.StartsWith("CS", StringComparison.Ordinal) || CandidateGenerator is not null && m.Id.StartsWith("RFG", StringComparison.Ordinal))
+            .Select(m => (m.File, m.Line, m.Id)).ToHashSet();
         var errors = compiled.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .Where(d => !expected.Contains(Key(d))).ToList();
         // And every compiler diagnostic the fixture expects is what the target API gives (a suppressor's subject aside).
@@ -296,7 +297,7 @@ public sealed class SpecHarness
 
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var generators = new List<ISourceGenerator>();
-        if (_build == Build.Real && uses.Contains("generator")) generators.AddRange(_tools.Value.Generators);
+        if (uses.Contains("generator") && (_build == Build.Real || CandidateGenerator is not null)) generators.AddRange(_tools.Value.Generators);
         if (uses.Contains("stj-generator")) generators.AddRange(StjGenerator());
         if (generators.Count > 0)
         {
@@ -537,7 +538,11 @@ public sealed class SpecHarness
         var generators = ImmutableArray<ISourceGenerator>.Empty;
         var analyzers = ImmutableArray<DiagnosticAnalyzer>.Empty;
         var fixes = ImmutableArray<CodeFixProvider>.Empty;
-        if (_build != Build.Real) return (generators, analyzers, fixes, ["generator", "analyzers"]);
+        if (_build != Build.Real)
+        {
+            if (CandidateGenerator is { } candidate) generators = new AnalyzerFileReference(candidate, Loader.Instance).GetGenerators(LanguageNames.CSharp);
+            return (generators, analyzers, fixes, ["generator", "analyzers"]);
+        }
 
         if (FindTool("Resultful.Generators") is { } g) generators = new AnalyzerFileReference(g, Loader.Instance).GetGenerators(LanguageNames.CSharp);
         else missing.Add("generator");
@@ -552,6 +557,14 @@ public sealed class SpecHarness
         else missing.Add("analyzers");
         return (generators, analyzers, fixes, missing.ToArray());
     }
+
+    /// <summary>
+    /// A generator to try against the target API (a path to Resultful.Generators.dll), so generator fixtures can be
+    /// compile-checked before the real one exists, e.g. while building 13a. Unset, they are not applicable to the target.
+    /// </summary>
+    public const string CandidateGeneratorVariable = "RESULTFUL_SPEC_GENERATOR";
+
+    static string? CandidateGenerator => Environment.GetEnvironmentVariable(CandidateGeneratorVariable) is { Length: > 0 } p && File.Exists(p) ? p : null;
 
     static string? FindTool(string name)
     {

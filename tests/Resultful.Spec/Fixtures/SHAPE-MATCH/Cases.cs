@@ -1,4 +1,5 @@
-// SHAPE-MATCH (13b): Match calls exactly one arm, once: the success arm, or the error's most-derived leaf. Handlers are typed (RF0008).
+// SHAPE-MATCH (13b): Match calls exactly one arm, once: the success arm, or the error's most-derived leaf. Handlers are typed (RF0008)
+// and come most-derived first, ties by fully qualified name (building-the-generator.md): OrderLocked before OrderNotFound.
 // spec: uses generator
 using Resultful;
 using Resultful.CodeAnalysis;
@@ -20,8 +21,8 @@ public static class Cases
         var calls = 0;
         var arm = r.Match(
             (Order o) => { calls++; return "order"; },
-            (OrderNotFound n) => { calls++; return "not found"; },
-            (OrderLocked l) => { calls++; return "locked"; });
+            (OrderLocked l) => { calls++; return "locked"; },
+            (OrderNotFound n) => { calls++; return "not found"; });
         return (arm, calls);
     }
 
