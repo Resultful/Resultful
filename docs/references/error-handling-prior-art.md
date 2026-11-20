@@ -156,8 +156,8 @@ between defining your own error types (thiserror) and passing them through gener
 
 **Taken:** expected failures and defects are different things, and only expected failures are errors. Effect
 moving from a tree to a flat list supports keeping `Validation`'s errors a flat list.
-**Left:** `Then`/`Both`. Resultful's composition is synchronous; sequence is already expressed by `Bind`
-stopping at the first failure.
+**Left:** `Then`/`Both`. Resultful runs one step at a time, sync or async, with no concurrent branches;
+order is already expressed by `Bind` stopping at the first failure.
 
 ### F#: `Result` and validation
 

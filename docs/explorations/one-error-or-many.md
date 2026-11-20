@@ -36,9 +36,15 @@ This proposal names both shapes and keeps them distinct.
 Result<T, TError>        // a T, or one TError
 Validation<T, TError>    // a T, or a non-empty IReadOnlyList<TError>
 
-Result<T>      = Result<T, Error>
-Validation<T>  = Validation<T, Error>
+Result<T>      // means Result<T, Error>
+Validation<T>  // means Validation<T, Error>
 ```
+
+C# has no generic aliases a library can export, so `Result<T>` and `Result<T, Error>` are separate structs with the
+same meaning, and neither converts to the other implicitly. `Result<Order, OrderError>` doesn't become
+`Result<Order>` on its own either: structs are invariant, and a conversion operator can't be generic over every
+`TError : Error`. The core offers a named widening, `.AsResult()`, for `TError : Error`. A generated shape
+([decision 16](../decisions/0016-source-generated-result-shapes.md)) knows its error type, so it widens implicitly.
 
 `Validation` is the established functional name (F#, Haskell, Scalaz; `Validated` in Cats). It fits what the
 plural shape is used for: input checks whose failures are expected, can be fixed by the caller and compose. The
@@ -77,8 +83,22 @@ public readonly struct Validation<T, TError>
     public Result<T, TError> ToResult(Func<IReadOnlyList<TError>, TError> combine);   // many to one, explicit
 }
 
+// when TError : Error, no combine is needed: the list travels as one ValidationFailed<TError>
+public static Result<T> ToResult<T, TError>(this Validation<T, TError> v) where TError : Error;
+
 // & combines two validations into a tuple, keeping every error from both sides, in order.
+// Combine takes more at once and names them, with no nested tuples:
+Validation.Combine(Name(r.Name), Email(r.Email), Password(r.Password),
+                   (name, email, password) => new Registration(name, email, password));
 ```
+
+`&` on two values gives a tuple. Three or more would nest (`t.Item1.Item2`), and an operator can't declare type
+parameters of its own to flatten them, so `Validation.Combine` has overloads up to eight values with a function
+that names them. Flat `&` overloads need C# 14 extension operators and stay opt-in sugar
+([decision 9](../decisions/0009-operators-are-opt-in-sugar.md)).
+
+A check that produces no value has its own pair, as `Result` does: `VoidValidation` and `VoidValidation<TError>`,
+for "all of these rules pass" without a `Validation<Unit>`.
 
 It has no `Bind`, following Haskell and Cats rather than FsToolkit. Running a step that needs the value means the
 checks are over, so the code moves to `Result` with `ToResult`. That's the line between the two shapes, and the
@@ -94,6 +114,8 @@ invalid at run time like every result type ([decision 10](../decisions/0010-defa
 |---|---|---|---|
 | `Result` | `Validation` | implicit | One error is a list of one. Nothing is lost. |
 | `Validation` | `Result` | `ToResult(combine)` | Many errors become one only when the caller says how. |
+| `Validation<T, TError>` where `TError : Error` | `Result<T>` | `ToResult()` | The list travels as one `ValidationFailed<TError>`, which `TryFind` searches and `Resultful.AspNetCore` maps to a 400 validation problem. |
+| `Result<T, TError>` where `TError : Error` | `Result<T>` | `AsResult()` | Widening to the general error, named because C# can't express it as a generic conversion. |
 
 With the list in `Validation`, `IPlus` no longer has to make `TError` combinable. `Result<T, TError>.Plus` and
 `IPlus` stay so existing code compiles, and are proposed for deprecation in favour of `Validation`; when is still
@@ -113,16 +135,34 @@ public abstract record Error
 
     public string Message { get; }
     public Error? Cause { get; init; }
+    public ImmutableList<string> Context { get; init; }          // notes added on the way up, innermost first
 
-    public static implicit operator Error(string message);       // a MessageError
-
-    public Error WithContext(string message);                    // a MessageError whose Cause is this
-    public IEnumerable<Error> Causes();                          // this, then each Cause in turn
+    public static Error From(string message);                    // a MessageError
+    public virtual IEnumerable<Error> Inner();                   // Cause, if any; ValidationFailed: its errors
+    public IEnumerable<Error> Causes();                          // this, then Inner() depth-first
     public bool TryFind<TError>([NotNullWhen(true)] out TError? found) where TError : Error;
 }
 
-public sealed record MessageError(string Text) : Error(Text);
+public static TError WithContext<TError>(this TError error, string message) where TError : Error;  // same type, one more note
+
+public sealed record MessageError : Error { public MessageError(string message) : base(message) { } }
+public sealed record ValidationFailed<TError>(IReadOnlyList<TError> Errors) : Error where TError : Error;
 ```
+
+**Context is a note, not a wrapper.** `WithContext` returns the same error with one more entry in `Context`, using
+`with`. A `NotFound` with context is still a `NotFound`, so a `switch` over a closed set still matches it, and a
+result keeps its error type (**verified**: the static type stays `OrderError` and the `switch` matches `NotFound`).
+Wrapping is still there when a layer means to change the error: `new SaveFailed(orderId) { Cause = dbError }`.
+
+**No implicit conversion from `string`.** C# applies one user-defined conversion at a time, so
+`Result<int> F() => "bad";` doesn't compile with or without it (CS0029, **verified**), and `Fail<T>(string)` already
+keeps `Fail("x")` short. All it would add is a way to make an error by accident. `Error.From("x")` is the explicit
+spelling.
+
+A positional base like `abstract record OrderError(string Message) : Error(Message)` doesn't hide `Message`: a
+positional parameter named like an inherited property reuses it (**verified**, no CS0108). The examples use
+constructors anyway, because a closed base needs a `private protected` one (see
+[Analyzers for your own types](analyzers-for-your-own-types.md)).
 
 Categories are records the user derives:
 
@@ -151,10 +191,12 @@ stated so it can be checked again.
 |---|---|---|
 | `abstract record` | kept | Your own types are the categories, with typed data and value equality. |
 | `Message` | kept | Logs, `ToString` and ProblemDetails need text from any error. |
-| `Cause` | kept | `WithContext` needs it, and a user's error can wrap a lower one (a `DbError` under `SaveFailed`). |
-| implicit from `string` | kept | `Fail("x")` stays as short as today. |
-| `WithContext` | kept, under review | One line a user could write. Kept because Go and Rust show it's the most-used operation on errors, and one spelling lets analyzers and satellites recognise it. |
-| `Causes`, `TryFind<T>` | kept | Needed once errors are wrapped: matching only the top value misses what's underneath. |
+| `Cause` | kept | A user's error can wrap a lower one (a `DbError` under `SaveFailed`). |
+| `Context` and `WithContext` | kept | Go and Rust show context is the most-used operation on errors. As a note it keeps the error's type, so closed sets and generated shapes survive it, and one spelling lets analyzers and satellites recognise it. |
+| `Inner`, `Causes`, `TryFind<T>` | kept | Needed once errors are wrapped or gathered: matching only the top value misses what's underneath. |
+| `ValidationFailed<TError>` | kept | Carries a `Validation`'s errors through a `Result` chain where `TryFind` and the satellites can see them. |
+| `From(string)` | kept | The explicit way to make an error from text. |
+| implicit from `string` | **cut** | It can't make `return "bad";` compile (C# doesn't chain conversions) and `Fail<T>(string)` already keeps calls short. |
 | `+`, `AggregateError`, `IPlus` | **cut** | Plurality is `Validation`'s job. |
 | `Has<T>` | **cut** | `TryFind<T>(out _)` does the same. |
 | `Code` | **cut** | The type is the code. A user who needs a stable string adds a property. |
@@ -179,8 +221,9 @@ error switch
 }
 ```
 
-After `WithContext`, the top value is a `MessageError` and that `switch` falls through to `_` (**verified**). A
-handler that may see wrapped errors searches instead, as Go's `errors.As` does:
+`WithContext` keeps the type, so that `switch` still works after context is added. Wrapping with `Cause` or
+gathering into `ValidationFailed` puts the error underneath. A handler that may see those searches instead, as
+Go's `errors.As` does, depth-first through `Inner()`:
 
 ```csharp
 if (error.TryFind<NotFound>(out var notFound)) return Results.NotFound(notFound.Message);
@@ -196,8 +239,10 @@ Each is a property test ([decision 6](../decisions/0006-tests-are-a-mix.md)).
 3. **`Result` to `Validation` and back loses nothing.** For a failed `r`,
    `((Validation<T, E>)r).ToResult(es => es[0])` equals `r`.
 4. **`Result.Bind` stops at the first failure**, and `Validation` has no `Bind`, so it can't.
-5. **Context keeps what's underneath.** If `e.TryFind<T>` finds something, `e.WithContext(m).TryFind<T>` finds
-   the same thing (**verified** with the earlier prototype, whose cause chain is unchanged here).
+5. **Context keeps the error.** `e.WithContext(m)` has the same type as `e`, and if `e.TryFind<T>` finds
+   something, `e.WithContext(m).TryFind<T>` finds the same thing (type kept: **verified**).
+6. **`ToResult()` loses nothing.** For a failed `v`, the `ValidationFailed` in `v.ToResult()` holds `v`'s errors in
+   order, and `TryFind` finds each of them.
 
 ## The scenario, three ways
 
@@ -219,18 +264,18 @@ Validation<Registration> Validate(string email, string name) =>
         .Map(t => new Registration(t.Item1, t.Item2));
 
 Result<User> Register(Registration r) =>
-    (EmailTaken(r.Email) ? new Conflict("email taken") : CreateUser(r))
-        .MapError(e => e.WithContext("registering user"));
+    (EmailTaken(r.Email) ? Fail<User>(new Conflict("email taken")) : CreateUser(r))
+        .WithContext("registering user");
+
+// or as one chain: load, validate, save
+Result<User> Handle(Request req) =>
+    Validate(req.Email, req.Name).ToResult()                      // ValidationFailed<Error> on failure
+        .Bind(Register);
 ```
 
-The endpoint validates first. `Resultful.AspNetCore` turns a failed `Validation<T>` into a validation problem
-(400) listing each error. On success it calls `Register` and maps the `Result<User>` error by type: `TryFind`
-finds the `Conflict` under the context (409), and anything else is 500. The signatures say which is which, and
-the user writes no aggregate and no callback.
-
-The gap: if a single `Result` chain has to carry a validation failure onward, `ToResult(combine)` makes the user
-write a record that holds the list, and `TryFind` only walks `Cause`, so it can't see inside that record. That's
-the case the earlier `AggregateError` covered. It's listed under "Still open" rather than solved here.
+The endpoint maps the `Result<User>` error by type, walking its causes from the outside in: a `ValidationFailed`
+is a 400 validation problem listing each error, a `Conflict` is 409 (still a `Conflict` after the context), and
+anything else is 500. The signatures say which is which, and the user writes no aggregate and no callback.
 
 ## The name `Error`
 
@@ -278,8 +323,10 @@ A break, shipped with the others in `0.3.0-beta01` ([decision 8](../decisions/00
   error. With `Error` it converts to the value, because C# doesn't chain user-defined conversions. The analyzer
   rule planned for M4 ("`Result<string>` built from a bare string") has to ship in the same release.
 - **`Result<int> F() => "bad";` stops compiling** (CS0029, **verified**). It becomes `Fail<int>("bad")` or
-  `(Error)"bad"`. A compile error is the safe kind of break.
+  `Error.From("bad")`. A compile error is the safe kind of break.
 - **`string[]` and `List<string>` conversions** move to `Validation<T>`.
+- **`VoidResult` fails with one `Error`**, like `Result<T>`; its string, `string[]` and `List<string>` conversions
+  go, and checks that gather move to `VoidValidation`. `VoidResult<TError>` doesn't change.
 - **`Result<Error>` is ambiguous** (CS0457, **verified**). It's rare, and `Ok`/`Fail` still work.
 - **Allocation is about the same.** A failure allocates a record (or a list for `Validation`) where it allocated an
   array before. Success doesn't allocate.
@@ -292,8 +339,10 @@ which the core declares internally (**verified** with the prototype).
 
 - Roadmap M5's "structured `Error` type… additive" item is replaced: `Error` and `Validation` move to M3 with the
   other breaks.
-- Roadmap M2's accumulating operators (`+ - *`, `&`) belong to `Validation`. On `Result` they short-circuit, or
-  don't exist. This changes the operator table in [decision 9](../decisions/0009-operators-are-opt-in-sugar.md).
+- `Validation<T, TError>` and `VoidValidation` move forward to roadmap M2 as new types, so nothing breaks there:
+  they work with string errors before `Error` exists. M2's accumulating operators (`+ - *`, `&`) are built on
+  `Validation` from the start. `Result`'s existing `Plus` stays until it's deprecated. This changes the operator
+  table in [decision 9](../decisions/0009-operators-are-opt-in-sugar.md).
 - The architecture's core row lists `Validation` and `Error`.
 - `Resultful.AspNetCore` maps `Validation<T>` to a validation problem and `Result<T>` by error type.
 - `Resultful.FluentValidation` returns `Validation<T>`.
@@ -301,14 +350,15 @@ which the core declares internally (**verified** with the prototype).
 
 ## Still open
 
-- **The name of the plural type.** `Validation` is the functional idiom; whether it's the right name for
-  Resultful is undecided.
+The list is kept in [decision 14](../decisions/0014-result-and-validation.md#still-open). Background on each:
+
+- **The plural type's name.** `Validation` is the functional idiom; whether it's right for Resultful is open.
 - **Two readings of `Validation<T, TError>`.** This document builds a new type with an `IReadOnlyList<TError>`.
-  The lighter reading keeps today's `Result<T, IEnumerable<TError>>` machinery and gives it the name
-  `Validation`, so only `Error` is new.
+  The lighter reading names today's `Result<T, IEnumerable<TError>>` machinery `Validation`, so only `Error` is
+  new.
 - **`Bind` on `Validation`.** None (Haskell, Cats), or one that stops at the first failure (FsToolkit).
-- **Many to one inside a `Result` chain.** Whether the core offers a built-in error that holds a list and that
-  `TryFind` searches, or `ToResult` also returns `Result<T, IReadOnlyList<TError>>` as FsToolkit does, or the user
-  always supplies `combine`.
-- Whether `Validation` keeps `IPlus`-style `+` on values (`a + b` adding two successful numbers), or only `&`.
-- When `IPlus` and `Result<T, TError>.Plus` are deprecated.
+- **`+` on `Validation` values** (`a + b` adding two successful numbers), or only `&` and `Combine`.
+- **When `IPlus` and `Result<T, TError>.Plus` are deprecated.**
+- **Whether `Context` takes part in equality.** As a record property it does, so an error with context isn't
+  equal to the same error without it. Excluding it keeps test assertions simple.
+- **Whether the base seals `ToString`**, so typed data stays out of logs unless a type opts in.

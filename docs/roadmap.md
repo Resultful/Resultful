@@ -84,12 +84,16 @@ characterisation suite pins every public operator's current behaviour, and cover
   - `TryGetValue`/`TryGetError`
   - `Deconstruct`
   - `OrElse`, `ValueOr`
+- `Validation<T, TError>` and `VoidValidation<TError>`, new types that gather errors into a non-empty list, with
+  `Validation.Combine` and `ToResult(combine)`. They work with string errors now, and take `Error` when it arrives
+  in M3 (*proposed in [decision 14](decisions/0014-result-and-validation.md)*, brought forward so nothing M2 ships
+  breaks in M3).
 - Operators over those methods, opt-in through `using Resultful.Operators;`
   ([decision 9](decisions/0009-operators-are-opt-in-sugar.md)):
-  - `+ - *` with error accumulation
+  - `+ - *` with error accumulation, on `Validation` (today's `Result.Plus` stays until it's deprecated)
   - `|` and `||` fallback
   - `>>` bind
-  - `&` tuple combine
+  - `&` tuple combine, on `Validation`
   - the same operators on `Task<Result<T>>`
   - a precedence table in the README
 - Collection operators on results of arrays, immutable lists, sets and dictionaries, with equality from the
