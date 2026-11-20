@@ -26,12 +26,15 @@ in functional languages. Resultful brings it to C# in C#'s own idiom, so it does
 inside your codebase:
 
 ```csharp
-var status = orderResult switch
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+var response = Place(cart) switch
 {
-    int v => v,
-    OrderNotFound nf => nf.Id == 42 ? 404 : 500,
-    OrderLocked => 409,
-    CardDeclined => 402,
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
 };
 ```
 

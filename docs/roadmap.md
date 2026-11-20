@@ -14,16 +14,19 @@ generated:
 ## The goal
 
 Resultful should make failure part of a C# signature without making the code around it any less C#
-([vision](vision.md)). The target consumer experience is a stack-allocated, domain-named result shape that
-switches exhaustively over success and every error case ([decision 16](decisions/0016-source-generated-result-shapes.md)):
+([vision](vision.md)). The target consumer experience is a stack-allocated result shape, named after the
+operation, that switches exhaustively over its success and every error case ([decision 16](decisions/0016-source-generated-result-shapes.md)):
 
 ```csharp
-var status = orderResult switch
+[ResultShape(typeof(OrderError), Success = typeof(Order))]
+public readonly partial struct PlaceOrderResult;
+
+var response = Place(cart) switch
 {
-    int v => v,
-    OrderNotFound nf => nf.Id == 42 ? 404 : 500,
-    OrderLocked => 409,
-    CardDeclined => 402,
+    Order o => Created(o),
+    OrderNotFound nf => NotFound(nf.Id),
+    OrderLocked => Conflict(),
+    CardDeclined => PaymentRequired(),
 };
 ```
 
@@ -127,9 +130,10 @@ table.
   [exploration](explorations/source-generated-shapes.md)):
   - **Tier 1 (`[ClosedHierarchy]`):** `private protected` constructor for compiler-enforced cross-assembly closure,
     exhaustive `Match`/`Switch` across nested hierarchies, and deterministic outer-to-inner `Causes()` `TryMap`.
-  - **Tier 2 (`[ResultShape(typeof(TError))]`):** stack-allocated `readonly partial struct` with Decision 10's
+  - **Tier 2 (`[ResultShape(typeof(TError), Success = typeof(T))]`):** a narrow, non-generic `readonly partial struct` with Decision 10's
     zero-value guard, `[MustObserve]`, implicit conversions from `T` and error leaves, railway methods, and
-    automatic widening to `Result<T>` / `Result<T, TError>` (including `WithContext`).
+    widening to `Result<T>` / `Result<T, TError>`, conversions in from `Result<T, TError>` and other shapes,
+    `WithContext` that keeps the shape, and a generator error when the success type overlaps an error case.
 
 **Done when** each analyzer rule and generator tier has positive and negative tests, generated shapes obey
 Decision 10 and widen cleanly to `Result<T>`, and the samples build with no warnings.
@@ -165,7 +169,7 @@ publishes with no trim or AOT warnings.
   net10 against net11.
 - Shipped behind `#if NET11_0_OR_GREATER`, with a decision recording the numbers.
 
-**Done when** both `result switch { … }` and generated `orderResult switch { int v => …, OrderNotFound => …, OrderLocked => …, CardDeclined => … }`
+**Done when** both `result switch { … }` and a generated shape's `Place(cart) switch { Order o => …, OrderNotFound => …, OrderLocked => …, CardDeclined => … }`
 are exhaustive on `net11.0` with no boxing on the hot path, or the decision records why not.
 
 ## M7. Stable (`1.0.0`)
