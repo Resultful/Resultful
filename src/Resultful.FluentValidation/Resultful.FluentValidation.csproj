@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- FluentValidation 12 targets net8.0 only, so the satellite drops netstandard2.0 (decision 11). -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.FluentValidation</AssemblyName>
+    <RootNamespace>Resultful.FluentValidation</RootNamespace>
+    <Description>A FluentValidation adapter for Resultful: a validator's result becomes a Validation&lt;T&gt;, one error per failure.</Description>
+    <VersionPrefix>0.3.0</VersionPrefix>
+    <PackageId>Resultful.FluentValidation</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;validation;fluentvalidation</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Drafted ahead (stack-plan GOAL.md, Pipelining): not packed until it is switched to the real core. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Drafted ahead of the core (05–12): compiled against the target API's stub core. At its turn this becomes
+      ../Resultful/Resultful.csproj and the property goes away.
+    -->
+    <ResultfulCoreProject Condition="'$(ResultfulCoreProject)' == ''">$(MSBuildThisFileDirectory)../../tests/Resultful.TargetApi/Resultful/Resultful.csproj</ResultfulCoreProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ResultfulCoreProject)" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt; it must be in the target. One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
