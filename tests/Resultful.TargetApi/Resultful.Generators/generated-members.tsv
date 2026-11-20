@@ -10,7 +10,7 @@ declaration	member	targets	notes
 [ResultShape] readonly partial struct	IResultShape<T, TError> (IValidationShape<T, TError> with ManyErrors)	all	one field, _inner, a core value
 [ResultShape] readonly partial struct	[MustObserve]	all
 [ResultShape] readonly partial struct	[Obsolete(error: true)] .ctor()	all	decision 10
-[ResultShape] readonly partial struct	static Shape Ok(T value), static Shape Fail(TError error)	all	Ok() with Unit when there is no Success
+[ResultShape] readonly partial struct	static Shape Ok(T value), static Shape Fail(TError error)	all	with no Success, Ok() takes no argument (no Ok(Unit))
 [ResultShape] readonly partial struct	bool IsDefault	all
 [ResultShape] readonly partial struct	bool TryGetValue(out T value), bool TryGetError(out TError error)	all	TryGetErrors(out IReadOnlyList<TError>) with ManyErrors
 [ResultShape] readonly partial struct	TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Leaf, TResult> on<Leaf>, …)	all	RF0008: typed handlers

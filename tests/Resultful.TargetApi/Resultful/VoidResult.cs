@@ -14,7 +14,7 @@ namespace Resultful
         [Obsolete(ObsoleteMessages.VoidResult)]
         public static implicit operator VoidResult<TError>(TError value) => throw null!;
         [Obsolete(ObsoleteMessages.VoidResult)]
-        public static implicit operator VoidResult<TError>(Unit value) => throw null!;
+        public static implicit operator VoidResult<TError>(Unit? value) => throw null!;
         //Local Methods
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<TError, TResult> errorFunc) => throw null!;
         public void Switch(Action<Unit> successfulFunc, Action<TError> errorFunc) => throw null!;
