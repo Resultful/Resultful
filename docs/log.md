@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- *The error shape* added: how decisions 14 and 15 fit together, how it differs from other .NET result libraries,
+  and seven shapes an application builds (open, closed, nested closed, layered context, validation, boundary
+  mapping, your own result type). Nested closed hierarchies verified with the suppressor probe.
+
 - Decision 14 proposed: `Result` holds one error, `Validation` a non-empty list, and an abstract `Error` record
   is the default error for both. Exploration *One error or many* and reference *Error handling: prior art*
   added (ErrorOr, FluentResults, LanguageExt, CSharpFunctionalExtensions, Ardalis.Result, dotNext, OneOf, Go,
