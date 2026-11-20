@@ -9,30 +9,36 @@ using Xunit;
 namespace Resultful.Consumption;
 
 /// <summary>
-/// Verifies that every public member declared in src/Resultful/PublicAPI.Shipped.txt
-/// is genuinely invoked, accessed, or converted by the consumption tests in this project.
+/// Verifies that every public member declared in src/Resultful/PublicAPI.Shipped.txt and
+/// PublicAPI.Unshipped.txt is genuinely invoked, accessed, or converted by the consumption tests in this project.
+/// Only symbols the compiler bound count: an overload that failed to bind is not covered.
 /// </summary>
 public sealed partial class PublicApiCoverageTests
 {
     [Fact]
-    public void Every_shipped_public_member_is_exercised_by_consumption_tests()
+    public void Every_public_member_is_exercised_by_consumption_tests()
     {
-        var shippedPath = Path.Combine(AssemblyPaths.RepoRootDir, "src", "Resultful", "PublicAPI.Shipped.txt");
-        Assert.True(File.Exists(shippedPath), $"PublicAPI.Shipped.txt not found at {shippedPath}");
+        var apiDir = Path.Combine(AssemblyPaths.RepoRootDir, "src", "Resultful");
+        var publicMembers = new List<(string RawLine, string Key)>();
+        foreach (var file in new[] { "PublicAPI.Shipped.txt", "PublicAPI.Unshipped.txt" })
+        {
+            var path = Path.Combine(apiDir, file);
+            Assert.True(File.Exists(path), $"{file} not found at {path}");
+            publicMembers.AddRange(ParseApiMembers(File.ReadAllLines(path)));
+        }
 
-        var shippedMembers = ParseShippedMembers(File.ReadAllLines(shippedPath));
-        Assert.NotEmpty(shippedMembers);
+        Assert.NotEmpty(publicMembers);
 
         var exercisedKeys = CollectExercisedResultfulMembers();
 
-        var missing = shippedMembers
+        var missing = publicMembers
             .Where(m => !exercisedKeys.Contains(m.Key))
             .Select(m => $"{m.RawLine}  [key: {m.Key}]")
             .ToList();
 
         Assert.True(
             missing.Count == 0,
-            $"Found {missing.Count} shipped public API member(s) with no consumption test:\n" +
+            $"Found {missing.Count} public API member(s) with no consumption test:\n" +
             string.Join("\n", missing.Take(40)) +
             (missing.Count > 40 ? $"\n... and {missing.Count - 40} more" : string.Empty));
     }
@@ -66,6 +72,15 @@ public sealed partial class PublicApiCoverageTests
             trees,
             refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        // The scan must compile cleanly. With errors, symbols fail to bind and the coverage result means nothing.
+        var errors = compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => d.ToString())
+            .ToList();
+        Assert.True(
+            errors.Count == 0,
+            $"The coverage scan compilation has {errors.Count} error(s):\n" + string.Join("\n", errors.Take(20)));
 
         var resultfulAssembly = compilation.GetTypeByMetadataName("Resultful.Result")?.ContainingAssembly
             ?? throw new InvalidOperationException("Could not resolve Resultful assembly in compilation.");
@@ -107,10 +122,6 @@ public sealed partial class PublicApiCoverageTests
             {
                 var info = model.GetSymbolInfo(node);
                 Record(info.Symbol);
-                foreach (var candidate in info.CandidateSymbols)
-                {
-                    Record(candidate);
-                }
 
                 if (node is ExpressionSyntax expr)
                 {
@@ -153,13 +164,16 @@ public sealed partial class PublicApiCoverageTests
             .ToList();
     }
 
-    private static List<(string RawLine, string Key)> ParseShippedMembers(string[] lines)
+    private static List<(string RawLine, string Key)> ParseApiMembers(string[] lines)
     {
         var result = new List<(string, string)>();
         foreach (var raw in lines)
         {
             var line = raw.Trim();
-            if (string.IsNullOrEmpty(line) || line.StartsWith('#') || !line.Contains("->", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(line)
+                || line.StartsWith('#')
+                || line.StartsWith("*REMOVED*", StringComparison.Ordinal)
+                || !line.Contains("->", StringComparison.Ordinal))
             {
                 continue;
             }
