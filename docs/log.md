@@ -13,6 +13,12 @@ generated:
 
 ## 2026-11-20
 
+- Decision 14 proposed: `Result` holds one error, `Validation` a non-empty list, and an abstract `Error` record
+  is the default error for both. Exploration *One error or many* and reference *Error handling: prior art*
+  added (ErrorOr, FluentResults, LanguageExt, CSharpFunctionalExtensions, Ardalis.Result, dotNext, OneOf, Go,
+  Rust, ZIO, Effect, F#, Swift, Kotlin, Haskell, Zig). Roadmap M5's structured error and the seamless
+  exploration's section 6 item are marked as under review.
+
 - Layout moved (#33): `src/Resultful`, `tests/Resultful.Tests`, `samples/Resultful.Examples`, `Resultful.slnx`.
   Package settings are in `src/Directory.Build.props`; test and sample settings in their folders' props files,
   replacing the project-name conditions. No code changed.

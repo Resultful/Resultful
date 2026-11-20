@@ -113,7 +113,8 @@ table.
 [The architecture](architecture.md) lists each package's dependencies.
 
 - A structured `Error` type in the core: `Code`, `Description`, `Type`, `Metadata`. **This is additive**:
-  `Result<T>` keeps message errors, and `Error` is used through `Result<T, Error>`.
+  `Result<T>` keeps message errors, and `Error` is used through `Result<T, Error>`. *Under review: proposed
+  [decision 14](decisions/0014-result-and-validation.md) would replace this item.*
 - `Resultful.AspNetCore`: typed results, ProblemDetails (RFC 9457), endpoint filter, error-to-status map,
   Minimal API validation bridge.
 - `Resultful.Text.Json` and an AOT smoke test: `IsAotCompatible` on the core, and a native-AOT sample published
