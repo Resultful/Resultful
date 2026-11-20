@@ -1,0 +1,26 @@
+# What Resultful.Generators writes, by declaration. `Leaf` stands for each concrete case, `T` the success type,
+# `TError` the declared error type. Members marked net11.0 are emitted only when the compilation has
+# System.Runtime.CompilerServices.UnionAttribute and the language version allows it.
+declaration	member	targets	notes
+[ClosedHierarchy] abstract partial record	private protected .ctor(string message)	all	only when no matching constructor is written
+[ClosedHierarchy] abstract partial record	TResult Match<TResult>(Func<Leaf, TResult> on<Leaf>, …)	all	cases most-derived first, ties by fully qualified name
+[ClosedHierarchy] abstract partial record	void Switch(Action<Leaf> on<Leaf>, …)	all
+[ClosedHierarchy] abstract partial record	static bool TryMap<TResult>(Error error, Func<Leaf, TResult> on<Leaf>, …, out TResult result)	all	walks error.Causes() outer to inner
+[ClosedHierarchy] abstract partial record	static IReadOnlyList<Type> Cases { get; }	all	the leaves, for Resultful.Text.Json's AddErrorCases
+[ResultShape] readonly partial struct	IResultShape<T, TError> (IValidationShape<T, TError> with ManyErrors)	all	one field, _inner, a core value
+[ResultShape] readonly partial struct	[MustObserve]	all
+[ResultShape] readonly partial struct	[Obsolete(error: true)] .ctor()	all	decision 10
+[ResultShape] readonly partial struct	static Shape Ok(T value), static Shape Fail(TError error)	all	with no Success, Ok() takes no argument (no Ok(Unit))
+[ResultShape] readonly partial struct	bool IsDefault	all
+[ResultShape] readonly partial struct	bool TryGetValue(out T value), bool TryGetError(out TError error)	all	TryGetErrors(out IReadOnlyList<TError>) with ManyErrors
+[ResultShape] readonly partial struct	TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Leaf, TResult> on<Leaf>, …)	all	RF0008: typed handlers
+[ResultShape] readonly partial struct	Result<TOut, TError> Map<TOut>(…), Result<TOut, TError> Bind<TOut>(…)	all	forwarded until the interface box is measured (13b)
+[ResultShape] readonly partial struct	Shape WithContext(string message)	all	keeps the shape
+[ResultShape] readonly partial struct	Result<T, TError> AsResult()	all
+[ResultShape] readonly partial struct	implicit operator Shape(T), implicit operator Shape(Leaf) per leaf	all	none from an interface Success (CS0552)
+[ResultShape] readonly partial struct	implicit operator Shape(Result<T, TError>), implicit operator Shape(OtherShape)	all	same success and error types (decision 16 item 5)
+[ResultShape] readonly partial struct	implicit operator Result<T, TError>(Shape), implicit operator Result<T>(Shape)	all	Result<T> through IErrorUnion.Error when TError is a union
+[ResultShape] readonly partial struct	[Union], IUnion, bool HasValue, object? Value, public .ctor(Leaf) and bool TryGetValue(out Leaf) per leaf	net11.0	a nested union is one case (decision 17)
+partial union whose cases are all Error	IErrorUnion: Error Error { get; }	net11.0	unwraps a nested union to its leaf
+partial union whose cases are all Error	string Message, Error? Cause, Union WithContext(string message), bool TryFind<TFound>(out TFound? found)	net11.0	forward to the leaf; WithContext rewraps and keeps the union type
+partial union whose cases are all Error	static IReadOnlyList<Type> Cases { get; }	net11.0	the innermost leaves

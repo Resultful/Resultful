@@ -1,0 +1,15 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <!-- FluentValidation 12 targets net8.0 only; the satellite follows it and drops netstandard2.0 (decision 11). -->
+    <PackageVersion Include="FluentValidation" Version="12.1.0" />
+  </ItemGroup>
+  <!-- Dependencies follow the target (GOAL.md, Known traps). On net11.0 the logging abstractions are in the framework (NU1510), so only net10.0 references the package. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
+  </ItemGroup>
+</Project>

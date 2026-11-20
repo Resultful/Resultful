@@ -1,0 +1,12 @@
+id	severity	title	editorconfig	owner
+RF0001	warning	A [MustObserve] value is never observed (includes an unawaited Task or ValueTask of one, and an async void handler passed to Switch; only `_ =` passes)	resultful.must_observe_types	16a
+RF0002	warning	A result is created with default (includes default of an error union)		16a
+RF0003	warning	Value is read without checking IsSuccess		16b
+RF0004	warning	A bare string becomes the success of a Result<string>		16b
+RF0005	info	A Match whose handlers could be a switch expression		16b
+RF0006	warning	A result field is never assigned by a constructor (decision 10 layer 3)		16b
+RF0007	info	A [ClosedHierarchy] base can take a private protected constructor		16b
+RF0008	error	A handler passed to a generated multi-case Match, Switch or TryMap isn't explicitly typed or a method group (core's two-handler Match is exempt)		16b
+RF0009	warning	Map's selector returns a result: use Bind		16b
+RF0010	error	A type outside a [ClosedHierarchy] base's assembly derives from it	resultful.closed_hierarchy_types	17
+RFSP0001	suppressor	CS8509 on a switch over a [ClosedHierarchy] base that matches every case (and null, for a nullable input)	resultful.closed_hierarchy_types	17

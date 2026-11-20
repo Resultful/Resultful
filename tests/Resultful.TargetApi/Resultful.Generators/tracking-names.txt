@@ -1,0 +1,6 @@
+# Incremental step tracking names (building-the-generator.md). Tests assert on these.
+Resultful.BaseIndex
+Resultful.Hierarchies
+Resultful.Shapes
+Resultful.UnionAvailable
+Resultful.Emit

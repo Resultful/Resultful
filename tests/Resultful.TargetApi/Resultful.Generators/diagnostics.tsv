@@ -1,0 +1,9 @@
+id	severity	category	title	owner
+RFG0001	error	Resultful.Generators	A shape's Success type overlaps its error types	13a
+RFG0002	warning	Resultful.Generators	A concrete type inside a [ClosedHierarchy] isn't sealed	13a
+RFG0003	error	Resultful.Generators	An open generic type derives from a [ClosedHierarchy] base	13a
+RFG0004	error	Resultful.Generators	A public shape exposes a less accessible leaf	13a
+RFG0005	error	Resultful.Generators	An attributed declaration is nested in a type that isn't partial	13a
+RFG0006	error	Resultful.Generators	The attribute is on a declaration the generator can't extend	13a
+RFG0007	error	Resultful.Generators	A case of an error union doesn't derive from Error	13b
+RFG0008	error	Resultful.Generators	Two leaves of one hierarchy or union share a simple name, so the JSON "type" is ambiguous	13b

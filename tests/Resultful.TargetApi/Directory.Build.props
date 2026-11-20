@@ -1,0 +1,22 @@
+<Project>
+  <!-- The 0.3 target API: every package's end-state public surface as `throw null` stubs. Never packed or shipped. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- Stubs have no bodies, so the code-quality analyzers have nothing to say. The PublicAPI analyzer still runs. -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Stub-only noise: CS0067 unused events, CS8597 `throw null`, CS0618/CS0612 the target's own obsolete members. -->
+    <NoWarn>$(NoWarn);CS0067;CS8597;CS0618;CS0612</NoWarn>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Only the stub projects (each has an api folder, as src/Resultful does from 03); check-api.cs, a file-based app here, has none. -->
+  <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/api')">
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="api/$(TargetFramework)/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="api/$(TargetFramework)/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

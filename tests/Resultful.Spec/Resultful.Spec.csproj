@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The executable spec (stack-plan VERIFY.md section 2). SpecHarness compiles each fixture under Fixtures/<ID>/
+    against the real build (src/), runs its [SpecCase] methods or checks its `// expect:` markers, and holds the
+    outcome to ledger.tsv. Every fixture also has to compile against the target API (tests/Resultful.TargetApi).
+    xunit.v3 on Microsoft.Testing.Platform: run with `dotnet run -f net10.0` (and net11.0).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- 02's eng/run-tests.cs adds one run per culture: the spec holds under any culture (CULTURE-*). -->
+    <TestCultures>invariant;tr-TR</TestCultures>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- CA1515/CA1001 don't fit a test project; CA1031 the harness catches a fixture's exceptions to report them. -->
+    <NoWarn>$(NoWarn);CA1515;CA1001;CA1031;CA1859;CA2007;CA1034;CA1863</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Fixtures and the support source are compiled by the harness, not by this project. -->
+    <Compile Remove="Fixtures/**;Support/**" />
+    <None Include="Fixtures/**;Support/**;ledger.tsv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The real build. Later PRs add each real package here as it appears (src/<Package>). -->
+    <ProjectReference Include="../../src/Resultful/Resultful.csproj" />
+    <!-- The target API, for the compile-only check; built, not referenced. -->
+    <ProjectReference Include="../Resultful.TargetApi/Resultful/Resultful.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Resultful.TargetApi/Resultful.OneOf/Resultful.OneOf.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Resultful.TargetApi/Resultful.Text.Json/Resultful.Text.Json.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Resultful.TargetApi/Resultful.AspNetCore/Resultful.AspNetCore.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Resultful.TargetApi/Resultful.FluentValidation/Resultful.FluentValidation.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Resultful.TargetApi/Resultful.Diagnostics/Resultful.Diagnostics.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="xunit.v3" />
+    <!-- Third-party assemblies a fixture may reference (Resultful.FluentValidation's dependency). -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="SpecDir" Value="$(MSBuildProjectDirectory)" />
+    <AssemblyMetadata Include="RepoRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+    <AssemblyMetadata Include="Configuration" Value="$(Configuration)" />
+    <AssemblyMetadata Include="TargetFramework" Value="$(TargetFramework)" />
+  </ItemGroup>
+</Project>
