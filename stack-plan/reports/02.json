@@ -1,8 +1,8 @@
 {
   "pr": 40,
   "branch": "rtkelly13/stack-02-test-infra",
-  "head_sha": "6595f599b26b0537819b3c2d3e92ec2ff44607a5",
-  "ci": "green (build, release-check, lint, suppressions pass; publish skipped as designed) on the first push",
+  "head_sha": "732a709d50075b6972701bba5087b50f89ef2d1a",
+  "ci": "green on 732a709: build, release-check, lint, suppressions pass (one older suppressions run cancelled by the body edit, superseded by a passing one); publish skipped as designed",
   "test_count": {
     "Resultful.Consumption per run": 46,
     "Resultful.Consumption runs": "net10.0, net11.0 x default, tr-TR, invariant = 6, plus the same 6 [packed]",
@@ -14,7 +14,7 @@
   "changes": [
     "eng/run-tests.cs: finds tests/*/*.csproj, reads TargetFrameworks/OutputType/TestCultures/CoverageRunArguments via dotnet msbuild -getProperty, runs each TFM (net4x only on Windows), xunit.v3 Exe via dotnet run -- -result-trx, VSTest via dotnet test --logger trx; per-run TRX, counts JSON, markdown summary (also GITHUB_STEP_SUMMARY); --self-test",
     "Counts gate: eng/test-counts.json keyed 'project tfm [culture=x] [label]'; CI fails on any total or skipped mismatch (fall, unrecorded rise, more skips), a missing run, or a stale entry; normal and packed runs both checked",
-    "Coverage ratchet: coverlet.console 10.1.0 (local tool), Debug build with ContinuousIntegrationBuild=false, both test projects merged on net10.0; eng/coverage-floor.json branch 84.72, line 92.15; CI measured exactly 84.72/92.15",
+    "Coverage ratchet: coverlet.console 10.1.0 (local tool), Debug build with ContinuousIntegrationBuild=false, both test projects merged on net10.0; eng/coverage-floor.json branch 84.5, line 92.0 (measured 84.72/92.15)",
     "Suppressions gate: eng/check-suppressions.cs over git diff base...HEAD; .github/workflows/suppressions.yml (pull_request opened/edited/synchronize/reopened) requires each hit's path and diagnostic IDs under '## Suppressions' in the body",
     "Reference model: tests/Resultful.Consumption/ReferenceModel.cs (Result<T>, Result<T,TError>, VoidResult as bools + values/lists, hazards kept) and ReferenceModelLawTests.cs (Map identity/composition, Bind left/right identity and associativity, Match, random programs of Map/Bind/MapError/Plus on all three types)",
     "Culture: <TestCultures>tr-TR;invariant</TestCultures> in the consumption csproj; run-tests repeats the suite with xunit -culture per run; CultureTests asserts the requested culture took effect (verified to fail when not applied)",
@@ -36,7 +36,8 @@
     "Suppressions gate also catches WarningsNotAsErrors, TreatWarningsAsErrors false, NUnit Ignore/Explicit, lowered .editorconfig severity; requires diagnostic IDs; own workflow so a body edit reruns it",
     "Package diff also compares other nuspec metadata",
     "API diff includes parameter names, defaults, attributes and nullable annotations so 03's re-annotations will show",
-    "ls-lint rules admit only the named new eng files"
+    "ls-lint rules admit only the named new eng files",
+    "--counts-complete CI step: every counts entry must be run by some step"
   ],
   "decisions_taken": [
     "Baseline packed from commit 1697a7a: no tags exist on the remote and 0.2.0-beta06 is not on nuget.org (latest beta05). DECISIONS-TAKEN row 'The tag exists locally' (04b) is out of date",
@@ -45,14 +46,22 @@
     "Counts gate requires equality (fall fails, unrecorded rise fails)",
     "Coverage measured on a Debug, non-CI build on net10.0 only; the uncounted coverage run excludes PackageSourceTests (via CoverageRunArguments) because instrumentation rewrites Resultful.dll",
     "coverlet.console 10.1.0 rather than 10.1.1 (under two weeks old)",
-    "TestCultures supported only for xunit.v3 runner (Exe) projects; MTP-runner projects make run-tests stop with a message"
+    "TestCultures supported for xunit.v3 projects on either runner; other projects that set it fail with a message",
+    "Coverage floor kept slightly below measured instead of pinning CsCheck_Seed"
   ],
   "open_issues": [
-    "Size: ~2,780 changed lines outside tests/ (mostly the five eng scripts), over the ~800-line split guide. Clean split point if wanted: 02a = first three commits, 02b = the release-check commit (6595f59)",
+    "Size: ~2,900 changed lines outside tests/; kept as one PR under the orchestrator's size waiver (PROGRESS.md)",
     "DECISIONS-TAKEN.md (plan branch) should be corrected: no 0.2.0-beta06 tag exists; baseline is commit 1697a7a; beta06 was never published to nuget.org",
     "Binary-compat run (suite built against baseline, new DLL swapped in) and EnablePackageValidation not done here: 04b",
-    "run-tests does not support Microsoft.Testing.Platform runner projects yet (fails loudly); the first PR that adds one must extend it",
     "Suppressions gate can't see suppressions in files it doesn't scan (e.g. .md, .json runsettings) and matches only by text; documented in the script header",
     "eng scripts duplicate Package/Targets/Expected helpers between api-diff.cs and il-diff.cs (file-based apps can't share a source file)"
+  ],
+  "review_fixes": [
+    "eee001e: counts gate enforces its whole scope (label + --project/--framework filters): a deleted project, a target or culture dropped everywhere fails; UsePackedPackage projects must have [packed] entries; new CI step --counts-complete fails if any file entry was counted by no step (removed packed step); .NET Framework entries exempt off Windows; self-tests for each",
+    "eee001e: Microsoft.Testing.Platform runners supported: xunit.v3 with UseMicrosoftTestingPlatformRunner (--results-directory, --report-xunit-trx, --report-xunit-trx-filename, --culture) and NUnit/MSTest MTP runners (--report-trx); argument building self-tested; a real MTP build of the consumption suite ran 46/46 under each culture locally",
+    "eee001e: coverage.json and coverage.cobertura.xml deleted once before the runs; coverlet --targetargs quote each argument (VSTest and runner forms)",
+    "4b5c400: coverage floor 84.5 branch / 92.0 line (measured 84.72 / 92.15), reason in $comment (pinning CsCheck_Seed replays one case per property)",
+    "168fafe: suppressions gate catches Assert.Skip/SkipWhen/SkipUnless/Inconclusive; named paths and IDs must match as whole tokens; both in the self-test",
+    "732a709: ReferenceModelLawTests.Same compares IsOk, value or error, and error sequences directly"
   ]
 }
