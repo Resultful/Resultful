@@ -2,10 +2,10 @@
 type: decision
 title: "Repository layout: src, tests, samples, benchmarks"
 description: "Projects move under src/, tests/, samples/ and benchmarks/ with a .slnx solution, following the sibling projects."
-status: proposed
+status: stable
 tags: [resultful, decision, structure]
 decided:
-  by: ""
+  by: human:rtkelly13
   at: 2026-11-20
 generated:
   by: claude-opus-5.5
@@ -32,5 +32,6 @@ How: one pull request at the start of M1, with no code changes. It updates:
 - the paths in `ci.yml`
 - the test/example conditions and the pack paths in `Directory.Build.props`
 - the `PublicAPI` `AdditionalFiles`
+- the path the package check is run with
 
 It goes first so that later diffs aren't buried in moves.

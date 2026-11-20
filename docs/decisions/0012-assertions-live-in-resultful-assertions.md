@@ -33,9 +33,9 @@ worthwhile. Assertions for Resultful are one part of it, not the whole point.
   licence. Which range the adapter supports is still to be checked.
 - `FluentAssertions.Resultful` is deprecated on NuGet in favour of `Resultful.Assertions.FluentAssertions` once
   that exists.
-- **It publishes only what changed.** That repository holds many independent packages, so unlike this one
-  ([decision 11](0011-package-family.md)) it versions and releases each package on its own. Publishing stays a
-  manual workflow run.
+- **It publishes only what changed.** That repository holds many independent packages, so it versions and
+  releases each package on its own. This repository does the same ([decision 11](0011-package-family.md)).
+  Publishing stays a manual workflow run.
 - That repository gets its own vision and OKF docs bundle. Its vision is about testing failure-as-a-value
   types, of which Resultful is one.
 

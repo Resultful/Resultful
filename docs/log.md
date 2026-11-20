@@ -13,6 +13,11 @@ generated:
 
 ## 2026-11-20
 
+- Decisions 9, 11 and 13 accepted. Operators are opt-in through `Resultful.Operators`. Packages are versioned on
+  their own and only what changed is published, as in `Resultful.Assertions`. `Resultful.Analyzers` is a separate
+  package. The satellite set is accepted as recommended and confirmed per milestone. The layout move is the first
+  M1 pull request. Decision 10's front matter repaired.
+
 - Decision 12 accepted: `Resultful.Assertions` holds many assertion projects and publishes only what changed.
   The rename, its vision and the selective publishing were handed to a session in that repository.
 - Long-term plan: roadmap rewritten as milestones (M1 to M7, beyond 1.0, and an assertions track); architecture

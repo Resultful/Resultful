@@ -1,7 +1,20 @@
 ---
 type: decision
 title: "default is not a success"
-description: "C# can't stop a struct's zero value from existing: `default`, array elements, uninitialised fields and `new T()`
+description: "The zero value of every result type is made invalid at run time, new Result<T>() doesn't compile, and an analyzer catches the rest."
+status: stable
+tags: [resultful, decision, correctness]
+decided:
+  by: human:rtkelly13
+  at: 2026-11-20
+generated:
+  by: claude-opus-5.5
+  at: 2026-11-20
+---
+
+# 10. `default` is not a success
+
+C# can't stop a struct's zero value from existing: `default`, array elements, uninitialised fields and `new T()`
 under a `new()` constraint all produce it. This was verified on .NET 11. So the zero value is made harmless and
 the ways of writing it are caught, in three layers. All three ship with the dependency-free storage
 ([decision 1](0001-core-is-dependency-free.md), roadmap M3):
