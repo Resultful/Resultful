@@ -9,6 +9,9 @@ namespace Resultful.FluentValidation;
 /// <remarks>
 /// Only the property name, the error code and the message are kept. The attempted value and custom state are
 /// dropped, because they may hold personal data and an error travels into logs and HTTP responses.
+/// The message is kept as FluentValidation formatted it, so a rule whose message uses <c>{PropertyValue}</c> or a
+/// custom placeholder still embeds the value in <see cref="Error.Message"/>: keep such values out of messages for
+/// properties that hold personal data.
 /// </remarks>
 public sealed record FluentValidationError : Error
 {
