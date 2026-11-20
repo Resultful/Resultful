@@ -4,37 +4,47 @@
   "branch": "rtkelly13/stack-03-analysis-level",
   "base": "rtkelly13/stack-02-test-infra",
   "base_sha": "6595f599b26b0537819b3c2d3e92ec2ff44607a5",
-  "head_sha": "be6b76a42e3a6f0969ab310d90b9a2d6a657488c",
+  "head_sha": "d73ff76d92933c752bad40d2bbba49baaf9a4744",
   "commits": [
     "cf20fc3 build: turn on AnalysisLevel latest-all for src with one opt-out per rule",
     "0ea4d5b build: keep PublicAPI files per target framework",
     "28813be fix(api): mark the Fail overloads that accept null as nullable",
-    "be6b76a docs: document every public type and member of Resultful"
+    "be6b76a docs: document every public type and member of Resultful",
+    "3516048 fixup! docs: document every public type and member of Resultful",
+    "fdb382b fixup! fix(api): mark the Fail overloads that accept null as nullable",
+    "758413c fixup! build: turn on AnalysisLevel latest-all for src with one opt-out per rule",
+    "d73ff76 fixup! build: keep PublicAPI files per target framework"
   ],
   "local_checks": {
     "build_release_slnx": "pass, no warnings (SDK 11.0.100)",
     "build_doccheck_GenerateDocumentationFile": "pass, no CS1591/CS15xx (all 3 targets)",
     "dotnet_format_verify": "pass",
     "ls_lint_2.3.1": "pass (also checked it rejects a stray file and a non-PublicAPI name in api/<tfm>/)",
-    "run_tests_normal": "pass: Consumption 49 x 6 runs, Resultful.Tests 19 x 2; counts gate passes after updating eng/test-counts.json 46 -> 49",
-    "run_tests_packed": "pass: 49 x 6 packed runs, counts gate passes (local pack with a unique VersionSuffix, isolated packages folder, source mapping as in CI)",
-    "api_diff": "pass: 30 differences, all listed in eng/api-diff-0.2.0.txt",
+    "run_tests_normal": "pass: Consumption 50 x 6, Resultful.Tests 19 x 2; counts gate passes (test-counts 50)",
+    "run_tests_packed": "pass: 50 x 6 packed runs",
+    "api_diff": "pass: 48 differences, all listed (8 re-annotated members x 2 lines x 3 targets)",
     "il_diff": "pass: 0 differences (1626/1626/1631 methods for net10.0/net11.0/netstandard2.0)",
     "verify_package_baseline": "pass: only the 3 listed net11.0 lines; no XML doc file in the nupkg",
     "verify_package_shape": "pass",
-    "check_suppressions": "6 NoWarn lines; gate passes against a body naming them (the PR body does)",
+    "check_suppressions": "8 NoWarn lines (6 in src/Resultful/Resultful.csproj, CA1716/CA1000 re-split with reasons in Directory.Build.props); passes against the body's Suppressions section",
     "how_release_check_was_run": "No CI result yet. Baseline packed locally: git worktree of 1697a7a762feb8c6be383ce8b25ee9d6e584029e, this repo's global.json copied in, dotnet pack -c Release -p:ContinuousIntegrationBuild=true. Current: dotnet build + pack src/Resultful -c Release -p:ContinuousIntegrationBuild=true. Then dotnet run eng/api-diff.cs / eng/il-diff.cs / eng/verify-package.cs --baseline exactly as the release-check job does.",
-    "not_run_locally": ["coverage ratchet (no code change, docs only)", "the gate scripts' --self-test (scripts unchanged from 02)", "zizmor"]
+    "not_run_locally": [
+      "coverage ratchet (no code change, docs only)",
+      "the gate scripts' --self-test (scripts unchanged from 02)",
+      "zizmor"
+    ]
   },
   "suppressions": [
-    "src/Directory.Build.props NoWarn CA1002: List<string> conversions are public API",
-    "src/Directory.Build.props NoWarn CA1052: sealing Unit changes a public type",
-    "src/Directory.Build.props NoWarn CA1062: null checks would change method bodies",
-    "src/Directory.Build.props NoWarn CA1815: Equals/== would be new public API",
-    "src/Directory.Build.props NoWarn CA2007: ConfigureAwait would change method bodies",
-    "src/Directory.Build.props NoWarn CA2225: named operator alternates would be new public API"
+    "src/Resultful/Resultful.csproj NoWarn CA1002",
+    "src/Resultful/Resultful.csproj NoWarn CA1052",
+    "src/Resultful/Resultful.csproj NoWarn CA1062",
+    "src/Resultful/Resultful.csproj NoWarn CA1815",
+    "src/Resultful/Resultful.csproj NoWarn CA2007",
+    "src/Resultful/Resultful.csproj NoWarn CA2225",
+    "Directory.Build.props NoWarn CA1716 (existing, reason added)",
+    "Directory.Build.props NoWarn CA1000 (existing, reason added)"
   ],
-  "api_diff_lines": 30,
+  "api_diff_lines": 48,
   "il_diff_lines": 0,
   "changes": [
     "AnalysisLevel latest-all for src/ only; tests and samples stay latest-recommended",
@@ -51,11 +61,31 @@
     "ls-lint allows only PublicAPI.{Shipped,Unshipped}.txt in api/<tfm>/"
   ],
   "open_issues": [
-    "CI hasn't run yet (pipelining rule). The new CI step uses --no-restore with -c DocCheck; it worked locally, but only CI shows whether it works in the workflow.",
-    "If 02 (#40) moves, 03 must be rebased; eng/test-counts.json may conflict, since 02 is tightening the counts gate.",
-    "The doc text was generated from templates and reviewed by distinct sentence, not member by member. The adversary or reviewer should spot-check accuracy, especially the collection Reduce/Fold/Until semantics and the ArgumentException-on-empty remarks.",
-    "Option.ToOption<T>(this T value) left unannotated: T? changes inference and the PublicAPI analyzer can't express it as an Unshipped change (RS0050/RS0036). Recorded in the PR body under Decisions taken; not added to DECISIONS-TAKEN.md (I don't own the plan branch).",
-    "About 2,100 added lines outside tests (mostly ///), over the 800-line split guide; noted in the PR body.",
-    "The PR body lists decisions taken but I did not edit stack-plan/DECISIONS-TAKEN.md; the orchestrator should copy them there."
-  ]
+    "#41 is 'dirty': base rtkelly13/stack-02-test-infra moved to 732a709/d083225 and conflicts with 03 in eng/api-diff-0.2.0.txt. I stayed on 6595f59 as instructed; the restack is the orchestrator's.",
+    "The suppressions check is red only because it hasn't rerun with the edited body (see ci.suppressions).",
+    "netstandard2.0's PublicAPI files are no longer read by PublicApiCoverageTests (no netstandard test run); the PublicAPI analyzer still checks them at build time.",
+    "Doc text: review fixes applied; the generator was not rerun, edits were made by hand."
+  ],
+  "ci": {
+    "head": "d73ff76",
+    "build": "success",
+    "release-check": "success",
+    "lint": "success",
+    "publish": "skipped (not main)",
+    "suppressions": "failure on the synchronize run, which read the PR body from before my edit. The 'edited' event made no new run because #41 now conflicts with the moved base (02 is at 732a709+; conflict in eng/api-diff-0.2.0.txt). Run locally against 6595f59 with the updated Suppressions section, the gate passes. It needs the orchestrator's restack onto 02 (or another body edit once #41 is mergeable) to rerun."
+  },
+  "review_fixes": {
+    "1": "Unroll/WhenAll docs: skip None items, always have a value",
+    "2": "*Until over results: 'Stops after the first failure, which is returned. At most one more result is read.' (20 places)",
+    "3": "Annotated implicit operator VoidResult(string[]?), VoidResult(Unit?), VoidResult<TError>(Unit?): all accept null and handle it (no errors / success holding Unit.Value). One '!' in VoidResult(Unit?) (value!.Ok()), compile-time only, IL unchanged. Unshipped pairs in 3 targets, 18 new api-diff lines, 1 new NullabilityTests fact (3 asserts)",
+    "4": "Six NoWarn moved to src/Resultful/Resultful.csproj; AnalysisLevel stays in src/Directory.Build.props",
+    "5": "CA1716 and CA1000 split onto their own lines with reasons in root Directory.Build.props; listed in Suppressions (CA1716 also covers the sample's Error type)",
+    "6": "Not annotated (smaller choice). Accurate reason: T? changes callers' nullable flow (string? infers T=string, Option<string> not Option<string?>); deferred to stack B. PR body and fixup commit message updated",
+    "7": "Option.OrAsync(Task<...>): returns the task as is, never awaited; Task<Option> extension params say 'Awaited only if None. It runs either way.'",
+    "8": "LINQ Select/SelectMany docs written per type; CastError/VoidResult.Cast typeparams say error",
+    "9": "Class remarks: ArgumentNullException or NullReferenceException depending on member",
+    "10": "PublicApiCoverageTests reads only api/<current TFM> (TargetFramework passed as AssemblyMetadata)",
+    "11": "CA1062 reason reworded; editorconfig null_check_validation_methods not added (rule is off, it would have no effect)",
+    "12": "PR body updated, stale heading dropped"
+  }
 }

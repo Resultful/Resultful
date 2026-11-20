@@ -182,7 +182,7 @@ wired in after rebasing onto 04b. Everything else is built in stack order.
   PR n is a new commit on n's branch, with the subject `fixup! <subject of the commit it fixes>` so that a later
   `git rebase --autosquash` folds it in deterministically. A branch above n that needs the fix gets the same commit
   cherry-picked (`git cherry-pick -x`, keeping the subject) as a new commit; one that doesn't need it yet is left
-  alone. A draft-ahead branch stays on the base it started from. PR bases stay as opened. After the run, a local
+  alone. A draft-ahead branch stays on the base it started from. PR bases stay as opened. **A PR that conflicts with its base gets no CI** (GitHub skips `pull_request` runs on a conflicting PR), so when a base branch gains commits that conflict, the branch above cherry-picks the base's new commits (`-x`) and resolves them, in stack order; duplicates that come out empty are skipped. After the run, a local
   agent rebuilds the whole tree into a clean stack from `stack-plan/RESTACK.md`, which the orchestrator keeps: for
   each branch, the commit it started from, the commits it owns, and the `fixup!` and cherry-picked commits it carries.
   This replaces the restack steps elsewhere in this file (rule 11, the stack B rebase onto stack A, wiring 04c/04d
