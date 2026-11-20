@@ -105,6 +105,8 @@ table.
   - `Result<string>` built from a bare string
   - a `Match` that should be a `switch`
 - Code fixes where the rewrite is unambiguous.
+- *Proposed in [decision 15](decisions/0015-analyzer-rules-read-attributes.md):* rules read attributes, so a
+  user's own types get the same checks, plus exhaustive `switch` over a `[ClosedHierarchy]`.
 
 **Done when** each rule has positive and negative tests, and the samples build with no analyzer warnings.
 

@@ -27,6 +27,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Decisions](decisions/index.md) | Every decision, dated, with why |
 | [Log](log.md) | What changed in these documents, by date |
 | [Seamless with .NET](explorations/seamless-with-dotnet.md) | Exploration: operators, unions, nullable flow and framework integration |
+| [Analyzers for your own types](explorations/analyzers-for-your-own-types.md) | Exploration: analyzer rules driven by attributes, and exhaustive switches over a closed hierarchy |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).

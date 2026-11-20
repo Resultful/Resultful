@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- Decision 15 proposed: analyzer rules read attributes (`[MustObserve]`, `[ClosedHierarchy]`) matched by name, so
+  users' own types get the same checks. A probe confirmed a suppressor can remove CS8509 when every type of a
+  closed hierarchy is matched, and keeps it otherwise. Exploration *Analyzers for your own types* added.
+
 - Layout moved (#33): `src/Resultful`, `tests/Resultful.Tests`, `samples/Resultful.Examples`, `Resultful.slnx`.
   Package settings are in `src/Directory.Build.props`; test and sample settings in their folders' props files,
   replacing the project-name conditions. No code changed.

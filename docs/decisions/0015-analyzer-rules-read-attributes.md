@@ -1,0 +1,48 @@
+---
+type: decision
+title: "Analyzer rules read attributes, so users' own types get the same checks"
+description: "Every Resultful analyzer rule is driven by a small set of attributes in the core, matched by name, so a user's own result and error types get the same checks as Resultful's."
+status: proposed
+tags: [resultful, decision, analyzers]
+decided:
+  by:
+  at:
+generated:
+  by: claude-opus-5.5
+  at: 2026-11-20
+---
+
+# 15. Analyzer rules read attributes, so users' own types get the same checks
+
+**Proposed.** The details and the probe are in
+[Analyzers for your own types](../explorations/analyzers-for-your-own-types.md).
+
+1. **No rule knows a Resultful type by name.** Each rule reads an attribute, and Resultful's types carry the same
+   attributes a user would.
+2. **The attributes live in the core**, in `Resultful.CodeAnalysis`, with no dependencies. The analyzers stay in
+   `Resultful.Analyzers` ([decision 11](0011-package-family.md)).
+3. **They are matched by full name**, so a library can declare its own `internal` copy instead of referencing
+   Resultful. Third-party types are listed in `.editorconfig`.
+4. **Two attributes to start:**
+   - `[MustObserve]`: a value of the type, or returned by the method, may not be thrown away.
+   - `[ClosedHierarchy]`: a `switch` over the base is exhaustive when every derived type is matched, and the
+     compiler's CS8509 is suppressed; types outside the base's assembly may not derive from it.
+   Others (`[ResultShape]`, `[ContextWrapper]`) are added only when a rule needs them.
+
+Why: users write their own result and error types, and the checks that make Resultful safe should reach them too.
+It also answers the cost in [decision 14](0014-result-and-validation.md) that a `switch` on an open `Error` is
+never exhaustive: a user closes their own error base. The CS8509 suppression was verified on SDK 11.0.100.
+
+Alternatives rejected:
+- **Rules that hard-code Resultful's types.** Simpler to write; useless for users' own types.
+- **Only `.editorconfig` options.** Works for third-party types, but the contract lives away from the type and
+  doesn't travel with a library.
+- **A separate attributes package.** One more package for a few attributes; matching by name already lets a
+  library avoid referencing the core.
+
+Consequences, if accepted:
+- The attributes ship in the core with the breaking release (M3), so the result types carry them from the start.
+- Roadmap M4's rules are written against the attributes and tested against a user's own type as well as
+  Resultful's.
+- When C# gets closed hierarchies or unions ([decision 3](0003-unions-are-chosen-by-measurement.md)),
+  `[ClosedHierarchy]` gives way to them.
