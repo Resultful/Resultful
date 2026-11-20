@@ -3,8 +3,7 @@ name: ci
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  pull_request: # any base branch, so stacked pull requests are checked too
   workflow_dispatch:
 
 permissions: {}
