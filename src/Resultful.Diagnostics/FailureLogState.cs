@@ -7,6 +7,11 @@ namespace Resultful.Diagnostics;
 /// The structured state of one failure log entry. Each value is also a named property for structured sinks:
 /// <c>ErrorType</c>, <c>ErrorMessage</c>, <c>ErrorContext</c> (the notes, innermost first) and <c>ErrorCauses</c>.
 /// </summary>
+/// <remarks>
+/// <see cref="Format"/>, the <c>{OriginalFormat}</c> a structured sink sees, always names all four properties. The
+/// rendered line (<see cref="ToString"/>) leaves out the <c>Context</c> and <c>Causes</c> parts when they are empty,
+/// so a plain failure reads as one short sentence. The difference is deliberate; the property values are the same.
+/// </remarks>
 internal sealed class FailureLogState : IReadOnlyList<KeyValuePair<string, object?>>
 {
     internal const string Format = "Result failed with {ErrorType}: {ErrorMessage} Context: {ErrorContext} Causes: {ErrorCauses}";
