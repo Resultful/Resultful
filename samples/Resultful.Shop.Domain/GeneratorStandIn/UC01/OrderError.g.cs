@@ -22,4 +22,16 @@ public abstract partial record OrderError
             _ => throw new InvalidOperationException("not a case of OrderError"),
         };
     }
+
+    public void Switch(Action<OrderLocked> onOrderLocked, Action<OrderNotFound> onOrderNotFound)
+    {
+        ArgumentNullException.ThrowIfNull(onOrderLocked);
+        ArgumentNullException.ThrowIfNull(onOrderNotFound);
+        switch (this)
+        {
+            case OrderLocked l: onOrderLocked(l); break;
+            case OrderNotFound n: onOrderNotFound(n); break;
+            default: throw new InvalidOperationException("not a case of OrderError");
+        }
+    }
 }

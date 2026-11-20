@@ -17,9 +17,10 @@ internal sealed class PaymentProvider
     };
 }
 
-internal sealed class Payments
+internal sealed class Payments(ILogger<Payments> log)
 {
     private readonly PaymentProvider _provider = new();
+    private readonly ILogger _log = log;
 
     #region snippet: uc05-adapter
     // the adapter: the only code that knows the provider's codes
@@ -29,10 +30,17 @@ internal sealed class Payments
         return response.Code switch
         {
             "ok" => new PaymentId(response.Id),
-            "card_declined" => new CardDeclined(response.Message),
+            "card_declined" => Declined(response.Message),
             "fraud" => new FraudSuspected(),
             _ => new ProviderUnavailable(),
         };
+    }
+
+    // The provider's reason goes to the log, never into the error the client sees.
+    private CardDeclined Declined(string reason)
+    {
+        if (_log.IsEnabled(LogLevel.Information)) _log.LogInformation("card declined by the provider: {Reason}", reason);
+        return new CardDeclined();
     }
 
     // the checkout: decides what to do, and must decide for every case
@@ -47,8 +55,8 @@ internal sealed class Payments
 
 internal static class PaymentEndpoints
 {
-    // A declined card is the customer's to fix (409); the provider being down and fraud stay 500s, so the
-    // provider's words never reach the client.
+    // A declined card is the customer's to fix (409), with CardDeclined's own fixed message; the provider being down
+    // and fraud stay 500s with no message. The provider's words never reach the client.
     public static void MapErrors(ResultfulHttpOptions http) => http.Map<CardDeclined>(StatusCodes.Status409Conflict);
 
     public static void Map(WebApplication app)
