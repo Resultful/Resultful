@@ -16,6 +16,7 @@
     <PackageReference Include="NunitXml.TestLogger" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="FluentAssertions.OneOf" />
+    <PackageReference Include="CsCheck" />
   </ItemGroup>
 
 </Project>
