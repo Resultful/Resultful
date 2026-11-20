@@ -30,3 +30,4 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 12 | [Assertions live in `Resultful.Assertions`](0012-assertions-live-in-resultful-assertions.md) | stable | 20 November 2026 |
 | 13 | [Repository layout: `src`, `tests`, `samples`, `benchmarks`](0013-repository-layout.md) | stable | 20 November 2026 |
 | 14 | [One error or many: `Result`, `Validation` and `Error`](0014-result-and-validation.md) | proposed | 20 November 2026 |
+| 15 | [Analyzer rules read attributes, so users' own types get the same checks](0015-analyzer-rules-read-attributes.md) | proposed | 20 November 2026 |

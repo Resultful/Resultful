@@ -31,6 +31,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Seamless with .NET](explorations/seamless-with-dotnet.md) | Exploration: operators, unions, nullable flow and framework integration |
 | [One error or many](explorations/one-error-or-many.md) | Exploration: `Result` and `Validation`, and an `Error` type that earns its place |
 | [Error handling: prior art](references/error-handling-prior-art.md) | Reference: how other .NET libraries and languages shape and compose errors, and what Resultful took |
+| [Analyzers for your own types](explorations/analyzers-for-your-own-types.md) | Exploration: analyzer rules driven by attributes, and exhaustive switches over a closed hierarchy |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).

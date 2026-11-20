@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-20
 
+- Decision 15 proposed: analyzer rules read attributes (`[MustObserve]`, `[ClosedHierarchy]`) matched by name, so
+  users' own types get the same checks. A probe confirmed a suppressor can remove CS8509 when every type of a
+  closed hierarchy is matched, and keeps it otherwise. Exploration *Analyzers for your own types* added.
+
 - *Errors in practice* added: ten use cases from a consuming application (endpoint statuses, a sign-up form,
   validate then act, database context, a payment adapter, a queue handler, ignored results, tests, a library's
   own result type, migrating from strings), each with what it catches.
