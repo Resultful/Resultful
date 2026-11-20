@@ -21,11 +21,11 @@ public sealed partial class PublicApiCoverageTests
     [Fact]
     public void Every_public_member_is_exercised_by_consumption_tests()
     {
-        var apiDir = Path.Combine(AssemblyPaths.RepoRootDir, "src", "Resultful");
+        var projectDir = Path.Combine(AssemblyPaths.RepoRootDir, "src", "Resultful");
         var publicMembers = new List<(string RawLine, string Key)>();
         foreach (var file in new[] { "PublicAPI.Shipped.txt", "PublicAPI.Unshipped.txt" })
         {
-            var path = Path.Combine(apiDir, file);
+            var path = Path.Combine(projectDir, file);
             Assert.True(File.Exists(path), $"{file} not found at {path}");
             publicMembers.AddRange(ParseApiMembers(File.ReadAllLines(path)));
         }

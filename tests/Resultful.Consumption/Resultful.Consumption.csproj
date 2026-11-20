@@ -8,6 +8,16 @@
   </PropertyGroup>
 
   <!--
+    Read by eng/run-tests.cs. 0.2's behaviour must hold under any culture, so the suite runs again under each of
+    these (xunit.v3's -culture, set for the whole run). Coverage instruments Resultful.dll in place, so the coverage
+    run leaves out the test that compares the loaded Resultful.dll's bytes with the built one.
+  -->
+  <PropertyGroup>
+    <TestCultures>tr-TR;invariant</TestCultures>
+    <CoverageRunArguments>-class- Resultful.Consumption.PackageSourceTests</CoverageRunArguments>
+  </PropertyGroup>
+
+  <!--
     The package version under test comes from the core project, so it can't drift from what is packed.
     A VersionSuffix passed on the command line (CI packs a run-unique one) replaces the file's suffix.
     ResultfulPackageVersion can still be passed directly.
@@ -49,6 +59,7 @@
     <AssemblyMetadata Include="ConsumptionTestsDir" Value="$(MSBuildProjectDirectory)" />
     <AssemblyMetadata Include="RepoRootDir" Value="$(MSBuildThisFileDirectory)..\.." />
     <AssemblyMetadata Include="BuildConfiguration" Value="$(Configuration)" />
+    <AssemblyMetadata Include="TargetFramework" Value="$(TargetFramework)" />
     <AssemblyMetadata Include="UsePackedPackage" Value="$(UsePackedPackage)" />
     <AssemblyMetadata Include="ResultfulPackageVersion" Value="$(ResultfulPackageVersion)" />
     <AssemblyMetadata Include="ResultfulPackageDir" Value="$(PkgResultful)" Condition="'$(UsePackedPackage)' == 'true'" />

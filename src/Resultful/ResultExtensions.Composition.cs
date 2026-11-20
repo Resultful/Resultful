@@ -8,13 +8,24 @@ namespace Resultful
     public static partial class Result
     {
         //Sequence: start a chain of VoidResult steps
+        /// <summary>Runs <paramref name="steps"/> in order, starting from a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static VoidResult Sequence(params Func<VoidResult>[] steps)
             => Ok().Then(steps);
 
+        /// <summary>Runs <paramref name="steps"/> in order, starting from a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static VoidResult<TError> Sequence<TError>(params Func<VoidResult<TError>>[] steps)
             => Ok<TError>().Then(steps);
 
         //Then on VoidResult
+        /// <summary>Runs <paramref name="steps"/> in order while the result is a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <param name="value">The result.</param>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static VoidResult Then(this VoidResult value, params Func<VoidResult>[] steps)
         {
             foreach (var step in Steps(steps))
@@ -24,6 +35,11 @@ namespace Resultful
             return value;
         }
 
+        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the errors and <paramref name="next"/> isn't called.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="next">Gives the next result.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="next"/> is <c>null</c>, even on a failure.</remarks>
         public static Result<T> Then<T>(this VoidResult value, Func<Result<T>> next)
         {
             next.ThrowIfDefault(nameof(next));
@@ -31,6 +47,11 @@ namespace Resultful
         }
 
         //Then on VoidResult<TError>
+        /// <summary>Runs <paramref name="steps"/> in order while the result is a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static VoidResult<TError> Then<TError>(this VoidResult<TError> value, params Func<VoidResult<TError>>[] steps)
         {
             foreach (var step in Steps(steps))
@@ -40,6 +61,12 @@ namespace Resultful
             return value;
         }
 
+        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the error and <paramref name="next"/> isn't called.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="next">Gives the next result.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="next"/> is <c>null</c>, even on a failure.</remarks>
         public static Result<T, TError> Then<T, TError>(this VoidResult<TError> value, Func<Result<T, TError>> next)
         {
             next.ThrowIfDefault(nameof(next));
@@ -47,6 +74,11 @@ namespace Resultful
         }
 
         //Then on Result<T>: steps that transform the value without changing its type
+        /// <summary>Passes the value through <paramref name="steps"/> in order while the result is a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static Result<T> Then<T>(this Result<T> value, params Func<T, Result<T>>[] steps)
         {
             foreach (var step in Steps(steps))
@@ -57,6 +89,12 @@ namespace Resultful
         }
 
         //Then on Result<T, TError>
+        /// <summary>Passes the value through <paramref name="steps"/> in order while the result is a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="steps">The steps to run.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static Result<T, TError> Then<T, TError>(this Result<T, TError> value, params Func<T, Result<T, TError>>[] steps)
         {
             foreach (var step in Steps(steps))
@@ -67,6 +105,11 @@ namespace Resultful
         }
 
         //Check on Result<T>: steps that can fail but keep the value
+        /// <summary>Runs <paramref name="checks"/> in order on the value while the result is a success. A check that fails stops the chain and its errors become the result; otherwise the value is kept. Later checks don't run.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="checks">The checks to run on the value.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="checks"/> or any check is <c>null</c>, before any check runs.</remarks>
         public static Result<T> Check<T>(this Result<T> value, params Func<T, VoidResult>[] checks)
         {
             foreach (var check in Steps(checks, nameof(checks)))
@@ -77,6 +120,12 @@ namespace Resultful
         }
 
         //Check on Result<T, TError>
+        /// <summary>Runs <paramref name="checks"/> in order on the value while the result is a success. A check that fails stops the chain and its errors become the result; otherwise the value is kept. Later checks don't run.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The result.</param>
+        /// <param name="checks">The checks to run on the value.</param>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="checks"/> or any check is <c>null</c>, before any check runs.</remarks>
         public static Result<T, TError> Check<T, TError>(this Result<T, TError> value, params Func<T, VoidResult<TError>>[] checks)
         {
             foreach (var check in Steps(checks, nameof(checks)))
