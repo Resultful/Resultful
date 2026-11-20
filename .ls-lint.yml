@@ -25,7 +25,7 @@ ls:
     .dir: regex:Resultful(\.[A-Z][A-Za-z0-9]*)* | regex:(src|tests|samples)
     .props: regex:Directory\.Build
   "{src,tests,samples}/**":
-    .dir: PascalCase | regex:LINQ | regex:Resultful(\.[A-Z][A-Za-z0-9]*)* | regex:(src|tests|samples)
+    .dir: PascalCase | regex:LINQ | regex:api | regex:Resultful(\.[A-Z][A-Za-z0-9]*)* | regex:(src|tests|samples)
     .cs: regex:[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*
     .csproj: regex:Resultful(\.[A-Z][A-Za-z0-9]*)*
 

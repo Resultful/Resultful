@@ -61,7 +61,10 @@ jobs:
         run: dotnet build Resultful.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
 
       - name: Test
-        run: dotnet test Resultful.slnx --configuration Release --no-build --logger "trx" --results-directory TestResults
+        run: |
+          dotnet test tests/Resultful.Tests/Resultful.Tests.csproj --configuration Release --no-build --logger "trx" --results-directory TestResults
+          dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj --configuration Release --no-build -f net10.0
+          dotnet run --project tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj --configuration Release --no-build -f net11.0
 
       - name: Upload test results
         if: always()
