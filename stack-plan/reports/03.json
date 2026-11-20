@@ -4,7 +4,7 @@
   "branch": "rtkelly13/stack-03-analysis-level",
   "base": "rtkelly13/stack-02-test-infra",
   "base_sha": "6595f599b26b0537819b3c2d3e92ec2ff44607a5",
-  "head_sha": "d73ff76d92933c752bad40d2bbba49baaf9a4744",
+  "head_sha": "900f8aa3765326633d885e948439c23499027116",
   "commits": [
     "cf20fc3 build: turn on AnalysisLevel latest-all for src with one opt-out per rule",
     "0ea4d5b build: keep PublicAPI files per target framework",
@@ -13,7 +13,15 @@
     "3516048 fixup! docs: document every public type and member of Resultful",
     "fdb382b fixup! fix(api): mark the Fail overloads that accept null as nullable",
     "758413c fixup! build: turn on AnalysisLevel latest-all for src with one opt-out per rule",
-    "d73ff76 fixup! build: keep PublicAPI files per target framework"
+    "d73ff76 fixup! build: keep PublicAPI files per target framework",
+    "c4d6a61 fix(ci): enforce the counts gate's whole scope, run MTP projects, clean coverage merges",
+    "53977e7 fix(ci): set the coverage floor just below the measured coverage",
+    "7a1a835 fix(ci): catch run-time test skips and match named suppressions as whole tokens",
+    "6c9b48e test: compare the reference model's case, value and errors directly",
+    "647f124 fixup! ci: add release-check scripts and run them against the 0.2.0-beta06 baseline",
+    "91d7970 fixup! fix(api): mark the Fail overloads that accept null as nullable",
+    "198665a fixup! fix(api): mark the Fail overloads that accept null as nullable",
+    "900f8aa fixup! fix(api): mark the Fail overloads that accept null as nullable"
   ],
   "local_checks": {
     "build_release_slnx": "pass, no warnings (SDK 11.0.100)",
@@ -42,9 +50,14 @@
     "src/Resultful/Resultful.csproj NoWarn CA2007",
     "src/Resultful/Resultful.csproj NoWarn CA2225",
     "Directory.Build.props NoWarn CA1716 (existing, reason added)",
-    "Directory.Build.props NoWarn CA1000 (existing, reason added)"
+    "Directory.Build.props NoWarn CA1000 (existing, reason added)",
+    "eng/apicompat-0.2.0.xml: 12 entries (CP0014 x4, CP0015 x2, CP0016 x6), all net10.0, all from the 8 nullable re-annotations"
   ],
-  "api_diff_lines": 48,
+  "api_diff_lines": {
+    "eng/api-diff-0.2.0.txt (02's, unchanged)": 8,
+    "eng/api-nullable-0.2.0.txt (03)": 48,
+    "checked joined": 56
+  },
   "il_diff_lines": 0,
   "changes": [
     "AnalysisLevel latest-all for src/ only; tests and samples stay latest-recommended",
@@ -61,18 +74,18 @@
     "ls-lint allows only PublicAPI.{Shipped,Unshipped}.txt in api/<tfm>/"
   ],
   "open_issues": [
-    "#41 is 'dirty': base rtkelly13/stack-02-test-infra moved to 732a709/d083225 and conflicts with 03 in eng/api-diff-0.2.0.txt. I stayed on 6595f59 as instructed; the restack is the orchestrator's.",
-    "The suppressions check is red only because it hasn't rerun with the edited body (see ci.suppressions).",
-    "netstandard2.0's PublicAPI files are no longer read by PublicApiCoverageTests (no netstandard test run); the PublicAPI analyzer still checks them at build time.",
-    "Doc text: review fixes applied; the generator was not rerun, edits were made by hand."
+    "Cherry-picked 02 commits will show up as duplicates in a later rebase/autosquash; the conflicting one (d083225 -> 647f124) needs the same resolution again then.",
+    "02's ci.yml comment says there are no ApiCompat suppressions; there are now 12 (left alone to avoid a conflict).",
+    "api-diff.cs --write writes a single file; the 03 lines would have to be moved back to api-nullable-0.2.0.txt by hand.",
+    "netstandard2.0 PublicAPI files aren't read by PublicApiCoverageTests (no netstandard test run); the analyzer still checks them."
   ],
   "ci": {
-    "head": "d73ff76",
+    "head": "900f8aa",
     "build": "success",
-    "release-check": "success",
+    "release-check": "success (api-diff, il-diff, verify-package, ApiCompat strict)",
     "lint": "success",
-    "publish": "skipped (not main)",
-    "suppressions": "failure on the synchronize run, which read the PR body from before my edit. The 'edited' event made no new run because #41 now conflicts with the moved base (02 is at 732a709+; conflict in eng/api-diff-0.2.0.txt). Run locally against 6595f59 with the updated Suppressions section, the gate passes. It needs the orchestrator's restack onto 02 (or another body edit once #41 is mergeable) to rerun."
+    "suppressions": "success",
+    "publish": "skipped (not main)"
   },
   "review_fixes": {
     "1": "Unroll/WhenAll docs: skip None items, always have a value",
@@ -87,5 +100,11 @@
     "10": "PublicApiCoverageTests reads only api/<current TFM> (TargetFramework passed as AssemblyMetadata)",
     "11": "CA1062 reason reworded; editorconfig null_check_validation_methods not added (rule is off, it would have no effect)",
     "12": "PR body updated, stale heading dropped"
+  },
+  "apicompat_suppressions": 12,
+  "restack": {
+    "how": "cherry-pick -x 6595f59..d083225 (5 commits) on top of d73ff76; only conflict was in eng/api-diff-0.2.0.txt (in d083225)",
+    "merge_tree_vs_02": "clean at 900f8aa",
+    "why_split_list": "02 rewrote all of eng/api-diff-0.2.0.txt, so any 03 line in it conflicts in GitHub's three-way merge (merge base is still 6595f59, since cherry-picks aren't ancestors). 03's 48 lines moved to eng/api-nullable-0.2.0.txt; the CI api-diff step concatenates the two files. For the same reason the stale ApiCompat comment in ci.yml ('there is none today') was left untouched."
   }
 }

@@ -7,7 +7,7 @@ Rows are in stack order.
 | 00 | rtkelly13/error-design | #34 | green | stack B base: rebase onto 04b, retarget |
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
 | 02 | rtkelly13/stack-02-test-infra | #40 | green | d083225, CI green: review fixes + release-check gaps closed (ApiCompat strict added); size waiver |
-| 03 | rtkelly13/stack-03-analysis-level | #41 | review | 12 fixes in (d73ff76, 4 fixup! commits); conflicts with 02's new commits so CI can't run; cherry-picking 02's commits |
+| 03 | rtkelly13/stack-03-analysis-level | #41 | green | 900f8aa, CI green incl. strict ApiCompat; review fixes as fixup!; carries 02's commits by cherry-pick; nullable lines split into `eng/api-nullable-0.2.0.txt` |
 | 04 | rtkelly13/stack-04-per-package-release | #43 | review | green at 34d01ec, then 03 moved: conflicts, absorbing 03's commits |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
