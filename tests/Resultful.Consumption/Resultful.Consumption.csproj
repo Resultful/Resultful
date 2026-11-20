@@ -5,17 +5,32 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <UsePackedPackage Condition="'$(UsePackedPackage)' == ''">false</UsePackedPackage>
-    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == ''">0.2.0-beta06</ResultfulPackageVersion>
     <!-- Test code exercises intentional hazards (e.g. default(Result<T>), bare string errors) and async lambdas. -->
     <NoWarn>$(NoWarn);CS1998;CA1859;CA2007;CA1034</NoWarn>
   </PropertyGroup>
 
+  <!--
+    The package version under test comes from the core project, so it can't drift from what is packed.
+    A VersionSuffix passed on the command line (CI packs a run-unique one) replaces the file's suffix.
+    ResultfulPackageVersion can still be passed directly.
+  -->
+  <PropertyGroup>
+    <_ResultfulProjectText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../src/Resultful/Resultful.csproj'))</_ResultfulProjectText>
+    <_ResultfulVersionPrefix>$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionPrefix&gt;\s*([^&lt;]*?)\s*&lt;/VersionPrefix&gt;').Groups[1].Value)</_ResultfulVersionPrefix>
+    <_ResultfulVersionSuffix>$(VersionSuffix)</_ResultfulVersionSuffix>
+    <_ResultfulVersionSuffix Condition="'$(_ResultfulVersionSuffix)' == ''">$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionSuffix&gt;\s*([^&lt;]*?)\s*&lt;/VersionSuffix&gt;').Groups[1].Value)</_ResultfulVersionSuffix>
+    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == '' and '$(_ResultfulVersionSuffix)' == ''">$(_ResultfulVersionPrefix)</ResultfulPackageVersion>
+    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == ''">$(_ResultfulVersionPrefix)-$(_ResultfulVersionSuffix)</ResultfulPackageVersion>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(UsePackedPackage)' != 'true'">
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- NetStandardLoadTests loads the netstandard2.0 build, so make sure it is built. -->
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" SetTargetFramework="TargetFramework=netstandard2.0" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(UsePackedPackage)' == 'true'">
-    <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" />
+    <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" GeneratePathProperty="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +44,8 @@
     <AssemblyMetadata Include="RepoRootDir" Value="$(MSBuildThisFileDirectory)..\.." />
     <AssemblyMetadata Include="BuildConfiguration" Value="$(Configuration)" />
     <AssemblyMetadata Include="UsePackedPackage" Value="$(UsePackedPackage)" />
+    <AssemblyMetadata Include="ResultfulPackageVersion" Value="$(ResultfulPackageVersion)" />
+    <AssemblyMetadata Include="ResultfulPackageDir" Value="$(PkgResultful)" Condition="'$(UsePackedPackage)' == 'true'" />
   </ItemGroup>
 
 </Project>
