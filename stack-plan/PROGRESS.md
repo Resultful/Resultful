@@ -10,7 +10,7 @@ Rows are in stack order.
 | 03 | rtkelly13/stack-03-analysis-level | #41 | green | 900f8aa, CI green incl. strict ApiCompat; review fixes as fixup!; carries 02's commits by cherry-pick; nullable lines split into `eng/api-nullable-0.2.0.txt` |
 | 04 | rtkelly13/stack-04-per-package-release | #43 | review | green at 34d01ec, then 03 moved: conflicts, absorbing 03's commits |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
-| 04c | rtkelly13/stack-04c-spec-harness | #42 | review | review: changes needed (API gate passes on an empty read with 03's layout; 9 should-fix; spec batch from 13a/04d); 8 questions on #39 with defaults; fixing |
+| 04c | rtkelly13/stack-04c-spec-harness | #42 | green | 9a465b0, CI green; review fixes (gate reads api/<tfm>, frozen 0.2.0 baseline, CORE-MATRIX, UERR twins, harness runs cases apart from expected errors), ls-lint rules (f72ad89), [MustObserve]; 268 spec tests, 137 ledger lines pending |
 | 04d | rtkelly13/stack-04d-reference-app | #44 | review | review fixes in (c3647e1); conflicts with 04c's newer commits, so no CI: absorbs 04c once 04c's fixes finish |
 | 04d2 | rtkelly13/stack-04d2-end-to-end | #45 | review | review fixes in (a688af8, 2nd spec: commit); 34 e2e and 272 spec tests green locally; CI pending |
 | 04e | rtkelly13/stack-04e-publish-preview | #47 | review | review fixes in (a77f228): environment is the real boundary, stack-plan refused; lint red until 04c's f72ad89 comes up the chain |
@@ -44,4 +44,4 @@ Rows are in stack order.
 - 2026-11-20: the plan moved from the local `temp/stack/` to this branch (#39), for a Claude Code on the web run. 01 was built and reviewed locally. 02's contract is written; 02 is next.
 - 2026-11-20 (web run 1): resumed on Claude Code on the web. SDKs pulled from the MCR images, GitHub through the MCP tools (`WEB-RUN.md`). Starting 02.
 - Live tracker (private artifact, updated at each PR boundary): https://claude.ai/artifact/KPm6VvRnY2U7moMKKZufrE
-- Pending `spec:` fixes for 04c (batched with 04c's review): from 13a, `GEN-RFG0005` can't pass as written (CS1729; give `NestedError` its own protected constructor, see 13a's `GenRfg0005Proposed.cs`), `building-the-generator.md` still says colliding names are prefixed (now RFG0008), `SHAPE-UNIT` calls `Ok(Unit.Value)` but the tsv says `Ok()`; from 04d, the UC10 "before" snippet in `errors-in-practice.md` doesn't compile on 0.2, GOAL row 12 misses CS0411.
+- Done in 04c (eb8beb9, 156481b, 9a465b0, a36c3d4): the `spec:` fixes batched with 04c's review: from 13a, `GEN-RFG0005` can't pass as written (CS1729; give `NestedError` its own protected constructor, see 13a's `GenRfg0005Proposed.cs`), `building-the-generator.md` still says colliding names are prefixed (now RFG0008), `SHAPE-UNIT` calls `Ok(Unit.Value)` but the tsv says `Ok()`; from 04d, the UC10 "before" snippet in `errors-in-practice.md` doesn't compile on 0.2, GOAL row 12 misses CS0411.
