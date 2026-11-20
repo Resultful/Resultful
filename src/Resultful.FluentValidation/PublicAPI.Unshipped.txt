@@ -1,0 +1,16 @@
+#nullable enable
+Resultful.FluentValidation.FluentValidationError
+Resultful.FluentValidation.FluentValidationError.Equals(Resultful.FluentValidation.FluentValidationError? other) -> bool
+Resultful.FluentValidation.FluentValidationError.ErrorCode.get -> string!
+Resultful.FluentValidation.FluentValidationError.FluentValidationError(FluentValidation.Results.ValidationFailure! failure) -> void
+Resultful.FluentValidation.FluentValidationError.PropertyName.get -> string!
+Resultful.FluentValidation.ValidatorExtensions
+override Resultful.FluentValidation.FluentValidationError.<Clone>$() -> Resultful.FluentValidation.FluentValidationError!
+override Resultful.FluentValidation.FluentValidationError.Equals(object? obj) -> bool
+override Resultful.FluentValidation.FluentValidationError.GetHashCode() -> int
+override sealed Resultful.FluentValidation.FluentValidationError.Equals(Resultful.Error? other) -> bool
+static Resultful.FluentValidation.FluentValidationError.operator !=(Resultful.FluentValidation.FluentValidationError? left, Resultful.FluentValidation.FluentValidationError? right) -> bool
+static Resultful.FluentValidation.FluentValidationError.operator ==(Resultful.FluentValidation.FluentValidationError? left, Resultful.FluentValidation.FluentValidationError? right) -> bool
+static Resultful.FluentValidation.ValidatorExtensions.ToValidation<T>(this FluentValidation.Results.ValidationResult! result, T instance) -> Resultful.Validation<T>
+static Resultful.FluentValidation.ValidatorExtensions.ValidateToResult<T>(this FluentValidation.IValidator<T>! validator, T instance) -> Resultful.Validation<T>
+static Resultful.FluentValidation.ValidatorExtensions.ValidateToResultAsync<T>(this FluentValidation.IValidator<T>! validator, T instance, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Resultful.Validation<T>>!

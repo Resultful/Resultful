@@ -1,0 +1,8 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <!-- The lowest FluentValidation 12 (DECISIONS-TAKEN: 12.x, net10/net11 only). A satellite depends on the lowest version it needs. -->
+    <PackageVersion Include="FluentValidation" Version="12.0.0" />
+  </ItemGroup>
+</Project>
