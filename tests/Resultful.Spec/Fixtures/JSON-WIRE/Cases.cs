@@ -9,6 +9,8 @@ using Resultful.Spec.Support;
 
 public sealed record OrderNotFound(int Id) : Error($"order {Id} was not found");
 public sealed record Order(int Id);
+namespace Orders { public sealed record NotFound() : Resultful.Error("order"); }
+namespace Payments { public sealed record NotFound() : Resultful.Error("payment"); }
 
 public static class Cases
 {
@@ -26,6 +28,12 @@ public static class Cases
             JsonSerializer.Serialize(Validation.Fail<int>(new[] { Error.From("a"), Error.From("b") }), Options));
         Same("""{"ok":true,"value":{}}""", JsonSerializer.Serialize(Result.Ok(), Options));
         Check.Throws<System.InvalidOperationException>(() => JsonSerializer.Serialize(default(Result<int>), Options), "the zero value");
+    }
+
+    [SpecCase]
+    public static void Two_cases_with_one_simple_name_are_rejected()
+    {
+        Check.Throws<System.ArgumentException>(() => new JsonSerializerOptions().AddErrorCases<Error>(new[] { typeof(Orders.NotFound), typeof(Payments.NotFound) }), "the JSON type would be ambiguous");
     }
 
     [SpecCase]

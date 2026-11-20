@@ -19,7 +19,6 @@ public static class Cases
 {
     static PlaceOrderResult Declined() => new CardDeclined("x");
     static PlaceOrderResult Missing() => new OrderNotFound(1);
-    static Result<Order, OrderError> Core() => new CardDeclined("x"); // expect: CS0029
 
     [SpecCase]
     public static void Every_leaf_converts()

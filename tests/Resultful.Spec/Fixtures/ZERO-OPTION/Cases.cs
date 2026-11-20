@@ -7,7 +7,7 @@ public static class Cases
     [SpecCase]
     public static void The_zero_Option_is_None()
     {
-        var text = default(Option<int>).Match(v => "some " + v, (None _) => "none");
+        var text = default(Option<int>).Match(v => "some " + v, _ => "none");
         Check.Equal("none", text, "default(Option<int>)");
     }
 }

@@ -19,7 +19,7 @@ public static class Cases
     public static void A_valueless_shape_succeeds_with_Unit()
     {
         Check.True(Cancel(false).TryGetValue(out Unit? u) && ReferenceEquals(u, Unit.Value), "Unit");
-        Check.True(CancelOrderResult.Ok(Unit.Value).TryGetValue(out Unit? _), "Ok");
+        Check.True(CancelOrderResult.Ok().TryGetValue(out Unit? _), "Ok");
         Check.True(Cancel(true).TryGetError(out _), "failure");
 #if NET11_0_OR_GREATER
         Check.Equal("done", Cancel(false) switch { Unit => "done", OrderLocked => "locked" }, "Unit arm");
