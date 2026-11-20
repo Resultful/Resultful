@@ -6,7 +6,7 @@ Rows are in stack order.
 |---|---|---|---|---|
 | 00 | rtkelly13/error-design | #34 | green | stack B base: rebase onto 04b, retarget |
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
-| 02 | rtkelly13/stack-02-test-infra |  | building | contract written |
+| 02 | rtkelly13/stack-02-test-infra | #40 | building | draft open, CI running |
 | 03 | rtkelly13/stack-03-analysis-level |  | todo |  |
 | 04 | rtkelly13/stack-04-per-package-release |  | todo |  |
 | 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
@@ -42,3 +42,4 @@ Rows are in stack order.
 
 - 2026-11-20: the plan moved from the local `temp/stack/` to this branch (#39), for a Claude Code on the web run. 01 was built and reviewed locally. 02's contract is written; 02 is next.
 - 2026-11-20 (web run 1): resumed on Claude Code on the web. SDKs pulled from the MCR images, GitHub through the MCP tools (`WEB-RUN.md`). Starting 02.
+- Live tracker (private artifact, updated at each PR boundary): https://claude.ai/artifact/KPm6VvRnY2U7moMKKZufrE
