@@ -8,8 +8,8 @@ Rows are in stack order.
 | 01 | rtkelly13/stack-01-consumption-tests | #38 | done (#38, head 24d079b, CI green, reviewed) | copied from #36; stack A base = main |
 | 02 | rtkelly13/stack-02-test-infra | #40 | review | 732a709 green; reopened: 03's adversary showed release-check scripts miss 9 kinds of difference; fixing as fixup! commits |
 | 03 | rtkelly13/stack-03-analysis-level | #41 | review | review: changes needed (12 items, 1 blocking doc error); adversary: no unlisted difference from beta06; fixing as fixup! commits |
-| 04 | rtkelly13/stack-04-per-package-release |  | building | on 03@be6b76a |
-| 04b | rtkelly13/stack-04b-release-0.2 |  | todo | checkpoint; Ryan merges 00–04b |
+| 04 | rtkelly13/stack-04-per-package-release | #43 | review | 6eb5116 on 03@be6b76a; reviewer running |
+| 04b | rtkelly13/stack-04b-release-0.2 |  | building | checkpoint; contract written; on 04@6eb5116 |
 | 04c | rtkelly13/stack-04c-spec-harness | #42 | review | 5b8b23a; 261 spec tests green locally, 135 ledger lines pending; 7 items flagged for Ryan; reviewer running |
 | 04d | rtkelly13/stack-04d-reference-app |  | todo | checkpoint; may run alongside 02–04 |
 | 04e | rtkelly13/stack-04e-publish-preview |  | todo | stack B; preview job |

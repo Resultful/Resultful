@@ -1,0 +1,42 @@
+{
+  "pr": 43,
+  "url": "https://github.com/Resultful/Resultful/pull/43",
+  "branch": "rtkelly13/stack-04-per-package-release",
+  "started_from": "be6b76a (origin/rtkelly13/stack-03-analysis-level)",
+  "head_sha": "6eb51166062f2f87057985e461a155b26f207722",
+  "commits": ["8cfab52 build: release plan", "17179e7 build: verify-package every packable project", "8b43e02 ci: plan + planned-only publish + tags", "6eb5116 docs: decision 11 How a release works"],
+  "local_checks": {
+    "release_plan_self_test": "passed, 24 cases",
+    "verify_package_self_test": "passed (PackageDiff and the new PackageCheck)",
+    "build_and_pack": "dotnet build src/Resultful -c Release -m:2, then pack each src/*/*.csproj: Resultful.0.2.0-beta06.nupkg + snupkg",
+    "release_plan_real_repo": "exit 0; Resultful 0.2.0-beta06 pending against bootstrap 1697a7a; nothing to publish",
+    "release_plan_04b_dry_run": "VersionSuffix emptied, not committed: Resultful 0.2.0 publish, exit 0",
+    "verify_package_with_plan_and_packages": "exit 0",
+    "zizmor_offline": "no findings",
+    "check_suppressions_vs_be6b76a": "no new suppressions",
+    "not_run_locally": "the full test suite, coverage, the packed-consumption run, ls-lint, the release-check diffs (none of the source they cover changed); CI not awaited"
+  },
+  "changes": [
+    "eng/release-plan.cs: states publish/pending/unchanged; inputs are the project folder, the transitive project closure, Directory.Build.props/targets above, README/LICENSE, and the central versions used (per-target and global); tags <id>/v<version>; --out/--packages/--summary/--nuget/--self-test",
+    "eng/release-bootstrap.json: Resultful 0.2.0-beta06 at 1697a7a counts as the last release",
+    "Directory.Packages.props: NuGet.Versioning 7.9.0 (eng scripts)",
+    "eng/verify-package.cs: --packages coverage, --plan stricter release-only checks, netstandard2.0 required only for the core, check logic refactored into PackageCheck with a self-test",
+    "ci.yml: fetch-tags; pack all src projects; Release plan step written to the step summary; package check with --packages/--plan; release-plan self-test in release-check; publish pushes only the planned packages then tags them, contents: write, needs release-check; release-check globs Resultful.[0-9]*.nupkg",
+    "docs: decision 11 consequences and a 'How a release works' section (proposed, with bootstrap); decision 7 publish paragraph"
+  ],
+  "decisions_taken": [
+    "beta06 bootstrapped through a committed file rather than by creating a tag",
+    "decision 11 updated instead of a new decision number (avoids stack B's 14-17)",
+    "--self-test instead of an xunit project (test-counts unchanged)",
+    "VersionPrefix/VersionSuffix kept for Resultful; the plan reads either form",
+    "per-target Directory.Packages.props: deferred to stack B (no stack A package needs it); the plan already handles it"
+  ],
+  "beyond_contract": ["--packages coverage check", "per-target/global central entries", "duplicate-id and missing-bootstrap-commit errors", "on-demand loading of referenced projects outside src/", "last-release source in the table", "publish needs release-check", "release-check globs tightened", "summary line serves as the publish dry run"],
+  "suppressions": [],
+  "open_issues": [
+    "CI not observed (pipelining). Risks: the Release plan step calls nuget.org (--nuget); fetch-tags with fetch-depth 0; bash glob Resultful.[0-9]*.nupkg in release-check",
+    "release-plan.cs is 843 lines, of which about 510 are the self-test; production logic is about 330 lines",
+    "an analyzer-only package (stack B) will need a verify-package exception for lib/<target>/<id>.dll",
+    "Microsoft.CodeAnalysis.PublicApiAnalyzers (PrivateAssets=all) counts as a central input, as in the sibling; harmless but noisy"
+  ]
+}
