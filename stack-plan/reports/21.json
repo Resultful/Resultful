@@ -3,28 +3,70 @@
   "pr_url": "https://github.com/Resultful/Resultful/pull/52",
   "branch": "rtkelly13/stack-21-fluentvalidation-diagnostics",
   "base": "rtkelly13/stack-04c-spec-harness",
-  "head_sha": "c8e2ecf420563a89233666dd8d9d7aff11c04dea",
+  "head_sha": "06ec7b2745c38a2dc5065c54301bf01e6185cde8",
   "started_from": "9a465b08dd2bf17fb0f2d2a7e0d713cc85333cab (origin/rtkelly13/stack-04c-spec-harness), no cherry-picks",
   "commits": [
     "9822b27 test: a temporary stand-in core for drafting 21 ahead of the core",
     "530d0ae feat(fluentvalidation): Resultful.FluentValidation against the 0.3 target",
-    "c8e2ecf feat(diagnostics): Resultful.Diagnostics against the 0.3 target"
+    "c8e2ecf feat(diagnostics): Resultful.Diagnostics against the 0.3 target",
+    "903a2a3 fixup! feat(fluentvalidation): Resultful.FluentValidation against the 0.3 target",
+    "06ec7b2 fixup! feat(diagnostics): Resultful.Diagnostics against the 0.3 target"
   ],
   "local_runs": [
-    {"cmd": "dotnet build src/Resultful.FluentValidation -m:2", "result": "0 warnings, 0 errors, net10.0+net11.0, against the target stub core"},
-    {"cmd": "dotnet build src/Resultful.Diagnostics -m:2", "result": "0 warnings, 0 errors, net10.0+net11.0, against the target stub core (CA1873 fixed before commit)"},
-    {"cmd": "dotnet run --project tests/Resultful.FluentValidation.Tests -f net10.0 --no-build", "result": "total 23, failed 0 (stand-in core)"},
-    {"cmd": "dotnet run --project tests/Resultful.FluentValidation.Tests -f net11.0 --no-build", "result": "total 23, failed 0 (stand-in core)"},
-    {"cmd": "dotnet run --project tests/Resultful.Diagnostics.Tests -f net10.0 --no-build", "result": "total 19, failed 0 (stand-in core)"},
-    {"cmd": "dotnet run --project tests/Resultful.Diagnostics.Tests -f net11.0 --no-build", "result": "total 19, failed 0 (stand-in core)"},
-    {"cmd": "LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 dotnet run --project tests/Resultful.{FluentValidation,Diagnostics}.Tests -f {net10.0,net11.0} --no-build", "result": "23/23/19/19, failed 0 in each"},
-    {"cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs", "result": "Resultful.FluentValidation [net10.0/net11.0]: 15 added, 0 still to add; Resultful.Diagnostics [net10.0/net11.0]: 9 added, 0 still to add; no problems for either. Exit 1 because of 30 pre-existing problems for src/Resultful (core, untouched by this PR)"},
-    {"cmd": "npx -y @ls-lint/ls-lint@2.3.1", "result": "exit 0"},
-    {"cmd": "scratch copy: Resultful.Spec.csproj referencing the stand-in + both packages (AdditionalProperties ResultfulCoreProject=stand-in); dotnet run --project tests/Resultful.Spec -f net10.0|net11.0 -- --filter-query '/*/*/SpecTests/*'", "result": "net10.0 total 250, failed 19 (18 'flip this line' incl. FV-VALIDATE and DIAG-HOOKS, + PKG-ONEOF target compile, an artifact of the stand-in removing OneOf.dll); net11.0 total 250, failed 21 (20 flips incl. both 21 lines, + PKG-ONEOF). Not committed; not evidence."}
+    {
+      "cmd": "dotnet build src/Resultful.FluentValidation -m:2",
+      "result": "0 warnings, 0 errors, net10.0+net11.0, against the target stub core"
+    },
+    {
+      "cmd": "dotnet build src/Resultful.Diagnostics -m:2",
+      "result": "0 warnings, 0 errors, net10.0+net11.0, against the target stub core (CA1873 fixed before commit)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.FluentValidation.Tests -f net10.0 --no-build",
+      "result": "total 23, failed 0 (stand-in core)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.FluentValidation.Tests -f net11.0 --no-build",
+      "result": "total 23, failed 0 (stand-in core)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Diagnostics.Tests -f net10.0 --no-build",
+      "result": "total 19, failed 0 (stand-in core)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Diagnostics.Tests -f net11.0 --no-build",
+      "result": "total 19, failed 0 (stand-in core)"
+    },
+    {
+      "cmd": "LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 dotnet run --project tests/Resultful.{FluentValidation,Diagnostics}.Tests -f {net10.0,net11.0} --no-build",
+      "result": "23/23/19/19, failed 0 in each"
+    },
+    {
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
+      "result": "Resultful.FluentValidation [net10.0/net11.0]: 15 added, 0 still to add; Resultful.Diagnostics [net10.0/net11.0]: 9 added, 0 still to add; no problems for either. Exit 1 because of 30 pre-existing problems for src/Resultful (core, untouched by this PR)"
+    },
+    {
+      "cmd": "npx -y @ls-lint/ls-lint@2.3.1",
+      "result": "exit 0"
+    },
+    {
+      "cmd": "scratch copy: Resultful.Spec.csproj referencing the stand-in + both packages (AdditionalProperties ResultfulCoreProject=stand-in); dotnet run --project tests/Resultful.Spec -f net10.0|net11.0 -- --filter-query '/*/*/SpecTests/*'",
+      "result": "net10.0 total 250, failed 19 (18 'flip this line' incl. FV-VALIDATE and DIAG-HOOKS, + PKG-ONEOF target compile, an artifact of the stand-in removing OneOf.dll); net11.0 total 250, failed 21 (20 flips incl. both 21 lines, + PKG-ONEOF). Not committed; not evidence."
+    },
+    {
+      "cmd": "after fixups, at 06ec7b2: the four builds plus both test projects on net10.0/net11.0, invariant and LANG/LC_ALL=tr_TR.UTF-8",
+      "result": "builds 0 warnings 0 errors; FluentValidation 23/23, Diagnostics 19/19 on each target in both cultures, failed 0"
+    }
   ],
-  "ledger_ids_passing_locally": ["FV-VALIDATE (net10.0, net11.0; stand-in core)", "DIAG-HOOKS (net10.0, net11.0; stand-in core)"],
+  "ledger_ids_passing_locally": [
+    "FV-VALIDATE (net10.0, net11.0; stand-in core)",
+    "DIAG-HOOKS (net10.0, net11.0; stand-in core)"
+  ],
   "ledger_ids_flipped": [],
-  "ledger_ids_staying_pending": ["FV-VALIDATE", "DIAG-HOOKS"],
+  "ledger_ids_staying_pending": [
+    "FV-VALIDATE",
+    "DIAG-HOOKS"
+  ],
   "spec_commits": [],
   "spec_findings": [
     "FluentValidation: lowest 12.x is 12.0.0 (package and tests use it); the target stub and Resultful.Spec pin 12.1.0 in nested props. CPM allows one version at wiring, so unify on 12.0.0. Not an API change.",
@@ -33,19 +75,19 @@
   ],
   "decisions_taken": [
     "| PR | choice | why |",
-    "| 21 | A FluentValidation failure of any severity becomes a FluentValidationError | FluentValidation's IsValid is false for any failure; an adapter adds no rules (decision 11) |",
+    "| 21 | A FluentValidation failure of any severity becomes a FluentValidationError; severity isn't kept (additive spec: at 21's turn if wanted) | FluentValidation's IsValid is false for any failure; an adapter adds no rules (decision 11) |",
     "| 21 | FluentValidationError keeps only PropertyName, ErrorCode, Message; AttemptedValue and CustomState are dropped; null strings become \"\" | personal data stays out of errors that reach logs and HTTP bodies |",
     "| 21 | LogFailure logs one entry: leaf type name, Message, Context, causes as 'Type: Message', as text and structured state (ErrorType, ErrorMessage, ErrorContext, ErrorCauses), EventId(1, \"ResultFailure\"); Validation<T> logs as one ValidationFailed<Error> | target comment plus the cause chain Error.ToString also carries |",
-    "| 21 | RecordFailure sets status Error (no description) and the type tag only | target comment; Message stays out of traces |",
+    "| 21 | RecordFailure sets status Error (no description) and resultful.error.type only; null means Activity.Current and the docs say to pass your own activity for expected failures | target comment; Message stays out of traces; HTTP instrumentation owns error.type and OTel says a 4xx isn't a server-span error |",
     "| 21 | Hooks pass the zero value through without logging, tagging or throwing; LogLevel.None never logs | follows the IsFailure zero default; a hook must not break logging |",
     "| 21 | A generic leaf's name in logs/tags carries type arguments (ValidationFailed<Error>) | matches 12b's JSON type |",
-    "| 21 | FluentValidation 12.0.0; wiring unifies target and spec on it | contract: lowest version that works on both targets |"
+    "| 21 | FluentValidation 12.0.0 everywhere at wiring: the package and tests now; at 21's turn tests/Resultful.Spec and tests/Resultful.TargetApi drop their 12.1.0 pins (lowered, or deleted for the root pin) | contract: lowest version on both targets; Resultful.Spec references FluentValidation directly, so FV-VALIDATE must run on the floor |"
   ],
   "wiring": [
     "src/Resultful.FluentValidation and src/Resultful.Diagnostics: replace ResultfulCoreProject with ProjectReference ../Resultful/Resultful.csproj; remove IsPackable=false; per-package version (04)",
     "both test projects: replace the Compile Include glob and stand-in reference with a ProjectReference to the package; delete tests/Resultful.Satellites.StandIn/",
     "Resultful.slnx: add the four projects",
-    "root Directory.Packages.props: FluentValidation 12.0.0, Microsoft.Extensions.Logging.Abstractions 10.0.0 (net10.0 only), xunit.v3 4.0.2 and CsCheck 5.0.1 if not already there; delete the four nested Directory.Packages.props; the target stub and Resultful.Spec drop 12.1.0 for 12.0.0",
+    "root Directory.Packages.props: FluentValidation 12.0.0, Microsoft.Extensions.Logging.Abstractions 10.0.0 (net10.0 only), xunit.v3 4.0.2 and CsCheck 5.0.1 if not already there; delete the four nested Directory.Packages.props this PR adds; LOWER FluentValidation to 12.0.0 in tests/Resultful.Spec/Directory.Packages.props and tests/Resultful.TargetApi/Directory.Packages.props (or delete those lines for the root pin), else FV-VALIDATE never runs on the floor",
     "tests/Resultful.Spec/Resultful.Spec.csproj: ProjectReferences to both packages; flip FV-VALIDATE and DIAG-HOOKS",
     "CI: eng/run-tests.cs runs both MTP projects on net10.0/net11.0 under invariant and tr-TR",
     "package check and release-check take both packages; README sections (root file)"
@@ -65,6 +107,15 @@
   "open_issues": [
     "All test runs are against the temporary stand-in core (12b's copy); the real gate is at 21's turn against src/Resultful.",
     "check-api.cs exits 1 on this base because of 30 problems for src/Resultful (the core), which this PR doesn't touch; the orchestrator may want to confirm that on 04c itself.",
-    "CI not awaited."
+    "CI not awaited.",
+    "Severity isn't kept on FluentValidationError; if needed, an additive spec: change at 21's turn."
+  ],
+  "review_fixes": [
+    "1 wiring: PR body step 4 says explicitly to lower FluentValidation to 12.0.0 in tests/Resultful.Spec/Directory.Packages.props and tests/Resultful.TargetApi/Directory.Packages.props, or delete those lines for the root pin; Resultful.Spec references FluentValidation directly, so FV-VALIDATE runs on 12.1.0 until then. DECISIONS row added.",
+    "2 TestCultures invariant;tr-TR in both test csproj files",
+    "3 ResultActivityExtensions: remarks and <param> say RecordFailure(null) falls back to Activity.Current, often the HTTP server span (OTel: a 4xx isn't a server-span error), so pass your own activity for expected failures; ResultfulDiagnostics.ErrorTypeTag remarks explain resultful.error.type vs error.type (HTTP instrumentation sets error.type on that span)",
+    "4 FluentValidationError remarks: a message may still embed the value via {PropertyValue} or a custom placeholder",
+    "5 FailureLogState remarks: the {OriginalFormat} template always names all four properties; the rendered line drops empty Context/Causes parts on purpose",
+    "6 severity not kept: a 'For 21's turn' note in the PR body (additive spec: then); no code change"
   ]
 }
