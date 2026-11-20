@@ -2,7 +2,9 @@
   <!--
     UC10's "before": string-error code written against 0.2. It builds against 0.2 (ShopCore=baseline, the default
     here) and, against 0.3 (ShopCore=target or package), fails with exactly the errors in UC10/expected-0.3.txt
-    (GOAL.md row 12). UC09: a library with its own internal [MustObserve], no Resultful dependency.
+    (GOAL.md row 12). UC09: a library with its own internal [MustObserve], no Resultful dependency. Build UC09 with
+    ShopCore=none (or baseline): with target, package or project, the core's public
+    Resultful.CodeAnalysis.MustObserveAttribute clashes with the internal copy (CS0436).
   -->
   <PropertyGroup>
     <ShopCore Condition="'$(ShopCore)' == ''">baseline</ShopCore>
