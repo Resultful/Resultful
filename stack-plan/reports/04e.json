@@ -2,7 +2,7 @@
   "pr": 47,
   "pr_url": "https://github.com/Resultful/Resultful/pull/47",
   "branch": "rtkelly13/stack-04e-publish-preview",
-  "head_sha": "a96a6608204c164f05a0a50dd8edebcdf0aed3ad",
+  "head_sha": "a77f2285ce2022173d720970033dfc079a5d8614",
   "started_from": "1fedf62 (origin/rtkelly13/stack-04d2-end-to-end)",
   "ci": {
     "run": "https://github.com/Resultful/Resultful/actions/runs/44812144182",
@@ -15,6 +15,7 @@
   },
   "dry_run_result": "preview-dry-run passed on the first CI run: Resultful packed as 0.3.0-preview.0, version check passed, set restored together into an empty packages folder, eng/verify-package.cs passed (deps OneOf 3.0.271; groups net10.0 net11.0 .NETStandard2.0). Same result locally. Nothing pushed; no workflow dispatched.",
   "commands_for_maintainer": [
+    "Before the first real preview: create the nuget-preview environment with deployment branch rule rtkelly13/stack-*, yourself as required reviewer, and the NUGET_PREVIEW_KEY secret.",
     "gh workflow run ci.yml --ref rtkelly13/stack-04e-publish-preview -f preview=1 -f dry-run=true",
     "gh workflow run ci.yml --ref rtkelly13/stack-NN-name -f preview=N -f dry-run=false"
   ],
@@ -25,12 +26,22 @@
     "Restore probe targets net10.0.",
     "preview input is a string with empty default, validated as a positive integer; dry-run boolean defaults true.",
     "No --skip-duplicate on the preview push so a number is used once.",
-    "Branch check is a failing first step in publish-preview plus a startsWith guard in publish-preview-push's if."
+    "Branch check is a failing first step in publish-preview plus a startsWith guard in publish-preview-push's if.",
+    "Plan branch rtkelly13/stack-plan refused by both preview jobs."
   ],
   "suppressions": "None added. The existing file-level zizmor use-trusted-publishing ignore for ci.yml now also covers the preview push step (2 findings with --no-config, 0 with config); its comment updated to name both jobs.",
   "open_issues": [
     "lint job fails on the stack B base (from 04c/04d files vs main's .ls-lint.yml); needs a fix in 04c/04d's area or the stack A ls-lint changes at restack. Contract item 7 (every CI job passes) is not met until then.",
     "Risk: GitHub may reject workflow_dispatch inputs not in main's copy of ci.yml (main has only `publish`); if the maintainer's dry dispatch is rejected, the preview jobs move into stack A (04) at the local restack.",
     "Maintainer must create the nuget-preview environment and its NUGET_PREVIEW_KEY secret before a real preview."
-  ]
+  ],
+  "review_fixups": {
+    "commits": [
+      "c149b89 ci.yml: refuse rtkelly13/stack-plan in publish-preview and publish-preview-push",
+      "8034500 preview-packages.cs: delete the probe folder in try/finally",
+      "a77f228 decision 7 Previews: nuget-preview environment is the security boundary (deployment branch rule rtkelly13/stack-*, maintainer as required reviewer); sequential numbers with no fixed mapping; shared concurrency group keeps one pending run so a third queued dispatch cancels the second"
+    ],
+    "not_done": "lint (04c ls-lint paths): orchestrator will cherry-pick f72ad89 up the chain separately",
+    "ci_after_fixups": "not yet checked"
+  }
 }
