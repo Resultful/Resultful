@@ -9,6 +9,8 @@
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- 02's eng/run-tests.cs adds one run per culture: the spec holds under any culture (CULTURE-*). -->
+    <TestCultures>invariant;tr-TR</TestCultures>
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- CA1515/CA1001 don't fit a test project; CA1031 the harness catches a fixture's exceptions to report them. -->
