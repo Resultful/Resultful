@@ -1,0 +1,11 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring (16a's PR body). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <!-- 5.12.0 is SDK 11.0.100's compiler, as in tests/Resultful.Spec: the in-process compiler must parse C# 15 unions
+         (RF-0002-UNION). The analyzers themselves are built against 4.14.0. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+  </ItemGroup>
+</Project>

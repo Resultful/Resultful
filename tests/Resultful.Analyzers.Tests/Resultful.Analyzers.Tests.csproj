@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Resultful.Analyzers' own tests, with a hand-rolled harness (AnalyzerHarness.cs): consumer code compiles in process
+    against the target API's stub core (tests/Resultful.TargetApi/Resultful), not the real core, since 16a is drafted
+    ahead of it. RfFixtureTests also runs 04c's SpecHarness (linked, unchanged) over the 16a RF-* fixtures.
+    xunit.v3 on Microsoft.Testing.Platform: run with `dotnet run -f net10.0` (and net11.0).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <IsPackable>false</IsPackable>
+    <!-- CA1515 public xunit classes; CA2007 no ConfigureAwait in tests; CA1859/CA1034 don't fit test code.
+         CA1001, CA1031 and CA1863 are for the linked SpecHarness.cs, as in tests/Resultful.Spec. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007;CA1859;CA1034;CA1001;CA1031;CA1863</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 04c's harness, compiled here unchanged so the RF-* fixtures run against this analyzer (SpecHarness finds it
+         under src/Resultful.Analyzers/bin). Merged into tests/Resultful.Spec at wiring. -->
+    <Compile Include="../Resultful.Spec/SpecHarness.cs" Link="Spec/SpecHarness.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Resultful.Analyzers/Resultful.Analyzers.csproj" />
+    <!-- The target API's core, for the consumer compilations; built, not referenced. -->
+    <ProjectReference Include="../Resultful.TargetApi/Resultful/Resultful.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Read by the linked SpecPaths (the same keys tests/Resultful.Spec writes). -->
+    <AssemblyMetadata Include="SpecDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../Resultful.Spec'))" />
+    <AssemblyMetadata Include="RepoRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+    <AssemblyMetadata Include="Configuration" Value="$(Configuration)" />
+    <AssemblyMetadata Include="TargetFramework" Value="$(TargetFramework)" />
+  </ItemGroup>
+
+  <!-- SpecHarness emits and loads a compile-only fixture after its markers match, resolving Resultful from this
+       output folder. With no real core here, the stub core stands in: it is only loaded, never run
+       (RF-0002-UNION's records derive from Resultful.Error). -->
+  <Target Name="CopyTargetCoreForFixtureLoads" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/../Resultful.TargetApi/Resultful/bin/$(Configuration)/$(TargetFramework)/Resultful.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
