@@ -1,0 +1,126 @@
+{
+  "pr": {
+    "04d": 44,
+    "04d2": 45
+  },
+  "branch": {
+    "04d": "rtkelly13/stack-04d-reference-app",
+    "04d2": "rtkelly13/stack-04d2-end-to-end"
+  },
+  "head_sha": {
+    "04d": "bd334314e05f0b31ed3cc7b44833b3456c4983ec",
+    "04d2": "1fedf62dbd873aee5072973009e1d6388bec236e"
+  },
+  "split": "Contract split rule: the Shop alone is ~1270 lines of samples/, so 04d = Shop (#44, base 04c) and 04d2 = EndToEnd + snippets + ledger fixtures (#45, base 04d).",
+  "started_from": "04c c4ea0e7",
+  "cherry_picked": [
+    "a3c298d -> c2d9d85 (spec harness, ledger, Result<T> implicit from T)",
+    "0d0c4c5 -> 08a2fba",
+    "5b8b23a -> c5ac91f"
+  ],
+  "fixups": [
+    "bd33431 fixup! test: the Shop, a reference app against the 0.3 target API"
+  ],
+  "note_on_history": "Before the append-only rule arrived I rebased an UNPUSHED local 04d2 branch onto new 04c; I discarded it and rebuilt 04d2 on the pushed 04d head. No pushed branch was rebased or force-pushed.",
+  "local_runs": [
+    "cd samples && dotnet build Resultful.Shop.{Domain,Api,Worker,Legacy,Net11,Tests} -m:2 -p:ShopForce=all  -> all succeed against TargetApi stubs (after cherry-pick of a3c298d)",
+    "cd samples && dotnet build Resultful.Shop.<P> -m:2  -> all succeed with nothing gated in",
+    "cd samples && dotnet build Resultful.Shop.Legacy -m:2 -p:ShopForce=UC10 -p:ShopCore=target -> errors exactly CS0029, CS0411, CS0618",
+    "dotnet msbuild samples/Resultful.Shop.Worker -getProperty:ShopUC06 -p:ShopLedger=<test ledger with UC06 done, CRLF> -> true; UC07 pending -> empty",
+    "cd tests/Resultful.EndToEnd && dotnet run  -> Total 32, Failed 0 (~65s); report: 19 lines, all pending/fail",
+    "cd tests/Resultful.EndToEnd && dotnet run --no-build -- -class Resultful.EndToEnd.RunnerSelfTests -> 13 passed; seeded http-cases.json edit -> pin test fails",
+    "dotnet run tests/Resultful.EndToEnd/Snippets/check-snippets.cs -- --self-test -> pass; default -> 10 differences exit 0; --strict -> exit 1",
+    "cd tests/Resultful.EndToEnd/Broken && dotnet build <B> -p:ShopForce=UC01 -p:WarningsNotAsErrors=  (target stubs) -> MissingArm CS8509, ReorderedMatch CS0411, analyzer-only consumers compile clean",
+    "cd tests/Resultful.Spec && dotnet run -f net10.0 -- --filter-query \"/*/*/SpecTests/*\" -> 268 passed, 0 failed (net11.0 not run locally)"
+  ],
+  "use_cases": {
+    "UC01": "Domain OrderError+GetOrderResult; Api docs endpoint, shape endpoint (union switch on net11, typed Match on net10), /api via ToHttpResult; Net11 union",
+    "UC02": "Domain InputError; Api Validation.Combine",
+    "UC03": "EmailTaken, Register, Bind",
+    "UC04": "DbTimeout, WithContext, RunJob retry",
+    "UC05": "PaymentError adapter + Next; Net11 nested union",
+    "UC06": "Worker Channel handler + typed TryMap, expected-output.txt",
+    "UC07": "Api TeeError fix; broken DiscardedResult",
+    "UC08": "Shop.Tests NUnit + Api Rename",
+    "UC09": "Legacy library with internal MustObserve; broken OwnMustObserve",
+    "UC10": "Legacy before (0.2 beta05) + expected-0.3.txt; Api after"
+  },
+  "broken_consumers": {
+    "MissingArm": [
+      "CS8509",
+      "RF-SUPPRESS"
+    ],
+    "DiscardedResult": [
+      "RF0001",
+      "RF-0001"
+    ],
+    "DefaultResult": [
+      "RF0002",
+      "RF-0002"
+    ],
+    "ForeignDerived": [
+      "RF0010",
+      "RF-0010"
+    ],
+    "BareString": [
+      "RF0004",
+      "RF-0004"
+    ],
+    "UntypedMatch": [
+      "RF0008",
+      "RF-0008"
+    ],
+    "ReorderedMatch": [
+      "CS0411",
+      "HIER-MATCH"
+    ],
+    "OwnMustObserve": [
+      "RF0001",
+      "UC09"
+    ]
+  },
+  "spec_findings": [
+    "docs: errors-in-practice UC10 'before' snippet does not compile on 0.2 (CS0029: no T->Result<T> conversion in 0.2); Shop uses o.Ok()",
+    "GOAL row 12 lists CS0029, CS0618 for Shop.Legacy; the docs' caller errors.First() also gives CS0411 against 0.3; expected-0.3.txt lists all three",
+    "target lacked implicit operator Result<T>(T) at c4ea0e7; 04c added it in a3c298d (cherry-picked)",
+    "OpenAPI check needs per-route 404/409; ResultHttpResult<T>.PopulateMetadata cannot see the user's ResultfulHttpOptions map -> 20b must solve (or the Shop adds Produces)",
+    "chosen here: 4xx ProblemDetails carry Error.Message as detail (decisions silent)"
+  ],
+  "wiring": [
+    "Resultful.slnx: Shop projects + tests/Resultful.EndToEnd",
+    "root Directory.Packages.props: Microsoft.AspNetCore.OpenApi 10.0.15 (net10)/11.0.0 (net11); xunit.v3",
+    "CI: run EndToEnd before Resultful.Spec (UC fixtures read artifacts/e2e/*/e2e-report.json); upload artifacts/e2e",
+    "move Snippets/check-snippets.cs to eng/check-snippets.cs",
+    "eng/run-tests.cs picks up EndToEnd",
+    "ls-lint for UC0n, GeneratorStandIn, Broken/*"
+  ],
+  "beyond_contract": [
+    "Shop.Tests project for UC08",
+    "ShopCore baseline/none modes",
+    "typed TryMap in worker",
+    "OwnMustObserve broken consumer",
+    "oracle-file SHA pins checked every run",
+    "error-line extraction in failure detail",
+    "E2E_ONLY filter"
+  ],
+  "suppressions": [
+    "Shop.targets: WarningsNotAsErrors CS8509 when ShopCore=target (until 17)",
+    "Shop.props: NoWarn CA1848;CA2007",
+    "Shop.Tests: NoWarn CA1515",
+    "EndToEnd csproj: NoWarn CA1515;CA2007"
+  ],
+  "decisions_taken": [
+    "Fulfilment OrderNotFound in its own namespace",
+    "CardDeclined->409, ProviderUnavailable/FraudSuspected->500",
+    "HTTP cases gated on HTTP-CASES, OpenAPI on HTTP-OPENAPI, broken consumers on existing RF/HIER lines",
+    "package-mode builds never use the generator stand-in",
+    "Legacy 0.2 baseline = Resultful 0.2.0-beta05 from nuget.org (beta06/0.2.0 not on nuget.org)"
+  ],
+  "open_issues": [
+    "HTTP/worker/test runtime paths never executed (nothing compiles against 0.2); first real run when a UC compiles from packages",
+    "Shop.Domain lacks net8.0 for the SDK 9 leg (13b)",
+    "Spec harness verified on net10.0 only locally",
+    "CI not awaited (pipelining)",
+    "snippet check: 10 doc/Shop differences reported (mostly access modifiers, renamed routes, doc placeholders) for 25"
+  ]
+}
