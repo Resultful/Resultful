@@ -43,7 +43,7 @@ characterisation suite becomes the baseline side of the 08a/08b differential (sp
     name, a nested union kept as one case (`PaymentError p =>` is an exhaustive arm; a flat arm for its leaf is CS8121; dropping the inner arm is CS8509 on the inner switch), implicit widening to `Result<T>`, `Fail` allocating 0 bytes,
     CS0029 for a bare leaf into `Result<T, OrderError>` (documented, not a bug). Each has a `[ClosedHierarchy]` twin
     that must give the same output.
-  - Round 4 IDs: `UERR-NESTED-*` (nested union `.Error`/`WithContext`), `UERR-CUSTOM-IUNION` (a hand-written `IUnion` struct with a `long` doesn't crash `Fail`), `UERR-JSON-*` (union round-trip, unknown `type` throws), `VAL-EQ`, `VAL-NONEMPTY`, `ZERO-NULL-ERR`, `ERR-TOSTRING`.
+  - Round 4 IDs: `UERR-NESTED-*` (nested union `.Error`/`WithContext`), `UERR-CUSTOM-IUNION` (a hand-written `IUnion` struct with a `long` doesn't crash `Fail`), `UERR-JSON-*` (union round-trip, unknown `type` throws), `VAL-EQ`, `VAL-NONEMPTY`, `ZERO-NULL-ERR`, `ERR-TOSTRING`, `ASYNC-SWITCH-TASK` (`SwitchAsync` returns an awaited `Task`; a throwing callback faults it).
   - Quality IDs: `ZERO-TOSTRING` (a zero value's `ToString`/`Equals`/`GetHashCode` don't throw), `ERR-EQ` (structural
     equality with `Context`), `RF-0009`, `RF-0001-ASYNC`, `API-CASE-ADD` (a new case shows as breaking in the API diff),
     `CULTURE-*` (spec and JSON under `tr-TR`), `ASYNC-THROW`/`ASYNC-CANCEL` (exceptions and cancellation propagate),
