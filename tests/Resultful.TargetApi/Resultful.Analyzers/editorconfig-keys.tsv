@@ -1,0 +1,4 @@
+key	value	meaning
+resultful.must_observe_types	comma-separated documentation IDs (T:Vendor.ApiResponse`1)	third-party types treated as [MustObserve]
+resultful.closed_hierarchy_types	comma-separated documentation IDs	third-party bases treated as [ClosedHierarchy]
+dotnet_diagnostic.RF0008.severity	error|warning|suggestion|none	RF0008 is configurable like any rule

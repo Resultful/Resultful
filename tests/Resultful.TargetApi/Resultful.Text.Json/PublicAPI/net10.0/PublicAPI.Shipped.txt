@@ -1,0 +1,36 @@
+#nullable enable
+Resultful.Text.Json.ErrorJsonConverter<TError>
+Resultful.Text.Json.ErrorJsonConverter<TError>.ErrorJsonConverter(System.Collections.Generic.IEnumerable<System.Type!>! cases) -> void
+Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>
+Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>.ErrorUnionJsonConverter(System.Collections.Generic.IEnumerable<System.Type!>! cases) -> void
+Resultful.Text.Json.ResultJsonConverter<T, TError>
+Resultful.Text.Json.ResultJsonConverter<T, TError>.ResultJsonConverter() -> void
+Resultful.Text.Json.ResultJsonConverter<T>
+Resultful.Text.Json.ResultJsonConverter<T>.ResultJsonConverter() -> void
+Resultful.Text.Json.ResultfulJsonConverterFactory
+Resultful.Text.Json.ResultfulJsonConverterFactory.ResultfulJsonConverterFactory() -> void
+Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions
+Resultful.Text.Json.UnitJsonConverter
+Resultful.Text.Json.UnitJsonConverter.UnitJsonConverter() -> void
+Resultful.Text.Json.ValidationJsonConverter<T, TError>
+Resultful.Text.Json.ValidationJsonConverter<T, TError>.ValidationJsonConverter() -> void
+Resultful.Text.Json.ValidationJsonConverter<T>
+Resultful.Text.Json.ValidationJsonConverter<T>.ValidationJsonConverter() -> void
+override Resultful.Text.Json.ErrorJsonConverter<TError>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> TError!
+override Resultful.Text.Json.ErrorJsonConverter<TError>.Write(System.Text.Json.Utf8JsonWriter! writer, TError! value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> TUnion
+override Resultful.Text.Json.ErrorUnionJsonConverter<TUnion>.Write(System.Text.Json.Utf8JsonWriter! writer, TUnion value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ResultJsonConverter<T, TError>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Resultful.Result<T, TError>
+override Resultful.Text.Json.ResultJsonConverter<T, TError>.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Result<T, TError> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ResultJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Resultful.Result<T>
+override Resultful.Text.Json.ResultJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Result<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ResultfulJsonConverterFactory.CanConvert(System.Type! typeToConvert) -> bool
+override Resultful.Text.Json.ResultfulJsonConverterFactory.CreateConverter(System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.Serialization.JsonConverter?
+override Resultful.Text.Json.UnitJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Resultful.Unit!
+override Resultful.Text.Json.UnitJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Unit! value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ValidationJsonConverter<T, TError>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Resultful.Validation<T, TError>
+override Resultful.Text.Json.ValidationJsonConverter<T, TError>.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Validation<T, TError> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Resultful.Text.Json.ValidationJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Resultful.Validation<T>
+override Resultful.Text.Json.ValidationJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Validation<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+static Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions.AddErrorCases<TError>(this System.Text.Json.JsonSerializerOptions! options, System.Collections.Generic.IEnumerable<System.Type!>! cases) -> System.Text.Json.JsonSerializerOptions!
+static Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions.AddResultful(this System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.JsonSerializerOptions!

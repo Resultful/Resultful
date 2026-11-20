@@ -1,0 +1,7 @@
+id	fix	fix_all
+RF0001	discard with `_ =`	yes
+RF0004	wrap in Result.Ok(…) or Result.Fail<T>(…)	no
+RF0005	rewrite as a switch expression	yes
+RF0007	add a private protected constructor	yes
+RF0008	add the parameter types	yes
+RF0009	replace Map with Bind	yes

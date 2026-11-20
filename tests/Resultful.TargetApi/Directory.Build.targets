@@ -1,0 +1,8 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))"
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../')))" />
+  <!-- `dotnet format` applies code fixes to one target only. Set TargetApiTfm to regenerate one target's PublicAPI file. -->
+  <PropertyGroup Condition="'$(TargetApiTfm)' != ''">
+    <TargetFrameworks>$(TargetApiTfm)</TargetFrameworks>
+  </PropertyGroup>
+</Project>
