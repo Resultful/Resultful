@@ -1,0 +1,89 @@
+<Project>
+  <!--
+    Imported at the bottom of each Resultful.Shop.* project. A use case folder (UC01/ … UC10/, and the matching
+    GeneratorStandIn/UC0n/) compiles only when its ledger line is `done`, or when ShopForce names it.
+    An enabled use case defines SHOP_UC0n, so Program.cs can wire it in.
+  -->
+  <PropertyGroup>
+    <_ShopLedgerText Condition="Exists('$(ShopLedger)')">$([System.IO.File]::ReadAllText('$(ShopLedger)').Replace('&#13;', ''))</_ShopLedgerText>
+    <_ShopForce>;$(ShopForce);</_ShopForce>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ShopUseCase Include="UC01;UC02;UC03;UC04;UC05;UC06;UC07;UC08;UC09;UC10" />
+  </ItemGroup>
+
+  <!-- Evaluation-time, so IDEs see the same files as the build. One line per use case: MSBuild has no property loop. -->
+  <PropertyGroup>
+    <ShopUC01 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC01;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC01\tdone(\t|$)'))">true</ShopUC01>
+    <ShopUC02 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC02;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC02\tdone(\t|$)'))">true</ShopUC02>
+    <ShopUC03 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC03;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC03\tdone(\t|$)'))">true</ShopUC03>
+    <ShopUC04 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC04;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC04\tdone(\t|$)'))">true</ShopUC04>
+    <ShopUC05 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC05;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC05\tdone(\t|$)'))">true</ShopUC05>
+    <ShopUC06 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC06;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC06\tdone(\t|$)'))">true</ShopUC06>
+    <ShopUC07 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC07;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC07\tdone(\t|$)'))">true</ShopUC07>
+    <ShopUC08 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC08;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC08\tdone(\t|$)'))">true</ShopUC08>
+    <ShopUC09 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC09;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC09\tdone(\t|$)'))">true</ShopUC09>
+    <ShopUC10 Condition="'$(ShopForce)' == 'all' or $(_ShopForce.Contains(';UC10;')) or $([System.Text.RegularExpressions.Regex]::IsMatch('$(_ShopLedgerText)', '(?m)^UC10\tdone(\t|$)'))">true</ShopUC10>
+    <!-- UC07, UC08 and UC10's "after" code use UC01's order errors, so they bring UC01's folders with them. -->
+    <ShopUC01 Condition="'$(ShopUC07)' == 'true' or '$(ShopUC08)' == 'true' or '$(ShopUC10)' == 'true'">true</ShopUC01>
+    <!-- UC03 registers what UC02 validates. -->
+    <ShopUC02 Condition="'$(ShopUC03)' == 'true'">true</ShopUC02>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="UC01/**;GeneratorStandIn/UC01/**" Condition="'$(ShopUC01)' != 'true'" />
+    <Compile Remove="UC02/**;GeneratorStandIn/UC02/**" Condition="'$(ShopUC02)' != 'true'" />
+    <Compile Remove="UC03/**;GeneratorStandIn/UC03/**" Condition="'$(ShopUC03)' != 'true'" />
+    <Compile Remove="UC04/**;GeneratorStandIn/UC04/**" Condition="'$(ShopUC04)' != 'true'" />
+    <Compile Remove="UC05/**;GeneratorStandIn/UC05/**" Condition="'$(ShopUC05)' != 'true'" />
+    <Compile Remove="UC06/**;GeneratorStandIn/UC06/**" Condition="'$(ShopUC06)' != 'true'" />
+    <Compile Remove="UC07/**;GeneratorStandIn/UC07/**" Condition="'$(ShopUC07)' != 'true'" />
+    <Compile Remove="UC08/**;GeneratorStandIn/UC08/**" Condition="'$(ShopUC08)' != 'true'" />
+    <Compile Remove="UC09/**;GeneratorStandIn/UC09/**" Condition="'$(ShopUC09)' != 'true'" />
+    <Compile Remove="UC10/**;GeneratorStandIn/UC10/**" Condition="'$(ShopUC10)' != 'true'" />
+    <Compile Remove="GeneratorStandIn/**" Condition="'$(ShopGeneratorStandIn)' != 'true'" />
+    <None Include="UC*/**/*.txt" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <DefineConstants Condition="'$(ShopUC01)' == 'true'">$(DefineConstants);SHOP_UC01</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC02)' == 'true'">$(DefineConstants);SHOP_UC02</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC03)' == 'true'">$(DefineConstants);SHOP_UC03</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC04)' == 'true'">$(DefineConstants);SHOP_UC04</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC05)' == 'true'">$(DefineConstants);SHOP_UC05</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC06)' == 'true'">$(DefineConstants);SHOP_UC06</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC07)' == 'true'">$(DefineConstants);SHOP_UC07</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC08)' == 'true'">$(DefineConstants);SHOP_UC08</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC09)' == 'true'">$(DefineConstants);SHOP_UC09</DefineConstants>
+    <DefineConstants Condition="'$(ShopUC10)' == 'true'">$(DefineConstants);SHOP_UC10</DefineConstants>
+    <!--
+      Until Resultful.Analyzers runs on the Shop (17), nothing suppresses CS8509 on a complete switch over a
+      [ClosedHierarchy] base, so it stays a warning instead of an error. Listed in the PR body; gone at 17.
+    -->
+    <WarningsNotAsErrors Condition="'$(ShopCore)' == 'target'">$(WarningsNotAsErrors);CS8509</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <!-- The core the Shop compiles against. -->
+  <ItemGroup Condition="'$(ShopCore)' == 'target'">
+    <ProjectReference Include="$(ShopRepoRoot)tests/Resultful.TargetApi/Resultful/Resultful.csproj" />
+    <ProjectReference Include="$(ShopRepoRoot)tests/Resultful.TargetApi/Resultful.AspNetCore/Resultful.AspNetCore.csproj" Condition="'$(ShopUsesAspNetCore)' == 'true'" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ShopCore)' == 'project'">
+    <ProjectReference Include="$(ShopRepoRoot)src/Resultful/Resultful.csproj" />
+    <ProjectReference Include="$(ShopRepoRoot)src/Resultful.AspNetCore/Resultful.AspNetCore.csproj" Condition="'$(ShopUsesAspNetCore)' == 'true'" />
+  </ItemGroup>
+  <!-- 0.2 from nuget.org, for UC10's "before" code (Shop.Legacy). 0.2.0 once Ryan publishes it. -->
+  <ItemGroup Condition="'$(ShopCore)' == 'baseline'">
+    <PackageReference Include="Resultful" VersionOverride="$(ShopBaselineVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ShopCore)' == 'package'">
+    <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" />
+    <PackageReference Include="Resultful.AspNetCore" VersionOverride="$(ResultfulAspNetCorePackageVersion)" Condition="'$(ShopUsesAspNetCore)' == 'true'" />
+  </ItemGroup>
+  <!-- The generator and the analyzers from packages, whatever the core: UC09's library has no core at all. -->
+  <ItemGroup>
+    <PackageReference Include="Resultful.Generators" VersionOverride="$(ResultfulGeneratorsPackageVersion)" PrivateAssets="all" Condition="'$(ResultfulGeneratorsPackageVersion)' != '' and '$(ShopGeneratorStandIn)' != 'true'" />
+    <PackageReference Include="Resultful.Analyzers" VersionOverride="$(ResultfulAnalyzersPackageVersion)" PrivateAssets="all" Condition="'$(ResultfulAnalyzersPackageVersion)' != '' and '$(ShopAnalyzers)' == 'true'" />
+  </ItemGroup>
+</Project>

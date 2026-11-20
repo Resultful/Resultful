@@ -1,0 +1,4 @@
+# The compiler errors UC10's "before" code gets against 0.3 (GOAL.md row 12), compared both ways with the SARIF log.
+CS0029  # a bare string is no longer an error: Result<int> Count() => "…", and the string arms of Get and Cancel
+CS0411  # the caller's errors.First(): the error handler now gets one Error, not a list of strings
+CS0618  # VoidResult is [Obsolete]: Result<Unit> replaces it
