@@ -1,5 +1,13 @@
 # Goal: the Resultful roadmap as two stacks
 
+> **2026-11-20, superseded in part by `AGENTS.md` on `main` (#57).** Where this file disagrees, `AGENTS.md` wins:
+> one PR at a time on the real preceding branch (no drafting ahead, no stand-in cores); one squashed commit per PR,
+> rebased onto its base and force-pushed (no `fixup!` commits, no merge commits, no cherry-pick catch-ups); build
+> targets go in `eng/build.cs` (Cake.Sdk); SDK built-ins (`EnablePackageValidation`, PublicAPI analyzers) instead of
+> custom gates; one shared PublicAPI pair per package; lockstep versioning; no TargetApi stubs, ledger or fixture
+> trees: larger scenario tests in xunit.v3 plus CsCheck laws; PR bodies use `.github/PULL_REQUEST_TEMPLATE.md`
+> (≤ 30 lines). The stacks were restacked by the maintainer; 04c/04d and the drafted-ahead PRs are closed.
+
 Every implementer, reviewer and adversary reads this file first, and again after its context is compacted. The
 orchestrator is the session that runs this goal, local or on Claude Code on the web. Claude subagents build and check each PR.
 How each gate works is in `stack-plan/VERIFY.md`. Each PR's exact scope is in `stack-plan/contracts/NN.md`,
