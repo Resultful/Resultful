@@ -8,17 +8,27 @@ namespace Resultful
 {
     /// <summary>A success with no value, or a failure holding a list of error messages.</summary>
     /// <remarks>The zero value (<c>default</c>) is a success whose <see cref="Unit"/> is <c>null</c>, not <see cref="Unit.Value"/>.</remarks>
+#pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public struct VoidResult
+#pragma warning restore CA2231
     {
         //Private Members
-        private OneOf<Unit, IEnumerable<string>> _value;
+        private readonly IEnumerable<string> _errors;
+        // State.Zero only for the zero value (default), which no Ok or Fail produced (decision 1, decision 10).
+        private readonly byte _state;
 
         //Constructors
         internal VoidResult(Unit value)
-            => _value = value;
+        {
+            _errors = default!;
+            _state = value is null ? State.Zero : State.Success;
+        }
 
         internal VoidResult(IEnumerable<string> value)
-            => _value = OneOf<Unit, IEnumerable<string>>.FromT1(value);
+        {
+            _errors = value;
+            _state = State.Failure;
+        }
 
         //Implicit Converters
         /// <summary>Converts a result whose value is <see cref="Unit"/> to a result with no value. Errors are kept.</summary>
@@ -63,38 +73,51 @@ namespace Resultful
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the errors on failure.</param>
         public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<IEnumerable<string>, TResult> errorFunc)
-            => _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            return _state == State.Failure ? errorFunc(_errors) : successfulFunc(SuccessUnit);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure.</summary>
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the errors on failure.</param>
         public void Switch(Action<Unit> successfulFunc, Action<IEnumerable<string>> errorFunc)
-            => _value.Switch(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            if (_state == State.Failure) errorFunc(_errors); else successfulFunc(SuccessUnit);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and does not wait for the task it returns.</summary>
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the errors on failure.</param>
         /// <remarks>The task is dropped, so the method returns before the work finishes and an exception the task throws is lost. To wait for it, use <c>MatchAsync</c> and await the task.</remarks>
         public void SwitchAsync(Func<Unit, Task> successfulFunc, Func<IEnumerable<string>, Task> errorFunc)
-            => _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            => _ = Match(successfulFunc, errorFunc);
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and returns its task.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the errors on failure.</param>
-        public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<IEnumerable<string>, Task<TResult>> errorFunc) =>
-            _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<IEnumerable<string>, Task<TResult>> errorFunc)
+            => Match(successfulFunc, errorFunc);
 
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the errors.</summary>
-        public OneOf<Unit, IEnumerable<string>> ToOneOf() => _value;
+        public OneOf<Unit, IEnumerable<string>> ToOneOf()
+            => _state == State.Failure ? OneOf<Unit, IEnumerable<string>>.FromT1(_errors) : OneOf<Unit, IEnumerable<string>>.FromT0(SuccessUnit);
+
+        /// <summary>Two results are equal when both are successes, both failures with the same error list, or both the zero value.</summary>
+        /// <param name="obj">The object to compare with.</param>
+        public override bool Equals(object? obj)
+            => obj is VoidResult other && _state == other._state && (_state != State.Failure || Equals(_errors, other._errors));
+
+        /// <summary>A hash of the case and its error.</summary>
+        public override int GetHashCode()
+            => _state == State.Failure ? State.Hash(_errors, 1) : State.Hash(SuccessUnit, 0);
+
+        // The zero value is a success whose Unit is null, as in 0.2 (08b changes this).
+        private Unit SuccessUnit => _state == State.Zero ? null! : Unit.Value;
 
         /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the errors and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>

@@ -12,24 +12,29 @@ namespace Resultful
     /// <typeparam name="TError">The type of the error.</typeparam>
     /// <remarks>The 0.2 members (<c>Match</c>, <c>Map</c>, …) treat the zero value (<c>default</c>) as a success holding <c>default(T)</c>. The named members don't: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>, and the others throw <see cref="InvalidOperationException"/>.</remarks>
     [CodeAnalysis.MustObserve]
+#pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public partial struct Result<T, TError>
+#pragma warning restore CA2231
     {
         //Private Members
-        private OneOf<T, TError> _value;
-        // False only for the zero value (default), which no Ok or Fail produced (the named methods read it).
-        private readonly bool _initialized;
+        private readonly T _value;
+        private readonly TError _error;
+        // State.Zero only for the zero value (default), which no Ok or Fail produced (decision 1, decision 10).
+        private readonly byte _state;
 
         //Constructors
         internal Result(T value)
         {
             _value = value;
-            _initialized = true;
+            _error = default!;
+            _state = State.Success;
         }
 
         internal Result(TError value)
         {
-            _value = value;
-            _initialized = true;
+            _value = default!;
+            _error = value;
+            _state = State.Failure;
         }
 
         //Implicit Converters
@@ -48,39 +53,53 @@ namespace Resultful
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
         public void Switch(Action<T> successfulFunc, Action<TError> errorFunc)
-            => _value.Switch(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            if (_state == State.Failure) errorFunc(_error); else successfulFunc(_value);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and returns what it returns.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
-        public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<TError, TResult> errorFunc) =>
-            _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        public TResult Match<TResult>(Func<T, TResult> successfulFunc, Func<TError, TResult> errorFunc)
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            // The 0.2 members see the zero value as a success holding default(T) (08b changes this).
+            return _state == State.Failure ? errorFunc(_error) : successfulFunc(_value);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and does not wait for the task it returns.</summary>
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
         /// <remarks>The task is dropped, so the method returns before the work finishes and an exception the task throws is lost. To wait for it, use <c>MatchAsync</c> and await the task.</remarks>
         public void SwitchAsync(Func<T, Task> successfulFunc, Func<TError, Task> errorFunc)
-            => _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+            => _ = Match(successfulFunc, errorFunc);
 
         /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and returns its task.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
-        public Task<TResult> MatchAsync<TResult>(Func<T, Task<TResult>> successfulFunc, Func<TError, Task<TResult>> errorFunc) =>
-            _value.Match(
-                successfulFunc.ThrowIfDefault(nameof(successfulFunc)),
-                errorFunc.ThrowIfDefault(nameof(errorFunc)));
+        public Task<TResult> MatchAsync<TResult>(Func<T, Task<TResult>> successfulFunc, Func<TError, Task<TResult>> errorFunc)
+            => Match(successfulFunc, errorFunc);
 
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the success value, <c>T1</c> is the error.</summary>
-        public OneOf<T, TError> ToOneOf() => _value;
+        public OneOf<T, TError> ToOneOf()
+            => _state == State.Failure ? OneOf<T, TError>.FromT1(_error) : OneOf<T, TError>.FromT0(_value);
+
+        /// <summary>Two results are equal when both are successes with equal values, both failures with equal errors, or both the zero value.</summary>
+        /// <param name="obj">The object to compare with.</param>
+        /// <remarks>Values and errors are compared with <c>object.Equals</c>, as in 0.2.</remarks>
+        public override bool Equals(object? obj)
+            => obj is Result<T, TError> other && _state == other._state && (_state == State.Failure
+                ? Equals(_error, other._error)
+                : Equals(_value, other._value));
+
+        /// <summary>A hash of the case and its value or error.</summary>
+        public override int GetHashCode()
+            => _state == State.Failure ? State.Hash(_error, 1) : State.Hash(_value, 0);
 
         /// <summary>On success, returns what <paramref name="bindFunc"/> returns for the value. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
@@ -136,9 +155,9 @@ namespace Resultful
         /// <param name="errorMapFunc">Maps the error.</param>
         /// <param name="mapFunc">Maps the value.</param>
         public Result<TResult, TErrorResult> Map2<TResult, TErrorResult>(Func<TError, TErrorResult> errorMapFunc, Func<T, TResult> mapFunc)
-            => Match(
-                success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TErrorResult>(),
-                errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TErrorResult>());
+            => _state == State.Failure
+                ? errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(_error).Fail<TResult, TErrorResult>()
+                : mapFunc.ThrowIfDefault(nameof(mapFunc))(_value).Ok<TResult, TErrorResult>();
 
         /// <summary>Maps both sides: the value with <paramref name="mapFunc"/> on success, or the error with <paramref name="errorMapFunc"/> on failure.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
@@ -254,5 +273,18 @@ namespace Resultful
         /// <typeparam name="TCast">The type to cast the value to.</typeparam>
         /// <remarks>Throws <see cref="System.InvalidCastException"/> if the value isn't a <typeparamref name="TCast"/>.</remarks>
         public Result<TCast, TError> Cast<TCast>() => Map(x => (TCast)(object)x!);
+    }
+
+    // The state byte every result type keeps in place of OneOf's case index (decision 1). Zero is the zero value
+    // (default), which no Ok or Fail produced.
+    internal static class State
+    {
+        internal const byte Zero = 0;
+        internal const byte Success = 1;
+        internal const byte Failure = 2;
+
+        // OneOf<T0, T1>.GetHashCode, which 0.2's results hashed: the case's hash times 397, xor the case index.
+        internal static int Hash<T>(T value, int index)
+            => unchecked(((value?.GetHashCode() ?? 0) * 397) ^ index);
     }
 }
