@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    A stand-in for the 0.3 core while 20a is drafted ahead of 05–12 (copied from 12b's, #48) (stack-plan GOAL.md, Pipelining). The target API
+    (tests/Resultful.TargetApi/Resultful) is throw-null stubs, so nothing written against it can run. This assembly has
+    the same name and the same signatures for the members Resultful.AspNetCore and its tests use, with small working
+    bodies that follow the target's comments. Deleted when 20a is rebased above 17 and switched to the real core.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful</AssemblyName>
+    <RootNamespace>Resultful</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- A stand-in: no docs, no analyzers beyond the compiler's. -->
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  </PropertyGroup>
+</Project>

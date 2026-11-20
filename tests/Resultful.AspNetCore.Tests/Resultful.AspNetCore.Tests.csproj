@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests for Resultful.AspNetCore. xunit.v3 on Microsoft.Testing.Platform, with ASP.NET Core's TestServer: run with
+    `dotnet run -f net10.0` (and net11.0; the culture run adds the xunit option culture tr-TR).
+
+    Drafted ahead of the core (stack-plan GOAL.md, Pipelining): the target core is throw-null stubs, so these tests
+    compile the package's sources against StandInCore/, a small working core with the target's signatures (12b's
+    approach, #48). At 20a's turn this becomes a ProjectReference to src/Resultful.AspNetCore over the real core, and
+    StandInCore/ is deleted.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Resultful.AspNetCore.Tests</RootNamespace>
+    <!-- CA1515 doesn't fit a test project; the test types are public for xunit. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="StandInCore/**" />
+    <Compile Include="../../src/Resultful.AspNetCore/**/*.cs" Exclude="../../src/Resultful.AspNetCore/obj/**;../../src/Resultful.AspNetCore/bin/**" LinkBase="Package" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="StandInCore/Resultful.StandInCore.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+</Project>
