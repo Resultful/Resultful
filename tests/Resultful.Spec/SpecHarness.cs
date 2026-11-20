@@ -346,8 +346,9 @@ public sealed class SpecHarness
 
     static (string File, int Line, string Id) Key(Diagnostic d)
     {
+        if (!d.Location.IsInSource) return ("(no file)", 0, d.Id);
         var span = d.Location.GetMappedLineSpan();
-        return (span.Path.Replace('\\', '/'), span.StartLinePosition.Line + 1, d.Id);
+        return ((span.Path ?? "").Replace('\\', '/'), span.StartLinePosition.Line + 1, d.Id);
     }
 
     IEnumerable<string> CheckMarkers(Fixture fixture, ImmutableArray<Diagnostic> diagnostics)
