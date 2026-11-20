@@ -14,6 +14,7 @@ generated:
 ## 2026-11-20
 
 - Documents started as an OKF bundle, following the rtkelly-labs projects: vision, roadmap, decisions, log.
+- Vision rewritten around the project's intention rather than its history.
 - Decisions 1 to 8: a dependency-free core with `Resultful.OneOf`; three targets with net11 union behaviour
   behind `#if`; unions chosen by experiment; additive sequential composition; package shape checked in CI;
   a mixed test stack; rig-style CI; `0.3.0-beta01`.
