@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Target API of the `Resultful.OneOf` package. -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.OneOf</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Resultful/Resultful.csproj" />
+    <PackageReference Include="OneOf" />
+  </ItemGroup>
+</Project>
