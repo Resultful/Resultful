@@ -19,7 +19,8 @@ generated:
 
 [Source-generated shapes](source-generated-shapes.md) says what the generator emits. This page says how it's built
 and how its output is checked: which declarations it refuses, how it stays cheap in the IDE, how much code it may
-emit, and the tests that keep all of that true.
+emit, and the tests that keep all of that true. [Testing the shapes](testing-the-shapes.md) checks what the
+emitted code does when it runs.
 
 ## Diagnostics
 

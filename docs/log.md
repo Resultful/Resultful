@@ -13,6 +13,11 @@ generated:
 
 ## 2026-11-20
 
+- *Testing the shapes* added: the target state for generated shapes and the core members they need (against what
+  ships today), behaviours with capability IDs, and seven layers of tests (the generator's output, the real core,
+  shapes run as code with differential property tests, compile-time markers, packaging and AOT, member coverage
+  and mutation testing, samples). Records where the generator experiment (PR #37) stands against it.
+
 - *Building the generator* added, folded into the error design branch: diagnostics `RFG0001`–`RFG0006` for deep
   and awkward hierarchies, cases ordered most-derived first, a two-stage incremental pipeline after
   `Parquet.SourceGenerator`, a size budget for generated members and IL, and checks on the emitted `.g.cs` with no
