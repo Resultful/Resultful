@@ -380,7 +380,7 @@ Before:
 
 ```csharp
 Result<Order> Get(int id) =>
-    _store.Find(id) is { } o ? o : $"order {id} was not found";
+    _store.Find(id) is { } o ? o.Ok() : $"order {id} was not found";   // 0.2 has no conversion from T to Result<T>
 
 // the caller
 result.Match(
