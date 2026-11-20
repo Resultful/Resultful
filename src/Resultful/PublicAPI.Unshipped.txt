@@ -1,4 +1,15 @@
 #nullable enable
+Resultful.CodeAnalysis.ClosedHierarchyAttribute
+Resultful.CodeAnalysis.ClosedHierarchyAttribute.ClosedHierarchyAttribute() -> void
+Resultful.CodeAnalysis.MustObserveAttribute
+Resultful.CodeAnalysis.MustObserveAttribute.MustObserveAttribute() -> void
+Resultful.CodeAnalysis.ResultShapeAttribute
+Resultful.CodeAnalysis.ResultShapeAttribute.ErrorType.get -> System.Type!
+Resultful.CodeAnalysis.ResultShapeAttribute.ManyErrors.get -> bool
+Resultful.CodeAnalysis.ResultShapeAttribute.ManyErrors.set -> void
+Resultful.CodeAnalysis.ResultShapeAttribute.ResultShapeAttribute(System.Type! errorType) -> void
+Resultful.CodeAnalysis.ResultShapeAttribute.Success.get -> System.Type?
+Resultful.CodeAnalysis.ResultShapeAttribute.Success.set -> void
 Resultful.Error
 Resultful.Error.Cause.get -> Resultful.Error?
 Resultful.Error.Cause.init -> void
@@ -10,6 +21,10 @@ Resultful.Error.Error(string! message) -> void
 Resultful.Error.Message.get -> string!
 Resultful.Error.TryFind<TError>(out TError? found) -> bool
 Resultful.ErrorExtensions
+Resultful.IErrorUnion
+Resultful.IErrorUnion.Error.get -> Resultful.Error!
+Resultful.IResultShape<T, TError>
+Resultful.IResultShape<T, TError>.AsResult() -> Resultful.Result<T, TError>
 Resultful.MessageError
 Resultful.MessageError.Equals(Resultful.MessageError? other) -> bool
 Resultful.MessageError.MessageError(string! message) -> void
