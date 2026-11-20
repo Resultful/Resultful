@@ -27,6 +27,6 @@
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName.EndsWith(&quot;Examples&quot;))' or '$(MSBuildProjectName.EndsWith(&quot;Tests&quot;))'">
-    <NoWarn>$(NoWarn);CA1305;CA1822;CA1062</NoWarn>
+    <NoWarn>$(NoWarn);CA1305;CA1822;CA1062;CA1707</NoWarn>
   </PropertyGroup>
 </Project>
