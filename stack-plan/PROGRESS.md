@@ -32,7 +32,7 @@ Rows are in stack order.
 | 16a | rtkelly13/stack-16a-analyzers-core | #50 | review | review fixes in (596a78f): Task-receiver handlers, arrays/WhenAll, Task upcasts; all 5 RF fixtures pass through 04c's harness |
 | 16b | rtkelly13/stack-16b-analyzers-more |  | building | drafted ahead on 16a |
 | 17 | rtkelly13/stack-17-closed-hierarchy-rules |  | todo | checkpoint: tooling done |
-| 20a | rtkelly13/stack-20a-aspnetcore-errors | #53 | review | review: changes needed (validation leak in a mapped 5xx; built-in 400 deep in Causes; hidden 5xx not logged); fixing |
+| 20a | rtkelly13/stack-20a-aspnetcore-errors | #53 | review | review fixes in (97637cf): 5xx never shows validation text, built-in 400 only at the top, 5xx logged once, 4xx detail only for matched errors; 78/79 tests both cultures |
 | 20b | rtkelly13/stack-20b-aspnetcore-endpoints |  | building | drafted ahead on 20a |
 | 21 | rtkelly13/stack-21-fluentvalidation-diagnostics | #52 | review | review fixes in (06ec7b2): docs, TestCultures, 12.0.0 floor in wiring; approved by review |
 | 22 | rtkelly13/stack-22-aot |  | todo |  |
