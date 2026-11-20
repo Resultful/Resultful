@@ -5,36 +5,76 @@
   "base": "rtkelly13/stack-04c-spec-harness",
   "started_from": "5b8b23a9350bc7ac3e74687dfce1b69dae534038",
   "cherry_picks": [],
-  "base_moved": "04c is now a36c3d4; per the append-only rule this branch was NOT rebased. 04c's changed JSON fixtures (JSON-WIRE simple-name collision case, UERR-JSON-NESTED Twin.cs) were checked out temporarily and pass against the stand-in; files restored.",
-  "head_sha": "f7b40ca90403c45bca155aab726b7ebcbf7e02e9",
+  "base_moved": "04c is at a36c3d4; append only, branch not rebased, still on 5b8b23a with no cherry-picks.",
+  "head_sha": "e75a6a8c26a80d238dd3f6cb6f5ffa96a91a7e39",
   "commits": [
     "2af2515 feat(json): Resultful.Text.Json converters against the 0.3 target API",
     "886aac2 test(json): JsonAssert.Equal, a shared assertion on a result's whole JSON",
-    "f7b40ca test(json): wire format, read rules, round-trip laws and unions for Resultful.Text.Json"
+    "f7b40ca test(json): wire format, read rules, round-trip laws and unions for Resultful.Text.Json",
+    "8ba1756 fixup! feat(json): Resultful.Text.Json converters against the 0.3 target API",
+    "c00c8fa fixup! test(json): JsonAssert.Equal, a shared assertion on a result's whole JSON",
+    "e75a6a8 fixup! test(json): wire format, read rules, round-trip laws and unions for Resultful.Text.Json"
   ],
   "local_runs": [
-    {"cmd": "dotnet build src/Resultful.Text.Json -m:2", "result": "0 warnings, 0 errors (net10.0, net11.0; IsAotCompatible, TreatWarningsAsErrors)"},
-    {"cmd": "dotnet build tests/Resultful.Testing.Json -m:2", "result": "0 warnings, 0 errors"},
-    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net10.0", "result": "total 96, failed 0"},
-    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net11.0", "result": "total 104, failed 0"},
-    {"cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net10.0|net11.0 --no-build -- --culture tr-TR", "result": "96 / 104, failed 0"},
-    {"cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs", "result": "API gate: passed; Resultful.Text.Json [net10.0|net11.0]: 35 added, 0 removed, 0 target members still to add"},
-    {"cmd": "npx -y @ls-lint/ls-lint@2.3.1", "result": "exit 1, but no findings under src/Resultful.Text.Json, tests/Resultful.Testing.Json, tests/Resultful.Text.Json.Tests; all findings are 04c's folders"},
-    {"cmd": "seeded: remove [RequiresDynamicCode] from ResultfulJsonConverterFactory; dotnet build src/Resultful.Text.Json -f net10.0", "result": "2x IL3050 (analyzer is live); reverted"},
-    {"cmd": "dotnet build src/Resultful.Text.Json -f <tfm> -p:ResultfulCoreProject=<StandInCore csproj> -o scratch; copy Resultful.dll + Resultful.Text.Json.dll into tests/Resultful.Spec/bin/Debug/<tfm>/; dotnet tests/Resultful.Spec/bin/Debug/<tfm>/Resultful.Spec.dll --filter-method Resultful.Spec.SpecTests.Fixture_agrees_with_its_ledger_line", "result": "net11.0: 122 total, 23 failed, all 23 are 'flip this line' (6 are 12b's); net10.0: 122 total, 18 failed, all flips (3 are 12b's). Repeated with a36c3d4's JSON-WIRE/UERR-JSON-NESTED: same. Spec bin rebuilt afterwards. Not committed."},
-    {"cmd": "native AOT probe outside the repo (scratchpad): PublishAot, linux-x64, net10.0, stand-in core, source-generated context, JsonSerializerIsReflectionEnabledByDefault=false, TreatWarningsAsErrors", "result": "published with 0 warnings; binary round-tripped failure+cause, success, Validation failure, Result<Unit>; unknown type -> JsonException. Not committed."}
+    {
+      "cmd": "dotnet build src/Resultful.Text.Json -m:2",
+      "result": "0 warnings, 0 errors (net10.0, net11.0)"
+    },
+    {
+      "cmd": "dotnet build tests/Resultful.Testing.Json -m:2",
+      "result": "0 warnings, 0 errors"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net10.0 --no-build",
+      "result": "total 126, failed 0"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.Text.Json.Tests -f net11.0 --no-build",
+      "result": "total 135, failed 0"
+    },
+    {
+      "cmd": "... -f net10.0|net11.0 --no-build -- --culture tr-TR",
+      "result": "126 / 135, failed 0"
+    },
+    {
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
+      "result": "API gate: passed; Resultful.Text.Json 35 added, 0 still to add"
+    },
+    {
+      "cmd": "seeded: remove the IL3050 suppression in ErrorWire.CreateValidationFailed",
+      "result": "IL3050 x2 (MakeGenericType, Array.CreateInstance); restored. Trimming suppressions proved unneeded and were removed."
+    },
+    {
+      "cmd": "native AOT probe (scratchpad, not committed): PublishAot linux-x64 net10.0, combined resolver, reflection disabled, warnings as errors",
+      "result": "0 warnings; round-trips failure+cause, success, Validation, VF<Error>, VF<PaymentError>, VF<OrderNotFound>, hierarchy member; unknown type -> JsonException"
+    },
+    {
+      "cmd": "spec ledger test with package+stand-in dlls copied into Resultful.Spec bin (local only, NOT evidence)",
+      "result": "net11.0 122 total, 23 flips (6 are 12b's); net10.0 18 flips (3 are 12b's); no other failures"
+    }
   ],
   "ledger_ids_passing_locally": {
     "note": "against the stand-in core only; ledger left pending (drafted ahead)",
-    "net11.0": ["JSON-WIRE", "CULTURE-JSON-TR", "AOT-JSON-SOURCEGEN", "UERR-JSON-FLAT", "UERR-JSON-NESTED", "UERR-JSON-UNKNOWN"],
-    "net10.0": ["JSON-WIRE", "CULTURE-JSON-TR", "AOT-JSON-SOURCEGEN"]
+    "net11.0": [
+      "JSON-WIRE",
+      "CULTURE-JSON-TR",
+      "AOT-JSON-SOURCEGEN",
+      "UERR-JSON-FLAT",
+      "UERR-JSON-NESTED",
+      "UERR-JSON-UNKNOWN"
+    ],
+    "net10.0": [
+      "JSON-WIRE",
+      "CULTURE-JSON-TR",
+      "AOT-JSON-SOURCEGEN"
+    ]
   },
   "spec_findings": [
-    "AddResultful and ResultfulJsonConverterFactory carry [RequiresDynamicCode] (MakeGenericType). Not visible in PublicAPI; AOT callers get IL3050 and must use the converters + AddErrorCases (AOT-JSON-SOURCEGEN pattern). Affects 20a (if its AddResultful calls it) and 22.",
-    "DECISIONS 'leaf names follow the options' naming policy' implemented as leaf PROPERTY names; 'type' stays the simple name (fixtures need \"OrderNotFound\" under camelCase); envelope/error keys fixed lowercase. Wording should be clarified.",
-    "Source generation can't call init-only setters (JsonPropertyInfo.Set throws); reader passes Cause/Context through object creation. 06 must keep them init (not private set).",
-    "ValidationFailed<TError> with TError != Error reads back only via the factory; ValidationFailed<Error> works without reflection.",
-    "ls-lint 2.3.1 fails on 04c's PublicAPI/<tfm> folders, fixture IDs and check-api.cs at 5b8b23a, though #42 says it passes; this package uses a flat PublicAPI pair to stay clean."
+    "AddResultful/factory carry [RequiresDynamicCode]; 20a must not call AddResultful; 22 uses the combined resolver pattern. Plain Serialize<T>(value, options) is itself RUC/RDC-annotated, so AOT code uses the JsonTypeInfo overload via options.GetTypeInfo.",
+    "Generic leaf wire name carries type arguments (ValidationFailed<PaymentError>); the default encoder escapes < > as \\u003C \\u003E (valid JSON).",
+    "'Leaf names follow the naming policy' = leaf property names; type stays the simple name; wire keys fixed.",
+    "Init-only Cause/Context must stay init (source-gen sets them via object creation).",
+    "ls-lint 2.3.1 fails on 04c's own folders at 5b8b23a."
   ],
   "wiring": [
     "Resultful.Text.Json.csproj: ResultfulCoreProject -> ProjectReference ../Resultful/Resultful.csproj; remove IsPackable=false; per-package version",
@@ -57,17 +97,35 @@
     "XML docs on every public member"
   ],
   "suppressions": [
+    "src/Resultful.Text.Json/ErrorWire.cs CreateValidationFailed: UnconditionalSuppressMessage IL3050 (reference-type MakeGenericType/Array.CreateInstance; DynamicDependency keeps ctor; verified by AOT publish)",
     "tests/Resultful.Text.Json.Tests csproj: NoWarn CA1515;CA1034;CA2007",
     "StandInCore csproj: EnableNETAnalyzers=false (temporary)",
-    "JsonAssert.cs: 2x [SuppressMessage(\"AOT\",\"IL3050\")] on the fixed options (test helper)"
+    "JsonAssert.cs: 2x SuppressMessage IL3050 on fixed options"
   ],
   "open_issues": [
-    "Tests run against a stand-in core, not the real one; semantics may differ from 05-12's core (equality, ValidationFailed message). Re-run at 12b's turn.",
+    "All runs are on the stand-in core; the gate at 12b's turn re-runs the whole test project on the real core (both TFMs, tr-TR) plus the six spec fixtures.",
     "Ledger lines not flipped (drafted ahead).",
-    "src/ is ~990 lines (incl. 70 PublicAPI lines and XML docs), above the ~800 guideline; not split.",
-    "No README/docs change (root files out of bounds while drafting); AOT pattern documented in XML docs and PR body only.",
-    "Branch is based on 5b8b23a while 04c is at a36c3d4 (append only); the orchestrator places it at its turn.",
-    "CI not waited on; the new projects aren't in Resultful.slnx, so CI runs only existing jobs.",
-    "PR body was first created with a footer that GitHub/tooling rewrote; restored via update."
+    "src/ is 1149 added lines (incl. 70 PublicAPI lines and XML docs); the PR body says ~1,090 (understated).",
+    "Error-chain reading is allocation-free but scans O(d^2) tokens for a cause chain of depth d.",
+    "No README change (root file).",
+    "CI not waited on; new projects not in Resultful.slnx."
+  ],
+  "review_round_1": {
+    "1_validationfailed": "Done. Rule: ValidationFailed<X> written as \"type\":\"ValidationFailed<X>\" (generic leaves carry type-argument wire names) and read back as the closed type (X = Error, registered key or leaf). The preferred 'enclosing TError' rule can't work: Validation<T,X>.ToResult() returns Result<T> (TError = Error). Written/read by hand; closed type built via MakeGenericType/Array.CreateInstance (reference types; one IL3050 suppression; verified by native AOT publish). Tests: Validation_ToResult_round_trips_for_every_element_type, unregistered element, element outside type, registering closed type harmless; generators extended (RoundTripLaws Errors(depth) + Result_from_a_Validation_of_a_hierarchy).",
+    "2_duplicates": "Done. Repeated envelope members (ok/value/error/errors) and repeated top-level error-object members always throw JsonException, whatever AllowDuplicateProperties says. JsonNode is gone from reading, so no ArgumentException path remains. Tests in ReadTests.",
+    "3_message": "Done: message must be a string; context array of strings if present; cause object/null/absent.",
+    "4_hierarchy_member": "Done: NestedErrorConverter (non-generic JsonConverter<Error>, cast by STJ) accepts any abstract Error subtype with registry candidates. PaymentFailed(int, PaymentError) leaf tested in wire, read and laws; works under native AOT.",
+    "5_performance": "Candidates cached per (options, declared, explicit cases) in a WireCache (CWT); Errors name cached; base-name detection moved into a resolver modifier (once per type, cached by STJ); reading streams from Utf8JsonReader with no JsonNode/DeepClone. Remaining cost: each level's Scan skips its subtree, so a cause chain of depth d scans O(d^2) tokens without allocating.",
+    "6_aot_resolver": "Done: SourceGenerationTests.A_combined_resolver_serves_plain_Serialize_and_Deserialize (Combine(ResultResolver, ShopJson.Default), plain Serialize/Deserialize, NotSupportedException for unknown types). AOT probe uses the same resolver via options.GetTypeInfo (plain Serialize<T>(value, options) is RUC/RDC-annotated, so AOT code uses the JsonTypeInfo overload).",
+    "7_standin": "Done: ValidationFailed.Message \"Validation failed.\", Error(string) rejects null, IsSuccess/IsFailure false on zero, ToResult members added; literals take core-owned text from the value. Body states the turn gate (whole test project on real core, both TFMs, tr-TR, plus six spec fixtures).",
+    "8": "Done (InvalidOperationException on read-only options; test).",
+    "9": "Done (union converter via Info<TError>; [JsonConverter] attribute test LockError).",
+    "10": "Done (EqualJson wraps JsonException for either side).",
+    "11": "Done (EqualOrdered added; Equal documents order is ignored)."
+  },
+  "decisions_rows": [
+    "12b | A ValidationFailed<X> is written as \"type\":\"ValidationFailed<X>\" (X = its type argument's wire name) and read back as that closed type when X is Error, an AddErrorCases key or a registered leaf; unknown X -> JsonException. Validation<T, X>.ToResult() round-trips for every X. Any generic leaf's type carries its type arguments. | The enclosing TError can't pick it: ToResult returns Result<T> (TError = Error)",
+    "12b, 20a, 22 | AddResultful and ResultfulJsonConverterFactory need dynamic code ([RequiresDynamicCode]). 20a's registration does not call AddResultful. AOT (22) uses an IJsonTypeInfoResolver returning JsonMetadataServices.CreateValueInfo per result type, combined with the source-generated context via JsonTypeInfoResolver.Combine, plus AddErrorCases; AOT code serializes through options.GetTypeInfo | Review of #48",
+    "12b | Repeated members in the envelope and in an error object always throw JsonException, whatever AllowDuplicateProperties says; message must be a string, context an array of strings, cause an object/null/absent | Review of #48"
   ]
 }

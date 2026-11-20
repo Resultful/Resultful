@@ -2,28 +2,47 @@
   "pr": 50,
   "pr_url": "https://github.com/Resultful/Resultful/pull/50",
   "branch": "rtkelly13/stack-16a-analyzers-core",
-  "head_sha": "9f630864e601b756deecf56741907d58139885eb",
+  "head_sha": "596a78f12241c57be6b0884db7398f0a45a3042f",
   "started_from": "f72ad89526295948a10509c25dba6b0692328ac3 (origin/rtkelly13/stack-04c-spec-harness at push time; worktree first cut at 5b8b23a, rebased onto f72ad89 before the first push)",
   "commits": [
     "f6a2656 feat(analyzers): RF0001 and RF0002 against the 0.3 target, with the discard fix",
-    "9f63086 test(analyzers): RF0001 and RF0002 tests, and the RF-* fixtures through 04c's harness"
+    "9f63086 test(analyzers): RF0001 and RF0002 tests, and the RF-* fixtures through 04c's harness",
+    "6b03573 spec: the core's result types, Validation and Option carry [MustObserve] (cherry-picked -x from 04c 9a465b0)",
+    "bbdcfd7 fixup! feat(analyzers): ... (review: Task/ValueTask receivers, method groups, arrays, Task upcast, RF0002 comparisons/patterns, scope in descriptions)",
+    "596a78f fixup! test(analyzers): ... (review: stub-gap tests removed, RF-0001/-ASYNC moved to as-written, new tests)"
   ],
   "local_runs": [
-    {"command": "export PATH=/root/.dotnet:$PATH DOTNET_ROOT=/root/.dotnet; dotnet build tests/Resultful.Analyzers.Tests -m:2 -c Release", "result": "Build succeeded, 0 warnings (TreatWarningsAsErrors on)"},
-    {"command": "cd tests/Resultful.Analyzers.Tests && dotnet run -c Release -f net10.0 --no-build", "result": "total 44, succeeded 43, failed 0, skipped 1 (union test, net11.0 only)"},
-    {"command": "cd tests/Resultful.Analyzers.Tests && dotnet run -c Release -f net11.0 --no-build", "result": "total 44, succeeded 44, failed 0, skipped 0"},
-    {"command": "scratch consumer (netstandard2.0, <Analyzer> = src/Resultful.Analyzers/bin/Release/netstandard2.0/Resultful.Analyzers.dll, <Reference> = stub core) built with SDK 9.0.315 and SDK 11.0.100", "result": "both report RF0001 x2 and RF0002, no load warnings; .editorconfig resultful.must_observe_types = T:Resultful.Result`1 makes Result.Ok(1); report RF0001 on SDK 11"}
+    {
+      "command": "export PATH=/root/.dotnet:$PATH DOTNET_ROOT=/root/.dotnet; dotnet build tests/Resultful.Analyzers.Tests -m:2 -c Release",
+      "result": "Build succeeded, 0 warnings"
+    },
+    {
+      "command": "cd tests/Resultful.Analyzers.Tests && dotnet run -c Release -f net10.0 --no-build",
+      "result": "total 48, succeeded 47, failed 0, skipped 1 (union test, net11.0 only)"
+    },
+    {
+      "command": "cd tests/Resultful.Analyzers.Tests && dotnet run -c Release -f net11.0 --no-build",
+      "result": "total 48, succeeded 48, failed 0, skipped 0"
+    },
+    {
+      "command": "scratch consumer with the analyzer DLL built on SDK 9.0.315 and SDK 11.0.100 (before the review fixups)",
+      "result": "both report RF0001/RF0002; editorconfig key works on SDK 11. Not rerun after the fixups."
+    }
   ],
   "rf_ids_passing_locally": {
-    "through_04c_SpecHarness_as_written": ["RF-0002 (net10.0, net11.0)", "RF-OWN-TYPE (net10.0, net11.0)", "RF-0002-UNION (net11.0; not applicable on net10.0)"],
-    "failing_as_written": {"RF-0001": "RF0001 not reported for Result<int>: the target stub has no [MustObserve]", "RF-0001-ASYNC": "same cause"},
-    "passing_with_core_types_listed_in_editorconfig": ["RF-0001 (markers and expect-fix)", "RF-0001-ASYNC"],
+    "through_04c_SpecHarness_as_written": [
+      "RF-0001 (net10.0, net11.0, with expect-fix)",
+      "RF-0001-ASYNC (net10.0, net11.0)",
+      "RF-0002 (net10.0, net11.0)",
+      "RF-OWN-TYPE (net10.0, net11.0)",
+      "RF-0002-UNION (net11.0; not applicable on net10.0)"
+    ],
     "ledger": "all 16a lines left pending (drafted ahead)"
   },
   "roslyn_version": "analyzer compiled against Microsoft.CodeAnalysis.CSharp(.Workspaces) 4.14.0, one build; tests use 5.12.0",
   "testing_harness": "hand-rolled (AnalyzerHarness.cs), xunit.v3 4.0.2 on Microsoft.Testing.Platform; Microsoft.CodeAnalysis.Testing not used (NuGet reference-assembly resolution, VSTest assumptions). 04c's SpecHarness.cs is linked unchanged for the RF-* fixtures; it finds the analyzer under src/Resultful.Analyzers/bin itself, so no env variable is needed.",
   "spec_findings": [
-    "Target core stubs (Result`1, Result`2, Validation`1, Validation`2, Option`1) carry no [MustObserve], contrary to PKG-CODEANALYSIS/VAL-ZERO and the 16a contract; RF-0001 and RF-0001-ASYNC can't pass against the target with an attribute-driven analyzer. Proposed: add [MustObserve] to those stubs.",
+    "RESOLVED by 04c 9a465b0 (cherry-picked as 6b03573): target core stubs now carry [MustObserve].",
     "SpecHarness emits and loads compile-only tool fixtures against the Resultful.dll beside it; RF-0002-UNION needs Resultful.Error at load, so in tests/Resultful.Spec it passes only once the real core has Error (06). Note, not a blocker at 16a's turn.",
     "RF0002 needs a non-name signal for 'zero value invalid' (Option is [MustObserve] but excluded by RF-0002); used decision 10's [Obsolete(error: true)] parameterless ctor + [ResultShape] + error unions. A dedicated attribute would be a decision 15 addition."
   ],
@@ -41,7 +60,8 @@
     "RF0002: new U() of union/shape, optional-parameter default, nested error unions; non-error unions not flagged",
     "short-name attribute in another namespace ignored (tested); generated code skipped",
     "contract test holding descriptors and fix to the three tsv files; release tracking files",
-    "real-csc probe on SDK 9 (Roslyn 4.14) and SDK 11 (5.12)"
+    "real-csc probe on SDK 9 (Roslyn 4.14) and SDK 11 (5.12)",
+    "RF0001: arrays of results, Task<M>->Task conversions, async void method groups, Task/ValueTask receivers"
   ],
   "suppressions": [
     "src/Resultful.Analyzers NoWarn RS1038 (code fix in the analyzer assembly because SpecHarness loads fixes from Resultful.Analyzers.dll)",
@@ -51,9 +71,17 @@
   ],
   "open_issues": [
     "CI not waited on (per instructions); lint relies on 13a's identical file naming (AnalyzerReleases.*.md, nested Directory.Packages.props), which passed ls-lint on #46",
-    "RF-0001 and RF-0001-ASYNC do not pass through 04c's harness as written until the stub spec finding is fixed",
     "No per-Roslyn split or packaging (13b/17); tests compile against the stub core, not the real one",
     "SpecHarness.FindTool picks the newest Resultful.Analyzers.dll under bin (Debug or Release), so a stale build could be used locally",
-    "No mutation run on the analyzer"
-  ]
+    "No mutation run on the analyzer",
+    "Real-csc probe (SDK 9/11) not rerun after the review fixups; in-process tests cover the new behaviour"
+  ],
+  "review_round_1": {
+    "1_task_receivers": "done: receiver accepted when it or its awaited type is [MustObserve]; tests for Task and ValueTask receivers (user type and core's Result.Switch/Tee on Task<Result<int>>)",
+    "2_rf0002_comparisons": "done by skipping: default as ==/!= operand (through conversions/parentheses), Equals argument, or inside a pattern (CS9135 left alone); tests added",
+    "3_stub_gap_tests": "done: tests deleted, RF-0001/RF-0001-ASYNC in Passes_in_04cs_harness_as_written; body wiring 6 and finding reworded",
+    "4_arrays_and_upcast": "both implemented: T[] of must-observe dropped/awaited-and-dropped reported; implicit Task<M>/ValueTask<M> -> Task/ValueTask reported only for a fresh call or new (variables and explicit casts are a listed known gap)",
+    "nit_5_method_groups": "done",
+    "nit_6_scope": "done in RF0001/RF0002 descriptions and the PR body (Known gaps)"
+  }
 }
