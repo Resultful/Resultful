@@ -11,6 +11,7 @@ public sealed class LegacyOrders
 
     // 0.2 has no conversion from T to Result<T> (only Result<T, TError> has one), so the docs' `? o.Ok() : "…"` needs
     // Ok() here; see the PR body's spec findings.
+    #region snippet: uc10-before
     public Result<LegacyOrder> Get(int id) =>
         _store.GetValueOrDefault(id) is { } o ? o.Ok() : $"order {id} was not found";
 
@@ -18,6 +19,7 @@ public sealed class LegacyOrders
         result.Match(
             o => Results.Ok(o),
             errors => errors.First().Contains("not found", StringComparison.Ordinal) ? Results.NotFound() : Results.Problem());
+    #endregion
 
     // The migration's hazards (docs/errors-in-practice.md, use case 10).
     // In 0.3 a bare string is no longer an error: CS0029 here.

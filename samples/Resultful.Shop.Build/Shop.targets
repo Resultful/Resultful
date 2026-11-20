@@ -80,7 +80,10 @@
   <ItemGroup Condition="'$(ShopCore)' == 'package'">
     <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" />
     <PackageReference Include="Resultful.AspNetCore" VersionOverride="$(ResultfulAspNetCorePackageVersion)" Condition="'$(ShopUsesAspNetCore)' == 'true'" />
-    <PackageReference Include="Resultful.Generators" VersionOverride="$(ResultfulGeneratorsPackageVersion)" PrivateAssets="all" Condition="'$(ShopGeneratorStandIn)' != 'true'" />
-    <PackageReference Include="Resultful.Analyzers" VersionOverride="$(ResultfulAnalyzersPackageVersion)" PrivateAssets="all" Condition="'$(ShopAnalyzers)' == 'true'" />
+  </ItemGroup>
+  <!-- The generator and the analyzers from packages, whatever the core: UC09's library has no core at all. -->
+  <ItemGroup>
+    <PackageReference Include="Resultful.Generators" VersionOverride="$(ResultfulGeneratorsPackageVersion)" PrivateAssets="all" Condition="'$(ResultfulGeneratorsPackageVersion)' != '' and '$(ShopGeneratorStandIn)' != 'true'" />
+    <PackageReference Include="Resultful.Analyzers" VersionOverride="$(ResultfulAnalyzersPackageVersion)" PrivateAssets="all" Condition="'$(ResultfulAnalyzersPackageVersion)' != '' and '$(ShopAnalyzers)' == 'true'" />
   </ItemGroup>
 </Project>
