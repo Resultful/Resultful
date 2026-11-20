@@ -1,0 +1,134 @@
+{
+  "pr": 53,
+  "pr_url": "https://github.com/Resultful/Resultful/pull/53",
+  "branch": "rtkelly13/stack-20a-aspnetcore-errors",
+  "head_sha": "4d17410c946493901030ddc6f5a3c345fe5f3e6b",
+  "started_from": "9a465b0 (origin/rtkelly13/stack-04c-spec-harness), no cherry-picks",
+  "commits": [
+    "8329250 spec: ToHttpResult keeps the error type, ResultHttpResult<T, TError>",
+    "91fdaac feat(aspnetcore): the error-to-status map and ProblemDetails against the 0.3 target",
+    "4d17410 test(aspnetcore): the map, ProblemDetails and no-leak rules on TestServer, both targets"
+  ],
+  "local_runs": [
+    {
+      "cmd": "dotnet build src/Resultful.AspNetCore -m:2",
+      "result": "0 warnings, 0 errors (net10.0, net11.0; IsAotCompatible, CS1591 on)"
+    },
+    {
+      "cmd": "dotnet build tests/Resultful.AspNetCore.Tests -m:2",
+      "result": "0 warnings, 0 errors"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net10.0 --no-build",
+      "result": "total 69, failed 0 (stand-in core)"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net10.0 --no-build -- --culture tr-TR",
+      "result": "total 69, failed 0"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net11.0 --no-build",
+      "result": "total 70, failed 0"
+    },
+    {
+      "cmd": "dotnet run --project tests/Resultful.AspNetCore.Tests -f net11.0 --no-build -- --culture tr-TR",
+      "result": "total 70, failed 0"
+    },
+    {
+      "cmd": "dotnet build tests/Resultful.Spec -f net10.0 -m:2 && dotnet run --project tests/Resultful.Spec -f net10.0 --no-build",
+      "result": "total 268, failed 0 (real core, after the spec: change)"
+    },
+    {
+      "cmd": "dotnet build tests/Resultful.Spec -f net11.0 -m:2 && dotnet run --project tests/Resultful.Spec -f net11.0 --no-build",
+      "result": "total 268, failed 0"
+    },
+    {
+      "cmd": "dotnet run tests/Resultful.TargetApi/check-api.cs",
+      "result": "exit 1: 30 problems, all in core Resultful and identical on base 9a465b0 (checked with --repo on a git archive of 9a465b0); Resultful.AspNetCore 18 added, 15 still to add (20b), 0 problems"
+    },
+    {
+      "cmd": "npx -y @ls-lint/ls-lint@2.3.1",
+      "result": "no output (clean)"
+    },
+    {
+      "cmd": "Resultful.Spec with its core ProjectReference temporarily swapped for StandInCore + src/Resultful.AspNetCore (uncommitted, restored)",
+      "result": "net10.0: 268 total, 21 failed; net11.0: 268 total, 23 failed; all failures are 'passes but pending: flip' except PKG-ONEOF (lost OneOf with the swap)"
+    },
+    {
+      "cmd": "native AOT probe in scratchpad: dotnet publish -c Release -r linux-x64 (PublishAot, TreatWarningsAsErrors, JsonSerializerIsReflectionEnabledByDefault=false, net11.0, stand-in core)",
+      "result": "published with no IL2xxx/IL3xxx warnings; binary answered 200/404/500(no detail)/400(errors)"
+    },
+    {
+      "cmd": "seeded faults in ErrorProblems.cs, net10.0 test run each",
+      "result": "detail always shown: 8 failed; no built-in validation 400: 11; wrapper message as detail: 2; no cause walk: 6; source restored"
+    }
+  ],
+  "http_ids_passing_locally": {
+    "against_stand_in_core_only": [
+      "HTTP-MAP",
+      "HTTP-VALIDATION-400",
+      "HTTP-500-NOLEAK",
+      "HTTP-OPENAPI (20b's line)"
+    ],
+    "tfms": [
+      "net10.0",
+      "net11.0"
+    ],
+    "ledger_state": "all stay pending; not evidence until the real core"
+  },
+  "spec_commits": [
+    {
+      "sha": "8329250",
+      "what": "Target AspNetCore: ResultHttpResult<T> -> ResultHttpResult<T, TError> where TError : Error, internal ctor (drops the implicit public ctor line); ToHttpResult returns <T, Error>, <T, TError>, <T, ValidationFailed<Error>>, <T, ValidationFailed<TError>>; PublicAPI regenerated with RegenApi.cs; HTTP-OPENAPI fixture names ResultHttpResult<Order, Error> (assertions unchanged), ledger hash updated to d17e96d1…, line stays pending"
+    }
+  ],
+  "spec_findings": [
+    "Only one spec: change, as the contract asked.",
+    "The package has no dependency on Resultful.Text.Json (nor does the target project), so Text.Json's AddResultful is never called; AOT publish confirms no IL3xxx.",
+    "ValidationFailed is generic only; detection uses GetGenericTypeDefinition (trim-safe).",
+    "docs/explorations/seamless-with-dotnet.md still names Results<Ok<T>, ProblemHttpResult> (left as exploration history); docs/architecture.md fixed.",
+    "check-api.cs fails with 30 core problems on 04c's own head 9a465b0; pre-existing, not from this PR."
+  ],
+  "decisions_taken": [
+    "| 20a | ResultHttpResult<T, TError>; Result<T> -> <T, Error>; Validation -> <T, ValidationFailed<...>>; internal ctor (spec: 8329250) | #39 q11 default; 20b's OpenAPI reads statuses from TError |",
+    "| 20a | Per error in Causes(): exact-type entry, then built-in ValidationFailed 400, then base-type entries nearest first; first error with any status wins | 'first mapped type wins' with leaf overrides for closed hierarchies; Map<Error> doesn't swallow validation |",
+    "| 20a | Any 5xx (default or mapped) hides Message outside Development; Development detail = Error.ToString(); no IHostEnvironment = Production | HTTP-500-NOLEAK for every server error, failing safe |",
+    "| 20a | 4xx detail = the matched error's Message, not the outer wrapper's | the mapped error is what the app chose to show |",
+    "| 20a | Map/DefaultStatusCode accept 400-599 only | a failure must not answer 2xx/3xx |",
+    "| 20a | Unit success = 200 with no body | http-cases UC07; no Unit JSON metadata under AOT |",
+    "| 20a | AddResultful(IServiceCollection) also calls AddProblemDetails() (idempotent) | consistent bodies, traceId |",
+    "| 20a | instance = request path; traceId = Activity.Current?.Id ?? TraceIdentifier | contract's shape list |",
+    "| 20a | No Resultful.Text.Json dependency | target project has none; avoids [RequiresDynamicCode] (12b) |",
+    "| 20a | Zero result: ToHttpResult throws | decision 10 |"
+  ],
+  "wiring": [
+    "csproj: ResultfulCoreProject -> ProjectReference ../Resultful/Resultful.csproj; drop IsPackable=false; per-package version",
+    "tests: delete StandInCore/, Compile glob -> ProjectReference; tests use internal ResultfulHttpOptions.TryGetStatus twice (InternalsVisibleTo or assert via HTTP)",
+    "Resultful.slnx: add both projects",
+    "root Directory.Packages.props: xunit.v3 4.0.2, Microsoft.AspNetCore.TestHost 10.0.0 (net10.0) / 11.0.0 (net11.0); delete nested props",
+    "CI: run-tests.cs runs the MTP project on both TFMs, invariant and tr-TR; until then CI does not run these tests",
+    "Resultful.Spec.csproj: ProjectReference src/Resultful.AspNetCore, flip HTTP-MAP, HTTP-VALIDATION-400, HTTP-500-NOLEAK",
+    "package check / release-check; README section (root file)"
+  ],
+  "beyond_contract": [
+    "native AOT publish probe",
+    "4 seeded faults caught",
+    "endpoint metadata through real routing",
+    "tr-TR byte-identical bodies + full suite under --culture tr-TR",
+    "C# 15 union on net11.0 plus hand-written IErrorUnion",
+    "options/registration argument checks; map read at execute time",
+    "basic PopulateMetadata (200/400/500) since the target type must implement IEndpointMetadataProvider; 20b refines"
+  ],
+  "suppressions": [
+    "tests csproj NoWarn CA1515;CA1034;CA2007",
+    "StandInCore EnableNETAnalyzers=false (temporary)",
+    "none in src/; no pragma, Skip or continue-on-error"
+  ],
+  "open_issues": [
+    "Not done: CI was not waited on; tests are not wired into CI (drafting rule: no slnx/root edits).",
+    "DECISIONS-TAKEN.md rows for the spec: change and the defaults are in the PR body and here, not committed (that file lives on the plan branch, owned by the orchestrator).",
+    "All evidence for behaviour is against the stand-in core; the gate at 20a's turn is the real core.",
+    "Not implemented here (20b's): ResultEndpointFilter, WithResultful, MinimalApiValidationError; map statuses in OpenAPI.",
+    "StandInCore is a copy of 12b's; if 12b's changes, the two diverge until both are deleted."
+  ]
+}
