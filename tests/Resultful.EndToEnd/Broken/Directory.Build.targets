@@ -1,0 +1,14 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))"
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../')))" />
+  <Import Project="$(MSBuildThisFileDirectory)../../../samples/Resultful.Shop.Build/Shop.targets" />
+  <ItemGroup Condition="'$(BrokenUsesDomain)' != 'false'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../samples/Resultful.Shop.Domain/Resultful.Shop.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(BrokenUsesLegacy)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../samples/Resultful.Shop.Legacy/Resultful.Shop.Legacy.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="expected.txt;case.txt" />
+  </ItemGroup>
+</Project>

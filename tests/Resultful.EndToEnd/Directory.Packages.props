@@ -1,0 +1,7 @@
+<Project>
+  <!-- Adds only what the root file lacks. Moved up into the root Directory.Packages.props at wiring. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
+  <ItemGroup>
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+  </ItemGroup>
+</Project>
