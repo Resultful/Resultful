@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Decision 17: the same orders and payments with errors declared as C# unions. net11.0 only: unions need the
+    .NET 11 compiler and runtime. Multi-targeted code keeps [ClosedHierarchy] (Shop.Domain).
+  -->
+  <Import Project="../Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>Resultful.Shop.Net11</RootNamespace>
+  </PropertyGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.targets" />
+</Project>

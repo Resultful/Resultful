@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UC06: a queue handler over an in-memory channel. Prints one disposition per message, then exits. -->
+  <Import Project="../Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Resultful.Shop.Worker</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.Shop.Domain/Resultful.Shop.Domain.csproj" />
+  </ItemGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.targets" />
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Orders (UC01), sign-up (UC02, UC03), context (UC04), the payments adapter (UC05), and UC07, UC08, UC10's after. -->
+  <Import Project="../Resultful.Shop.Build/Shop.props" />
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Resultful.Shop.Api</RootNamespace>
+    <ShopUsesAspNetCore>true</ShopUsesAspNetCore>
+    <!-- The OpenAPI document is written at run time (GET /openapi/v1.json), which the end-to-end runner reads. -->
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.Shop.Domain/Resultful.Shop.Domain.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <InternalsVisibleTo Include="Resultful.Shop.Tests" />
+  </ItemGroup>
+  <Import Project="../Resultful.Shop.Build/Shop.targets" />
+</Project>

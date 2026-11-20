@@ -1,0 +1,36 @@
+<Project>
+  <!--
+    Shared by every Resultful.Shop.* project, imported at the top of each project file.
+    The Shop is the 0.3 oracle (stack-plan VERIFY.md section 3): one folder per use case of docs/errors-in-practice.md.
+
+    Switches (all optional):
+      ShopCore              target   the TargetApi stubs (tests/Resultful.TargetApi): compiles, never runs. Default.
+                            package  PackageReference to Resultful* at $(ResultfulPackageVersion) (tests/Resultful.EndToEnd).
+                            project  ProjectReference to src/ (once the real packages exist: wiring, then 20b).
+                            baseline Resultful $(ShopBaselineVersion) from nuget.org: 0.2, for Shop.Legacy's UC10.
+      ShopForce             all, or a list such as UC01;UC03: compile those use cases whatever the ledger says.
+      ShopGeneratorStandIn  true until Resultful.Generators runs on the Shop (13b): compiles GeneratorStandIn/, the
+                            hand-written copy of what the generator would emit.
+      ShopLedger            the ledger to read (default tests/Resultful.Spec/ledger.tsv).
+  -->
+  <PropertyGroup>
+    <ShopRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../'))</ShopRepoRoot>
+    <ShopCore Condition="'$(ShopCore)' == ''">target</ShopCore>
+    <ShopBaselineVersion Condition="'$(ShopBaselineVersion)' == ''">0.2.0-beta05</ShopBaselineVersion>
+    <ShopGeneratorStandIn Condition="'$(ShopGeneratorStandIn)' == ''">true</ShopGeneratorStandIn>
+    <ShopLedger Condition="'$(ShopLedger)' == ''">$(ShopRepoRoot)tests/Resultful.Spec/ledger.tsv</ShopLedger>
+
+    <!-- The E2E bar (VERIFY.md section 3) applies to every Shop build, not only the packed one. -->
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!--
+      The Shop's snippets must equal the docs (check-snippets), and the docs show application code: CA1848 (the docs
+      log with plain ILogger calls) and CA2007 (ConfigureAwait is library guidance; an app has no sync context to
+      avoid, and GOAL.md makes it an error in src/ only). Listed in the PR body.
+    -->
+    <NoWarn>$(NoWarn);CA1848;CA2007</NoWarn>
+  </PropertyGroup>
+</Project>
