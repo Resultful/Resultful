@@ -38,6 +38,20 @@ public sealed class EndToEndTests
         if (LedgerRule.Violation(id, ledger, results) is { } violation) Assert.Fail(violation);
     }
 
+    // Every project under src/ packs. Its log is in the report as the PACK entry and in artifacts/e2e/<run>/pack.log.
+    [Fact]
+    public async Task Every_project_packs()
+    {
+        var feed = await Feed.Get();
+        lock (Report)
+        {
+            Report.Add(new { id = "PACK", state = "-", outcome = feed.PackFailures.Count == 0 ? "pass" : "fail", cases = Array.Empty<object>(), log = feed.PackLog });
+            File.WriteAllText(Path.Combine(Repo.RunDir, "e2e-report.json"), JsonSerializer.Serialize(Report, Indented));
+        }
+
+        Assert.True(feed.PackFailures.Count == 0, "dotnet pack failed for: " + string.Join(", ", feed.PackFailures) + "\n" + feed.PackLog);
+    }
+
     private static void WriteReport(string id, LineState state, string outcome, List<CaseResult> results)
     {
         lock (Report)
