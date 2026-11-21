@@ -386,7 +386,7 @@ public sealed class MustObserveTests
                 Place(1); // expect: RF0001
                 PlaceOrderResult.Ok(new Order(2)); // expect: RF0001
                 _ = Place(3);
-                var name = Place(4).Match(o => "order", l => "locked", nf => "missing");
+                var name = Place(4).Match((Order o) => "order", (OrderLocked l) => "locked", (OrderNotFound nf) => "missing");
             }
         }
         """, generate: true);

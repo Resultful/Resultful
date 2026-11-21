@@ -19,7 +19,11 @@ namespace Resultful.Analyzers.Tests;
 /// </summary>
 public static partial class AnalyzerHarness
 {
-    public static readonly ImmutableArray<DiagnosticAnalyzer> Analyzers = [new MustObserveAnalyzer(), new DefaultResultAnalyzer()];
+    public static readonly ImmutableArray<DiagnosticAnalyzer> Analyzers =
+    [
+        new MustObserveAnalyzer(), new DefaultResultAnalyzer(), new UncheckedValueAnalyzer(), new BareStringAnalyzer(), new UnassignedFieldAnalyzer(),
+        new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(),
+    ];
 
 #if NET11_0_OR_GREATER
     public const bool IsNet11 = true;
@@ -49,12 +53,12 @@ public static partial class AnalyzerHarness
     /// Compiles consumer sources (Test0.cs, Test1.cs, …) against the core, or alone with <paramref name="withCore"/>
     /// false; with <paramref name="generate"/>, through Resultful.Generators first.
     /// </summary>
-    public static Compilation Compile(IEnumerable<string> sources, bool withCore = true, bool generate = false)
+    public static Compilation Compile(IEnumerable<string> sources, bool withCore = true, bool generate = false, bool executable = false)
     {
         var trees = sources.Select((s, i) => CSharpSyntaxTree.ParseText(s, ParseOptions, path: $"Test{i}.cs", encoding: Encoding.UTF8));
         var refs = withCore ? FrameworkRefs.Value.Add(Core) : FrameworkRefs.Value;
         Compilation compilation = CSharpCompilation.Create("Consumer", trees, refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(executable ? OutputKind.ConsoleApplication : OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         if (generate)
         {
             CSharpGeneratorDriver.Create([new ResultShapeGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
@@ -106,15 +110,16 @@ public static partial class AnalyzerHarness
     /// Every marker is reported on its line, and nothing else is: no other RF diagnostic, no error, no warning a
     /// marker names elsewhere.
     /// </summary>
-    public static void Verify(string source, string? mustObserveTypes = null, bool withCore = true, bool generate = false) =>
-        Verify([source], mustObserveTypes, withCore, generate);
+    public static void Verify(string source, string? mustObserveTypes = null, bool withCore = true, bool generate = false, bool executable = false) =>
+        Verify([source], mustObserveTypes, withCore, generate, executable);
 
-    public static void Verify(IReadOnlyList<string> sources, string? mustObserveTypes = null, bool withCore = true, bool generate = false)
+    public static void Verify(IReadOnlyList<string> sources, string? mustObserveTypes = null, bool withCore = true, bool generate = false,
+        bool executable = false)
     {
         var expected = Markers(sources);
         var ids = expected.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         // Generated shapes are analyzed too: the generator's own code must pass the rules.
-        var diagnostics = Diagnose(Compile(sources, withCore, generate), mustObserveTypes, analyzeGenerated: generate)
+        var diagnostics = Diagnose(Compile(sources, withCore, generate, executable), mustObserveTypes, analyzeGenerated: generate)
             .Where(d => d.Location.IsInSource)
             .Where(d => d.Severity == DiagnosticSeverity.Error || d.Id.StartsWith("RF", StringComparison.Ordinal) || ids.Contains(d.Id))
             .ToList();
@@ -129,33 +134,31 @@ public static partial class AnalyzerHarness
 
     public static readonly MustObserveCodeFixProvider Fix = new();
 
-    /// <summary>Applies RF0001's fix to the first diagnostic, or fix-all over the document, and returns the new text.</summary>
-    public static string ApplyFix(string source, bool fixAll = false, string? mustObserveTypes = null)
+    /// <summary>
+    /// Applies <paramref name="fix"/> (RF0001's by default) to the first diagnostic it fixes, or fix-all over the document, and
+    /// returns the new text; with <paramref name="generate"/>, the generator's output is in the project too.
+    /// </summary>
+    public static string ApplyFix(string source, bool fixAll = false, string? mustObserveTypes = null, CodeFixProvider? fix = null,
+        bool generate = false, int action = 0)
     {
+        fix ??= Fix;
         using var workspace = new AdhocWorkspace();
-        var compilation = Compile([source]);
-        var project = workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Default, "Fix", "Fix", LanguageNames.CSharp,
-            compilationOptions: compilation.Options, parseOptions: ParseOptions, metadataReferences: compilation.References));
-        var document = project.AddDocument("Test0.cs", source, filePath: "Test0.cs");
-        var diagnostics = Rf0001(document.Project, mustObserveTypes);
+        var document = MakeDocument(workspace, source, generate);
+        var diagnostics = Fixable(document.Project, fix, mustObserveTypes);
         Assert.NotEmpty(diagnostics);
 
         Document changed;
         if (fixAll)
         {
-            var context = new FixAllContext(document, Fix, FixAllScope.Document, nameof(MustObserveCodeFixProvider), [Descriptors.MustObserve.Id],
-                new Provider(p => Rf0001(p, mustObserveTypes)), CancellationToken.None);
-            var action = Fix.GetFixAllProvider().GetFixAsync(context).GetAwaiter().GetResult();
-            Assert.NotNull(action);
-            changed = Apply(action, document);
+            var context = new FixAllContext(document, fix, FixAllScope.Document, Actions(fix, document, diagnostics[0])[0].EquivalenceKey, fix.FixableDiagnosticIds,
+                new Provider(p => Fixable(p, fix, mustObserveTypes)), CancellationToken.None);
+            var all = fix.GetFixAllProvider()!.GetFixAsync(context).GetAwaiter().GetResult();
+            Assert.NotNull(all);
+            changed = Apply(all, document);
         }
         else
         {
-            var actions = new List<CodeAction>();
-            Fix.RegisterCodeFixesAsync(new CodeFixContext(document, diagnostics[0], (a, _) => actions.Add(a), CancellationToken.None)).GetAwaiter().GetResult();
-            Assert.Single(actions);
-            Assert.Equal(MustObserveCodeFixProvider.Title, actions[0].Title);
-            changed = Apply(actions[0], document);
+            changed = Apply(Actions(fix, document, diagnostics[0])[action], document);
         }
 
         var errors = changed.Project.GetCompilationAsync().GetAwaiter().GetResult()!.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
@@ -163,23 +166,41 @@ public static partial class AnalyzerHarness
         return changed.GetTextAsync().GetAwaiter().GetResult().ToString();
     }
 
-    /// <summary>The code actions RF0001's fix offers for each diagnostic in the source.</summary>
-    public static int CountFixes(string source, string? mustObserveTypes = null)
+    /// <summary>The code actions' titles for each diagnostic in the source that the fix handles.</summary>
+    public static List<string> FixTitles(string source, CodeFixProvider? fix = null, string? mustObserveTypes = null, bool generate = false)
     {
+        fix ??= Fix;
         using var workspace = new AdhocWorkspace();
-        var compilation = Compile([source]);
+        var document = MakeDocument(workspace, source, generate);
+        return [.. Fixable(document.Project, fix, mustObserveTypes).SelectMany(d => Actions(fix, document, d)).Select(a => a.Title)];
+    }
+
+    /// <summary>The code actions RF0001's fix offers for each diagnostic in the source.</summary>
+    public static int CountFixes(string source, string? mustObserveTypes = null) => FixTitles(source, Fix, mustObserveTypes).Count;
+
+    static Document MakeDocument(AdhocWorkspace workspace, string source, bool generate)
+    {
+        var compilation = Compile([source], generate: generate);
         var project = workspace.AddProject(ProjectInfo.Create(ProjectId.CreateNewId(), VersionStamp.Default, "Fix", "Fix", LanguageNames.CSharp,
             compilationOptions: compilation.Options, parseOptions: ParseOptions, metadataReferences: compilation.References));
         var document = project.AddDocument("Test0.cs", source, filePath: "Test0.cs");
-        var count = 0;
-        foreach (var diagnostic in Rf0001(document.Project, mustObserveTypes))
-            Fix.RegisterCodeFixesAsync(new CodeFixContext(document, diagnostic, (_, _) => count++, CancellationToken.None)).GetAwaiter().GetResult();
-        return count;
+        // The generator's output, as plain documents: each starts with `// <auto-generated/>`, so the rules skip it.
+        foreach (var (tree, i) in compilation.SyntaxTrees.Skip(1).Select((t, i) => (t, i)))
+            document = document.Project.AddDocument($"Generated{i}.cs", tree.GetText(), filePath: $"Generated{i}.cs").Project.GetDocument(document.Id)!;
+        return document;
     }
 
-    public static List<Diagnostic> Rf0001(Project project, string? mustObserveTypes) =>
+    static List<CodeAction> Actions(CodeFixProvider fix, Document document, Diagnostic diagnostic)
+    {
+        var actions = new List<CodeAction>();
+        fix.RegisterCodeFixesAsync(new CodeFixContext(document, diagnostic, (a, _) => actions.Add(a), CancellationToken.None)).GetAwaiter().GetResult();
+        return actions;
+    }
+
+    public static List<Diagnostic> Fixable(Project project, CodeFixProvider fix, string? mustObserveTypes) =>
         [.. project.GetCompilationAsync().GetAwaiter().GetResult()!.WithAnalyzers(Analyzers, Options(mustObserveTypes))
-            .GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult().Where(d => d.Id == Descriptors.MustObserve.Id)];
+            .GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult().Where(d => fix.FixableDiagnosticIds.Contains(d.Id))
+            .OrderBy(d => d.Location.SourceSpan.Start)];
 
     static Document Apply(CodeAction action, Document document)
     {

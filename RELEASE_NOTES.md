@@ -85,6 +85,11 @@
   handler passed to its `Switch` or `Tee`, with a `_ =` fix (fix-all too); `resultful.must_observe_types` in
   `.editorconfig` lists third-party types and methods. RF0002 (warning) reports a result, shape or error union created
   with `default`, except in a comparison or a pattern; generated files disable it, since their zero values are deliberate.
+  RF0003 (warning) reports `Value` read without a guarding `IsSuccess` check; RF0004 (info) a bare string that becomes
+  the success of a `Result<string>` (it was a failure before 0.3), with a `Result.Ok`/`Result.Fail` fix; RF0006
+  (warning) a result field no constructor assigns; RF0008 (**error**) an untyped lambda passed to a generated
+  multi-case `Match`, `Switch` or `TryMap`, whose handler order can change, with a fix that adds the types; RF0009
+  (warning) `Map` whose selector returns a result, with a fix to `Bind`.
 
 ### Build
 

@@ -3,7 +3,7 @@ using static Resultful.Analyzers.Tests.AnalyzerHarness;
 
 namespace Resultful.Analyzers.Tests;
 
-/// <summary>RF0001's fix, "discard with `_ =`", one at a time and fix-all (code-fixes.tsv).</summary>
+/// <summary>The fixes of code-fixes.tsv, one at a time and fix-all: RF0001's `_ =`, RF0004's wrap, RF0008's types, RF0009's Bind.</summary>
 public sealed class CodeFixTests
 {
     const string Prelude = """
@@ -126,4 +126,100 @@ public sealed class CodeFixTests
             static void M(Reply r) { r.Switch(async v => await Task.Yield()); }
         }
         """));
+
+    // ---- RF0004: wrap in Result.Ok(…) or Result.Fail<string>(…) ----
+
+    const string BareString = """
+        using Resultful;
+
+        public static class Cases
+        {
+            static Result<string> Find(int id) => /* why */ $"order {id} was not found"; // keep
+        }
+        """;
+
+    [Fact]
+    public void A_bare_string_is_wrapped_in_the_meaning_chosen()
+    {
+        Assert.Equal([BareStringCodeFixProvider.OkTitle, BareStringCodeFixProvider.FailTitle], FixTitles(BareString, new BareStringCodeFixProvider()));
+        Assert.Equal(BareString.Replace("$\"order {id} was not found\"", "Result.Ok($\"order {id} was not found\")", StringComparison.Ordinal),
+            ApplyFix(BareString, fix: new BareStringCodeFixProvider()));
+        var failed = ApplyFix(BareString, fix: new BareStringCodeFixProvider(), action: 1);
+        Assert.Equal(BareString.Replace("$\"order {id} was not found\"", "Result.Fail<string>($\"order {id} was not found\")", StringComparison.Ordinal), failed);
+        Verify(failed);
+    }
+
+    [Fact]
+    public void No_wrap_is_offered_for_another_result_type() => Assert.Empty(FixTitles("""
+        using Resultful;
+
+        public static class Cases
+        {
+            static Result<string, Error> Find() => "x";
+        }
+        """, new BareStringCodeFixProvider()));
+
+    // ---- RF0008: add the parameter types ----
+
+    const string Handlers = HandlerRulesTests.Domain + """
+        public static class Cases
+        {
+            static string M(OrderError e, PlaceOrderResult r)
+            {
+                var a = e.Match(
+                    l => "locked", // locked
+                    (n) => "missing");
+                e.Switch(l => { }, static n => { });
+                return a + r.Match(o => "order", (OrderLocked l) => "locked", _ => "missing");
+            }
+        }
+        """;
+
+    [Fact]
+    public void Fix_all_adds_the_parameter_types()
+    {
+        var fixedText = ApplyFix(Handlers, fixAll: true, fix: new UntypedHandlerCodeFixProvider(), generate: true);
+        Assert.Equal(Handlers
+            .Replace("    l => \"locked\", // locked", "    (OrderLocked l) => \"locked\", // locked", StringComparison.Ordinal)
+            .Replace("(n) => \"missing\");", "(OrderNotFound n) => \"missing\");", StringComparison.Ordinal)
+            .Replace("e.Switch(l => { }, static n => { });", "e.Switch((OrderLocked l) => { }, static (OrderNotFound n) => { });", StringComparison.Ordinal)
+            .Replace("r.Match(o => \"order\", (OrderLocked l) => \"locked\", _ => \"missing\")",
+                "r.Match((Order o) => \"order\", (OrderLocked l) => \"locked\", (OrderNotFound _) => \"missing\")", StringComparison.Ordinal),
+            fixedText);
+        Verify(fixedText, generate: true);
+    }
+
+    // ---- RF0009: replace Map with Bind ----
+
+    [Fact]
+    public void Fix_all_replaces_Map_with_Bind_where_it_binds()
+    {
+        const string Source = """
+            using System.Threading.Tasks;
+            using Resultful;
+
+            public static class Cases
+            {
+                static Result<int> Parse(string s) => Result.Ok(s.Length);
+                static Result<int, Error> Other(string s) => Result.Ok<int, Error>(1);
+                static Task<Result<int>> ParseAsync(string s) => Task.FromResult(Parse(s));
+
+                static async Task M(Result<string> r, ValueTask<Result<string>> vt)
+                {
+                    _ = await vt.Map(Parse);
+                    _ = r.Map(Parse);
+                    _ = r /* receiver */ .Map(s => Parse(s));
+                    _ = await r.MapAsync(ParseAsync);
+                    _ = r.Map(Other);
+                }
+            }
+            """;
+        var fixedText = ApplyFix(Source, fixAll: true, fix: new MapToBindCodeFixProvider());
+        Assert.Equal(Source
+            .Replace("r.Map(Parse)", "r.Bind(Parse)", StringComparison.Ordinal)
+            .Replace("vt.Map(Parse)", "vt.Bind(Parse)", StringComparison.Ordinal)
+            .Replace(".Map(s => Parse(s))", ".Bind(s => Parse(s))", StringComparison.Ordinal)
+            .Replace("r.MapAsync(ParseAsync)", "r.BindAsync(ParseAsync)", StringComparison.Ordinal), fixedText);
+        Verify(fixedText.Replace("_ = r.Map(Other);", "_ = r.Map(Other); // expect: RF0009", StringComparison.Ordinal));
+    }
 }

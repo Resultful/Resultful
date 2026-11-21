@@ -68,9 +68,9 @@ through it (**verified**). The guard is the analyzer rule that reports a derived
 ```csharp
 OrderError.TryMap(
     wrappedError,
-    onCardDeclined: _ => 402,
-    onOrderLocked: _ => 409,
-    onOrderNotFound: _ => 404,
+    onCardDeclined: (CardDeclined _) => 402,     // typed, as RF0008 requires: a reordered case won't compile
+    onOrderLocked: (OrderLocked _) => 409,
+    onOrderNotFound: (OrderNotFound _) => 404,
     out var status);
 ```
 
