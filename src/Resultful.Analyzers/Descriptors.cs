@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace Resultful.Analyzers;
 
 /// <summary>
-/// RF0001 to RF0004, RF0006, RF0008 and RF0009: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
+/// RF0001 to RF0010: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
 /// AnalyzerReleases.Unshipped.md lists them. Each description says what the rule covers and what it doesn't.
 /// </summary>
 public static class Descriptors
@@ -13,6 +13,9 @@ public static class Descriptors
 
     /// <summary>The .editorconfig key for third-party types (and methods) treated as [MustObserve].</summary>
     public const string MustObserveTypesKey = "resultful.must_observe_types";
+
+    /// <summary>The .editorconfig key for third-party bases treated as [ClosedHierarchy].</summary>
+    public const string ClosedHierarchyTypesKey = "resultful.closed_hierarchy_types";
 
     /// <summary>RF0001's title.</summary>
     public const string MustObserveTitle =
@@ -109,6 +112,20 @@ public static class Descriptors
             + "variable or call (assumed to be a value), an explicit cast, and `Result.Ok(\"x\")`. The fix wraps it in Result.Ok or Result.Fail, "
             + "offered for Resultful.Result<string> only; other types are fixed by hand. No fix-all: each one is a choice.");
 
+    /// <summary>RF0005: a closed hierarchy's Match that reads better as a switch expression.</summary>
+    public static readonly DiagnosticDescriptor MatchToSwitch = new(
+        "RF0005",
+        "A Match whose handlers could be a switch expression",
+        "This {0}.Match could be a switch expression",
+        Category,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A switch expression names each case where it is handled and is checked like any other switch. Scope: an instance Match on a "
+            + "[ClosedHierarchy] type, every handler a typed lambda with an expression body or a method group, the result used as a value. "
+            + "Not covered: Switch, TryMap, a shape's Match, handlers with block bodies. The fix (`e switch { NotFound n => …, Conflict c => … }`, "
+            + "one arm per handler, names kept unless taken) is not offered yet: without RFSP0001 the compiler reports CS8509 on that switch, "
+            + "since it can't see the hierarchy is closed. RFSP0001 (stack 17) turns the fix on.");
+
     /// <summary>RF0006: a result field that no constructor assigns (decision 10, layer 3).</summary>
     public static readonly DiagnosticDescriptor UnassignedField = new(
         "RF0006",
@@ -123,6 +140,32 @@ public static class Descriptors
             + "A static field needs an initializer or a static constructor that assigns it. Not reported: `required` members, settable properties "
             + "(an object initializer may set them), and structs (whose own zero value holds zero results anyway). "
             + "Not covered: a constructor that assigns through a helper method, and arrays of zero values (`new Result<int>[3]`).");
+
+    /// <summary>RF0007: a closed hierarchy whose base another assembly can derive from through a constructor.</summary>
+    public static readonly DiagnosticDescriptor PrivateProtected = new(
+        "RF0007",
+        "A [ClosedHierarchy] base can take a private protected constructor",
+        "{0} is [ClosedHierarchy], but another assembly can call its {1} constructor: make it private protected",
+        Category,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A private protected constructor closes the ordinary way to derive from a closed base in another assembly (decision 15); RF0010 "
+            + "reports the rest. Scope: a [ClosedHierarchy] class with a public, protected or protected internal constructor, including the implicit "
+            + "one and a positional record's. A record's copy constructor is ignored: C# requires it protected (CS8878). Resultful.Generators writes "
+            + "the constructor for a partial base. The fix makes declared constructors private protected, or adds `private protected Name() { }` "
+            + "when there is none and the base has an accessible parameterless one; a positional record is fixed by hand. A base not visible "
+            + "outside its assembly (internal, or nested in an internal type) is not reported.");
+
+    /// <summary>RF0007, for a positional record (or class) whose primary constructor is visible to another assembly.</summary>
+    public static readonly DiagnosticDescriptor PrivateProtectedPositional = new(
+        "RF0007",
+        "A [ClosedHierarchy] base can take a private protected constructor",
+        "{0} is [ClosedHierarchy], but its positional constructor is {1}: declare a private protected constructor in the body instead; "
+            + "a positional record isn't fully closed, and RF0010 guards the rest",
+        Category,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: PrivateProtected.Description.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     /// <summary>RF0008: an implicitly typed handler passed to a generated multi-case Match, Switch or TryMap.</summary>
     public static readonly DiagnosticDescriptor UntypedHandler = new(
@@ -150,4 +193,17 @@ public static class Descriptors
         description: "A result nested in a result hides the inner failure behind an outer success. Scope: Map or MapAsync whose selector returns a "
             + "result type (as RF0002 defines it; for MapAsync, a Task or ValueTask of one), on a result or a Task or ValueTask of one. The fix replaces Map with Bind (MapAsync with BindAsync), "
             + "fix-all too, offered only where Bind binds: when the error types differ, map the error first.");
+
+    /// <summary>RF0010: a type outside a closed base's assembly derives from it.</summary>
+    public static readonly DiagnosticDescriptor ForeignDerivedType = new(
+        "RF0010",
+        "A type outside a [ClosedHierarchy] base's assembly derives from it",
+        "{0} derives from {1}, which is [ClosedHierarchy] in {2}: a switch over {1} can't handle it",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Every type that derives from a [ClosedHierarchy] base is declared in the base's assembly, so a switch over it can be exhaustive "
+            + "(decision 15). C# can't enforce that for a record, whose copy constructor is protected (CS8878), so this rule does. Scope: a class or "
+            + "record whose base, direct or indirect, carries [ClosedHierarchy] or is listed under resultful.closed_hierarchy_types, and is declared "
+            + "in another assembly. Not covered: code compiled without the analyzer, which a switch then rejects at run time.");
 }

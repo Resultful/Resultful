@@ -211,8 +211,8 @@ public sealed class DefaultResultTests
         using Resultful.CodeAnalysis;
 
         public sealed record Receipt(string Code);
-        [ClosedHierarchy] public abstract partial record AppError(string Message) : Error(Message);
-        [ClosedHierarchy] public abstract partial record PaymentError(string Message) : AppError(Message);
+        [ClosedHierarchy] public abstract partial record AppError : Error;
+        [ClosedHierarchy] public abstract partial record PaymentError : AppError;
         public sealed record CardExpired() : PaymentError("expired");
         public sealed record RateLimited() : AppError("rate limited");
 
