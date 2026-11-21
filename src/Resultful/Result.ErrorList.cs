@@ -74,19 +74,27 @@ namespace Resultful
             return Case() ? successfulFunc(_value) : errorFunc(_error);
         }
 
-        /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and does not wait for the task it returns.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and returns a task that completes when the call's task does.</summary>
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
-        /// <remarks>The task is dropped, so the method returns before the work finishes and an exception the task throws is lost. To wait for it, use <c>MatchAsync</c> and await the task.</remarks>
-        public void SwitchAsync(Func<T, Task> successfulFunc, Func<Error, Task> errorFunc)
-            => _ = Match(successfulFunc, errorFunc);
+        /// <remarks>The function's task is awaited, so an exception the function throws, or its task throws, faults the returned task. Before 0.3 this returned <c>void</c> and dropped the task.</remarks>
+        public Task SwitchAsync(Func<T, Task> successfulFunc, Func<Error, Task> errorFunc)
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            return Case() ? AsyncStep.Await(successfulFunc, _value) : AsyncStep.Await(errorFunc, _error);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure, and returns its task.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called with the value on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
         public Task<TResult> MatchAsync<TResult>(Func<T, Task<TResult>> successfulFunc, Func<Error, Task<TResult>> errorFunc)
-            => Match(successfulFunc, errorFunc);
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            return Case() ? AsyncStep.Await(successfulFunc, _value) : AsyncStep.Await(errorFunc, _error);
+        }
 
         /// <summary>Two results are equal when both are successes with equal values, both failures with equal errors, or both the zero value.</summary>
         /// <param name="obj">The object to compare with.</param>
@@ -129,9 +137,10 @@ namespace Resultful
         /// <typeparam name="TResult">The type of the new value.</typeparam>
         /// <param name="bindFunc">Returns the next result from the value.</param>
         public Task<Result<TResult>> BindAsync<TResult>(Func<T, Task<Result<TResult>>> bindFunc)
-            => Match(
-                bindFunc.ThrowIfDefault(nameof(bindFunc)),
-                error => Task.FromResult(error.Fail<TResult>()));
+        {
+            bindFunc.ThrowIfDefault(nameof(bindFunc));
+            return Case() ? AsyncStep.Await(bindFunc, _value) : Task.FromResult(_error.Fail<TResult>());
+        }
 
         /// <summary>On success, returns the value <paramref name="mapFunc"/> gives for the value, as a success. A failure keeps the error and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
@@ -250,7 +259,7 @@ namespace Resultful
                 item => Task.FromResult(item.Some()),
                 async errors =>
                 {
-                    await errorAction.ThrowIfDefault(nameof(errorAction))(errors);
+                    await errorAction.ThrowIfDefault(nameof(errorAction))(errors).ConfigureAwait(false);
                     return Option<T>.None;
                 });
 
@@ -282,7 +291,10 @@ namespace Resultful
         /// <summary>Returns the value on success, or the value <paramref name="func"/> gives for the error on failure.</summary>
         /// <param name="func">Gives a value from the error.</param>
         public Task<T> ReturnOrValueAsync(Func<Error, Task<T>> func)
-            => Match(Result.IdAsync, func);
+        {
+            func.ThrowIfDefault(nameof(func));
+            return Case() ? Task.FromResult(_value) : AsyncStep.Await(func, _error);
+        }
 
         /// <summary>Returns the value on success. On failure, throws the exception <paramref name="failFunc"/> builds from the error.</summary>
         /// <typeparam name="TExn">The type of the exception.</typeparam>

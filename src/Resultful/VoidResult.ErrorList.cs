@@ -81,19 +81,27 @@ namespace Resultful
             if (Case()) successfulFunc(Unit.Value); else errorFunc(_error);
         }
 
-        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and does not wait for the task it returns.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and returns a task that completes when the call's task does.</summary>
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
-        /// <remarks>The task is dropped, so the method returns before the work finishes and an exception the task throws is lost. To wait for it, use <c>MatchAsync</c> and await the task.</remarks>
-        public void SwitchAsync(Func<Unit, Task> successfulFunc, Func<Error, Task> errorFunc)
-            => _ = Match(successfulFunc, errorFunc);
+        /// <remarks>The function's task is awaited, so an exception the function throws, or its task throws, faults the returned task. Before 0.3 this returned <c>void</c> and dropped the task.</remarks>
+        public Task SwitchAsync(Func<Unit, Task> successfulFunc, Func<Error, Task> errorFunc)
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            return Case() ? AsyncStep.Await(successfulFunc, Unit.Value) : AsyncStep.Await(errorFunc, _error);
+        }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and returns its task.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called on success.</param>
         /// <param name="errorFunc">Called with the error on failure.</param>
         public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<Error, Task<TResult>> errorFunc)
-            => Match(successfulFunc, errorFunc);
+        {
+            successfulFunc.ThrowIfDefault(nameof(successfulFunc));
+            errorFunc.ThrowIfDefault(nameof(errorFunc));
+            return Case() ? AsyncStep.Await(successfulFunc, Unit.Value) : AsyncStep.Await(errorFunc, _error);
+        }
 
         /// <summary>Two results are equal when both are successes, both failures with the same error, or both the zero value.</summary>
         /// <param name="obj">The object to compare with.</param>
