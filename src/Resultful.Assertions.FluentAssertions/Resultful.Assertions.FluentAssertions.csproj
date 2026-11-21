@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.Assertions.FluentAssertions</AssemblyName>
+    <RootNamespace>Resultful.Assertions.FluentAssertions</RootNamespace>
+    <Description>FluentAssertions 7.x for Resultful: result.Should().Succeed().Which, .Fail().WithMessage(...), .FailWith&lt;TLeaf&gt;() on results, validations, options and generated shapes, inside AssertionScope.</Description>
+    <PackageId>Resultful.Assertions.FluentAssertions</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;testing;assertions;fluentassertions</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <!-- The assertion sources are AwesomeAssertions' adapter's, compiled against FluentAssertions' namespaces. -->
+    <DefineConstants>$(DefineConstants);RESULTFUL_FLUENTASSERTIONS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Resultful.Assertions.AwesomeAssertions\ResultAssertions.cs" Link="ResultAssertions.cs" />
+    <Compile Include="..\Resultful.Assertions.AwesomeAssertions\ResultfulAssertionExtensions.cs" Link="ResultfulAssertionExtensions.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resultful directly as well: every package's dependency groups name the core at the lockstep version. -->
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <ProjectReference Include="..\Resultful.Assertions\Resultful.Assertions.csproj" />
+    <!-- ResultInspection is internal to each package that compiles it, so a different Resultful.Assertions can't break
+         this one (no InternalsVisibleTo); netstandard2.0 also needs the core's NotNullWhen copy. -->
+    <Compile Include="..\Resultful.Assertions\ResultInspection.cs" Link="ResultInspection.cs" />
+    <Compile Include="..\Resultful\Polyfills.cs" Link="Polyfills.cs" />
+    <!-- 7.x only: 8.0 and later are commercially licensed (decision 18). Built against the floor, tested on the central 7.2.0. -->
+    <PackageReference Include="FluentAssertions" VersionOverride="[7.0.0, 8.0.0)" />
+    <!-- One pair: the API is the same on every target. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

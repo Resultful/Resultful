@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests for Resultful.Assertions: every assertion's pass and fail case with pinned messages, CsCheck laws, generated
+       shapes, closed hierarchies and (net11.0) error unions from the real generator, and a scenario. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.Assertions.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.Assertions\Resultful.Assertions.csproj" />
+    <ProjectReference Include="..\Resultful.Assertions.TestDomain\Resultful.Assertions.TestDomain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>

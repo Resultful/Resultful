@@ -323,3 +323,14 @@ Or anywhere that accepts `Func<T, T, T>` is typically written to remove that arg
 There are Async operations available which can either accept the input as a Task and/or the `Func` given returns a `Task`. These should be available for all standard operations of the library such as `Map`, `Bind`, `Tee`.
 This has not been implemented for Plus or Fold as the Task could actually be in a variety of locations on the arguments. Everything desired could be achieved using other methods in the library or using methods in the TPL.
 Also some special ones unique for Async such as ones that convert `Result<Task<T>>` into `Task<Result<T>>`.
+
+## Assertions
+
+Three test packages assert on results, validations, options and generated shapes. Failure messages print errors with
+`Error.ToString()` only, never a leaf's own properties.
+
+- `Resultful.Assertions`, with no assertion library: `result.ShouldSucceed()` returns the value, `ShouldFail()` the
+  error, and `ShouldFail().ShouldFind<OrderNotFound>()` the leaf; a failure throws `ResultAssertionException`.
+- `Resultful.Assertions.AwesomeAssertions`: `result.Should().Succeed().Which…`,
+  `.Fail().WithMessage("order * not found").WithContext("loading")`, `.FailWith<NotFound>()`, inside `AssertionScope`.
+- `Resultful.Assertions.FluentAssertions`: the same, on FluentAssertions 7.x only (8 and later are commercially licensed).

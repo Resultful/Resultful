@@ -1,0 +1,26 @@
+#nullable enable
+FluentAssertions.ResultfulAssertionExtensions
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>.Which.get -> TError
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>.WithCause<TCause>(string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TCause!>!
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>.WithContext(string! expectedWildcardPattern, string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>!
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>.WithError<TLeaf>(string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TLeaf!>!
+Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>.WithMessage(string! expectedWildcardPattern, string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>!
+Resultful.Assertions.FluentAssertions.OptionAssertions<T>
+Resultful.Assertions.FluentAssertions.OptionAssertions<T>.BeNone(string! because = "", params object![]! becauseArgs) -> FluentAssertions.AndConstraint<Resultful.Assertions.FluentAssertions.OptionAssertions<T>!>!
+Resultful.Assertions.FluentAssertions.OptionAssertions<T>.BeSome(string! because = "", params object![]! becauseArgs) -> FluentAssertions.AndWhichConstraint<Resultful.Assertions.FluentAssertions.OptionAssertions<T>!, T>!
+Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>
+Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>.Fail(string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TError>!
+Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>.FailWith<TLeaf>(string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TLeaf!>!
+Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>.Succeed(string! because = "", params object![]! becauseArgs) -> FluentAssertions.AndWhichConstraint<Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>!, T>!
+Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>
+Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>.Fail(string! because = "", params object![]! becauseArgs) -> FluentAssertions.AndWhichConstraint<Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>!, System.Collections.Generic.IReadOnlyList<TError>!>!
+Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>.FailWith<TLeaf>(string! because = "", params object![]! becauseArgs) -> Resultful.Assertions.FluentAssertions.ErrorAssertions<TLeaf!>!
+Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>.Succeed(string! because = "", params object![]! becauseArgs) -> FluentAssertions.AndWhichConstraint<Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>!, T>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T, TError>(this Resultful.IResultShape<T, TError>! shape) -> Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T, TError>(this Resultful.IValidationShape<T, TError>! shape) -> Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T, TError>(this Resultful.Result<T, TError> result) -> Resultful.Assertions.FluentAssertions.ResultAssertions<T, TError>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T, TError>(this Resultful.Validation<T, TError> validation) -> Resultful.Assertions.FluentAssertions.ValidationAssertions<T, TError>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T>(this Resultful.Option<T> option) -> Resultful.Assertions.FluentAssertions.OptionAssertions<T>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T>(this Resultful.Result<T> result) -> Resultful.Assertions.FluentAssertions.ResultAssertions<T, Resultful.Error!>!
+static FluentAssertions.ResultfulAssertionExtensions.Should<T>(this Resultful.Validation<T> validation) -> Resultful.Assertions.FluentAssertions.ValidationAssertions<T, Resultful.Error!>!

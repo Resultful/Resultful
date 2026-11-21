@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The domain the three assertion test projects share: a closed hierarchy, generated result shapes (and, on net11.0, an
+    error union and a shape over it) from the real Resultful.Generators, a small order service that returns results,
+    and CsCheck generators. Nothing here references an assertion package.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <!-- CA1515: public so the test projects can use the types. CA1034: no nested types here, but kept consistent. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- The Roslyn 5.x build, as SDK 10 and 11 load from the package; only it writes [Union] for C# 15 unions. -->
+    <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>

@@ -73,6 +73,13 @@
   `ValidationFailed` answers 400 with a validation problem keyed by `ValidationKey`. Anything unmapped answers
   `DefaultStatusCode` (500). A 5xx has a fixed title, no `detail` outside Development, and is logged once at Error; a
   4xx `detail` is the mapped error's `Message`.
+- **`Resultful.Assertions`** (decision 18), with no assertion library: `ShouldSucceed()` returns the value and
+  `ShouldFail()` the error on every result, validation and generated shape; `ShouldFind<TLeaf>()` on an `Error`, an
+  `IErrorUnion` or an `IEnumerable<Error>` returns the leaf as `Error.TryFind` finds it; `ShouldBeSome()`/`ShouldBeNone()`
+  on `Option<T>`. A failure throws `ResultAssertionException`; its message prints errors with `Error.ToString()` only,
+  and a success value by its runtime type. **`Resultful.Assertions.AwesomeAssertions`**
+  (9.0 and later) and **`Resultful.Assertions.FluentAssertions`** (7.x only) add `result.Should().Succeed().Which`,
+  `.Fail().WithMessage(…).WithContext(…).WithCause<T>()`, `.FailWith<TLeaf>()`, `BeSome()`/`BeNone()`, inside `AssertionScope`.
 - **Opt-in operators** in `Resultful.Operators` (decision 9), each a call to a named method: `|` (`OrElse`, or
   `ValueOr` with a plain value), `||` (a lazy `OrElse`, through `operator true`/`false`, which also allows
   `if (result)`), `>>` (`Bind`) on `Result<T>`, `Result<T, TError>` and their tasks, and `&` (`Validation.Combine`)

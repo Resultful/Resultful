@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.Assertions</AssemblyName>
+    <RootNamespace>Resultful.Assertions</RootNamespace>
+    <Description>Test assertions for Resultful with no assertion library: ShouldSucceed and ShouldFail on results, validations, options and generated shapes, ShouldFind on their errors. Failure messages never print an error's own properties.</Description>
+    <PackageId>Resultful.Assertions</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;testing;assertions</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <!-- netstandard2.0 lacks NotNullWhen; the core's internal copies, compiled in. -->
+    <Compile Include="..\Resultful\Polyfills.cs" Link="Polyfills.cs" />
+    <!-- ResultInspection is internal; its tests read it directly. The adapters compile their own copy instead. -->
+    <InternalsVisibleTo Include="Resultful.Assertions.Tests" />
+    <!-- One pair: the API is the same on every target. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
