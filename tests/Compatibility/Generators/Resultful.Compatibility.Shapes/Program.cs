@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Compatibility.Domain;
 using Resultful;
 using Resultful.CodeAnalysis;
+using Resultful.LINQ;
 
 namespace Compatibility.Shapes
 {
@@ -29,6 +31,13 @@ namespace Compatibility.Shapes
             Console.WriteLine($"zero: {default(PlaceOrderResult).IsDefault}");
 #pragma warning restore RF0002
             Console.WriteLine($"closed: {Code(new OrderLocked(2))},{Code(new OrderNotFound(3))},{Code(null)},{Ship(new Pending())}");
+            // Decision 22, written as C# 12 needs it (net8.0 ignores OverloadResolutionPriority): the type argument named.
+            Result<int, OrderError> ensured = from o in ok from _ in Result.Ensure<OrderError>(o.Id > 0, new OrderNotFound(o.Id)) select o.Id * 10;
+            Result<int, OrderError> refused = from o in ok from _ in Result.Ensure<OrderError>(o.Id > 5, new OrderNotFound(o.Id)) select o.Id;
+            var later = (from o in ok from n in Later(o) select n + 1).GetAwaiter().GetResult();
+            var stopped = (from o in locked from n in Later(o) select n).GetAwaiter().GetResult();
+            var id = 1;
+            Console.WriteLine($"query: {Show(ensured)} {Show(refused)} {Show(later)} {Show(stopped)} {Result.Ensure(id > 5).Match(_ => "ok", e => e.Message)}");
             Console.WriteLine($"union: {typeof(PlaceOrderResult).GetInterfaces().Any(i => i.Name == "IUnion")}");
 #if DROP_RESULT
             // Built with DROP_RESULT, a result thrown away must fail the build with RF0001.
@@ -40,6 +49,14 @@ namespace Compatibility.Shapes
             Result<Order> checkout = declined;
             Console.WriteLine($"error union: {Checkout(declined)} {Checkout(new OrderNotFound(4))} {checkout.Error.GetType().Name} {string.Join("|", CheckoutError.Cases.Select(t => t.Name))}");
 #endif
+        }
+
+        private static string Show(Result<int, OrderError> r) => r.Match(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture), e => e.GetType().Name);
+
+        private static async Task<Result<int, OrderError>> Later(Order o)
+        {
+            await Task.Yield();
+            return o.Id + 100;
         }
 
         private static string Name(PlaceOrderResult r) =>

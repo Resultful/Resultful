@@ -40,5 +40,22 @@ namespace System.Runtime.CompilerServices
     internal static class IsExternalInit
     {
     }
+
+    // Result.Ensure (decision 22): its default message, and the priority that picks Result<Unit> for a leaf error on C# 13+.
+    [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
+    internal sealed class CallerArgumentExpressionAttribute : Attribute
+    {
+        public CallerArgumentExpressionAttribute(string parameterName) => ParameterName = parameterName;
+
+        public string ParameterName { get; }
+    }
+
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
+    internal sealed class OverloadResolutionPriorityAttribute : Attribute
+    {
+        public OverloadResolutionPriorityAttribute(int priority) => Priority = priority;
+
+        public int Priority { get; }
+    }
 }
 #endif

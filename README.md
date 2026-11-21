@@ -276,6 +276,37 @@ var result = await Result.SequenceAsync(() => LoadAsync(id))
     .CheckAsync(name => AuditAsync(name));
 ```
 
+### Query syntax, Ensure and lists (decision 22)
+
+With `using Resultful.LINQ;`, any step of a query can return a `Task` of a result, or on `net10.0` and later a
+`ValueTask`, and the steps mix freely: once one is async the query is a `Task<Result<…>>`. A failure ends it: later
+steps never start. A `Select`/`SelectMany` of your own for tasks, in a namespace enclosing your code, is found first and
+takes precedence.
+
+`Result.Ensure(condition, error)` is the step for a condition (there is no `where`); `Result.Ensure(total > 0)` fails
+with the message `"total > 0"`, the code, never its values. The leaf-error form `Ensure(c, new Leaf())` picks
+`Result<Unit>` only on C# 13+; on older C# or in typed or shape queries write the type argument:
+`Result.Ensure<ShopError>(c, new NotFound(id))`.
+
+```cs
+Task<Result<Receipt>> Place(OrderDto dto) =>
+    from order   in ParseOrder(dto)
+    from stock   in inventory.ReserveAsync(order)          // Task<Result<Stock>>
+    let  total   = pricing.Total(order)
+    from _       in Result.Ensure(total > 0, new EmptyOrder())
+    from payment in payments.ChargeAsync(order.Card, total) // ValueTask<Result<Payment>>
+    select new Receipt(order.Id, payment.Id);
+```
+
+Generated shapes are steps anywhere in a query, sync or before an async step. The query gives the core
+`Result<TOut, TError>`, which converts back to a shape on `return` or assignment. A shape after the first `from` is read
+through `IResultShape<T, TError>`, which boxes it: one allocation per step.
+
+`items.Traverse(f)` and `results.Collect()` give every value or the first failure in input order;
+`items.TraverseAll(f)` and `results.CollectAll()` give every value or every error, in input order, as
+`Validation.Combine` does. On `net10.0` and later `Validation.Combine([a, b, c])` takes any number of validations of
+one type. For async traversal see Streams.
+
 ## Opt-in operators
 
 `using Resultful.Operators;` adds C# 14 extension operators (decision 9). Each is a one-line call to the named

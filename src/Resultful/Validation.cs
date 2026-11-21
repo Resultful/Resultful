@@ -423,7 +423,7 @@ namespace Resultful
 
     /// <summary>Builders for <see cref="Validation{T, TError}"/> and <see cref="Validation{T}"/>, <c>Combine</c>, which gathers every error, and <c>ToResult</c>.</summary>
     /// <remarks>There is no <c>Bind</c> and no <c>+</c> on a validation (decision 14): checks that don't depend on each other are combined, and a step that needs their value comes after them, in a <c>Result</c>.</remarks>
-    public static class Validation
+    public static partial class Validation
     {
         /// <summary>Returns a success holding <paramref name="value"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
