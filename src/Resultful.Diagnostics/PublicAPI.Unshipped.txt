@@ -1,0 +1,14 @@
+#nullable enable
+Resultful.Diagnostics.ResultActivityExtensions
+Resultful.Diagnostics.ResultLoggingExtensions
+Resultful.Diagnostics.ResultfulDiagnostics
+const Resultful.Diagnostics.ResultfulDiagnostics.ErrorTypeTag = "resultful.error.type" -> string!
+static Resultful.Diagnostics.ResultActivityExtensions.RecordFailure<T, TError>(this Resultful.Result<T, TError!> result, System.Diagnostics.Activity? activity) -> Resultful.Result<T, TError!>
+static Resultful.Diagnostics.ResultActivityExtensions.RecordFailure<T>(this Resultful.Result<T> result, System.Diagnostics.Activity? activity) -> Resultful.Result<T>
+static Resultful.Diagnostics.ResultLoggingExtensions.LogFailure<T, TError>(this Resultful.Result<T, TError!> result, Microsoft.Extensions.Logging.ILogger! logger, Microsoft.Extensions.Logging.LogLevel level) -> Resultful.Result<T, TError!>
+static Resultful.Diagnostics.ResultLoggingExtensions.LogFailure<T>(this Resultful.Result<T> result, Microsoft.Extensions.Logging.ILogger! logger, Microsoft.Extensions.Logging.LogLevel level) -> Resultful.Result<T>
+static Resultful.Diagnostics.ResultLoggingExtensions.LogFailure<T>(this Resultful.Validation<T> result, Microsoft.Extensions.Logging.ILogger! logger, Microsoft.Extensions.Logging.LogLevel level) -> Resultful.Validation<T>
+Resultful.Diagnostics.ErrorUnionDiagnosticsExtensions
+static Resultful.Diagnostics.ErrorUnionDiagnosticsExtensions.LogFailure<T, TError>(this Resultful.Result<T, TError> result, Microsoft.Extensions.Logging.ILogger! logger, Microsoft.Extensions.Logging.LogLevel level) -> Resultful.Result<T, TError>
+static Resultful.Diagnostics.ErrorUnionDiagnosticsExtensions.RecordFailure<T, TError>(this Resultful.Result<T, TError> result, System.Diagnostics.Activity? activity) -> Resultful.Result<T, TError>
+static Resultful.Diagnostics.ResultActivityExtensions.RecordFailure<T>(this Resultful.Validation<T> result, System.Diagnostics.Activity? activity) -> Resultful.Validation<T>
