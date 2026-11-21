@@ -454,7 +454,7 @@ namespace Resultful
                 item => Task.FromResult(item.Some()),
                 async errors =>
                 {
-                    await errorAction.ThrowIfDefault(nameof(errorAction))(errors);
+                    await errorAction.ThrowIfDefault(nameof(errorAction))(errors).ConfigureAwait(false);
                     return Option<T>.None;
                 });
 
@@ -673,7 +673,7 @@ namespace Resultful
             Func<TResult, T, Task<TResult>> aggrFunc)
         {
             var seedVal = await seed.ConfigureAwait(false);
-            return await values.FoldAsync(seedVal, mergeFunc, aggrFunc);
+            return await values.FoldAsync(seedVal, mergeFunc, aggrFunc).ConfigureAwait(false);
         }
 
         /// <summary>Combines <paramref name="seed"/> and the values in order with <paramref name="aggrFunc"/>. If any result fails, returns a failure with the errors of every failed result, merged with <paramref name="mergeFunc"/>.</summary>
