@@ -327,10 +327,17 @@ namespace Resultful.Tests
                 Assert.That(widened.IsSuccess, Is.EqualTo(ok));
                 Assert.That(ok ? widened.Value : (object)widened.Error, Is.EqualTo(ok ? (object)v : new Leaf(code)));
 
+                Result<Unit> asUnit = widened.Map(_ => Unit.Value);
+                Result<Unit> fromErrorUnit = new Leaf(code);
+                Assert.That(fromErrorUnit.Error, Is.EqualTo(new Leaf(code)), "an Error converts to a failed Result<Unit>");
+                Assert.That(asUnit.Match(_ => (Error?)null, e => e), Is.EqualTo(ok ? null : new Leaf(code)), "Result<Unit> holds the same Error");
+
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); it still holds and converts the same Error.
                 VoidResult asVoid = widened.Map(_ => Unit.Value);
                 VoidResult fromError = new Leaf(code);
                 Assert.That(fromError.Match(_ => (Error?)null, e => e), Is.EqualTo(new Leaf(code)), "an Error converts to a failed VoidResult");
                 Assert.That(asVoid.Match(_ => (Error?)null, e => e), Is.EqualTo(ok ? null : new Leaf(code)), "VoidResult holds the same Error");
+#pragma warning restore CS0618
             });
         }
     }

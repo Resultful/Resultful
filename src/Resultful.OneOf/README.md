@@ -13,8 +13,10 @@ Option<Item> item = (await catalog.FindAsync(sku)).ToOption();   // OneOf<T, One
 OneOf.Types.None none = default(Resultful.None).ToOneOf();
 ```
 
-`ToOneOf` covers `Result<T>`, `Result<T, TError>`, `VoidResult`, `VoidResult<TError>` and `Option<T>`, and each has
-a `Task` form. `ToResult`, `ToVoidResult` and `ToOption` convert a `OneOf` (or a `Task` of one) back. A result's zero
+`ToOneOf` covers `Result<T>`, `Result<T, TError>` and `Option<T>`, and each has a `Task` form. `ToResult` and
+`ToOption` convert a `OneOf` (or a `Task` of one) back; a step with no value is a `Result<Unit>`, so a
+`OneOf<Unit, Error>` comes back through `ToResult`. The `VoidResult` forms and `ToVoidResult` still work but are
+obsolete (decision 14). A result's zero
 value (`default`) throws `InvalidOperationException`, as every other member that reads it does.
 
 Every `Resultful.*` package shares one version: use the same version of `Resultful` and `Resultful.OneOf`.

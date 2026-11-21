@@ -252,18 +252,18 @@ namespace Resultful
 
         /// <summary>On success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public VoidResult DiscardValue(Func<T, VoidResult> bindFunc)
+        public Result<Unit> DiscardValue(Func<T, Result<Unit>> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), e => Result.Fail(e));
 
         /// <summary>On success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public Task<VoidResult> DiscardValueAsync(Func<T, Task<VoidResult>> bindFunc)
+        public Task<Result<Unit>> DiscardValueAsync(Func<T, Task<Result<Unit>>> bindFunc)
             => Match(
                 bindFunc.ThrowIfDefault(nameof(bindFunc)),
                 error => Task.FromResult(Result.Fail(error)));
 
         /// <summary>Drops the value: a success becomes a success with no value, and a failure keeps the error.</summary>
-        public VoidResult DiscardValue()
+        public Result<Unit> DiscardValue()
             => Match(_ => Result.Ok(), e => Result.Fail(e));
 
         /// <summary>Returns the value on success, or the value <paramref name="func"/> gives for the error on failure.</summary>

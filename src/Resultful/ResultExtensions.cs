@@ -7,7 +7,7 @@ using Resultful.Utils;
 namespace Resultful
 {
 
-    /// <summary>Builders for <c>Result&lt;T&gt;</c>, <c>Result&lt;T, TError&gt;</c>, <c>VoidResult</c> and <c>VoidResult&lt;TError&gt;</c>, and extension methods on them, on tasks of them and on sequences of them.</summary>
+    /// <summary>Builders for <c>Result&lt;T&gt;</c> and <c>Result&lt;T, TError&gt;</c> (a step with no value is a <c>Result&lt;Unit&gt;</c>), and extension methods on them, on tasks of them and on sequences of them.</summary>
     /// <remarks>Arguments must not be null unless their documentation says otherwise. A null delegate, task or sequence throws <see cref="System.ArgumentNullException"/> or <see cref="System.NullReferenceException"/>, depending on the member, and some members only fail when they would use it. Exceptions thrown by a delegate are not caught.</remarks>
     public static partial class Result
     {
@@ -97,6 +97,50 @@ namespace Resultful
         /// <param name="value">The success value. <c>null</c> is allowed: it gives a success holding <c>null</c>.</param>
         public static Result<T> Ok<T>(this T value)
             => new Result<T>(value);
+
+        //Builder for Result<Unit, TError>: a step with no value (decision 14)
+        /// <summary>Returns a failure holding <paramref name="value"/>, as a result with no value.</summary>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The error.</param>
+        /// <remarks>Returned <c>VoidResult&lt;TError&gt;</c> before 0.3.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException">On <c>net11.0</c>, <paramref name="value"/> is an error union with no value (its zero value).</exception>
+        public static Result<Unit, TError> Fail<TError>(this TError value)
+            => new Result<Unit, TError>(value.ThrowIfNoError(nameof(value)));
+
+        /// <summary>Returns a failure holding <paramref name="errors"/>, as a result with no value.</summary>
+        /// <typeparam name="TError">The type of each error.</typeparam>
+        /// <param name="errors">The errors.</param>
+        /// <remarks>Returned <c>VoidResult&lt;IEnumerable&lt;TError&gt;&gt;</c> before 0.3.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
+        public static Result<Unit, IEnumerable<TError>> Fail<TError>(params TError[] errors)
+            => new Result<Unit, IEnumerable<TError>>(errors.ThrowIfNoError(nameof(errors)));
+
+        /// <summary>Returns a success holding <see cref="Unit.Value"/>: a step with no value that succeeded.</summary>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <remarks>Returned <c>VoidResult&lt;TError&gt;</c> before 0.3. <typeparamref name="TError"/> can't be inferred, so the caller names it, or writes <c>return Unit.Value;</c>.</remarks>
+        public static Result<Unit, TError> Ok<TError>()
+            => new Result<Unit, TError>(Unit.Value);
+
+        //Builder for Result<Unit>
+        /// <summary>Returns a failure holding <paramref name="error"/>, as a result with no value.</summary>
+        /// <param name="error">The error.</param>
+        /// <remarks>Returned <c>VoidResult</c> before 0.3.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="error"/> is <c>null</c>.</exception>
+        public static Result<Unit> Fail(Error error)
+            => new Result<Unit>(error.ThrowIfNoError(nameof(error)));
+
+        /// <summary>Returns a failure holding a <see cref="MessageError"/> with <paramref name="message"/>, as a result with no value.</summary>
+        /// <param name="message">The error's message.</param>
+        /// <remarks>Explicit, so a <see cref="string"/> is never an error by accident (decision 14). Same as <c>Result.Fail(Error.From(message))</c>. Returned <c>VoidResult</c> before 0.3.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="message"/> is <c>null</c>.</exception>
+        public static Result<Unit> Fail(string message)
+            => new Result<Unit>(Error.From(message.ThrowIfDefault(nameof(message))));
+
+        /// <summary>Returns a success holding <see cref="Unit.Value"/>: a step with no value that succeeded.</summary>
+        /// <remarks>Returned <c>VoidResult</c> before 0.3 (decision 14).</remarks>
+        public static Result<Unit> Ok()
+            => new Result<Unit>(Unit.Value);
 
 
         //Plus on Result<T, TError>
@@ -394,8 +438,9 @@ namespace Resultful
         /// <summary>Returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The result.</param>
+        [Obsolete(NamedErrors.VoidResultOfErrorObsolete)]
         public static VoidResult<TError> Flatten<TError>(this Result<VoidResult<TError>, TError> value)
-            => value.Match(Id, errors => errors.Fail());
+            => value.Match(Id, VoidResult<TError>.Failure);
 
         //Flatten on Result<T>
         /// <summary>Returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
@@ -406,8 +451,9 @@ namespace Resultful
 
         /// <summary>Returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <param name="value">The result.</param>
+        [Obsolete(NamedErrors.VoidResultObsolete)]
         public static VoidResult Flatten(this Result<VoidResult> value)
-            => value.Match(Id, errors => Fail(errors));
+            => value.Match(Id, VoidResult.Failure);
 
         //Unfold on Result<Option<T>>
         /// <summary>Swaps the layers: a success holding None gives None, a success holding a value gives that value as a success, and a failure gives the failure as an option with a value.</summary>

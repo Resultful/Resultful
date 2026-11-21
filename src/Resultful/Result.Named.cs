@@ -180,6 +180,13 @@ namespace Resultful
         internal const string NoConstructor
             = "The parameterless constructor gives the zero value, which is neither a success nor a failure. Create results with Result.Ok or Result.Fail.";
 
+        // [Obsolete] messages for the void types and the members that take or return them (decision 14, stack PR 12).
+        internal const string VoidResultObsolete
+            = "VoidResult is replaced by Result<Unit> (decision 14). Result.Ok() and Result.Fail return a Result<Unit>, and VoidResult converts to and from it implicitly. It is removed at the 1.0 review.";
+
+        internal const string VoidResultOfErrorObsolete
+            = "VoidResult<TError> is replaced by Result<Unit, TError> (decision 14). Result.Ok<TError>() and error.Fail() return a Result<Unit, TError>, and VoidResult<TError> converts to and from it implicitly. It is removed at the 1.0 review.";
+
         internal const string NoValidationConstructor
             = "The parameterless constructor gives the zero value, which is neither a success nor a failure. Create validations with Validation.Ok or Validation.Fail.";
 
