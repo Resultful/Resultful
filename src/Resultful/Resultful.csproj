@@ -17,6 +17,27 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
+  <!--
+    AnalysisLevel is latest-all for src/ (src/Directory.Build.props). 0.2.0 must be the same library as 0.2.0-beta06:
+    the same IL and the same public API (eng/il-diff.cs, eng/api-diff.cs). So a rule whose fix would change a method
+    body or add, remove or change a public member is turned off here instead, one entry per rule, each with its
+    reason. CA1000 and CA1716 are off for every project, in the root Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <!-- CA1002 (don't expose List<T>): the List<string> conversions on Result<T> and VoidResult are public API. -->
+    <NoWarn>$(NoWarn);CA1002</NoWarn>
+    <!-- CA1052 (static holder types should be static or sealed): sealing Unit changes a public type. -->
+    <NoWarn>$(NoWarn);CA1052</NoWarn>
+    <!-- CA1062 (validate arguments): a null check changes the method body; the hits are sequences, tasks and step arrays used unchecked or checked by a helper the rule can't see. -->
+    <NoWarn>$(NoWarn);CA1062</NoWarn>
+    <!-- CA1815 (override equality on value types): Equals and == on the result types would be new public API. -->
+    <NoWarn>$(NoWarn);CA1815</NoWarn>
+    <!-- CA2007 (ConfigureAwait): adding it to the six awaits without it changes method bodies. -->
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <!-- CA2225 (named alternates for operators): ToResult, FromT and the like would be new public API. -->
+    <NoWarn>$(NoWarn);CA2225</NoWarn>
+  </PropertyGroup>
+
   <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
@@ -30,8 +51,12 @@
       3.0.271 adds an empty netstandard2.0 group. eng/verify-package.cs enforces this floor.
     -->
     <PackageReference Include="OneOf" />
-    <!-- Every public API change shows up as a diff of PublicAPI.Unshipped.txt in review. -->
+    <!-- Every public API change shows up as a diff of a PublicAPI.Unshipped.txt in review. -->
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Single shared PublicAPI pair across all target frameworks (identical public surface in 0.2). -->
+  <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>

@@ -14,6 +14,15 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!--
+    Every analyzer rule is on for the packages (tests and samples stay at latest-recommended, from the root).
+    Rules a package can't fix are turned off in that package's project file, one entry per rule with its reason
+    (Resultful's are tied to the 0.2.0-beta06 IL and API freeze).
+  -->
+  <PropertyGroup>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="\" />

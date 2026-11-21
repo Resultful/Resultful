@@ -8,6 +8,9 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
-    <NoWarn>$(NoWarn);CA1716;CA1000</NoWarn>
+    <!-- CA1716 (identifiers shouldn't match keywords): Option (and the sample's Error) clash with VB keywords; renaming Option changes the public API. -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+    <!-- CA1000 (no static members on generic types): the static Option<T>.None is public API. -->
+    <NoWarn>$(NoWarn);CA1000</NoWarn>
   </PropertyGroup>
 </Project>
