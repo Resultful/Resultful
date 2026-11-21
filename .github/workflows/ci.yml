@@ -109,6 +109,8 @@ jobs:
         run: |
           set -euo pipefail
           version=$(basename ../../../artifacts/Resultful.[0-9]*.nupkg .nupkg); version=${version#Resultful.}
+          sed -i "s/^nuget Resultful = .*/nuget Resultful = $version/" paket.dependencies
+          grep -qx "nuget Resultful = $version" paket.dependencies
           dotnet tool install paket --version 12.0.0 --tool-path "$RUNNER_TEMP/paket"
           "$RUNNER_TEMP/paket/paket" clear-cache
           "$RUNNER_TEMP/paket/paket" install --force
