@@ -14,6 +14,18 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!--
+      One version for every package (lockstep, decision 11). Stable 0.2.0: beta06's API and code
+      (PublicAPI.Shipped.txt, package validation). beta07 is published first to try the release path and a
+      clean consumer; removing VersionSuffix then makes the stable release. CI's packed consumption run repacks the
+      same build with a run-unique -p:VersionSuffix.
+      A pre-release keeps the betaNN form: NuGet compares pre-release labels lexically, so beta.6 would sort below beta05.
+    -->
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionSuffix>beta07</VersionSuffix>
+  </PropertyGroup>
+
   <!--
     Every analyzer rule is on for the packages (tests and samples stay at latest-recommended, from the root).
     Rules a package can't fix are turned off in that package's project file, one entry per rule with its reason

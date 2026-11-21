@@ -1,17 +1,62 @@
 # Release notes
 
-## Unreleased
+## 0.2.0
+
+0.2.0 is `0.2.0-beta06`'s API as a stable release. No public member was added or removed, and every method body
+is the same as beta06's. On every pull request CI (`eng/build.cs`) runs the SDK's package validation, the public
+API analyzer against `PublicAPI.Shipped.txt`, the package check, an AnyCPU check of every packed DLL, and the
+packed-package consumers, including a library compiled against beta05 running on 0.2.0.
 
 ### Added
 
-- A `net11.0` target. The SDK is now 11.0.100.
+- A `net11.0` target, with the same code as `net10.0`. The SDK is now 11.0.100.
+- An XML doc comment on every public type and member, in the source. The package doesn't include the XML file
+  yet, so its file list stays beta06's.
+
+### Changed
+
+- Eight members now say in their signature that they accept `null`: five `Fail` overloads
+  (`Fail(params string[]?)`, `Fail(this IEnumerable<string>?)`, `Fail<T, TError>(params TError[]?)`,
+  `Fail<T, TError>(this IEnumerable<TError>?)`, `Fail<TError>(params TError[]?)`), which treat `null` as no errors,
+  and three implicit conversions to `VoidResult` and `VoidResult<TError>` (from `string[]?` and from `Unit?`), which
+  already accepted it. Only the nullable annotations changed, so passing `null` no longer gives a warning. Nothing
+  else changes for callers.
+- The assembly and file version stay 1.0.0.0, as in every published 0.2.0 pre-release, so a library compiled
+  against beta05 or earlier still loads 0.2.0's `Resultful.dll` on .NET Core. The package version is 0.2.0.
+
+### Known hazards
+
+These behave as they did in beta06. 0.3 fixes them.
+
+- **The zero value is a success.** `default(Result<T>)` and `new Result<T>()` are a success holding `default(T)`.
+  The same holds for `Result<T, TError>`, `VoidResult` and `VoidResult<TError>`, whose zero value succeeds with a
+  `null` `Unit`. A result field you forgot to assign, or a `default` in an array, reads as a success.
+- **A bare string converts to a failure.** `Result<string> r = "hello";` is a failure with the error `"hello"`,
+  not a success. Write `Result.Ok("hello")` or `"hello".Ok()`.
+- The instance `SwitchAsync` on the four result types returns `void`. It drops the callback's `Task`, so it can't
+  be awaited and an exception in that `Task` is lost. Await a `Match` that returns a `Task` instead.
+
+### 0.3 will break
+
+0.3 is a breaking release, in source and in binary. The zero value stops being a success
+([decision 10](docs/decisions/0010-default-is-not-success.md)), a bare string stops converting to an error, and the
+core drops its OneOf dependency ([decision 1](docs/decisions/0001-core-is-dependency-free.md)). Stay on `0.2.*`
+until you are ready to move; 0.3's release notes carry the migration.
 
 ### Build
 
 - CI hardened: least-privilege tokens, no persisted credentials, SDK from `global.json`, NuGet cache, format check,
   pack and package check on every pull request, zizmor, ls-lint, Dependabot.
-- Public API tracking with `Microsoft.CodeAnalysis.PublicApiAnalyzers`.
+- Public API tracking with `Microsoft.CodeAnalysis.PublicApiAnalyzers`, one shared list for every target.
 - The package check is a C# file-based app: `dotnet run eng/verify-package.cs -- <nupkg>`.
+- A characterisation suite pins 0.2's public behaviour, both hazards included. It runs against the project and
+  the packed package, under `tr-TR` and the invariant culture too.
+- `EnablePackageValidation`, and `eng/build.cs`'s `Pack` target fails unless every packed DLL is AnyCPU.
+- Consumers on `net8.0`, `net10.0`, `net11.0`, `net481` and Paket `strategy: min` restore the packed package alone
+  (`CompatNuGet`, `CompatNet481`, the `compatibility` job). `CompatUpgrade` runs a library compiled against beta05
+  on the packed package, on `net8.0` and `net10.0`.
+- One version per package, a release plan and a tag per release (`Resultful/v0.2.0`), from
+  [decision 11](docs/decisions/0011-package-family.md).
 - Publishing is a manual workflow run (`publish` input); merging to `main` never publishes.
 
 ## 0.2.0-beta06

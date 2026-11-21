@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A library compiled against the last published Resultful, 0.2.0-beta05 (assembly version 1.0.0.0), as a
+    third-party package would be. The app next to it runs it on the packed package (eng/build.cs, CompatUpgrade).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <!-- beta05's OneOf 3.0.178 floor brings audited NETStandard.Library 1.6.1 packages; that is why 0.2.0 exists. -->
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A floor, as a published library would declare it, so the app's exact packed version wins without NU1608. -->
+    <PackageReference Update="Resultful" Version="0.2.0-beta05" />
+    <PackageReference Remove="xunit.v3" />
+    <Compile Remove="$(MSBuildThisFileDirectory)../../Shared/*.cs" />
+  </ItemGroup>
+
+</Project>

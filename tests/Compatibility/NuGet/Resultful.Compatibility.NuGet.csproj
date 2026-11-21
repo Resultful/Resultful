@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    NuGet consumers of the packed package: net8.0 takes its netstandard2.0 asset, net10.0 and net11.0 their own.
+    Run by eng/build.cs's CompatNuGet target.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+  </PropertyGroup>
+
+</Project>
