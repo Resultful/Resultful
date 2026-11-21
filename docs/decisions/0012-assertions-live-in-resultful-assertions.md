@@ -14,6 +14,9 @@ generated:
 
 # 12. Assertions live in `Resultful.Assertions`
 
+> Partly superseded by [decision 18](0018-resultful-assertions-live-here.md): the assertions for Resultful's own
+> types now live in this repository. The OneOf and union packages stay where this decision put them.
+
 The maintainer chose the name. The `Resultful/FluentAssertions.Resultful` repository is renamed
 `Resultful/Resultful.Assertions`. It is the home for many assertion projects for result, option and union types
 (OneOf, Resultful and others), in every assertion library where the library's extension model makes that
