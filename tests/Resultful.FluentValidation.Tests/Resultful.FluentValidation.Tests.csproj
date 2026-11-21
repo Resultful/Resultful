@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests for Resultful.FluentValidation: xunit.v3 scenarios and CsCheck laws on FluentValidation's floor (12.0.0), run by
+       `dotnet test` (VSTest). The scenario carries a validation failure through to Resultful.AspNetCore's 400. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.FluentValidation.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.FluentValidation\Resultful.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.AspNetCore\Resultful.AspNetCore.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>
