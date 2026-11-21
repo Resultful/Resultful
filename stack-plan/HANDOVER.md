@@ -32,6 +32,16 @@ All green after review, except:
   endpoint filter and validation bridge as 20b) were reviewed only as a plan; give #76 a quick look.
 - Parked (closed PRs, branches kept): 04c spec harness #42, 04d Shop #44, 04d2 end-to-end #45.
 
+## Parallel batch (2026-11-21)
+
+Built as siblings on 20a's head, each reviewed and fixed, all green: 21 #78 (`stack-21-fv-diagnostics`; the old
+`stack-21-fluentvalidation-diagnostics` branch is obsolete), 21b #79 (`stack-21b-fsharp`, F# interop only), 21c #81
+(`stack-21c-assertions`, `ShouldFind<TLeaf>()`), 20c #80 (`stack-20c-hotchocolate`, HotChocolate ≥ 16.6.0, leaf
+fields opt-in). Before going on: restack them linearly on 20a in the order 21 → 21b → 21c (20c moves above 20b when
+20b exists, or stays on 21c until then) with `git rebase --onto`, resolving the shared-file blocks
+(`Directory.Packages.props`, `Resultful.slnx`, `docs/architecture.md`, `eng/verify-package.cs`, `README.md`,
+`RELEASE_NOTES.md`) by keeping every block; retarget each PR's base; force-push needs Ryan's go-ahead.
+
 ## Next, in order
 
 Decisions 18 and 19 (draft PR #77, on `main`, docs only) added 21b, 21c and 20c; their `GOAL.md` rows have the scope.
