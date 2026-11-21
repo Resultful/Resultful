@@ -24,3 +24,8 @@ Pre-release versions keep the `betaNN` form, because NuGet compares pre-release 
 
 Why: beta05 shipped a bogus `.NETFramework5.0` group and a `netstandard1.3` chain, and nothing noticed until a
 consumer's restore failed.
+
+A release is also compared with a baseline package (`release-check`): `eng/verify-package.cs --baseline` diffs the
+file list, the dependency groups and the other nuspec metadata, `eng/api-diff.cs` the public API per target, and
+`eng/il-diff.cs` every method body. Each compares what it finds with a committed list (`eng/*-diff-0.2.0.txt`),
+so an intended difference is listed in review and anything else fails.

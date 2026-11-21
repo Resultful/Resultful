@@ -48,23 +48,11 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', 'eng/build.cs') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Restore
-        run: dotnet restore Resultful.slnx
-
-      - name: Check formatting
-        run: dotnet format Resultful.slnx --no-restore --verify-no-changes
-
-      - name: Build
-        run: dotnet build Resultful.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
-
-      - name: Test
-        run: |
-          dotnet test tests/Resultful.Tests/Resultful.Tests.csproj --configuration Release --no-build --logger "trx" --results-directory TestResults
-          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net10.0
-          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net11.0
+      - name: Build, test, pack, and verify (Cake)
+        run: dotnet run eng/build.cs -- --target=CI --ci=true
 
       - name: Upload test results
         if: always()
@@ -73,45 +61,6 @@ jobs:
           name: test-results
           path: TestResults
           if-no-files-found: ignore
-
-      - name: Pack
-        run: dotnet pack src/Resultful/Resultful.csproj --configuration Release --no-build -p:ContinuousIntegrationBuild=true -o artifacts
-
-      - name: Check package shape
-        run: dotnet run eng/verify-package.cs -- artifacts/*.nupkg
-
-      # The packed run must not pick up a published or cached Resultful. So the same binaries are packed
-      # again with a run-unique version into their own folder, restored into an empty packages folder,
-      # and source mapping sends the Resultful package (exact id) to that folder only. The `artifacts` packages are untouched.
-      - name: Test consumption against packed package
-        run: |
-          suffix="ci.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
-          packed="$RUNNER_TEMP/packed"
-          dotnet pack src/Resultful/Resultful.csproj --configuration Release --no-build -p:ContinuousIntegrationBuild=true -p:VersionSuffix="$suffix" -o "$packed/source"
-          cat > "$packed/nuget.config" <<EOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration>
-            <packageSources>
-              <clear />
-              <add key="packed" value="$packed/source" />
-              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-            </packageSources>
-            <packageSourceMapping>
-              <packageSource key="packed">
-                <package pattern="Resultful" />
-              </packageSource>
-              <packageSource key="nuget.org">
-                <package pattern="*" />
-              </packageSource>
-            </packageSourceMapping>
-          </configuration>
-          EOF
-          project=tests/Resultful.Consumption/Resultful.Consumption.csproj
-          props=(--configuration Release -p:UsePackedPackage=true -p:VersionSuffix="$suffix")
-          dotnet restore "$project" --configfile "$packed/nuget.config" --packages "$packed/packages" -p:UsePackedPackage=true -p:VersionSuffix="$suffix"
-          dotnet build "$project" --no-restore "${props[@]}"
-          dotnet run --project "$project" --no-build -f net10.0 "${props[@]}"
-          dotnet run --project "$project" --no-build -f net11.0 "${props[@]}"
 
       - name: Upload packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
