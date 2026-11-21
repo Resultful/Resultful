@@ -106,12 +106,21 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
 
         // Final emit models
         var hierarchyEmits = hierarchies
-            .Select(static (h, _) => new EmitItem(h, null, false))
+            .Select(static (h, _) => new EmitItem(h, null, false, EquatableArray<string>.Empty))
             .WithTrackingName(EmitTrackingName);
+
+        // Decision 16 item 5: every emitted shape, so each converts from those with its success type whose error type it
+        // holds (a nested closed base or a union case). A shape's emit changes only when its own list of peers does.
+        var peers = shapes
+            .Where(static s => !HasError(s.Diagnostics))
+            .Select(static (s, _) => new ShapePeer(s.FullName, s.SuccessFullName, s.ErrorFullName, s.ErrorClosedAncestors, s.ManyErrors, s.AccessibilityRank))
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<ShapePeer>(arr.OrderBy(p => p.FullName, StringComparer.Ordinal).ToArray()));
 
         var shapeEmits = shapes
             .Combine(unionAvailable)
-            .Select(static (pair, _) => new EmitItem(null, pair.Left, pair.Right))
+            .Combine(peers)
+            .Select(static (pair, _) => new EmitItem(null, pair.Left.Left, pair.Left.Right, ShapeAnalyzer.PeersOf(pair.Left.Left, pair.Right)))
             .WithTrackingName(EmitTrackingName);
 
         context.RegisterSourceOutput(hierarchyEmits, static (spc, item) =>
@@ -128,7 +137,7 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             var s = item.Shape!;
             if (!HasError(s.Diagnostics))
             {
-                spc.AddSource(s.HintName, ResultShapeEmitter.Emit(s, item.UnionAvailable));
+                spc.AddSource(s.HintName, ResultShapeEmitter.Emit(s, item.UnionAvailable, item.Peers));
             }
         });
 

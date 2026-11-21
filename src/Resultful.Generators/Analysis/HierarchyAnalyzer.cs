@@ -95,7 +95,7 @@ internal static class HierarchyAnalyzer
         symbol.DeclaringSyntaxReferences.Length > 0 &&
         symbol.DeclaringSyntaxReferences.All(r => r.GetSyntax() is TypeDeclarationSyntax t && t.Modifiers.Any(SyntaxKind.PartialKeyword));
 
-    private static IEnumerable<string> ClosedAncestors(INamedTypeSymbol symbol)
+    internal static IEnumerable<string> ClosedAncestors(INamedTypeSymbol symbol)
     {
         for (var cur = symbol.BaseType; cur is not null; cur = cur.BaseType)
         {

@@ -8,7 +8,7 @@ internal static class ResultShapeEmitter
     private const string InlineAttr =
         "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
 
-    public static string Emit(ResultShapeModel m, bool unionAvailable)
+    public static string Emit(ResultShapeModel m, bool unionAvailable, EquatableArray<string> peers)
     {
         var w = new SourceWriter();
         w.OpenNamespaceAndEnclosing(m.Namespace, m.EnclosingTypes);
@@ -236,6 +236,16 @@ internal static class ResultShapeEmitter
                 w.WriteLine(InlineAttr);
                 w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => shape._inner.MapError(static e => {access});");
             }
+        }
+
+        // From another shape with the same success type (decision 16 item 5) whose error is a closed base nested under
+        // this one (cast up) or a case of this shape's error union (wrapped). The zero value converts to the zero value:
+        // only reading it throws (decision 10).
+        for (var i = 0; i < peers.Length; i++)
+        {
+            var inner = m.ManyErrors ? "other.AsValidation()" : "other.AsResult()";
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public static implicit operator {m.Name}({peers[i]} other) => other.IsDefault ? default({m.Name}) : new {m.Name}({inner}.MapError<{err}>(static e => {Wrap("e")}));");
         }
 
         // A note on the error that keeps the shape (decision 16 item 4), so it can still be switched over.
