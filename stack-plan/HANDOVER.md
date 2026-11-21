@@ -79,3 +79,7 @@ onto stack A in his local restack (port 11/12b/13c's `eng/*.cs` changes into `en
 
 `DECISIONS-TAKEN.md` (newest rows at the end; Ryan accepted every tracker recommendation on 2026-11-21).
 Live tracker: https://claude.ai/artifact/KPm6VvRnY2U7moMKKZufrE
+
+The tracker's "Handing over" section mirrors this file in short; each PR row there has its branch and what is
+left to do, and "Partly done" marks a green PR that still owes part of its scope (21b, 21c, 20c). Agent briefs to
+reuse are in `stack-plan/briefs/`.
