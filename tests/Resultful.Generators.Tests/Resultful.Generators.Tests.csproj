@@ -14,6 +14,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" />
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- A generated union's Cases and Wrap feed its JSON converter (ErrorUnionTests). -->
+    <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
   </ItemGroup>
 
   <ItemGroup>

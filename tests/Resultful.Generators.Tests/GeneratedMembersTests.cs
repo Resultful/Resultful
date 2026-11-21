@@ -38,14 +38,12 @@ public sealed class GeneratedMembersTests
         (ErrorUnion, "IErrorUnion: Error Error { get; }"),
         (ErrorUnion, "string Message, Error? Cause, Union WithContext(string message), bool TryFind<TFound>(out TFound? found)"),
         (ErrorUnion, "static IReadOnlyList<Type> Cases { get; }"),
+        (ErrorUnion, "static Union Wrap(Error leaf)"),
     ];
 
     private static readonly Dictionary<(string Declaration, string Member), string> Deferred = new()
     {
         [(ShapeOfHierarchy, "implicit operator Shape(OtherShape)")] = "15 (shape conversions)",
-        [(ErrorUnion, "IErrorUnion: Error Error { get; }")] = "13b (decision 17: error unions)",
-        [(ErrorUnion, "string Message, Error? Cause, Union WithContext(string message), bool TryFind<TFound>(out TFound? found)")] = "13b (decision 17: error unions)",
-        [(ErrorUnion, "static IReadOnlyList<Type> Cases { get; }")] = "13b (decision 17: error unions)",
     };
 
     private static readonly Dictionary<(string Declaration, string Member), Action<Emitted>> Checks = new()
@@ -187,6 +185,78 @@ public sealed class GeneratedMembersTests
         },
     };
 
+    // Error unions need C# 15 and net11.0's IUnion; on net10.0 the rows check that there are none to emit.
+    private static readonly Dictionary<(string Declaration, string Member), Action<UnionEmitted?>> UnionChecks = new()
+    {
+        [(ErrorUnion, "IErrorUnion: Error Error { get; }")] = u =>
+        {
+            if (u is null) return;
+            Assert.Contains(u.Union.Interfaces, i => i.ToDisplayString() == "Resultful.IErrorUnion");
+            var error = Assert.Single(u.Union.GetMembers("Error").OfType<IPropertySymbol>());
+            Assert.Equal("Resultful.Error", error.Type.ToDisplayString());
+            Assert.Null(error.SetMethod);
+        },
+        [(ErrorUnion, "string Message, Error? Cause, Union WithContext(string message), bool TryFind<TFound>(out TFound? found)")] = u =>
+        {
+            if (u is null) return;
+            Assert.Equal(SpecialType.System_String, Assert.Single(u.Union.GetMembers("Message").OfType<IPropertySymbol>()).Type.SpecialType);
+            Assert.Equal("Resultful.Error?", Assert.Single(u.Union.GetMembers("Cause").OfType<IPropertySymbol>()).Type.ToDisplayString());
+            var withContext = Assert.Single(u.Union.GetMembers("WithContext").OfType<IMethodSymbol>());
+            Assert.Equal(u.Union, withContext.ReturnType, SymbolEqualityComparer.Default);
+            Assert.Equal("message", Assert.Single(withContext.Parameters).Name);
+            var tryFind = Assert.Single(u.Union.GetMembers("TryFind").OfType<IMethodSymbol>());
+            Assert.Equal("TFound", Assert.Single(tryFind.TypeParameters).Name);
+            Assert.Equal(RefKind.Out, Assert.Single(tryFind.Parameters).RefKind);
+        },
+        [(ErrorUnion, "static IReadOnlyList<Type> Cases { get; }")] = u =>
+        {
+            if (u is null) return;
+            var cases = Assert.Single(u.Union.GetMembers("Cases").OfType<IPropertySymbol>());
+            Assert.True(cases.IsStatic);
+            Assert.Equal("System.Collections.Generic.IReadOnlyList<System.Type>", cases.Type.ToDisplayString());
+        },
+        [(ErrorUnion, "static Union Wrap(Error leaf)")] = u =>
+        {
+            if (u is null) return;
+            var wrap = Assert.Single(u.Union.GetMembers("Wrap").OfType<IMethodSymbol>());
+            Assert.True(wrap.IsStatic);
+            Assert.Equal(u.Union, wrap.ReturnType, SymbolEqualityComparer.Default);
+            Assert.Equal("Resultful.Error", Assert.Single(wrap.Parameters).Type.ToDisplayString());
+        },
+    };
+
+    public static TheoryData<string, string> UnionRows()
+    {
+        var rows = new TheoryData<string, string>();
+        foreach (var key in UnionChecks.Keys)
+        {
+            rows.Add(key.Declaration, key.Member);
+        }
+
+        return rows;
+    }
+
+    [Theory]
+    [MemberData(nameof(UnionRows))]
+    public void Each_error_union_member_is_emitted_as_decision_17_describes(string declaration, string member) =>
+        UnionChecks[(declaration, member)](UnionOutput.Value);
+
+    private static readonly Lazy<UnionEmitted?> UnionOutput = new(EmitUnion);
+
+    private sealed record UnionEmitted(INamedTypeSymbol Union);
+
+    private static UnionEmitted? EmitUnion()
+    {
+#if NET11_0_OR_GREATER
+        var output = GeneratorTestHarness.Run(GeneratorTestHarness.CreateCompilation([("Nested.cs", FixtureCatalog.NestedUnion)]), out _);
+        Assert.DoesNotContain(output.CompilationDiagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        return new UnionEmitted(output.OutputCompilation.GetTypeByMetadataName("Fixture.Nested.CheckoutError")!);
+#else
+        Assert.Null(GeneratorTestHarness.CreateCompilation([("Empty.cs", "")]).GetTypeByMetadataName("System.Runtime.CompilerServices.IUnion"));
+        return null;
+#endif
+    }
+
     public static TheoryData<string, string> Rows()
     {
         var rows = new TheoryData<string, string>();
@@ -209,7 +279,7 @@ public sealed class GeneratedMembersTests
     public void Every_member_of_decision_16_is_checked_or_deferred_once()
     {
         var expected = Decision16.Order().ToList();
-        var accounted = Checks.Keys.Concat(Deferred.Keys).Order().ToList();
+        var accounted = Checks.Keys.Concat(UnionChecks.Keys).Concat(Deferred.Keys).Order().ToList();
         Assert.Equal(expected, accounted);
     }
 
@@ -235,7 +305,8 @@ public sealed class GeneratedMembersTests
         Has(Type("Resultful.Result"), "Ok", "Fail", "AsResult", "WithContext");
         Has(Type("Resultful.Validation"), "Ok", "Fail", "ToResult");
         Has(Type("Resultful.ErrorExtensions"), "WithContext");
-        Has(Type("Resultful.Error"), "Causes");
+        Has(Type("Resultful.Error"), "Causes", "TryFind", "Message", "Cause");
+        Has(Type("Resultful.IErrorUnion"), "Error");
         Has(Type("Resultful.Unit"), "Value");
         Assert.NotNull(Type("Resultful.CodeAnalysis.MustObserveAttribute"));
     }

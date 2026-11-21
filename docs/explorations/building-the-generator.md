@@ -36,6 +36,9 @@ in `AnalyzerReleases.Shipped.md` and `AnalyzerReleases.Unshipped.md`.
 | `RFG0004` | error | A `public` shape exposes a leaf that's less accessible than the shape. | The union constructor and `TryGetValue(out Leaf)` would be CS0051. |
 | `RFG0005` | error | A declaration that carries `[ClosedHierarchy]` or `[ResultShape]` is nested in a type that isn't `partial`. | The generator can't reopen the enclosing type. |
 | `RFG0006` | error | `[ResultShape]` is on something other than a `readonly partial struct`, or `[ClosedHierarchy]` on something other than an `abstract partial` record or class. | The generator can't add members. |
+| `RFG0007` | error | A shape's error type is a union with a case that isn't an `Error` or a union of them ([decision 17](../decisions/0017-error-unions.md)). | The union's cases are the shape's leaves. |
+| `RFG0008` | error | Two leaves of one hierarchy, or two innermost leaves of one error union, share a simple name. | The JSON `"type"` would be ambiguous. |
+| `RFG0009` | warning | A `partial union` of errors holds a nested union that isn't `partial` and doesn't implement `IErrorUnion` with `WithContext`. | The generated `Error` and `WithContext` couldn't reach its leaves, so the union gets no members. |
 
 **Verified** on SDK 11.0.100 with a probe (`temp/gendesign-probe`):
 
@@ -97,11 +100,32 @@ each one.
    | `[ClosedHierarchy]` models | `Resultful.Hierarchies` |
    | `[ResultShape]` models | `Resultful.Shapes` |
    | Union available | `Resultful.UnionAvailable` |
+   | Error union models | `Resultful.ErrorUnions` |
    | Final emit models | `Resultful.Emit` |
 
 7. **Error types from referenced assemblies.** Walking a referenced assembly needs the compilation, which changes
    on every edit. That walk runs only for shapes whose error type comes from metadata. It returns an
    `EquatableArray` of cases, so the steps after it stay cached when nothing changed.
+
+## Error unions
+
+On .NET 11 a C# 15 union can be a shape's error type ([decision 17](../decisions/0017-error-unions.md)). The
+generator reads unions through symbols only (a struct that implements `IUnion`, one public constructor per case), so
+the build against Roslyn 4.14 needs no union syntax.
+
+- **A union error.** The union's direct cases are the shape's leaves: a union constructor, `TryGetValue(out Case)`,
+  an implicit conversion and a `Match` parameter each. A nested union stays one case; its own leaves still get an
+  implicit conversion into the shape, because C# won't chain leaf → inner union → shape.
+- **A `partial union` whose cases are all errors** gets `IErrorUnion`: `Error` (a nested union unwraps to its leaf),
+  `Message`, `Cause`, `TryFind<TFound>`, `WithContext` (per direct case, rewrapped, so every union keeps its type),
+  `Cases` (the innermost leaves) and `Wrap(Error leaf)`, which `Resultful.Text.Json` reads through. Cases are
+  matched most-derived first; a `[ClosedHierarchy]` case contributes its own `Cases`; a member the union declares
+  itself isn't generated. A union that isn't `partial`, implements `IErrorUnion` itself, holds a case that isn't an
+  error, or has `RFG0008` or `RFG0009` gets nothing; a shape over it has no `WithContext` and no conversion to
+  `Result<T>`, and reports `RFG0008` itself when the union can't.
+- **Adding a case is a breaking change.** A new case, like a new hierarchy leaf, adds a parameter to the shape's
+  `Match`. Callers in other assemblies built against the old shape fail with `MissingMethodException` until they are
+  rebuilt; `ErrorUnionTests` pins this.
 
 ## Assembly size
 

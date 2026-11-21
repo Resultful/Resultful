@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Resultful.Generators.Diagnostics;
 
-// RFG0001-RFG0008 (decision 16 item 10, decision 17), listed in AnalyzerReleases.Unshipped.md.
+// RFG0001-RFG0009 (decision 16 item 10, decision 17), listed in AnalyzerReleases.Unshipped.md.
 internal static class DiagnosticDescriptors
 {
     private const string Category = "Resultful.Generators";
@@ -66,8 +66,16 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor DuplicateLeafSimpleName = new(
         id: "RFG0008",
         title: "Two leaves of one hierarchy or union share a simple name, so the JSON \"type\" is ambiguous",
-        messageFormat: "[ClosedHierarchy] '{0}' has more than one leaf named '{1}' ({2}); the JSON \"type\" discriminator would be ambiguous, so rename one",
+        messageFormat: "'{0}' has more than one leaf named '{1}' ({2}); the JSON \"type\" discriminator would be ambiguous, so rename one",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NestedUnionNotExtendable = new(
+        id: "RFG0009",
+        title: "A partial union of errors holds a union the generator can't extend",
+        messageFormat: "Union '{0}' gets no IErrorUnion members: its case '{1}' is a union that isn't partial and doesn't implement IErrorUnion with WithContext",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 }

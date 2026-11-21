@@ -22,6 +22,8 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
     public const string ShapesTrackingName = "Resultful.Shapes";
     /// <summary>The tracking name of the check for <c>[Union]</c> support.</summary>
     public const string UnionAvailableTrackingName = "Resultful.UnionAvailable";
+    /// <summary>The tracking name of the error union models.</summary>
+    public const string ErrorUnionsTrackingName = "Resultful.ErrorUnions";
     /// <summary>The tracking name of the emitted sources.</summary>
     public const string EmitTrackingName = "Resultful.Emit";
 
@@ -73,6 +75,27 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             .Select(static (pair, _) => ShapeAnalyzer.ResolveResultShape(pair.Left!, pair.Right))
             .WithTrackingName(ShapesTrackingName);
 
+        // Stage B3 (decision 17): partial unions whose cases are all errors. A union isn't attributed, so the syntax
+        // filter keeps partial type declarations that aren't a class, struct, record or interface (a 4.14 build has no
+        // UnionDeclarationSyntax) and the symbol decides.
+        var errorUnions = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (node, _) =>
+                    node is TypeDeclarationSyntax tds and not (ClassDeclarationSyntax or StructDeclarationSyntax or RecordDeclarationSyntax or InterfaceDeclarationSyntax) &&
+                    tds.Modifiers.Any(SyntaxKind.PartialKeyword),
+                transform: static (ctx, ct) => UnionAnalyzer.ExtractErrorUnion(ctx, ct))
+            .Where(static u => u is not null)
+            .Select(static (u, _) => u!)
+            .WithTrackingName(ErrorUnionsTrackingName);
+
+        context.RegisterSourceOutput(errorUnions, static (spc, u) =>
+        {
+            if (u.Diagnostics.Length == 0)
+            {
+                spc.AddSource(u.HintName, ErrorUnionEmitter.Emit(u));
+            }
+        });
+
         // Final emit models
         var hierarchyEmits = hierarchies
             .Select(static (h, _) => new EmitItem(h, null, false))
@@ -108,8 +131,9 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             .Select(static (h, _) => h.Diagnostics)
             .Collect()
             .Combine(shapes.Select(static (s, _) => s.Diagnostics).Collect())
+            .Combine(errorUnions.Select(static (u, _) => u.Diagnostics).Collect())
             .Select(static (pair, _) => new EquatableArray<DiagnosticInfo>(
-                pair.Left.SelectMany(d => d).Concat(pair.Right.SelectMany(d => d)).ToArray()));
+                pair.Left.Left.SelectMany(d => d).Concat(pair.Left.Right.SelectMany(d => d)).Concat(pair.Right.SelectMany(d => d)).ToArray()));
 
         context.RegisterSourceOutput(diagnostics.Combine(context.CompilationProvider), static (spc, pair) =>
         {
