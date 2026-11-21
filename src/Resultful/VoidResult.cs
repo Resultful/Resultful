@@ -46,6 +46,12 @@ namespace Resultful
                 result => Result.Ok<TError>(),
                 error => error.Fail());
 
+        /// <summary>Converts to a result whose value is <see cref="Unit"/>: a success holds <see cref="Unit.Value"/>, and a failure keeps its error.</summary>
+        /// <param name="value">The result to convert.</param>
+        /// <exception cref="InvalidOperationException"><paramref name="value"/> is the zero value (<c>default</c>).</exception>
+        public static implicit operator Result<Unit, TError>(VoidResult<TError> value)
+            => value.Match(u => u.Ok<Unit, TError>(), e => e.Fail<Unit, TError>());
+
         /// <summary>Converts an error to a failure.</summary>
         /// <param name="value">The error.</param>
         public static implicit operator VoidResult<TError>(TError value)

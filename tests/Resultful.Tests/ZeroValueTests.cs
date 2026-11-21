@@ -22,6 +22,10 @@ namespace Resultful.Tests
         static readonly Result<int> ZeroList;
         static readonly VoidResult<string> ZeroVoid;
         static readonly VoidResult ZeroVoidList;
+#pragma warning disable CS0649 // A readonly struct field never assigned: the zero value is the point.
+        static readonly Validation<int, string> ZeroValidation;
+        static readonly Validation<int> ZeroValidationList;
+#pragma warning restore CS0649
 
         static readonly Result<int, string> Ok = 1;
         static readonly Result<int, string> Failed = "bad";
@@ -206,6 +210,41 @@ namespace Resultful.Tests
             new("VoidResult", "Then", () => ZeroVoidList.Then(() => Result.Ok())),
             new("VoidResult", "Then value", () => ZeroVoidList.Then(() => 1.Ok())),
 
+            // Validation<T, TError> (10)
+            new("Validation`2", "Value", () => ZeroValidation.Value),
+            new("Validation`2", "Errors", () => ZeroValidation.Errors),
+            new("Validation`2", "TryGetValue", () => ZeroValidation.TryGetValue(out _)),
+            new("Validation`2", "TryGetErrors", () => ZeroValidation.TryGetErrors(out _)),
+            new("Validation`2", "Deconstruct", () => { var (a, b, c) = ZeroValidation; return (a, b, c); }),
+            new("Validation`2", "Match", () => ZeroValidation.Match(v => v, _ => 0)),
+            new("Validation`2", "Switch", () => { ZeroValidation.Switch(_ => { }, _ => { }); return null; }),
+            new("Validation`2", "Map", () => ZeroValidation.Map(v => v)),
+            new("Validation`2", "MapError", () => ZeroValidation.MapError(e => e)),
+            new("Validation`2", "Tee", () => ZeroValidation.Tee(_ => { })),
+            new("Validation`2", "ToResult", () => ZeroValidation.ToResult(es => es[0])),
+            new("Validation`2", "ToResult ValidationFailed", () => default(Validation<int, Error>).ToResult()),
+            new("Validation`2", "Combine", () => Validation.Combine(Validation.Ok<int, string>(1), ZeroValidation)),
+            new("Validation`2", "Combine first", () => Validation.Combine(ZeroValidation, Validation.Fail<int, string>("e"), (a, b) => a + b)),
+            new("Validation`2", "implicit from Result", () => { Validation<int, string> v = default(Result<int, string>); return v; }),
+
+            // Validation<T> (10)
+            new("Validation`1", "Value", () => ZeroValidationList.Value),
+            new("Validation`1", "Errors", () => ZeroValidationList.Errors),
+            new("Validation`1", "TryGetValue", () => ZeroValidationList.TryGetValue(out _)),
+            new("Validation`1", "TryGetErrors", () => ZeroValidationList.TryGetErrors(out _)),
+            new("Validation`1", "Deconstruct", () => { var (a, b, c) = ZeroValidationList; return (a, b, c); }),
+            new("Validation`1", "Match", () => ZeroValidationList.Match(v => v, _ => 0)),
+            new("Validation`1", "Switch", () => { ZeroValidationList.Switch(_ => { }, _ => { }); return null; }),
+            new("Validation`1", "Map", () => ZeroValidationList.Map(v => v)),
+            new("Validation`1", "MapError", () => ZeroValidationList.MapError(e => e)),
+            new("Validation`1", "Tee", () => ZeroValidationList.Tee(_ => { })),
+            new("Validation`1", "ToResult", () => ZeroValidationList.ToResult()),
+            new("Validation`1", "ToResult", () => ZeroValidationList.ToResult(es => es[0])),
+            new("Validation`1", "Combine", () => Validation.Combine(Validation.Ok(1), ZeroValidationList, (a, b) => a + b)),
+            new("Validation`1", "implicit from Result", () => { Validation<int> v = default(Result<int>); return v; }),
+            new("VoidResult", "implicit Result<Unit>", () => { Result<Unit> r = ZeroVoidList; return r; }),
+            new("VoidResult`1", "implicit Result<Unit, TError>", () => { Result<Unit, string> r = ZeroVoid; return r; }),
+
             // With no steps these would return the zero value unread, so they check it first.
             new("Result`2", "Then no steps", () => Zero.Then()),
             new("Result`2", "Check no checks", () => Zero.Check()),
@@ -238,7 +277,9 @@ namespace Resultful.Tests
                 Result<int> L(int s) => s switch { 0 => default, 1 => v.Ok(), _ => Result.Fail<int>("e" + v) };
                 VoidResult<string> V(int s) => s switch { 0 => default, 1 => Result.Ok<string>(), _ => ("e" + v).Fail() };
                 VoidResult W(int s) => s switch { 0 => default, 1 => Result.Ok(), _ => Result.Fail("e" + v) };
-                object[] left = [R(a), L(a), V(a), W(a)], right = [R(b), L(b), V(b), W(b)];
+                Validation<int, string> X(int s) => s switch { 0 => default, 1 => v, _ => Validation.Fail<int, string>(["e" + v, "f"]) };
+                Validation<int> Y(int s) => s switch { 0 => default, 1 => v, _ => Validation.Fail<int>([Error.From("e" + v), Error.From("f")]) };
+                object[] left = [R(a), L(a), V(a), W(a), X(a), Y(a)], right = [R(b), L(b), V(b), W(b), X(b), Y(b)];
                 // Since 09 the Error (i = 1, 3) compares by value, so two failures built apart with the same message are equal
                 // (0.2 compared the error lists by reference).
                 for (var i = 0; i < left.Length; i++)
@@ -249,7 +290,7 @@ namespace Resultful.Tests
                     if (x.Equals(y)) Assert.That(x.GetHashCode(), Is.EqualTo(y.GetHashCode()));
                     Assert.That(x.ToString(), a == 0 ? Does.StartWith("<default ") : Does.StartWith("Resultful."));
                     Assert.That(Display(x), a == 0 ? Does.StartWith("<default ") : a == 1 ? Does.StartWith("Ok") : Does.StartWith("Fail("));
-                    if (i < 2)
+                    if (i is < 2 or > 3)
                     {
                         var flags = ((bool)x.GetType().GetProperty("IsSuccess")!.GetValue(x)!, (bool)x.GetType().GetProperty("IsFailure")!.GetValue(x)!);
                         Assert.That(flags, Is.EqualTo((a == 1, a == 2)));
@@ -269,6 +310,8 @@ namespace Resultful.Tests
         [TestCase(typeof(Result<int>), "Result`1")]
         [TestCase(typeof(VoidResult<string>), "VoidResult`1")]
         [TestCase(typeof(VoidResult), "VoidResult")]
+        [TestCase(typeof(Validation<int, string>), "Validation`2")]
+        [TestCase(typeof(Validation<int>), "Validation`1")]
         public void Members_that_read_the_zero_value_are_all_listed(Type type, string name)
         {
             var listed = Calls.Where(c => c.Type == name).Select(c => c.Member).ToHashSet();
@@ -288,6 +331,12 @@ namespace Resultful.Tests
             Assert.That(ZeroList.ToString(), Is.EqualTo("<default Result>"));
             Assert.That(ZeroVoid.ToString(), Is.EqualTo("<default VoidResult>"));
             Assert.That(ZeroVoidList.ToString(), Is.EqualTo("<default VoidResult>"));
+            Assert.That(ZeroValidation.ToString(), Is.EqualTo("<default Validation>"));
+            Assert.That(ZeroValidationList.ToString(), Is.EqualTo("<default Validation>"));
+            Assert.That(Display(ZeroValidationList), Is.EqualTo("<default Validation>"));
+            Assert.That(Display(Validation.Fail<int>([Error.From("a"), Error.From("b")])), Is.EqualTo("Fail([MessageError: a; MessageError: b])"));
+            Assert.That(Display(Validation.Ok<int, string>(1)), Is.EqualTo("Ok(1)"));
+            Assert.That(ZeroValidation == default, Is.True);
             Assert.That(Ok.ToString(), Is.EqualTo("Resultful.Result`2[System.Int32,System.String]"), "a success or failure prints as in 0.2");
             Assert.That(Display(Zero), Is.EqualTo("<default Result>"));
             Assert.That(Display(Ok), Is.EqualTo("Ok(1)"));
@@ -311,12 +360,14 @@ namespace Resultful.Tests
         [TestCase(typeof(Result<int>))]
         [TestCase(typeof(VoidResult<string>))]
         [TestCase(typeof(VoidResult))]
+        [TestCase(typeof(Validation<int, string>))]
+        [TestCase(typeof(Validation<int>))]
         public void The_parameterless_constructor_is_an_obsolete_error_and_throws(Type type)
         {
             var ctor = type.GetConstructor(Type.EmptyTypes)!;
             var obsolete = ctor.GetCustomAttribute<ObsoleteAttribute>();
             Assert.That(obsolete?.IsError, Is.True);
-            Assert.That(obsolete!.Message, Does.Contain("Result.Ok or Result.Fail"));
+            Assert.That(obsolete!.Message, Does.Contain(type.Name.StartsWith("Validation", StringComparison.Ordinal) ? "Validation.Ok or Validation.Fail" : "Result.Ok or Result.Fail"));
             Assert.That(() => ctor.Invoke(null), Throws.InstanceOf<TargetInvocationException>().With.InnerException.InstanceOf<InvalidOperationException>());
         }
 
