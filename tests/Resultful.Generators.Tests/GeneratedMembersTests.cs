@@ -28,6 +28,8 @@ public sealed class GeneratedMembersTests
         (ShapeOfHierarchy, "bool TryGetValue(out T value), bool TryGetError(out TError error)"),
         (ShapeOfHierarchy, "TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Leaf, TResult> on<Leaf>, …)"),
         (ShapeOfHierarchy, "Result<TOut, TError> Map<TOut>(…), Result<TOut, TError> Bind<TOut>(…)"),
+        // Decision 22 item 3: query syntax from a shape; none on a ManyErrors shape (no query syntax over Validation).
+        (ShapeOfHierarchy, "Result<TOut, TError> Select<TOut>(…), Result<TOut, TError> SelectMany<TNext, TOut>(…)"),
         (ShapeOfHierarchy, "Shape WithContext(string message)"),
         (ShapeOfHierarchy, "Result<T, TError> AsResult()"),
         (ShapeOfHierarchy, "implicit operator Shape(T), implicit operator Shape(Leaf) per leaf"),
@@ -133,6 +135,21 @@ public sealed class GeneratedMembersTests
         {
             Assert.Equal("Resultful.Result<TOut, Fixture.Flat.OrderError>", Single(e, e.Shape, "Map").ReturnType.ToDisplayString());
             Assert.Equal("Resultful.Result<TOut, Fixture.Flat.OrderError>", Single(e, e.Shape, "Bind").ReturnType.ToDisplayString());
+        },
+        [(ShapeOfHierarchy, "Result<TOut, TError> Select<TOut>(…), Result<TOut, TError> SelectMany<TNext, TOut>(…)")] = e =>
+        {
+            var select = Single(e, e.Shape, "Select");
+            Assert.Equal("Resultful.Result<TOut, Fixture.Flat.OrderError>", select.ReturnType.ToDisplayString());
+            Assert.Equal("System.Func<Fixture.Flat.Order, TOut>", Assert.Single(select.Parameters).Type.ToDisplayString());
+            var selectMany = Single(e, e.Shape, "SelectMany");
+            Assert.Equal(["TNext", "TOut"], selectMany.TypeParameters.Select(t => t.Name));
+            Assert.Equal("Resultful.Result<TOut, Fixture.Flat.OrderError>", selectMany.ReturnType.ToDisplayString());
+            Assert.Equal(
+                ["System.Func<Fixture.Flat.Order, Resultful.Result<TNext, Fixture.Flat.OrderError>>", "System.Func<Fixture.Flat.Order, TNext, TOut>"],
+                selectMany.Parameters.Select(p => p.Type.ToDisplayString()));
+            Assert.Single(e.ValuelessShape.GetMembers("SelectMany").OfType<IMethodSymbol>(), m => IsGenerated(e, m));
+            Assert.Empty(e.ManyShape.GetMembers("Select"));
+            Assert.Empty(e.ManyShape.GetMembers("SelectMany"));
         },
         [(ShapeOfHierarchy, "Shape WithContext(string message)")] = e =>
         {
@@ -318,6 +335,7 @@ public sealed class GeneratedMembersTests
         Has(Type("Resultful.IResultShape`2"), "AsResult");
         Has(Type("Resultful.IValidationShape`2"), "AsValidation");
         Has(Type("Resultful.Result"), "Ok", "Fail", "AsResult", "WithContext");
+        Has(Type("Resultful.LINQ.LinqExtensions"), "SelectMany");
         Has(Type("Resultful.Validation"), "Ok", "Fail", "ToResult");
         Has(Type("Resultful.ErrorExtensions"), "WithContext");
         Has(Type("Resultful.Error"), "Causes", "TryFind", "Message", "Cause");

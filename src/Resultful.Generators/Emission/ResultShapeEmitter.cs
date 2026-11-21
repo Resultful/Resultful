@@ -289,6 +289,14 @@ internal static class ResultShapeEmitter
             w.WriteLine(InlineAttr);
             w.WriteLine($"public global::Resultful.Result<TOut, {err}> Bind<TOut>(global::System.Func<{ok}, global::Resultful.Result<TOut, {err}>> bind) => _inner.Bind(bind);");
 
+            // Query syntax from a shape (decision 22 item 3): select and a second from. A query gives the core result, which
+            // converts back to this shape, or any shape with the same error, where it is returned or assigned. Bind is the
+            // two-argument SelectMany; queries never call it.
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public global::Resultful.Result<TOut, {err}> Select<TOut>(global::System.Func<{ok}, TOut> map) => _inner.Map(map);");
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public global::Resultful.Result<TOut, {err}> SelectMany<TNext, TOut>(global::System.Func<{ok}, global::Resultful.Result<TNext, {err}>> bind, global::System.Func<{ok}, TNext, TOut> map) => global::Resultful.LINQ.LinqExtensions.SelectMany(_inner, bind, map);");
+
             // Match
             if (hasLeaves)
             {
