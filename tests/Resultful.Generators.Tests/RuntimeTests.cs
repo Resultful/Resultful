@@ -10,7 +10,7 @@ namespace Resultful.Generators.Tests;
 // on net11.0 a union shape also has one TryGetValue per case, so `out var` is ambiguous (CS0121).
 public sealed class RuntimeTests
 {
-    private const string Probe = """
+    internal const string Probe = """
         using System;
         using System.Linq;
         using Resultful;

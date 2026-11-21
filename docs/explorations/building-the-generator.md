@@ -127,6 +127,19 @@ the build against Roslyn 4.14 needs no union syntax.
   `Match`. Callers in other assemblies built against the old shape fail with `MissingMethodException` until they are
   rebuilt; `ErrorUnionTests` pins this.
 
+## Packaging
+
+`Resultful.Generators` is an analyzer package (`developmentDependency`, no `lib/`) with one build per compiler:
+`analyzers/dotnet/roslyn4.14/cs/` (SDK 9.0.3xx; it never emits `[Union]`) and `analyzers/dotnet/roslyn5.0/cs/`
+(`Resultful.Generators.Roslyn5`, the same sources against Roslyn 5.0.0, the lowest 5.x, so SDK 10 reports no
+CS9057; it decides `[Union]` from the compilation). The SDK reads the folder as `roslyn<major>.<minor>` and loads the
+highest one not newer than its compiler. **Checked:** a `roslyn5.x` folder isn't parsed as a version, so SDK 10 and
+11 loaded it next to the 4.14 build and every member was generated twice (CS0111). `eng/verify-package.cs` checks the
+two folders and that each DLL's `Microsoft.CodeAnalysis` reference is no newer than its folder;
+`tests/Compatibility/Resultful.Compatibility.Tests` builds a consumer from the packed package with SDK 9.0.3xx
+(`net8.0`), 10.0.1xx (Roslyn 5.0, `net10.0`), 10.0.4xx (`net10.0`) and 11.0.1xx (`net10.0`, and `net11.0` with
+`[Union]`) and asserts which DLL each compiler loaded.
+
 ## Assembly size
 
 `OneOf` writes a large class for every union. Resultful keeps generated code to what depends on the user's types

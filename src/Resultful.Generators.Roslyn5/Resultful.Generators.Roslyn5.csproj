@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Roslyn 5.x build of Resultful.Generators: the same sources, compiled against the lowest 5.x (5.0.0, SDK
+    10.0.1xx), so no 5.x compiler reports CS9057. It decides [Union] from the compilation. Packed by Resultful.Generators.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>Resultful.Generators</AssemblyName>
+    <RootNamespace>Resultful.Generators</RootNamespace>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1305;CA1822</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../Resultful.Generators/**/*.cs" Exclude="../Resultful.Generators/bin/**;../Resultful.Generators/obj/**" />
+    <AdditionalFiles Include="../Resultful.Generators/AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="../Resultful.Generators/AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
