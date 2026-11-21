@@ -3,8 +3,8 @@ using Microsoft.CodeAnalysis;
 namespace Resultful.Analyzers;
 
 /// <summary>
-/// RF0001 to RF0010: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
-/// AnalyzerReleases.Unshipped.md lists them. Each description says what the rule covers and what it doesn't.
+/// RF0001 to RF0010 and RFSP0001: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
+/// AnalyzerReleases.Unshipped.md lists the rules (a suppressor isn't tracked there). Each description says what the rule covers and what it doesn't.
 /// </summary>
 public static class Descriptors
 {
@@ -123,8 +123,8 @@ public static class Descriptors
         description: "A switch expression names each case where it is handled and is checked like any other switch. Scope: an instance Match on a "
             + "[ClosedHierarchy] type, every handler a typed lambda with an expression body or a method group, the result used as a value. "
             + "Not covered: Switch, TryMap, a shape's Match, handlers with block bodies. The fix (`e switch { NotFound n => …, Conflict c => … }`, "
-            + "one arm per handler, names kept unless taken) is not offered yet: without RFSP0001 the compiler reports CS8509 on that switch, "
-            + "since it can't see the hierarchy is closed. RFSP0001 (stack 17) turns the fix on.");
+            + "one arm per handler, names kept unless taken, fix-all too) relies on RFSP0001 to suppress the compiler's CS8509 on that switch, "
+            + "which can't see the hierarchy is closed; a receiver that may be null keeps CS8509 until it gets a `null` arm.");
 
     /// <summary>RF0006: a result field that no constructor assigns (decision 10, layer 3).</summary>
     public static readonly DiagnosticDescriptor UnassignedField = new(
@@ -206,4 +206,15 @@ public static class Descriptors
             + "(decision 15). C# can't enforce that for a record, whose copy constructor is protected (CS8878), so this rule does. Scope: a class or "
             + "record whose base, direct or indirect, carries [ClosedHierarchy] or is listed under resultful.closed_hierarchy_types, and is declared "
             + "in another assembly. Not covered: code compiled without the analyzer, which a switch then rejects at run time.");
+
+    /// <summary>RFSP0001's justification.</summary>
+    public const string ClosedHierarchySwitchTitle =
+        "CS8509 on a switch over a [ClosedHierarchy] base that matches every case (and null, for a nullable input)";
+
+    /// <summary>
+    /// RFSP0001: suppresses CS8509 on a switch expression over a [ClosedHierarchy] base (or one listed under
+    /// resultful.closed_hierarchy_types) when an unguarded arm matches every type that can reach it, and a null arm is
+    /// there when the compiler's nullable analysis says the input may be null.
+    /// </summary>
+    public static readonly SuppressionDescriptor ClosedHierarchySwitch = new("RFSP0001", "CS8509", ClosedHierarchySwitchTitle);
 }

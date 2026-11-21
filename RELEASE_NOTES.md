@@ -90,9 +90,11 @@
   (warning) a result field no constructor assigns; RF0008 (**error**) an untyped lambda passed to a generated
   multi-case `Match`, `Switch` or `TryMap`, whose handler order can change, with a fix that adds the types; RF0009
   (warning) `Map` whose selector returns a result, with a fix to `Bind`. For `[ClosedHierarchy]` bases: RF0005 (info)
-  a `Match` that could be a switch expression (its fix waits for RFSP0001); RF0007 (info) a base another assembly can derive from
+  a `Match` that could be a switch expression, with a fix that writes it; RF0007 (info) a base another assembly can derive from
   through a constructor, with a `private protected` fix; RF0010 (**error**) a type in another assembly that derives
-  from one, also for third-party bases listed under `resultful.closed_hierarchy_types`.
+  from one, also for third-party bases listed under `resultful.closed_hierarchy_types`. RFSP0001 suppresses CS8509 on a
+  `switch` over such a base (in this assembly or another, or listed under the same key) when an unguarded arm matches
+  every case and no other assembly derives from it; where the input may be null, it also needs a `null` arm.
 
 ### Build
 
