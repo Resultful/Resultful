@@ -30,4 +30,17 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="11.0.0" />
   </ItemGroup>
+  <!-- Resultful.HotChocolate: HotChocolate 16.6, the first 16.x that runs error filters on every field error; Hosting.Abstractions follows the target framework. -->
+  <ItemGroup>
+    <PackageVersion Include="HotChocolate.Types.Mutations" Version="16.6.0" />
+    <PackageVersion Include="HotChocolate.Types.Queries" Version="16.6.0" />
+    <PackageVersion Include="HotChocolate.Data" Version="16.6.0" />
+    <PackageVersion Include="HotChocolate.Types.CursorPagination" Version="16.6.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
+  </ItemGroup>
 </Project>
