@@ -30,7 +30,7 @@ is done when its "Done when" holds.
 | Milestone | Pull requests |
 |---|---|
 | **Packaging fix and sequential composition** (`0.2.0-beta06`): OneOf floor 3.0.271, clean dependency groups, metadata, SourceLink, `Then`/`Sequence`/`Check` ([decisions 4](decisions/0004-sequential-composition-is-additive.md), [5](decisions/0005-package-shape-is-checked.md)) | #21 |
-| **CI to current standards**: least privilege, format check, pack and package check, manual publishing, zizmor, ls-lint, Dependabot ([decision 7](decisions/0007-ci-follows-rig.md)) | #22 |
+| **CI to current standards**: least privilege, format check, pack and package check, manual publishing, zizmor, ls-lint, Dependabot ([decision 7](decisions/0007-ci-hardening.md)) | #22 |
 | **Current .NET standards, part one**: SDK 11, `net11.0`, public API tracking ([decision 2](decisions/0002-targets-netstandard20-net10-net11.md)) | #24 |
 | **Direction**: [Seamless with .NET](explorations/seamless-with-dotnet.md), [decision 10](decisions/0010-default-is-not-success.md) | #28, #29 |
 | **Long-term plan**: this roadmap, [the architecture](architecture.md), decisions 9, 11, 12 and 13 accepted | #30, #31, #32 |
