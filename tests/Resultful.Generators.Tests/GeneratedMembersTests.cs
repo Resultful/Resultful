@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Resultful.Generators.Tests;
@@ -26,6 +27,7 @@ public sealed class GeneratedMembersTests
         (ShapeOfHierarchy, "static Shape Ok(T value), static Shape Fail(TError error)"),
         (ShapeOfHierarchy, "bool IsDefault"),
         (ShapeOfHierarchy, "bool TryGetValue(out T value), bool TryGetError(out TError error)"),
+        (ShapeOfHierarchy, "bool Failed(out T value, out TError? error) (decision 22; out IReadOnlyList<TError>? errors with ManyErrors)"),
         (ShapeOfHierarchy, "TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Leaf, TResult> on<Leaf>, …)"),
         (ShapeOfHierarchy, "Result<TOut, TError> Map<TOut>(…), Result<TOut, TError> Bind<TOut>(…)"),
         (ShapeOfHierarchy, "Shape WithContext(string message)"),
@@ -122,6 +124,27 @@ public sealed class GeneratedMembersTests
 
             // TryGetErrors(out IReadOnlyList<TError>) with ManyErrors.
             Assert.Contains(e.ManyShape.GetMembers("TryGetErrors").OfType<IMethodSymbol>(), m => m.Parameters is [{ RefKind: RefKind.Out }]);
+        },
+        [(ShapeOfHierarchy, "bool Failed(out T value, out TError? error) (decision 22; out IReadOnlyList<TError>? errors with ManyErrors)")] = e =>
+        {
+            // The same signature and nullable annotations as the core's Failed, which it forwards to.
+            static void Check(IMethodSymbol failed, string value, string errors, string errorName)
+            {
+                Assert.Equal(SpecialType.System_Boolean, failed.ReturnType.SpecialType);
+                Assert.Equal(["value", errorName], failed.Parameters.Select(p => p.Name));
+                Assert.All(failed.Parameters, p => Assert.Equal(RefKind.Out, p.RefKind));
+                Assert.Equal(value, failed.Parameters[0].Type.ToDisplayString());
+                Assert.Equal(errors, failed.Parameters[1].Type.ToDisplayString());
+                Assert.Equal(["MaybeNullWhenAttribute(True)"], Attributes(failed.Parameters[0]));
+                Assert.Equal(["NotNullWhenAttribute(True)"], Attributes(failed.Parameters[1]));
+            }
+
+            static string[] Attributes(IParameterSymbol p) =>
+                [.. p.GetAttributes().Select(a => $"{a.AttributeClass!.Name}({string.Join(", ", a.ConstructorArguments.Select(c => c.Value))})")];
+
+            Check(Single(e, e.Shape, "Failed"), "Fixture.Flat.Order", "Fixture.Flat.OrderError?", "error");
+            Check(Single(e, e.ManyShape, "Failed"), "Fixture.Many.Registration", "System.Collections.Generic.IReadOnlyList<Fixture.Many.InputError>?", "errors");
+            Check(Single(e, e.ValuelessShape, "Failed"), "Resultful.Unit", "Fixture.Void.CancelError?", "error");
         },
         [(ShapeOfHierarchy, "TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Leaf, TResult> on<Leaf>, …)")] = e =>
         {
@@ -298,6 +321,44 @@ public sealed class GeneratedMembersTests
         Assert.Equal(expected, accounted);
     }
 
+    // A netstandard2.0 consumer sees MaybeNullWhen and NotNullWhen only as the core's internal copies, which it can't name
+    // (CS0122): the emitted code leaves them out there (so the consumer's flow through a shape is lost, hence `again!`),
+    // and keeps them where the framework has them.
+    [Fact]
+    public void A_netstandard20_consumer_gets_no_flow_attribute_it_cannot_name()
+    {
+        const string Polyfill = "namespace System.Runtime.CompilerServices { internal static class IsExternalInit { } }";
+        const string Use = """
+            using Fixture.Flat;
+            using Fixture.Many;
+
+            public static class Use
+            {
+                public static string Place(PlaceOrderResult r)
+                {
+                    if (r.Failed(out var order, out var error)) return error.Message;
+                    return r.TryGetValue(out Order? again) ? order.Id + " " + again!.Id : "";
+                }
+
+                public static int Register(RegisterResult r) => r.Failed(out _, out var errors) ? errors!.Count : 0;
+
+                public static int Map(Resultful.Error e) => OrderError.TryMap(e, l => 409, nf => 404, out var status) ? status : 500;
+            }
+            """;
+        var netstandard = GeneratorTestHarness.Metadata("NetStandardReference");
+        Assert.True(File.Exists(netstandard), netstandard);
+        var comp = GeneratorTestHarness.CreateCompilation(
+            [("Flat.cs", FixtureCatalog.FlatHierarchy), ("Many.cs", FixtureCatalog.ManyErrorsShape), ("Polyfill.cs", Polyfill), ("Use.cs", Use)],
+            includeCore: false,
+            languageVersion: LanguageVersion.CSharp13)
+            .WithReferences(MetadataReference.CreateFromFile(netstandard), MetadataReference.CreateFromFile(GeneratorTestHarness.Metadata("CoreNetStandardBuild")));
+        var output = GeneratorTestHarness.Run(comp, out _);
+        Assert.Empty(output.GeneratorDiagnostics);
+        Assert.Empty(output.CompilationDiagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
+        Assert.DoesNotContain(output.GeneratedSources.Values, s => s.Contains("CodeAnalysis.MaybeNullWhen", StringComparison.Ordinal) || s.Contains("CodeAnalysis.NotNullWhen", StringComparison.Ordinal));
+        Assert.Contains(Output.Value.Compilation.SyntaxTrees, t => Output.Value.GeneratedTrees.Contains(t) && t.ToString().Contains("CodeAnalysis.MaybeNullWhen(true)", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void The_core_members_the_emitter_calls_exist()
     {
@@ -313,8 +374,8 @@ public sealed class GeneratedMembersTests
             }
         }
 
-        Has(Type("Resultful.Result`2"), "IsSuccess", "IsFailure", "TryGetValue", "TryGetError", "Match", "Map", "Bind");
-        Has(Type("Resultful.Validation`2"), "IsSuccess", "IsFailure", "TryGetValue", "TryGetErrors", "Match", "Map", "MapError");
+        Has(Type("Resultful.Result`2"), "IsSuccess", "IsFailure", "TryGetValue", "TryGetError", "Failed", "Match", "Map", "Bind");
+        Has(Type("Resultful.Validation`2"), "IsSuccess", "IsFailure", "TryGetValue", "TryGetErrors", "Failed", "Match", "Map", "MapError");
         Has(Type("Resultful.IResultShape`2"), "AsResult");
         Has(Type("Resultful.IValidationShape`2"), "AsValidation");
         Has(Type("Resultful.Result"), "Ok", "Fail", "AsResult", "WithContext");

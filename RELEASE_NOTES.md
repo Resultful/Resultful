@@ -102,6 +102,10 @@
   from one, also for third-party bases listed under `resultful.closed_hierarchy_types`. RFSP0001 suppresses CS8509 on a
   `switch` over such a base (in this assembly or another, or listed under the same key) when an unguarded arm matches
   every case and no other assembly derives from it; where the input may be null, it also needs a `null` arm.
+- **Early return** (decision 22): `Failed(out value, out error)` on `Result<T>`, `Result<T, TError>` and generated
+  shapes, and `Failed(out value, out errors)` on `Validation`, annotated so `if (r.Failed(out var v, out var e)) return e;`
+  needs no `!`. RF0001 counts it as observing a result and RF0003 as the check; RF0011 (warning) reports a value-type
+  `value` read where `Failed` returned true.
 
 ### Build
 

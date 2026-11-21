@@ -16,6 +16,8 @@
     <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" />
     <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- The netstandard2.0 build of the core, read by path: a netstandard2.0 consumer sees only its internal flow attributes. -->
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" SetTargetFramework="TargetFramework=netstandard2.0" ReferenceOutputAssembly="false" />
     <!-- A generated union's Cases and Wrap feed its JSON converter (ErrorUnionTests). -->
     <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
   </ItemGroup>
@@ -30,6 +32,8 @@
 
   <ItemGroup>
     <AssemblyMetadata Include="Roslyn414Build" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful.Generators/bin/$(Configuration)/netstandard2.0/Resultful.Generators.dll'))" />
+    <AssemblyMetadata Include="CoreNetStandardBuild" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful/bin/$(Configuration)/netstandard2.0/Resultful.dll'))" />
+    <AssemblyMetadata Include="NetStandardReference" Value="$([System.IO.Path]::Combine('$(NuGetPackageRoot)', 'netstandard.library', '2.0.3', 'build', 'netstandard2.0', 'ref', 'netstandard.dll'))" />
     <AssemblyMetadata Include="RepoRootDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
   </ItemGroup>
 </Project>

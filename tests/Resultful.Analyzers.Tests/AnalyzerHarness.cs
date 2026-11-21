@@ -23,6 +23,7 @@ public static partial class AnalyzerHarness
     [
         new MustObserveAnalyzer(), new DefaultResultAnalyzer(), new UncheckedValueAnalyzer(), new BareStringAnalyzer(), new MatchToSwitchAnalyzer(),
         new UnassignedFieldAnalyzer(), new ClosedHierarchyAnalyzer(), new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(), new ClosedHierarchySuppressor(),
+        new FailedValueAnalyzer(),
     ];
 
 #if NET11_0_OR_GREATER
