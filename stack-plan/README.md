@@ -9,13 +9,14 @@ PR #39 shows it for review. The PR is never merged and is closed when the run en
 
 ## Starting or resuming the run
 
-Check out `rtkelly13/stack-plan`. Read `GOAL.md`, then `PROGRESS.md`, and continue from the first PR that isn't
+Check out `rtkelly13/stack-plan`. Read `HANDOVER.md` first, then `GOAL.md` and `PROGRESS.md`, and continue from the first PR that isn't
 done. `GOAL.md` says how to keep this branch current and how to read Ryan's comments on #39.
 
 ## Files
 
 | File | What it holds |
 |---|---|
+| `HANDOVER.md` | **Start here** when resuming: current state, rules in force, the next PRs. |
 | `GOAL.md` | The outcome, the rules for every PR, and the stack table. Start here. |
 | `WEB-RUN.md` | SDKs and GitHub on Claude Code on the web. |
 | `VERIFY.md` | How each gate works and which PR owns it. |
