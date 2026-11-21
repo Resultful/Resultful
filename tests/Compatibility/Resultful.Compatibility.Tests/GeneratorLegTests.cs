@@ -18,6 +18,7 @@ public sealed class GeneratorLegTests(PackedPackages packages)
         "cases: OrderLocked|OrderNotFound",
         "zero: True",
         "closed: 409,404,0,2",
+        "query: 10 OrderNotFound 102 OrderLocked id > 5",
     ];
 
     public static TheoryData<string, string, string, bool> Legs() => new()
