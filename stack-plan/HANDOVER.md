@@ -48,11 +48,13 @@ Decisions 18–21 are merged on `main` (#77). Decision 22 (native C# paths) is a
 finished at 24 (preview.1 moves there from 19).
 
 1. **Restack, once** (after Ryan lands stack A and says go; one pass, not two): stack B onto stack A, then the
-   siblings into a line: 20a → 21 #78 → 21b #79 → 21c #81 → 20c #80 → 24b → 24c → 24d #85. Keep every shared-file
+   siblings into a line: 20a → 21 #78 → 21b #79 → 21c #81 → 20c #80 → 24b #86 → 24c #88 → 24d #85 (24e #87 is docs only; it can go anywhere). Keep every shared-file
    block; port `eng/*.cs` script edits (incl. 21b/21c's `eng/verify-package.cs`) into `eng/build.cs`; fold 21b's
    three test projects into one (AGENTS.md: one per satellite); switch satellite tests above 21c to 21c's assertions.
-2. **24b** `early-return`, **24c** `comprehensions` (sync collections, `Collect`, not `Sequence`), **24d** `async-streams`
-   (all async traversal): finish review and fixes.
+2. **24b** #86, **24c** #88, **24d** #85, **24e** #87: all reviewed, fixed and green (2026-11-21). Nothing left but
+   the restack. Notes for it: 24b changed the generator (nullable attributes only when the consumer can see them);
+   24c adds `ShapeLinqExtensions`; 24d fixed `LogSink` (snapshot) in the AspNetCore tests; the probe code for 24e is
+   kept on `rtkelly13/archive/24e-await-probe`.
 3. **24** `[Union]` on the core types (net11), with a `benchmarks/` project. If it slips, it moves after 0.3.
 4. **23a** the Shop: HTTP host and worker, one handler per style, tests on 21c's assertions.
 5. **20b** endpoint filter, `WithResultful`, Minimal API validation bridge, OpenAPI statuses per route, on the Shop.
