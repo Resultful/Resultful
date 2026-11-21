@@ -37,4 +37,4 @@ generated:
 - Decision 7 updated: ls-lint and Dependabot added, docs-only gate left out, publishing is a manual workflow run.
 - Decisions 1 to 8: a dependency-free core with `Resultful.OneOf`; three targets with net11 union behaviour
   behind `#if`; unions chosen by experiment; additive sequential composition; package shape checked in CI;
-  a mixed test stack; rig-style CI; `0.3.0-beta01`.
+  a mixed test stack; hardened CI; `0.3.0-beta01`.

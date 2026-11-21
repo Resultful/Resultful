@@ -62,7 +62,7 @@ rules above stand; only the per-package versioning is replaced.
 
 - **One version for every package**, `VersionPrefix` in `src/Directory.Build.props`. A release starts with a pull
   request that bumps it, so every release is reviewed.
-- **Publishing is a manual workflow run on `main`** with `publish` ticked ([decision 7](0007-ci-follows-rig.md)).
+- **Publishing is a manual workflow run on `main`** with `publish` ticked ([decision 7](0007-ci-hardening.md)).
   It needs the `ci` gate (every other job passed), pushes every packed package, and then tags the run's
   commit `v<version>`, for example `v0.2.0`. If that tag already points at another commit, the job fails.
 - **If a push or the tag fails part way**, use **Re-run failed jobs** on the same run. `--skip-duplicate` skips the
