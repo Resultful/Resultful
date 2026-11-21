@@ -79,6 +79,7 @@ internal sealed record ResultShapeDeclaration(
     bool ErrorDerivesFromError,
     bool ErrorIsClosed,
     bool ErrorIsExternal,
+    UnionErrorModel? Union,
     int ShapeAccessibilityRank,
     EquatableArray<BaseIndexEntry> ExternalErrorEntries,
     EquatableArray<string> OverlappingErrorCandidates,
@@ -99,7 +100,43 @@ internal sealed record ResultShapeModel(
     bool ErrorDerivesFromError,
     bool ErrorIsClosed,
     EquatableArray<LeafModel> Leaves,
+    UnionErrorModel? Union,
     EquatableArray<DiagnosticInfo> Diagnostics);
+
+// A leaf of a nested union (decision 17): not a case of the outer union, but still converted into it, by WrapOpen, the
+// leaf, and Depth closing parentheses: new Outer(new Inner(leaf)).
+internal sealed record NestedLeafModel(
+    string FullName,
+    string ShortName,
+    string WrapOpen,
+    int Depth,
+    int AccessibilityRank,
+    int TypeDepth,
+    bool IsHierarchy);
+
+// A shape's error union: its direct cases are the shape's leaves (a nested union stays one case); NestedLeaves convert
+// in too. ErrorAccess reads the leaf through IErrorUnion (null when the union isn't an error union), and HasWithContext
+// says the union has, or gets, WithContext.
+internal sealed record UnionErrorModel(
+    EquatableArray<LeafModel> Cases,
+    EquatableArray<NestedLeafModel> NestedLeaves,
+    string? ErrorAccess,
+    bool HasWithContext);
+
+// A partial union whose cases are all errors (decision 17), which gets IErrorUnion's members. Leaves are the innermost
+// leaves, each with how Wrap builds the union from it; DeclaredMembers are written by hand, so not generated.
+internal sealed record ErrorUnionModel(
+    string HintName,
+    string? Namespace,
+    EquatableArray<EnclosingTypeModel> EnclosingTypes,
+    string Accessibility,
+    string Name,
+    EquatableArray<UnionCaseModel> Cases,
+    EquatableArray<NestedLeafModel> Leaves,
+    EquatableArray<string> DeclaredMembers,
+    EquatableArray<DiagnosticInfo> Diagnostics);
+
+internal sealed record UnionCaseModel(string FullName, bool IsUnion);
 
 internal sealed record EmitItem(
     ClosedHierarchyModel? Hierarchy,

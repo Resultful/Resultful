@@ -190,4 +190,61 @@ internal static class FixtureCatalog
             public readonly partial struct LoadAccountResult;
         }
         """;
+
+    // Decision 17: the same errors as a C# 15 union (net11.0) and as a [ClosedHierarchy], in one namespace, so one probe
+    // runs against either. The union lists its cases in the hierarchy's leaf order, so Match takes the same parameters.
+    public const string TwinUnion = """
+        using Resultful;
+        using Resultful.CodeAnalysis;
+
+        namespace Fixture.Twin
+        {
+            public sealed record OrderNotFound(int Id) : Error($"Order {Id} not found");
+            public sealed record OrderLocked(int Id) : Error($"Order {Id} locked");
+            public partial union OrderError(OrderLocked, OrderNotFound);
+
+            public sealed record Order(int Id);
+
+            [ResultShape(typeof(OrderError), Success = typeof(Order))]
+            public readonly partial struct PlaceOrderResult;
+        }
+        """;
+
+    public const string TwinHierarchy = """
+        using Resultful;
+        using Resultful.CodeAnalysis;
+
+        namespace Fixture.Twin
+        {
+            [ClosedHierarchy]
+            public abstract partial record OrderError(string Message) : Error(Message);
+            public sealed record OrderNotFound(int Id) : OrderError($"Order {Id} not found");
+            public sealed record OrderLocked(int Id) : OrderError($"Order {Id} locked");
+
+            public sealed record Order(int Id);
+
+            [ResultShape(typeof(OrderError), Success = typeof(Order))]
+            public readonly partial struct PlaceOrderResult;
+        }
+        """;
+
+    // A nested union stays one case: the shape's error cases are OrderNotFound and PaymentError.
+    public const string NestedUnion = """
+        using Resultful;
+        using Resultful.CodeAnalysis;
+
+        namespace Fixture.Nested
+        {
+            public sealed record OrderNotFound(int Id) : Error($"Order {Id} not found");
+            public sealed record CardDeclined(string Reason) : Error($"Card declined: {Reason}");
+            public sealed record CardExpired() : Error("Card expired");
+            public partial union PaymentError(CardDeclined, CardExpired);
+            public partial union CheckoutError(OrderNotFound, PaymentError);
+
+            public sealed record Receipt(string Code);
+
+            [ResultShape(typeof(CheckoutError), Success = typeof(Receipt))]
+            public readonly partial struct CheckoutResult;
+        }
+        """;
 }
