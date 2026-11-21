@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using OneOf;
 using Resultful.Utils;
 using TaskExt;
 
@@ -11,20 +10,6 @@ namespace Resultful
 
     public static partial class Result
     {
-        //ToOneOf
-        /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the success value, <c>T1</c> is the error.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="value">The task that produces the result.</param>
-        public static Task<OneOf<T, Error>> ToOneOf<T>(this Task<Result<T>> value)
-            => value.Map(x => x.ToOneOf());
-
-        /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the success value, <c>T1</c> is the error.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <typeparam name="TError">The type of the error.</typeparam>
-        /// <param name="value">The task that produces the result.</param>
-        public static Task<OneOf<T, TError>> ToOneOf<T, TError>(this Task<Result<T, TError>> value)
-            => value.Map(x => x.ToOneOf());
-
         //Switch on Task<Result<T>>
         /// <summary>Awaits <paramref name="value"/>, then calls <paramref name="successFunc"/> with the success value on success, or <paramref name="errorFunc"/> with the error on failure.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>

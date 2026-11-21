@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using OneOf;
-using OneOf.Types;
 using Resultful.Utils;
 using TaskExt;
 
@@ -11,13 +9,6 @@ namespace Resultful
 {
     public static partial class Option
     {
-        //ToOneOf
-        /// <summary>Awaits <paramref name="value"/>, then returns the option as a <c>OneOf</c>: <c>T0</c> is the value, <c>T1</c> is <c>None</c>.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="value">The task that produces the option.</param>
-        public static Task<OneOf<T, None>> ToOneOf<T>(this Task<Option<T>> value)
-            => value.Map(x => x.ToOneOf());
-
         //Builder for Option<T> from Task<T> value
         /// <summary>Awaits <paramref name="value"/>, then returns its value as an option with a value.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Breaking
+
+- **`Resultful` depends on nothing; OneOf interop moves to the new `Resultful.OneOf` package** (decision 1).
+  `Option<T>`'s `Match`, `Switch` and their async forms take `Resultful.None` instead of `OneOf.Types.None`, and
+  the implicit conversion from `OneOf.Types.None` is gone. `ToOneOf()` (and its `Task` forms) is an extension in
+  `Resultful.OneOf`. Migration: reference `Resultful.OneOf`; `ToOneOf()` calls compile unchanged. Replace
+  `OneOf.Types.None` with `Resultful.None` (or convert with `ToResultful()` / `ToOneOf()`). `ToResult()`,
+  `ToVoidResult()` and `ToOption()` convert a `OneOf` (or a `Task` of one) back.
+- With both `using Resultful;` and `using OneOf.Types;`, `None` is ambiguous (CS0104): write `Option<T>.None`, or
+  add an alias (`using None = Resultful.None;`).
+- The `Task` forms of `ToOneOf` moved from the `Result` and `Option` classes to `OneOfExtensions`: extension-method
+  calls compile unchanged, but static calls (`Result.ToOneOf(task)`) don't, and it is a binary break.
+
 ### Added
 
 - A `net11.0` target. The SDK is now 11.0.100.

@@ -7,7 +7,9 @@
 //   - a NETStandard.Library or System.ValueTuple dependency
 //   - a .NETStandard1.x or .NETFramework dependency group (beta05 had a bogus ".NETFramework5.0")
 //   - a lib/netstandard1.x asset, or no lib/netstandard2.0 asset
-//   - a OneOf floor below 3.0.271 (3.0.178 pulls NETStandard.Library 1.6.1 -> NU1903 on net8+)
+//   - any dependency at all in the core, Resultful (decision 1); it may have no dependency groups
+//   - in Resultful.OneOf, a missing OneOf dependency or a floor below 3.0.271 (3.0.178 pulls NETStandard.Library 1.6.1
+//     -> NU1903 on net8+), or a Resultful dependency that isn't this package's own version (lockstep)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
 
 using System.IO.Compression;
@@ -47,9 +49,33 @@ foreach (var path in args)
     var groups = metadata.Element(ns + "dependencies")?.Elements(ns + "group").ToList() ?? [];
     var dependencies = groups.SelectMany(g => g.Elements(ns + "dependency")).ToList();
 
-    if (groups.Count == 0)
+    var version = metadata.Element(ns + "version")!.Value;
+    if (id == "Resultful")
+    {
+        // The core references nothing (decision 1): no dependency in any group. Empty groups, or none, are fine.
+        failures.AddRange(dependencies.Select(d => $"the core depends on {d.Attribute("id")!.Value}"));
+    }
+    else if (groups.Count == 0)
     {
         failures.Add("nuspec has no dependency groups");
+    }
+
+    if (id == "Resultful.OneOf")
+    {
+        foreach (var group in groups)
+        {
+            var tfm = (string?)group.Attribute("targetFramework") ?? "";
+            var ids = group.Elements(ns + "dependency").ToDictionary(d => (string)d.Attribute("id")!, d => (string?)d.Attribute("version") ?? "");
+            if (!ids.ContainsKey("OneOf"))
+            {
+                failures.Add($"{tfm} group has no OneOf dependency");
+            }
+
+            if (!ids.TryGetValue("Resultful", out var core) || core.Trim('[', ']', '(', ')').Split(',')[0] != version)
+            {
+                failures.Add($"{tfm} group does not depend on Resultful {version}");
+            }
+        }
     }
 
     foreach (var group in groups)
