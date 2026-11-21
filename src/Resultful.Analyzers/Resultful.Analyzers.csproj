@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    RF0001 to RF0010 of the 0.3 analyzer contract, with their code fixes.
+    RF0001 to RF0010 of the 0.3 analyzer contract, with their code fixes, and the RFSP0001 suppressor.
     The rules read attributes by full name, never a Resultful type (decision 15). The Roslyn 4.14 build (SDK 9.0.3xx)
     and the package; Resultful.Analyzers.Roslyn5 is the same sources against the lowest 5.x. Both DLLs go into
     analyzers/dotnet/roslyn{version}/cs/, as Resultful.Generators does. No lib/.
@@ -17,7 +17,7 @@
 
   <PropertyGroup>
     <PackageId>Resultful.Analyzers</PackageId>
-    <Description>Analyzers for Resultful: a result never observed or created with default, Value read unchecked, a bare string into Result&lt;string&gt;, an unassigned result field, untyped handlers for a generated Match, Map that should be Bind, and closed hierarchies kept closed, with code fixes.</Description>
+    <Description>Analyzers for Resultful: a result never observed or created with default, Value read unchecked, a bare string into Result&lt;string&gt;, an unassigned result field, untyped handlers for a generated Match, Map that should be Bind, and closed hierarchies kept closed, with code fixes; CS8509 suppressed on a complete switch over a closed hierarchy.</Description>
     <PackageTags>result;railway-oriented-programming;error-handling;analyzers;roslyn</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <DevelopmentDependency>true</DevelopmentDependency>

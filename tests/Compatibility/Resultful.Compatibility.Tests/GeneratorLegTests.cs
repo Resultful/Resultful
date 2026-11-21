@@ -17,6 +17,7 @@ public sealed class GeneratorLegTests(PackedPackages packages)
         "widen: True placing",
         "cases: OrderLocked|OrderNotFound",
         "zero: True",
+        "closed: 409,404,0,2",
     ];
 
     public static TheoryData<string, string, string, bool> Legs() => new()
@@ -59,6 +60,11 @@ public sealed class GeneratorLegTests(PackedPackages packages)
         var dropped = leg.Dotnet("build", "Resultful.Compatibility.Shapes", "-c", "Release", $"-p:CompatTargetFramework={tfm}", $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}", "-p:CompatDropResult=true");
         Assert.NotEqual(0, dropped.ExitCode);
         Assert.Contains("RF0001", dropped.Output, StringComparison.Ordinal);
+
+        // RFSP0001 runs in this compiler: the complete switches built clean above, and one missing an arm fails with CS8509.
+        var droppedClosedArm = leg.Dotnet("build", "Resultful.Compatibility.Shapes", "-c", "Release", $"-p:CompatTargetFramework={tfm}", $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}", "-p:CompatDropClosedArm=true");
+        Assert.NotEqual(0, droppedClosedArm.ExitCode);
+        Assert.Contains("CS8509", droppedClosedArm.Output, StringComparison.Ordinal);
 
         var run = leg.Dotnet(Path.Combine(leg.Root, "Resultful.Compatibility.Shapes", "bin", "Release", tfm, "Resultful.Compatibility.Shapes.dll"));
         Assert.True(run.ExitCode == 0, run.Output);
