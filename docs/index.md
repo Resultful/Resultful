@@ -35,6 +35,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Source-generated shapes](explorations/source-generated-shapes.md) | Exploration: Tier 1 closed-hierarchy & mapper generation, Tier 2 domain result shapes |
 | [Building the generator](explorations/building-the-generator.md) | Exploration: generator diagnostics, incremental pipeline, size budget, and checks on the emitted code |
 | [Testing the shapes](explorations/testing-the-shapes.md) | Exploration: the target state for result shapes and the core under them, and the layers of tests that prove each behaviour |
+| [`await` as a short-circuit](explorations/await-short-circuit.md) | Exploration: the probe of `await` on a result through method-level async builders, its costs and why it doesn't ship |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).
