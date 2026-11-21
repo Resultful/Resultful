@@ -1,7 +1,7 @@
 ---
 type: decision
 title: "A family of satellite packages around a dependency-free core"
-description: "Integrations and analyzers ship as separate packages with explicit dependency rules; each package is versioned on its own and only what changed is published."
+description: "Integrations and analyzers ship as separate packages with explicit dependency rules; all packages share one version and are released together (amended from per-package versions)."
 status: stable
 tags: [resultful, decision, packages]
 decided:
@@ -40,7 +40,8 @@ Why:
 - A separate analyzer package keeps the core package to one assembly, and lets the analyzers release new rules
   without a core release.
 - Per-package versions mean a fix to one satellite doesn't republish packages that didn't change, and the core's
-  version only moves when the core does. Both repositories release the same way.
+  version only moves when the core does. Both repositories release the same way. (Amended: releases are
+  lockstep instead; see "How a release works".)
 
 Still open: the exact set of satellites. The maintainer accepted the recommended family but wasn't sure of it,
 so each satellite is confirmed when its milestone starts (M5), against the [vision](../vision.md). The
@@ -49,8 +50,20 @@ nothing by default.
 
 Consequences:
 - The package check runs on every package and allows a package with no dependency groups (the core, after M3).
-- Releases need per-package versions in each project, change detection by path and through the project
-  dependency graph, and one tag per package (`Resultful.OneOf/v0.3.0`). This is built in M1, after the layout
-  move, following the design in `Resultful.Assertions`.
+- Releases are lockstep: every package shares one version and one tag. This replaces the per-package versions,
+  change detection and per-package tags first planned here (amended; see "How a release works" below).
 - The compatibility question, "which `Resultful.AspNetCore` goes with which `Resultful`?", is answered by each
   satellite's dependency range, and the README lists the minimum core version per satellite.
+
+## How a release works
+
+Amended on 21 November 2026: releases are lockstep, as `AGENTS.md` records. The package family and its dependency
+rules above stand; only the per-package versioning is replaced.
+
+- **One version for every package**, `VersionPrefix` in `src/Directory.Build.props`. A release starts with a pull
+  request that bumps it, so every release is reviewed.
+- **Publishing is a manual workflow run on `main`** with `publish` ticked ([decision 7](0007-ci-follows-rig.md)).
+  It needs the `build`, `lint` and both compatibility jobs, pushes every packed package, and then tags the run's
+  commit `v<version>`, for example `v0.2.0`. If that tag already points at another commit, the job fails.
+- **If a push or the tag fails part way**, use **Re-run failed jobs** on the same run. `--skip-duplicate` skips the
+  packages already pushed, and the tag step accepts a tag that already points at the run's commit.
