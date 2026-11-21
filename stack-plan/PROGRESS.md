@@ -48,3 +48,4 @@ Rows are in stack order.
 - 2026-11-21 ~02:40 UTC: **checkpoint, the 0.3 target is reviewable.** 04c (#42), 04d (#44), 04d2 (#45) green after review; 12 design questions on #39 with defaults taken. Stack A: #38, #40, #41, #43 green; 04b building.
 - **Merging stack A:** because the run is append-only, #40, #41 and #43 are not ancestors of each other; only #49 (04b) holds all of stack A. Squash-merging #49 alone into `main` is clean and its tree equals stack-04b. One squash per PR needs the local restack first.
 - 2026-11-20 ~23:30 UTC: maintainer restacked both stacks (one commit per PR, linear) and merged #57 (`AGENTS.md` guardrails, PR template). Closed: #42, #44, #45 (spec harness, Shop), #46, #48, #50, #52, #53 (drafted ahead). Open: stack A #38 #40 #41 #43 #49; stack B #34 #47 #51 #54. Resuming one PR at a time: 07 on 06.
+- 2026-11-21: stack B since the restack: 07 #58, 08a #59, 08b #60 green after review; 09 #61 approved, small fixes going in.
