@@ -11,11 +11,13 @@
     <File Path="src/Directory.Build.props" />
     <Project Path="src/Resultful/Resultful.csproj" />
     <Project Path="src/Resultful.Generators/Resultful.Generators.csproj" />
+    <Project Path="src/Resultful.Generators.Roslyn5/Resultful.Generators.Roslyn5.csproj" />
     <Project Path="src/Resultful.OneOf/Resultful.OneOf.csproj" />
     <Project Path="src/Resultful.Text.Json/Resultful.Text.Json.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
+    <Project Path="tests/Compatibility/Resultful.Compatibility.Tests/Resultful.Compatibility.Tests.csproj" />
     <Project Path="tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj" />
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />

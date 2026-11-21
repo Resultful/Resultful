@@ -15,7 +15,9 @@ public sealed class BudgetAndIlTests
     {
         var budgetPath = Path.Combine(GeneratorTestHarness.RepoRootDir, "src", "Resultful.Generators", "Api", "emitted-api-budgets.txt");
         Assert.True(File.Exists(budgetPath), $"Budget file not found at {budgetPath}");
-        var (budgets, ilForwardMax, ilDispatchBase, ilDispatchPerLeaf) = ParseBudgetFile(File.ReadAllLines(budgetPath));
+        var lines = File.ReadAllLines(budgetPath);
+        var (budgets, ilForwardMax, ilDispatchBase, ilDispatchPerLeaf) = ParseBudgetFile(lines);
+        var ilUnionForwardMax = int.Parse(lines.Single(l => l.StartsWith("IL_UNION_FORWARDING_MAX=", StringComparison.Ordinal)).Split('=')[1], CultureInfo.InvariantCulture);
 
         var fixtures = new (string Name, string Source, string Category, string TypeFullName, int LeafCount)[]
         {
@@ -24,6 +26,12 @@ public sealed class BudgetAndIlTests
             ("Valueless", FixtureCatalog.ValuelessShape, IsNet11 ? "valueless_net11" : "valueless_net10", "Fixture.Void.CancelOrderResult", 2),
             ("ManyErrors", FixtureCatalog.ManyErrorsShape, "many_errors", "Fixture.Many.RegisterResult", 2),
             ("ClosedBase", FixtureCatalog.FlatHierarchy, "closed_hierarchy", "Fixture.Flat.OrderError", 2),
+#if NET11_0_OR_GREATER
+            // Decision 17: L is the union's direct cases; a nested union's leaves add a conversion each.
+            ("UnionNarrow", FixtureCatalog.TwinUnion, "union_shape", "Fixture.Twin.PlaceOrderResult", 2),
+            ("NestedUnionNarrow", FixtureCatalog.NestedUnion, "union_shape", "Fixture.Nested.CheckoutResult", 2),
+            ("ErrorUnion", FixtureCatalog.NestedUnion, "error_union", "Fixture.Nested.CheckoutError", 2),
+#endif
         };
 
         var checkedShapes = 0;
@@ -72,7 +80,8 @@ public sealed class BudgetAndIlTests
 
             // Inspect compiled IL bytes and box opcodes via System.Reflection.Metadata
             var peBytes = GeneratorTestHarness.EmitAssemblyBytes(output.OutputCompilation);
-            VerifyIlForType(peBytes, typeFullName, generatedPublicMembers, leafCount, ilForwardMax, ilDispatchBase, ilDispatchPerLeaf, measured, failures);
+            var union = category is "union_shape" or "error_union";
+            VerifyIlForType(peBytes, typeFullName, generatedPublicMembers, leafCount, union ? ilUnionForwardMax : ilForwardMax, ilDispatchBase, ilDispatchPerLeaf, category == "error_union", measured, failures);
             checkedShapes++;
         }
 
@@ -98,6 +107,7 @@ public sealed class BudgetAndIlTests
         int ilForwardMax,
         int ilDispatchBase,
         int ilDispatchPerLeaf,
+        bool errorUnion,
         List<string> measured,
         List<string> failures)
     {
@@ -133,7 +143,8 @@ public sealed class BudgetAndIlTests
 
                 var body = peReader.GetMethodBody(methodDef.RelativeVirtualAddress);
                 var il = body.GetILBytes()!;
-                var isDispatch = methodName is "Match" or "Switch" or "TryMap";
+                // An error union's WithContext and Wrap switch over its cases and leaves.
+                var isDispatch = methodName is "Match" or "Switch" or "TryMap" || (errorUnion && methodName is "WithContext" or "Wrap");
                 var limit = isDispatch ? ilDispatchBase + (ilDispatchPerLeaf * leafCount) : ilForwardMax;
 
                 // Value property (IUnion.Value) intentionally boxes value-type T to object?
@@ -253,6 +264,11 @@ public sealed class BudgetAndIlTests
             if (line.StartsWith("IL_FORWARDING_MAX=", StringComparison.Ordinal))
             {
                 ilFwd = int.Parse(line["IL_FORWARDING_MAX=".Length..], CultureInfo.InvariantCulture);
+                continue;
+            }
+
+            if (line.StartsWith("IL_UNION_FORWARDING_MAX=", StringComparison.Ordinal))
+            {
                 continue;
             }
 

@@ -12,7 +12,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" />
+    <!-- In process with Roslyn 5.12, so the 5.x build. The 4.14 build is loaded by path in RoslynBuildTests. -->
+    <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
     <!-- A generated union's Cases and Wrap feed its JSON converter (ErrorUnionTests). -->
     <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
@@ -27,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyMetadata Include="Roslyn414Build" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful.Generators/bin/$(Configuration)/netstandard2.0/Resultful.Generators.dll'))" />
     <AssemblyMetadata Include="RepoRootDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
   </ItemGroup>
 </Project>

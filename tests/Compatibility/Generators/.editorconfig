@@ -1,0 +1,5 @@
+root = true
+
+# The bare compile: analyzers also check the generated files, with the SDK defaults and warnings as errors.
+[*.cs]
+generated_code = false
