@@ -5,11 +5,6 @@ on:
     branches: [ main ]
   pull_request: # any base branch, so stacked pull requests are checked too
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Push the packed packages to nuget.org
-        type: boolean
-        default: false
 
 permissions: {}
 
@@ -173,6 +168,7 @@ jobs:
         run: uvx zizmor@1.31.1 --offline --format github .
 
   # The one required check: passes only if every job above passed. New jobs go in its `needs`, not in branch protection.
+  # release.yml publishes only a commit whose `ci` check passed (decision 22); this workflow never publishes.
   ci:
     name: ci
     if: always()
@@ -191,66 +187,3 @@ jobs:
               exit 1
             fi
           done
-
-  # Publishing is manual: run the workflow on main with `publish` ticked. Merging never publishes.
-  # Lockstep (decision 11): every package shares one version, and the run's commit is tagged v<version>.
-  publish:
-    name: publish
-    needs: ci
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write # the release tag
-      id-token: write # NuGet trusted publishing: an OIDC token, exchanged for a short-lived API key
-    environment: release
-    steps:
-      - name: Download packages
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: packages
-          path: artifacts
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: '10.0.x'
-
-      # Trusted publishing: nuget.org's policy for Resultful trusts this repo, ci.yml and the release environment,
-      # and gives a key that lasts an hour. No long-lived key is stored anywhere.
-      - name: Log in to NuGet
-        id: nuget-login
-        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
-        with:
-          user: rtk_13 # the nuget.org account that owns the trusted publishing policy
-
-      - name: Push to NuGet
-        env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-
-      - name: Tag the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          cores=(artifacts/Resultful.[0-9]*.nupkg)
-          if [ "${#cores[@]}" -ne 1 ]; then
-            echo "::error::expected one Resultful.<version>.nupkg, found ${#cores[@]}; nothing was tagged."
-            exit 1
-          fi
-          version=$(basename "${cores[0]}" .nupkg)
-          tag="v${version#Resultful.}"
-          existing=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq .object.sha 2>/dev/null || true)
-          if [ -z "$existing" ]; then
-            gh api "repos/$REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" > /dev/null
-            echo "Tagged $tag at $SHA."
-          elif [ "$existing" = "$SHA" ]; then
-            echo "$tag already points at $SHA."
-          else
-            echo "::error::$tag already points at $existing, not $SHA."
-            exit 1
-          fi

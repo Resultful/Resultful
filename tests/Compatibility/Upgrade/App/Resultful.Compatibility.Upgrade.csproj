@@ -6,6 +6,12 @@
   -->
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <!--
+      CI packs the 0.0.0-dev placeholder (decision 22), which sorts below the library's 0.2.0-beta05, so NuGet reports
+      a downgrade (NU1605). The app's exact reference still wins, and what this checks is the run-time binding
+      (assembly version 1.0.0.0), which the package version doesn't change.
+    -->
+    <NoWarn>$(NoWarn);NU1605</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

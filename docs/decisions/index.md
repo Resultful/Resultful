@@ -33,3 +33,4 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 19 | [`Resultful.FSharp` is thin interop with `FSharp.Core`](0019-fsharp-interop.md) | stable | 21 November 2026 |
 | 20 | [`Resultful.HotChocolate` maps error cases to GraphQL error types](0020-hotchocolate-graphql.md) | stable | 21 November 2026 |
 | 21 | [M5 ecosystem candidates and samples](0021-ecosystem-candidates.md) | proposed | 21 November 2026 |
+| 22 | [Releases are a manual run with a map of packages and versions](0022-releases-are-a-dispatch-map.md) (replaces lockstep, 11) | stable | 21 November 2026 |

@@ -55,9 +55,9 @@ until you are ready to move; 0.3's release notes carry the migration.
 - Consumers on `net8.0`, `net10.0`, `net11.0`, `net481` and Paket `strategy: min` restore the packed package alone
   (`CompatNuGet`, `CompatNet481`, the `compatibility` job). `CompatUpgrade` runs a library compiled against beta05
   on the packed package, on `net8.0` and `net10.0`.
-- One version per package, a release plan and a tag per release (`Resultful/v0.2.0`), from
-  [decision 11](docs/decisions/0011-package-family.md).
-- Publishing is a manual workflow run (`publish` input); merging to `main` never publishes.
+- Releases are a manual `release.yml` run given the packages and versions to publish; no version is committed,
+  and each package is tagged `<package>/v<version>` (`Resultful/v0.2.0`) with its own GitHub Release
+  ([decision 22](docs/decisions/0022-releases-are-a-dispatch-map.md)). Merging to `main` never publishes.
 
 ## 0.2.0-beta06
 

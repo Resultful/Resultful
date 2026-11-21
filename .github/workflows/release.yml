@@ -1,0 +1,200 @@
+name: release
+
+# Publishing is a manual run of this workflow (decision 22). Give the packages to release and their versions, e.g.
+# `Resultful=0.2.0-beta07` (or JSON {"Resultful":"0.2.0-beta07"}); versions are never committed. A dry run (the
+# default) plans, checks and packs without publishing, on any branch. A real run publishes from main only, and only a
+# commit whose `ci` check passed. If a run fails part way, use "Re-run failed jobs": every step accepts what an
+# earlier attempt already did.
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Packages and versions, e.g. Resultful=0.2.0 (no "v")'
+        type: string
+        required: true
+      dry_run:
+        description: Plan, check and pack only; publish nothing
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # Validates the map against .github/release-packages.json, nuget.org and the tags (eng/build.cs, ReleasePlan).
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      plan_json: ${{ steps.plan.outputs.plan_json }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # tags and history, for collisions and the release notes
+          fetch-tags: true
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Plan the release
+        id: plan
+        env:
+          PACKAGES: ${{ inputs.packages }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          GH_TOKEN: ${{ github.token }}
+        run: dotnet run eng/build.cs -- --target=ReleasePlan
+
+  # The commit must have passed ci.yml's `ci` gate. A dry run only warns, so any branch can be tried.
+  verify_ci:
+    name: verify_ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: ${{ inputs.dry_run }}
+    permissions:
+      checks: read
+    steps:
+      - name: The ci check passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          passed=$(gh api "repos/$REPO/commits/$SHA/check-runs?check_name=ci&filter=latest" --jq '[.check_runs[] | select(.app.slug == "github-actions" and .conclusion == "success")] | length')
+          [ "$passed" -gt 0 ] || { echo "::error::the ci check hasn't passed on $SHA; wait for ci.yml on main, then run again."; exit 1; }
+
+  # Stamps the planned versions (release-versions.props, never committed), packs, verifies, and smoke-tests.
+  pack:
+    name: pack
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      PLAN_JSON: ${{ needs.plan.outputs.plan_json }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # SourceLink and the package's repository commit
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Write release-versions.props
+        run: dotnet run eng/build.cs -- --target=ReleaseProps
+
+      - name: Build, pack and verify (Cake)
+        run: dotnet run eng/build.cs -- --target=Pack --ci=true --artifacts=artifacts/Resultful
+
+      - name: Exactly the planned packages were packed
+        run: dotnet run eng/build.cs -- --target=ReleaseCheckArtifacts
+
+      - name: Consumers restore and run the packed package (net8.0, net10.0, net11.0)
+        run: dotnet run eng/build.cs -- --target=CompatNuGet --artifacts=artifacts/Resultful
+
+      - name: Upload packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-artifacts
+          path: artifacts
+          if-no-files-found: error
+
+  # No checkout, no repository code: only the packed artifact and a short-lived NuGet key.
+  publish:
+    name: publish
+    needs: [ plan, verify_ci, pack ]
+    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && needs.verify_ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write # NuGet trusted publishing: an OIDC token, exchanged for a key that lasts an hour
+    environment: release
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: artifacts
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # nuget.org's trusted publishing policy for Resultful names this repository, release.yml and the release
+      # environment. No long-lived key is stored anywhere.
+      - name: Log in to NuGet
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER || 'rtk_13' }} # the nuget.org account that owns the policy
+
+      # Each .nupkg's .snupkg goes with it. --skip-duplicate makes a re-run push only what is missing.
+      - name: Push to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "artifacts/**/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  # Once each version is live on nuget.org: tag <package>/v<version> at the run's commit and create its GitHub Release.
+  finalize:
+    name: finalize
+    needs: [ plan, publish ]
+    if: ${{ needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # the tag and the release
+    environment: release-verify
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.plan.outputs.plan_json) }}
+    steps:
+      # nuget.org indexes a push within minutes; 404 until then.
+      - name: Wait until ${{ matrix.package.package_id }} ${{ matrix.package.version }} is on nuget.org
+        env:
+          ID: ${{ matrix.package.package_id }}
+          VERSION: ${{ matrix.package.version }}
+        run: curl -fsS -o /dev/null --retry 60 --retry-delay 20 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/${ID,,}/${VERSION,,}/${ID,,}.nuspec"
+
+      - name: Tag ${{ matrix.package.tag }}
+        if: ${{ !matrix.package.tag_exists }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TAG: ${{ matrix.package.tag }}
+        # A re-run accepts the tag if an earlier attempt made it at this commit.
+        run: gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" --silent || [ "$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)" = "$SHA" ]
+
+      - name: GitHub Release ${{ matrix.package.tag }}
+        if: ${{ !matrix.package.release_exists }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ matrix.package.tag }}
+          TITLE: ${{ matrix.package.package_id }} ${{ matrix.package.version }}
+          NOTES: ${{ matrix.package.notes }}
+          PRERELEASE: ${{ matrix.package.prerelease }}
+        run: gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes "$NOTES" --prerelease="$PRERELEASE" --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)" || gh release view "$TAG" --repo "$REPO" --json tagName
