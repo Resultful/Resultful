@@ -343,6 +343,7 @@ namespace Resultful
         /// <summary>Awaits <paramref name="value"/>, then returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the result.</param>
+        [Obsolete(NamedErrors.VoidResultOfErrorObsolete)]
         public static Task<VoidResult<TError>> Flatten<TError>(this Task<Result<VoidResult<TError>, TError>> value)
             => value.Map(item => item.Flatten());
 
@@ -355,6 +356,7 @@ namespace Resultful
 
         /// <summary>Awaits <paramref name="value"/>, then returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <param name="value">The task that produces the result.</param>
+        [Obsolete(NamedErrors.VoidResultObsolete)]
         public static Task<VoidResult> Flatten(this Task<Result<VoidResult>> value)
             => value.Map(item => item.Flatten());
 
@@ -380,14 +382,14 @@ namespace Resultful
         /// <summary>On success, awaits the task the result holds and returns a success with no value. A failure keeps the error.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The result.</param>
-        public static Task<VoidResult<TError>> UnwrapAsync<TError>(this Result<Task, TError> value)
+        public static Task<Result<Unit, TError>> UnwrapAsync<TError>(this Result<Task, TError> value)
             => value.Match(
                 async item =>
                 {
                     await item.ConfigureAwait(false);
                     return Ok<TError>();
                 },
-                errors => Task.FromResult(errors.Fail()));
+                errors => Task.FromResult(errors.Fail<Unit, TError>()));
 
         //UnwrapAsync on Result<T>
         /// <summary>On success, awaits the task the result holds and returns its value as a success. A failure keeps the error.</summary>
@@ -401,7 +403,7 @@ namespace Resultful
         /// <summary>On success, awaits the task the result holds and returns a success with no value. A failure keeps the error.</summary>
         /// <typeparam name="T">Not used. It can't be inferred, so the caller names it.</typeparam>
         /// <param name="value">The result.</param>
-        public static Task<VoidResult> Unwrap<T>(this Result<Task> value)
+        public static Task<Result<Unit>> Unwrap<T>(this Result<Task> value)
             => value.Match(
                 async item =>
                 {
@@ -474,7 +476,7 @@ namespace Resultful
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the result.</param>
-        public static Task<VoidResult<TError>> DiscardValue<T, TError>(this Task<Result<T, TError>> value)
+        public static Task<Result<Unit, TError>> DiscardValue<T, TError>(this Task<Result<T, TError>> value)
             => value.Map(item => item.DiscardValue());
 
         /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
@@ -482,7 +484,7 @@ namespace Resultful
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public static Task<VoidResult<TError>> DiscardValue<T, TError>(this Task<Result<T, TError>> value, Func<T, VoidResult<TError>> bindFunc)
+        public static Task<Result<Unit, TError>> DiscardValue<T, TError>(this Task<Result<T, TError>> value, Func<T, Result<Unit, TError>> bindFunc)
             => value.Map(x => x.DiscardValue(bindFunc));
 
         /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
@@ -490,28 +492,28 @@ namespace Resultful
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public static Task<VoidResult<TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value, Func<T, Task<VoidResult<TError>>> bindFunc)
+        public static Task<Result<Unit, TError>> DiscardValueAsync<T, TError>(this Task<Result<T, TError>> value, Func<T, Task<Result<Unit, TError>>> bindFunc)
             => value.Bind(x => x.DiscardValueAsync(bindFunc));
 
         //DiscardValueAsync on Result<T>
         /// <summary>Awaits <paramref name="value"/>, then: drops the value: a success becomes a success with no value, and a failure keeps the error.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that produces the result.</param>
-        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value)
+        public static Task<Result<Unit>> DiscardValue<T>(this Task<Result<T>> value)
             => value.Map(item => item.DiscardValue());
 
         /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public static Task<VoidResult> DiscardValue<T>(this Task<Result<T>> value, Func<T, VoidResult> bindFunc)
+        public static Task<Result<Unit>> DiscardValue<T>(this Task<Result<T>> value, Func<T, Result<Unit>> bindFunc)
             => value.Map(x => x.DiscardValue(bindFunc));
 
         /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="bindFunc"/> gives for the value, without a value. A failure keeps the error.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="bindFunc">Returns a result without a value from the value.</param>
-        public static Task<VoidResult> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task<VoidResult>> bindFunc)
+        public static Task<Result<Unit>> DiscardValueAsync<T>(this Task<Result<T>> value, Func<T, Task<Result<Unit>>> bindFunc)
             => value.Bind(x => x.DiscardValueAsync(bindFunc));
 
 

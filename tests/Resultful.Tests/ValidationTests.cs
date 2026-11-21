@@ -51,8 +51,8 @@ namespace Resultful.Tests
             Validation.Combine(Name(r.Name), EmailOf(r.Email), Password(r.Password), Age(r.Age),
                 (name, email, password, age) => new SignUp(name, email, password, age));
 
-        // A legacy check that still returns VoidResult: it converts to Result<Unit>, then to Validation<Unit>.
-        static VoidResult Terms(bool accepted) =>
+        // A check with no value: a Result<Unit> (VoidResult before 0.3), which converts to Validation<Unit>.
+        static Result<Unit> Terms(bool accepted) =>
             accepted ? Result.Ok() : new TermsNotAccepted();
 
         sealed class Accounts
@@ -86,7 +86,7 @@ namespace Resultful.Tests
             // Validation<T> combines them all.
             public Result<Account> HandleWithTerms(SignUpRequest r)
             {
-                Validation<Unit> terms = (Result<Unit>)Terms(r.AcceptedTerms);
+                Validation<Unit> terms = Terms(r.AcceptedTerms);
                 Validation<SignUp> input = Validate(r).AsValidation();
                 return Validation.Combine(input, terms, (s, _) => s).ToResult()
                     .Bind(Register)
@@ -233,11 +233,15 @@ namespace Resultful.Tests
             Assert.That(seen.Single(), Is.EqualTo(1));
         }
 
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); a legacy check that still returns one converts as in 10.
+        static VoidResult LegacyTerms(bool accepted) =>
+            accepted ? Result.Ok() : new TermsNotAccepted();
+
         [Test]
         public void VoidResult_converts_to_Result_of_Unit_and_back()
         {
-            Result<Unit> ok = Terms(true);
-            Result<Unit> failed = Terms(false);
+            Result<Unit> ok = LegacyTerms(true);
+            Result<Unit> failed = LegacyTerms(false);
             Assert.That(ok, Is.EqualTo(Unit.Value.Ok()));
             Assert.That(failed.Error, Is.EqualTo(new TermsNotAccepted()));
             VoidResult back = failed;
@@ -247,6 +251,7 @@ namespace Resultful.Tests
             Assert.That(typed.Error, Is.EqualTo("e"));
             Assert.That(((Result<Unit, string>)Result.Ok<string>()).IsSuccess, Is.True);
         }
+#pragma warning restore CS0618
 
         [Test]
         public void A_failed_Validation_is_never_empty()

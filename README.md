@@ -11,15 +11,17 @@ Instructions to install using your appropriate package manager can be [found her
 
 ## Types
 
-There are 7 fundamental types in this library
+There are 5 fundamental types in this library
 
 1. `Result<T, TError>` - Union of `T` and `TError`
 2. `Result<T>` - Union of `T` and one `Error`
 3. `Validation<T, TError>` - Union of `T` and a non-empty list of `TError`
 4. `Validation<T>` - Union of `T` and a non-empty list of `Error`
-5. `VoidResult<TError>` - Union of `Unit` and `TError`
-6. `VoidResult` - Union of `Unit` and one `Error`
-7. `Option<T>` - Union of `T` and `None`
+5. `Option<T>` - Union of `T` and `None`
+
+A step with no value is a `Result<Unit>` or `Result<Unit, TError>`: `Result.Ok()` and `Result.Ok<TError>()` return
+one, and `return Unit.Value;` converts to one. `VoidResult` and `VoidResult<TError>` are obsolete since 0.3 (a CS0618
+warning); they convert to and from `Result<Unit>` implicitly and are removed at 1.0.
 
 ## Usage
 
@@ -27,9 +29,7 @@ There are 3 parts to building a pipeline using this library.
 I am going to write the majority of the examples against `Result<T, TError>` as it is the most generic type, but the idea is applicable to all types where.
 
 1. `Result<T>` = `Result<T, Error>`
-2. `VoidResult<TError>` = `Result<Unit, TError>`
-3. `VoidResult` = `Result<Unit, Error>`
-4. `Option<T>` = `Result<T, None>`
+2. `Option<T>` = `Result<T, None>`
 
 ### Building
 
@@ -176,7 +176,7 @@ Result<Account> Handle(SignUpRequest r) =>
 
 `ToResult(combine)` turns the list into one error your way; a `Result` converts to a `Validation` implicitly (one
 error is a list of one), `AsValidation()` widens `Validation<T, TError>` to `Validation<T>` when `TError` derives
-from `Error`, and a `VoidResult` converts to `Result<Unit>`. With both directions, `b ? voidResult : resultUnit`
+from `Error`, and the obsolete `VoidResult` converts to `Result<Unit>`. With both directions, `b ? voidResult : resultUnit`
 reports CS0172; cast one side. `Plus`, `Fold`, `Reduce` and `Unroll` on
 `Result<T>` and `VoidResult` are gone: gathering is `Validation`'s job.
 
@@ -246,7 +246,7 @@ use `Then`, `Sequence` and `Check`: every step runs only if everything before it
 returned unchanged.
 
 ```cs
-VoidResult PlaceOrder(Order order)
+Result<Unit> PlaceOrder(Order order)
     => Result.Sequence(
         () => Validate(order),
         () => Reserve(order.Items),
@@ -259,13 +259,13 @@ Result<string> NormaliseName(string input)
         .Check(name => name.Length <= 100 ? Result.Ok() : Result.Fail("name is too long")); // can fail, keeps the value
 ```
 
-- `Sequence(...)` starts a chain of `VoidResult` steps.
-- `Then(...)` continues it, either with more `VoidResult` steps or with a single step that produces a value
-  (`VoidResult.Then(() => 42.Ok())`, with no `Unit` argument to ignore).
+- `Sequence(...)` starts a chain of `Result<Unit>` steps (`VoidResult` before 0.3).
+- `Then(...)` continues it, either with more `Result<Unit>` steps or with a single step that produces a value
+  (`Result.Ok().Then(() => 42.Ok())`, with no `Unit` argument to ignore).
 - On `Result<T>`, `Then` pipes the value through steps that return the same type, and `Check` runs steps that can
   fail without replacing the value.
 
-Each method has the same forms for `Result<T, TError>` and `VoidResult<TError>`, an `Async` variant whose steps return a
+Each method has the same forms for `Result<T, TError>` and `Result<Unit, TError>`, an `Async` variant whose steps return a
 `Task`, and an overload on `Task<...>` so that sync and async steps can be mixed in one chain:
 
 ```cs

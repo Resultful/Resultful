@@ -83,7 +83,7 @@ namespace Resultful.Tests
                     return m.Error == "b" ? M.Success(9) : M.Failure(m.Error + "?");
                 })),
             Gen.Int[-3, 3].Select(k => new Op($"DiscardValue.Map({k})",
-                (r, _) => r.DiscardValue().Map(k),
+                (r, _) => r.DiscardValue().Map(_ => k),
                 (m, _) => m.Ok ? M.Success(k) : m)),
             Gen.Const(new Op("DiscardError.Match",
                 (r, _) => r.DiscardError().Match(v => v.Ok<int, string>(), _ => "none".Fail<int, string>()),
@@ -246,6 +246,7 @@ namespace Resultful.Tests
             });
         }
 
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); it still behaves as the reference model says.
         [Test]
         public void VoidResults_behave_like_the_reference_model()
         {
@@ -253,8 +254,8 @@ namespace Resultful.Tests
             var gen = Gen.Byte[0, 2];
             Gen.Select(gen, gen, Errors).Sample((a, b, error) =>
             {
-                VoidResult Plain(byte state) => state switch { 0 => default, 1 => Result.Ok(), _ => Result.Fail(errors) };
-                VoidResult<string?> Typed(byte state) => state switch { 0 => default, 1 => Result.Ok<string?>(), _ => error.Fail<string?>() };
+                VoidResult Plain(byte state) => state switch { 0 => default(VoidResult), 1 => Result.Ok(), _ => Result.Fail(errors) };
+                VoidResult<string?> Typed(byte state) => state switch { 0 => default(VoidResult<string?>), 1 => Result.Ok<string?>(), _ => error.Fail<string?>() };
                 // The zero value hashes as a success whose Unit is null, as in 0.2; reading its case throws (08b).
                 var unit = a == 1 ? Unit.Value : null;
                 var ok = a != 2;
@@ -289,6 +290,7 @@ namespace Resultful.Tests
                 Assert.That(t.MapError(e => e + "!").Match(_ => "ok", e => e), Is.EqualTo(ok ? "ok" : error + "!"));
             });
         }
+#pragma warning restore CS0618
 
         [Test]
         public void Option_behaves_like_the_reference_model()
@@ -325,8 +327,10 @@ namespace Resultful.Tests
                 Unsafe.SizeOf<Result<int, int>>(),
                 Unsafe.SizeOf<Result<long, Error>>(),
                 Unsafe.SizeOf<Result<int>>(),
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); its size stays pinned until it is removed.
                 Unsafe.SizeOf<VoidResult<string>>(),
                 Unsafe.SizeOf<VoidResult>(),
+#pragma warning restore CS0618
                 Unsafe.SizeOf<Option<int>>(),
                 Unsafe.SizeOf<Option<string>>(),
             ];
@@ -366,7 +370,7 @@ namespace Resultful.Tests
                 ["Bind"] = Allocated(() => sink += ok.Bind(static x => x.Ok<int, string>()).IsSuccess ? 1 : 0),
                 ["MapError"] = Allocated(() => sink += failed.MapError(static e => e).IsFailure ? 1 : 0),
                 ["Result<T>.Map"] = Allocated(() => sink += list.Map(static x => x + 1).IsSuccess ? 1 : 0),
-                ["VoidResult.Match"] = Allocated(() => sink += Result.Ok().Match(static _ => 1, static _ => 0)),
+                ["Result<Unit>.Match"] = Allocated(() => sink += Result.Ok().Match(static _ => 1, static _ => 0)),
                 ["Option.Match"] = Allocated(() => sink += 1.Some().Match(static v => v, static _ => 0)),
             };
             Assert.That(sink, Is.Not.Zero);
@@ -384,7 +388,7 @@ namespace Resultful.Tests
                 ["Bind"] = 0,
                 ["MapError"] = 0,
                 ["Result<T>.Map"] = 0,
-                ["VoidResult.Match"] = 0,
+                ["Result<Unit>.Match"] = 0,
                 ["Option.Match"] = 0,
             }));
         }
