@@ -40,7 +40,7 @@ Decisions 18 and 19 (draft PR #77, on `main`, docs only) added 21b, 21c and 20c;
    (`origin/rtkelly13/stack-21-fluentvalidation-diagnostics`, ignore its history and stand-in core): FluentValidation
    12.0.0 floor, `AttemptedValue`/`CustomState` dropped, logs/traces never carry leaf properties, `resultful.error.type`
    tag, docs on `RecordFailure(null)` and `Activity.Current`.
-2. **21b** `fsharp`: `Resultful.FSharp` (decision 19). Ryan wants this early.
+2. **21b** `fsharp`: `Resultful.FSharp`, interop only (conversions; decision 19). Ryan wants this early.
 3. **21c** `assertions`: `Resultful.Assertions` plus the AwesomeAssertions and FluentAssertions 7.x adapters
    (decision 18). `FluentAssertions.Resultful` in the other repository has no assertions to port.
 4. **23a** the Shop, moved ahead of 20b: one cohesive `samples/Resultful.Shop` built from the packed packages, with
