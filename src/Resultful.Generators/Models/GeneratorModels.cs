@@ -157,4 +157,5 @@ internal sealed record EmitItem(
     ClosedHierarchyModel? Hierarchy,
     ResultShapeModel? Shape,
     bool UnionAvailable,
+    bool NullableAttributes,
     EquatableArray<string> Peers);

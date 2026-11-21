@@ -17,6 +17,7 @@ public sealed class RoslynBuildTests
     [
         "MustObserveAnalyzer", "DefaultResultAnalyzer", "UncheckedValueAnalyzer", "BareStringAnalyzer", "MatchToSwitchAnalyzer",
         "UnassignedFieldAnalyzer", "ClosedHierarchyAnalyzer", "UntypedHandlerAnalyzer", "MapToBindAnalyzer", "ClosedHierarchySuppressor",
+        "FailedValueAnalyzer",
     ];
 
     // diagnostics.tsv and code-fixes.tsv of the 0.3 analyzer contract.
@@ -32,6 +33,7 @@ public sealed class RoslynBuildTests
         ["RF0008"] = DiagnosticSeverity.Error,
         ["RF0009"] = DiagnosticSeverity.Warning,
         ["RF0010"] = DiagnosticSeverity.Error,
+        ["RF0011"] = DiagnosticSeverity.Warning,
     };
 
     static readonly (CodeFixProvider Fix, string Id, bool FixAll)[] Fixes =
@@ -96,6 +98,7 @@ public sealed class RoslynBuildTests
                 static Result<string> Bare() => "not found";
                 static Result<Result<int>> Nested() => Get().Map(x => Get());
                 static Result<int> _never;
+                static int Defaulted() { if (Get().Failed(out var v, out _)) return v; return v; }
             }
             """;
         var compilation = Compile([Source]);
@@ -103,7 +106,7 @@ public sealed class RoslynBuildTests
         var assembly = context.LoadFromAssemblyPath(Metadata("Roslyn414Build"));
         ImmutableArray<DiagnosticAnalyzer> old = [.. AnalyzerTypes.Select(n => (DiagnosticAnalyzer)Activator.CreateInstance(assembly.GetType("Resultful.Analyzers." + n, throwOnError: true)!)!)];
         Assert.Equal(Ids(compilation, AnalyzerHarness.Analyzers), Ids(compilation, old));
-        Assert.Equal(["RF0001", "RF0002", "RF0003", "RF0004", "RF0006", "RF0007", "RF0009"], Ids(compilation, old));
+        Assert.Equal(["RF0001", "RF0002", "RF0003", "RF0004", "RF0006", "RF0007", "RF0009", "RF0011"], Ids(compilation, old));
         // RFSP0001 suppresses the complete switch's CS8509 and keeps the other's, in both builds.
         Assert.Equal(Switches(compilation, AnalyzerHarness.Analyzers), Switches(compilation, old));
         Assert.Equal(["CS8509 kept", "CS8509 suppressed"], Switches(compilation, old));

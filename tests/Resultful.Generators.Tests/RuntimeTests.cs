@@ -1,4 +1,5 @@
 using System.Reflection;
+using CsCheck;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Xunit;
@@ -80,6 +81,31 @@ public sealed class RuntimeTests
                 return $"{failed.TryGetErrors(out var es) && es.Count == 2} {wide.Error.GetType().Name} {ok.TryGetValue(out Registration? r) && r.Email == "a@b.c"}";
             }
 
+            // Decision 22: Failed on a shape agrees with its Match (RuntimeTests' CsCheck law calls these with random input).
+            public static string Failed(int kind, int id)
+            {
+                PlaceOrderResult r = kind switch { 0 => new Order(id), 1 => new OrderLocked(id), _ => new OrderNotFound(id) };
+                var matched = r.Match(o => "ok " + o.Id, l => "locked " + l.Id, nf => "missing " + nf.Id);
+                var seen = r.Failed(out var order, out var error)
+                    ? Name(error) + (order is null ? "" : " and a value")
+                    : "ok " + order.Id + (error is null ? "" : " and an error");
+                return seen == matched ? "agree" : seen + " / " + matched;
+            }
+
+            private static string Name(OrderError e) => e switch { OrderLocked l => "locked " + l.Id, OrderNotFound nf => "missing " + nf.Id, _ => "?" };
+
+            public static string FailedMany(int errors, string email)
+            {
+                RegisterResult r = errors == 0
+                    ? new Registration(email)
+                    : RegisterResult.Fail(Enumerable.Range(0, errors).Select(i => (InputError)new Required("f" + i)).ToArray());
+                var matched = r.Match(x => "ok " + x.Email, es => "errors " + string.Join(",", es.Select(e => e.Message)));
+                var seen = r.Failed(out var registration, out var list)
+                    ? "errors " + string.Join(",", list.Select(e => e.Message)) + (registration is null ? "" : " and a value")
+                    : "ok " + registration.Email + (list is null ? "" : " and errors");
+                return seen == matched ? "agree" : seen + " / " + matched;
+            }
+
             public static string Zero()
             {
                 var zero = default(PlaceOrderResult);
@@ -112,6 +138,16 @@ public sealed class RuntimeTests
     {
         var actual = (string)Loaded.Value.GetType("Probe", throwOnError: true)!.GetMethod(probe)!.Invoke(null, null)!;
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Failed_on_a_shape_agrees_with_its_Match()
+    {
+        var probe = Loaded.Value.GetType("Probe", throwOnError: true)!;
+        Gen.Select(Gen.Int[0, 2], Gen.Int).Sample((kind, id) =>
+            Assert.Equal("agree", probe.GetMethod("Failed")!.Invoke(null, [kind, id])));
+        Gen.Select(Gen.Int[0, 3], Gen.String).Sample((errors, email) =>
+            Assert.Equal("agree", probe.GetMethod("FailedMany")!.Invoke(null, [errors, email])));
     }
 
 #if NET11_0_OR_GREATER

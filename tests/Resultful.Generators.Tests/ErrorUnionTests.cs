@@ -20,7 +20,7 @@ public sealed class ErrorUnionTests
 
         public static class Probe
         {
-            public static string Run() => string.Join(" / ", Create(), Match(), Switch(), Widen(), WithContext(), Fields(), Zero());
+            public static string Run() => string.Join(" / ", Create(), Match(), Switch(), Widen(), WithContext(), Fields(), Zero(), EarlyReturn());
 
             private static string Create()
             {
@@ -82,6 +82,24 @@ public sealed class ErrorUnionTests
                 try { zero.WithContext("x"); result += " no throw"; } catch (InvalidOperationException) { result += " throws"; }
                 return result;
             }
+
+            // Decision 22: Failed on a shape, `return error;` through the shape's conversion from its error type, and
+            // the value read after the branch with no `!` (Run fails on any warning).
+            private static string EarlyReturn()
+            {
+                static PlaceOrderResult Next(PlaceOrderResult r)
+                {
+                    if (r.Failed(out var order, out var error))
+                        return error;
+                    return new Order(order.Id + 10);
+                }
+
+                var ok = Next(new Order(1));
+                var failed = Next(new OrderLocked(5));
+                var zero = "";
+                try { default(PlaceOrderResult).Failed(out _, out _); zero = "no throw"; } catch (InvalidOperationException) { zero = "throws"; }
+                return $"{ok.TryGetValue(out Order? o) && o.Id == 11} {failed.TryGetValue(out OrderLocked? l) && l.Id == 5} {zero}";
+            }
         }
         """;
 
@@ -92,7 +110,7 @@ public sealed class ErrorUnionTests
         var hierarchy = Run([("Twin.cs", FixtureCatalog.TwinHierarchy), ("Probe.cs", TwinProbe)], "TwinHierarchy");
 
         Assert.Equal(
-            "True True True False False / order 1, locked 2, missing 3 / 201,409,404 / True Order 2 locked True / True placing|checkout True / Order 4 locked True True False OrderLocked|OrderNotFound / True throws throws throws throws",
+            "True True True False False / order 1, locked 2, missing 3 / 201,409,404 / True Order 2 locked True / True placing|checkout True / Order 4 locked True True False OrderLocked|OrderNotFound / True throws throws throws throws / True True throws",
             union);
         Assert.Equal(hierarchy, union);
     }

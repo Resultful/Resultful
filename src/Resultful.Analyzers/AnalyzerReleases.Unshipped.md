@@ -15,3 +15,4 @@ RF0007 | Resultful.Usage | Info | ClosedHierarchyAnalyzer
 RF0008 | Resultful.Usage | Error | UntypedHandlerAnalyzer
 RF0009 | Resultful.Usage | Warning | MapToBindAnalyzer
 RF0010 | Resultful.Usage | Error | ClosedHierarchyAnalyzer
+RF0011 | Resultful.Usage | Warning | FailedValueAnalyzer

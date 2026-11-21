@@ -29,6 +29,7 @@ namespace Compatibility.Shapes
             Console.WriteLine($"zero: {default(PlaceOrderResult).IsDefault}");
 #pragma warning restore RF0002
             Console.WriteLine($"closed: {Code(new OrderLocked(2))},{Code(new OrderNotFound(3))},{Code(null)},{Ship(new Pending())}");
+            Console.WriteLine($"early return: {Next(ok)}, {Next(locked)}");
             Console.WriteLine($"union: {typeof(PlaceOrderResult).GetInterfaces().Any(i => i.Name == "IUnion")}");
 #if DROP_RESULT
             // Built with DROP_RESULT, a result thrown away must fail the build with RF0001.
@@ -40,6 +41,14 @@ namespace Compatibility.Shapes
             Result<Order> checkout = declined;
             Console.WriteLine($"error union: {Checkout(declined)} {Checkout(new OrderNotFound(4))} {checkout.Error.GetType().Name} {string.Join("|", CheckoutError.Cases.Select(t => t.Name))}");
 #endif
+        }
+
+        // Decision 22: Failed on a shape, with nullable flow (no `!`) under every leg's compiler and the warnings as errors.
+        private static string Next(PlaceOrderResult r)
+        {
+            if (r.Failed(out var order, out var error))
+                return error.GetType().Name;
+            return "order " + order.Id;
         }
 
         private static string Name(PlaceOrderResult r) =>
