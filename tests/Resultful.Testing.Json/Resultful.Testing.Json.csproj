@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    JsonAssert: pin a result's whole structure (case, value, error type, message, context, cause chain) as a raw string
+    literal. Shared by every test project from 12b on. No test framework dependency: a failure is a JsonAssertException.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Resultful.Text.Json/Resultful.Text.Json.csproj" />
+  </ItemGroup>
+</Project>

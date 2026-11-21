@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests for Resultful.Text.Json and JsonAssert: xunit.v3 scenarios and CsCheck laws, run by `dotnet test` (VSTest). -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.Text.Json.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck; tests don't run native AOT. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007;IL2026;IL3050</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
+    <ProjectReference Include="..\Resultful.Testing.Json\Resultful.Testing.Json.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>
