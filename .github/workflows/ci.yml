@@ -61,7 +61,10 @@ jobs:
         run: dotnet build Resultful.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
 
       - name: Test
-        run: dotnet test Resultful.slnx --configuration Release --no-build --logger "trx" --results-directory TestResults
+        run: |
+          dotnet test tests/Resultful.Tests/Resultful.Tests.csproj --configuration Release --no-build --logger "trx" --results-directory TestResults
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net10.0
+          dotnet run --project tests/Resultful.Consumption/Resultful.Consumption.csproj --configuration Release --no-build -f net11.0
 
       - name: Upload test results
         if: always()
@@ -76,6 +79,39 @@ jobs:
 
       - name: Check package shape
         run: dotnet run eng/verify-package.cs -- artifacts/*.nupkg
+
+      # The packed run must not pick up a published or cached Resultful. So the same binaries are packed
+      # again with a run-unique version into their own folder, restored into an empty packages folder,
+      # and source mapping sends the Resultful package (exact id) to that folder only. The `artifacts` packages are untouched.
+      - name: Test consumption against packed package
+        run: |
+          suffix="ci.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
+          packed="$RUNNER_TEMP/packed"
+          dotnet pack src/Resultful/Resultful.csproj --configuration Release --no-build -p:ContinuousIntegrationBuild=true -p:VersionSuffix="$suffix" -o "$packed/source"
+          cat > "$packed/nuget.config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="packed" value="$packed/source" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="packed">
+                <package pattern="Resultful" />
+              </packageSource>
+              <packageSource key="nuget.org">
+                <package pattern="*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
+          project=tests/Resultful.Consumption/Resultful.Consumption.csproj
+          props=(--configuration Release -p:UsePackedPackage=true -p:VersionSuffix="$suffix")
+          dotnet restore "$project" --configfile "$packed/nuget.config" --packages "$packed/packages" -p:UsePackedPackage=true -p:VersionSuffix="$suffix"
+          dotnet build "$project" --no-restore "${props[@]}"
+          dotnet run --project "$project" --no-build -f net10.0 "${props[@]}"
+          dotnet run --project "$project" --no-build -f net11.0 "${props[@]}"
 
       - name: Upload packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
