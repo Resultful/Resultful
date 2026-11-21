@@ -154,6 +154,9 @@ A PR that runs past 90 minutes is marked `blocked`, and the orchestrator reports
 | 20a | `aspnetcore-errors` | M5 | `Resultful.AspNetCore`: the error-to-status map, ProblemDetails, `ValidationFailed` as 400. A 500 body has a fixed title and no `Message` outside the Development environment, so internal details don't leak. |
 | 20b | `aspnetcore-endpoints` | M5 | Typed results, an endpoint filter, the Minimal API validation bridge. `Shop.Api` joins the four legs. The Shop's HTTP cases and the OpenAPI check pass. |
 | 21 | `fluentvalidation-diagnostics` | M5 | `Resultful.FluentValidation` and `Resultful.Diagnostics`. |
+| 21b | `fsharp` | decision 19 | `Resultful.FSharp`, written in F# on `FSharp.Core` 6.0: `ofFSharp`/`toFSharp` for `Result` and `option`/`voption`, a curried `Result` module, `Success`/`Failure` active patterns, a `resultful { }` CE (`let!` over results, `Task`, `ValueTask`; `and!` accumulating into `Validation`). F# tests (xunit.v3, CsCheck). What F# sees of a net11 C# union is tested. Fantomas for formatting; package validation stands in for PublicAPI tracking, which doesn't run on F#. |
+| 21c | `assertions` | decision 18 | `Resultful.Assertions` (`ShouldSucceed`, `ShouldFail`, `ShouldFailWith<TError>`, no assertion-library dependency), `Resultful.Assertions.AwesomeAssertions`, `Resultful.Assertions.FluentAssertions` (7.x only). Work on shapes, hierarchies and net11 error unions. Failure messages use `Error.ToString()`. The core's law tests don't use them; the Shop (23a) does. |
+| 20c | `hotchocolate` | decision 19 | `Resultful.HotChocolate`, after 20b: resolvers return `Result<T, TError>` or a shape; leaves become GraphQL error types implementing `Error { message }` (query conventions: `T | leaves` union; mutations: payload `errors`), read from the generator's case list without reflection; nested unions flattened in the schema; `ValidationFailed` → `ValidationError`; undeclared errors → top-level `errors` with `extensions.code` and no message outside Development; `ToFieldResult()`. A GraphQL endpoint on the Shop with cases like the HTTP ones. |
 | 22 | `aot` | M5 | The Shop published native AOT on `net11.0` answers the HTTP cases, with no IL2xxx or IL3xxx warnings. The Shop's JSON goes through `Resultful.Text.Json`'s source-generated context. |
 | 23a | `finish-the-shop` | M5, testing-the-shapes layer 7 | UC01–UC10 are `done`. Plus a `net11.0`-only Shop folder whose errors are unions. |
 | 23b | `samples-integrations` | M5 | Samples for MediatR, Polly and EF Core. |
@@ -164,7 +167,8 @@ The order puts the core (05–12b, 18, 19) before the tooling, so the generator 
 core. This differs from the "Order of work" in `testing-the-shapes.md`; 25 updates that section.
 
 Out of scope: collection operators (still being explored), M7's API review, a documentation site, community
-files, and anything in `Resultful.Assertions`.
+files, and the OneOf/union packages in the `Resultful.Assertions` repository (decision 18 moves only Resultful's own
+assertions here, as 21c).
 
 A PR may split into `NNa`/`NNb` if it passes about 800 changed lines outside tests. Two tiny PRs may merge.
 Record either in `PROGRESS.md`.

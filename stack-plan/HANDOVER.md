@@ -34,22 +34,32 @@ All green after review, except:
 
 ## Next, in order
 
+Decisions 18 and 19 (draft PR #77, on `main`, docs only) added 21b, 21c and 20c; their `GOAL.md` rows have the scope.
+
 1. **21** `fluentvalidation-diagnostics`, on 20a. Reuse the reviewed code of closed #52
    (`origin/rtkelly13/stack-21-fluentvalidation-diagnostics`, ignore its history and stand-in core): FluentValidation
    12.0.0 floor, `AttemptedValue`/`CustomState` dropped, logs/traces never carry leaf properties, `resultful.error.type`
    tag, docs on `RecordFailure(null)` and `Activity.Current`.
-2. **23a** the Shop, moved ahead of 20b: one cohesive `samples/Resultful.Shop` built from the packed packages, with
+2. **21b** `fsharp`: `Resultful.FSharp` (decision 19). Ryan wants this early.
+3. **21c** `assertions`: `Resultful.Assertions` plus the AwesomeAssertions and FluentAssertions 7.x adapters
+   (decision 18). `FluentAssertions.Resultful` in the other repository has no assertions to port.
+4. **23a** the Shop, moved ahead of 20b: one cohesive `samples/Resultful.Shop` built from the packed packages, with
    real HTTP cases (the HTTP map: 400 ValidationProblemDetails, 404, 409, 500 with no `Message` outside Development),
-   an OpenAPI check and use cases from `docs/errors-in-practice.md`. 04d's branch has useful material.
-3. **20b** endpoint filter, `WithResultful`, Minimal API validation bridge, OpenAPI statuses per route from
+   an OpenAPI check and use cases from `docs/errors-in-practice.md`. 04d's branch has useful material. Its tests use
+   21c's assertions.
+5. **20b** endpoint filter, `WithResultful`, Minimal API validation bridge, OpenAPI statuses per route from
    `ResultHttpResult<T, TError>` (mapped statuses assignable to `TError`, 500, 400 only when `TError` can be a
    `ValidationFailed`), tested on the Shop.
-4. **22** native-AOT publish of the Shop on net11.0, no IL2xxx/IL3xxx (use 12b's resolver pattern; never `AddResultful`).
-5. **23b** samples: MediatR, Polly, EF Core.
-6. **24** `[Union]` on the core result types on net11, correctness matrix, BenchmarkDotNet allocations net10 vs net11,
+6. **20c** `hotchocolate`: `Resultful.HotChocolate` (decision 19), HotChocolate 16 (16.7.6 at writing), with a
+   GraphQL endpoint on the Shop. HotChocolate's `FieldResult<T, E1..E5>` + `AddQueryConventions()` is the model to
+   match; chillicream.com is blocked here, read the source on GitHub (raw.githubusercontent.com works).
+7. **22** native-AOT publish of the Shop on net11.0, no IL2xxx/IL3xxx (use 12b's resolver pattern; never `AddResultful`).
+8. **23b** samples: an MIT-licensed mediator (not MediatR 13+, which is RPL/commercial), Polly v8, EF Core.
+9. **24** `[Union]` on the core result types on net11, correctness matrix, BenchmarkDotNet allocations net10 vs net11,
    a new decision recording the numbers (decision 3).
-7. **25** docs sync: roadmap statuses, `docs/log.md`, decision statuses (15, 16 item 8, 17 accepted by Ryan), doc
-   snippets match the Shop, migration notes, stable 0.3.0 prepared (not published).
+10. **25** docs sync: roadmap statuses, `docs/log.md`, `architecture.md` (Generators, FSharp, HotChocolate,
+    assertions; candidates from decision 19), decision statuses (15, 16 item 8, 17 accepted by Ryan), doc snippets
+    match the Shop, migration notes, stable 0.3.0 prepared (not published).
 
 Also owed: mutation runs 1 (core, at 19) and 2 (tooling, at 17), with survivors noted in those PR bodies.
 
@@ -57,7 +67,7 @@ Also owed: mutation runs 1 (core, at 19) and 2 (tooling, at 17), with survivors 
 
 Land stack A and publish 0.2.0; create the `nuget-preview` environment (branch rule `rtkelly13/stack-*`, himself as
 required reviewer, secret `NUGET_PREVIEW_KEY`) and dispatch preview.1 (from 19) and preview.2 (from 17); move stack B
-onto stack A in his local restack (port 11/12b/13c's `eng/*.cs` changes into `eng/build.cs`).
+onto stack A in his local restack (port 11/12b/13c's `eng/*.cs` changes into `eng/build.cs`); merge #77 (decisions 18, 19).
 
 ## Where decisions are
 
