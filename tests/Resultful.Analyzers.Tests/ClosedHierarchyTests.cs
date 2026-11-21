@@ -5,7 +5,7 @@ namespace Resultful.Analyzers.Tests;
 
 /// <summary>
 /// RF0005 (a Match that could be a switch), RF0007 (a private protected constructor for a closed base) and RF0010 (a
-/// type in another assembly that derives from a closed base), with RF0005's and RF0007's fixes.
+/// type in another assembly that derives from a closed base), with RF0005's and RF0007's fixes. RFSP0001 is in SuppressorTests.
 /// </summary>
 public sealed class ClosedHierarchyTests
 {
@@ -138,8 +138,9 @@ public sealed class ClosedHierarchyTests
                 }
             }
             """;
-        Assert.Empty(FixTitles(source, new MatchToSwitchCodeFixProvider(), generate: true));
-        var fixedText = ApplyFix(source, fixAll: true, fix: new MatchToSwitchCodeFixProvider(offered: true), generate: true);
+        Assert.Equal([MatchToSwitchCodeFixProvider.Title, MatchToSwitchCodeFixProvider.Title, MatchToSwitchCodeFixProvider.Title],
+            FixTitles(source, new MatchToSwitchCodeFixProvider(), generate: true));
+        var fixedText = ApplyFix(source, fixAll: true, fix: new MatchToSwitchCodeFixProvider(), generate: true);
         Assert.Equal(source
             .Replace("""e.Match((OrderLocked l) => "locked " + l.Id /* why */, Name);""", """
                 e switch
@@ -162,5 +163,11 @@ public sealed class ClosedHierarchyTests
                             OrderNotFound n => Name(n).Length,
                         }
                 """, StringComparison.Ordinal), fixedText);
+
+        // Each switch the fix wrote gets CS8509, which RFSP0001 suppresses.
+        VerifySuppressions(fixedText
+            .Replace("var a = e switch", "var a = e switch // suppressed: CS8509", StringComparison.Ordinal)
+            .Replace("var b = (maybe ?? e) switch", "var b = (maybe ?? e) switch // suppressed: CS8509", StringComparison.Ordinal)
+            .Replace("var d = e switch", "var d = e switch // suppressed: CS8509", StringComparison.Ordinal), generate: true);
     }
 }

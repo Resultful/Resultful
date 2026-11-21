@@ -31,7 +31,10 @@ generated:
      that derives from it is reported. That rule is the guard: C# can't close a record hierarchy with
      constructors, because the copy constructor of a non-sealed record must be `public` or `protected` (CS8878), and another assembly derived
      through it (**verified**). A `private protected` base constructor
-     still closes the ordinary path, and a rule suggests it.
+     still closes the ordinary path, and a rule suggests it. The suppression is a compile-time snapshot of the base's
+     assembly and of the referenced assemblies that reference it: a later version that adds a leaf, or a deriving
+     assembly the consumer doesn't reference (an `InternalsVisibleTo` friend), makes the `switch` throw
+     `SwitchExpressionException` until the consumer is recompiled.
    Others are added only when a rule or the generator needs them. `[ResultShape(typeof(TError), Success =
    typeof(T), ManyErrors = …)]` is one, defined by [decision 16](0016-source-generated-result-shapes.md).
 5. **The generator is a second reader of the same attributes.** `Resultful.Generators` writes the `private

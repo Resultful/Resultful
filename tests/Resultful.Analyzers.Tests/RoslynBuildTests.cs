@@ -16,7 +16,7 @@ public sealed class RoslynBuildTests
     static readonly string[] AnalyzerTypes =
     [
         "MustObserveAnalyzer", "DefaultResultAnalyzer", "UncheckedValueAnalyzer", "BareStringAnalyzer", "MatchToSwitchAnalyzer",
-        "UnassignedFieldAnalyzer", "ClosedHierarchyAnalyzer", "UntypedHandlerAnalyzer", "MapToBindAnalyzer",
+        "UnassignedFieldAnalyzer", "ClosedHierarchyAnalyzer", "UntypedHandlerAnalyzer", "MapToBindAnalyzer", "ClosedHierarchySuppressor",
     ];
 
     // diagnostics.tsv and code-fixes.tsv of the 0.3 analyzer contract.
@@ -55,6 +55,9 @@ public sealed class RoslynBuildTests
         Assert.All(supported.Where(d => d.Id == "RF0001"), d => Assert.Equal(Descriptors.MustObserveTitle, d.Title.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         Assert.Equal("resultful.must_observe_types", Descriptors.MustObserveTypesKey);
         Assert.Equal("resultful.closed_hierarchy_types", Descriptors.ClosedHierarchyTypesKey);
+        var suppression = Assert.Single(AnalyzerHarness.Analyzers.OfType<DiagnosticSuppressor>().SelectMany(s => s.SupportedSuppressions));
+        Assert.Equal(("RFSP0001", "CS8509"), (suppression.Id, suppression.SuppressedDiagnosticId));
+        Assert.Equal(Descriptors.ClosedHierarchySwitchTitle, suppression.Justification.ToString(System.Globalization.CultureInfo.InvariantCulture));
         Assert.All(Fixes, f =>
         {
             Assert.Equal([f.Id], f.Fix.FixableDiagnosticIds);
@@ -84,6 +87,8 @@ public sealed class RoslynBuildTests
 
             public static class Cases
             {
+                static int Area(Shape s) => s switch { Circle => 1, Square => 2 };
+                static int Missing(Shape s) => s switch { Circle => 1 };
                 static Result<int> Get() => Result.Ok(1);
                 static void Forgets() { Get(); }
                 static Result<int> Zero() => default;
@@ -99,11 +104,18 @@ public sealed class RoslynBuildTests
         ImmutableArray<DiagnosticAnalyzer> old = [.. AnalyzerTypes.Select(n => (DiagnosticAnalyzer)Activator.CreateInstance(assembly.GetType("Resultful.Analyzers." + n, throwOnError: true)!)!)];
         Assert.Equal(Ids(compilation, AnalyzerHarness.Analyzers), Ids(compilation, old));
         Assert.Equal(["RF0001", "RF0002", "RF0003", "RF0004", "RF0006", "RF0007", "RF0009"], Ids(compilation, old));
+        // RFSP0001 suppresses the complete switch's CS8509 and keeps the other's, in both builds.
+        Assert.Equal(Switches(compilation, AnalyzerHarness.Analyzers), Switches(compilation, old));
+        Assert.Equal(["CS8509 kept", "CS8509 suppressed"], Switches(compilation, old));
     }
 
     static List<string> Ids(Compilation compilation, ImmutableArray<DiagnosticAnalyzer> analyzers) =>
-        [.. compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken).GetAwaiter().GetResult()
+        [.. compilation.WithAnalyzers(analyzers.RemoveAll(a => a is DiagnosticSuppressor)).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken).GetAwaiter().GetResult()
             .Select(d => d.Id).Order(StringComparer.Ordinal)];
+
+    static List<string> Switches(Compilation compilation, ImmutableArray<DiagnosticAnalyzer> analyzers) =>
+        [.. Diagnose(compilation, reportSuppressed: true, analyzers: analyzers).Where(d => d.Id == "CS8509")
+            .Select(d => d.Id + (d.IsSuppressed ? " suppressed" : " kept")).Order(StringComparer.Ordinal)];
 
     static Version? Reference(string path, string name)
     {
