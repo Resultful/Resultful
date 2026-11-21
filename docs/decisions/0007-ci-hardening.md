@@ -1,6 +1,6 @@
 ---
 type: decision
-title: "CI follows rig's hardening, not its whole job graph"
+title: "CI takes current hardening practice, not a full job graph"
 description: "Least-privilege tokens, zizmor, ls-lint, Dependabot, pack checks on every PR; the required check stays build; main publishes."
 status: proposed
 tags: [resultful, decision]
@@ -12,11 +12,11 @@ generated:
   at: 2026-11-20
 ---
 
-# 7. CI follows rig's hardening, not its whole job graph
+# 7. CI takes current hardening practice, not a full job graph
 
-Proposed: from rig's CI, take `permissions: {}` at the top with per-job `contents: read`,
+Proposed: take `permissions: {}` at the top with per-job `contents: read`,
 `persist-credentials: false`, `setup-dotnet` from `global.json`, zizmor, ls-lint (file and folder naming,
-and no shell or PowerShell scripts), Dependabot with a cooldown, a NuGet cache, and scripts as C# file-based apps rather than shell (rig's ls-lint bans `.sh`). Pack and the package check
+and no shell or PowerShell scripts), Dependabot with a cooldown, a NuGet cache, and scripts as C# file-based apps rather than shell (ls-lint bans `.sh`). Pack and the package check
 run on every pull request; publishing to NuGet runs only on `main`.
 
 A docs-only change gate is left out: the build is a couple of minutes, and a skipped required check

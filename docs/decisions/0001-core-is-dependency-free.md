@@ -19,7 +19,7 @@ generated:
 `FromOneOf` and conversions between `OneOf.Types.None` and `Resultful.None`.
 
 Why: OneOf's old `netstandard1.3` group pulled vulnerable packages into net8+ apps (beta05 broke `paket install`
-in rig), and C# unions on .NET 11 will change how a union library fits at all. A result library should not make its
+in a consuming project), and C# unions on .NET 11 will change how a union library fits at all. A result library should not make its
 consumers audit someone else's graph.
 
 This is a breaking change: `OneOf.Types.None` in `Option`'s public API becomes `Resultful.None`, and `ToOneOf`
