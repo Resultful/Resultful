@@ -107,3 +107,20 @@ Decided when `Error` was built (0.3, stack PR 06):
   the first match in that order. Each error object is visited once, so an `Inner` that points back up still ends,
   and `ToString` writes `…` for a cycle or past 64 levels; diagnostics never throw.
 - `ValidationFailed`'s `Message` is "Validation failed.", and it rejects an empty list.
+
+Decided when `Result<T>` moved to `Error` (0.3, stack PR 09):
+- `Result<T>` converts from a `T` and from any `Error`. `Result.Fail<T>(string)` and `Result.Fail(string)` build a
+  `MessageError` explicitly. The conversions from `string`, `string[]`, `List<string>` and
+  `Result<T, IEnumerable<string>>` are gone.
+- `MapError` on `Result<T>` (and on `Task<Result<T>>`) takes `Func<Error, Error>` and returns `Result<T>`, so
+  `MapError(e => new SaveFailed(id) { Cause = e })` stays a `Result<T>`. The generic `MapError<TError>` is not kept:
+  with it, that lambda picked the generic overload and returned `Result<T, SaveFailed>`. `Map2` changes the error to
+  another type.
+- Gathering on `Result<T>` and `VoidResult` with no merge function (`Plus`, `Fold`, `Reduce`, `Unroll`, the tuple
+  `Plus` and the async forms) is removed; the `Until` forms, which stop at the first failure, stay. `Result<T, TError>`
+  keeps its forms that take a merge function. Until `Validation` arrives, independent checks gather into one
+  `ValidationFailed<Error>`.
+- `VoidResult` holds an `Error` too, so it and `Result<Unit>` convert without loss, and it converts from any `Error`.
+  Its generic `MapError<TError>` keeps the overload trap (`v.MapError(e => new SaveFailed(id) { Cause = e })` gives
+  `VoidResult<SaveFailed>`); it is documented, not fixed, because `Result<Unit>` replaces `VoidResult` in PR 12. `AsResult()` and `WithContext` on
+  results arrive here.

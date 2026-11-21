@@ -181,17 +181,20 @@ namespace Resultful
                 success => Task.FromResult(Result.Ok<TErrorResult>()),
                 async errors => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).ConfigureAwait(false)).Fail());
 
-        /// <summary>On failure, maps the error to a list of error messages. A success keeps its value.</summary>
+        /// <summary>On failure, maps the error to an <see cref="Error"/>. A success keeps its value.</summary>
         /// <param name="errorMapFunc">Maps the error.</param>
-        public VoidResult MapError(Func<TError, IEnumerable<string>> errorMapFunc)
-            => Map2(errorMapFunc, Result.Id);
+        public VoidResult MapError(Func<TError, Error> errorMapFunc)
+        {
+            errorMapFunc.ThrowIfDefault(nameof(errorMapFunc));
+            return Match(_ => Result.Ok(), e => Result.Fail(errorMapFunc(e)));
+        }
 
-        /// <summary>On failure, maps the error to a list of error messages. A success keeps its value.</summary>
+        /// <summary>On failure, maps the error to an <see cref="Error"/>. A success keeps its value.</summary>
         /// <param name="errorMapFunc">Maps the error.</param>
-        public Task<VoidResult> MapErrorAsync(Func<TError, Task<IEnumerable<string>>> errorMapFunc)
+        public Task<VoidResult> MapErrorAsync(Func<TError, Task<Error>> errorMapFunc)
             => Match(
                 success => Task.FromResult(Result.Ok()),
-                async errors => (await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).ConfigureAwait(false)).Fail());
+                async errors => Result.Fail(await errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).ConfigureAwait(false)));
 
         /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <param name="bindFunc">Returns the next result. Its argument is the success's <see cref="Unit"/>.</param>

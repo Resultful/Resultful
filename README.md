@@ -14,9 +14,9 @@ Instructions to install using your appropriate package manager can be [found her
 There are 5 fundamental types in this library
 
 1. `Result<T, TError>` - Union of `T` and `TError`
-2. `Result<T>` - Union of `T` and `IEnumerable<string>`
+2. `Result<T>` - Union of `T` and one `Error`
 3. `VoidResult<TError>` - Union of `Unit` and `TError`
-4. `VoidResult` - Union of `Unit` and `IEnumerable<string>`
+4. `VoidResult` - Union of `Unit` and one `Error`
 5. `Option<T>` - Union of `T` and `None`
 
 ## Usage
@@ -24,9 +24,9 @@ There are 5 fundamental types in this library
 There are 3 parts to building a pipeline using this library.
 I am going to write the majority of the examples against `Result<T, TError>` as it is the most generic type, but the idea is applicable to all types where.
 
-1. `Result<T>` = `Result<T, IEnumerable<string>>`
+1. `Result<T>` = `Result<T, Error>`
 2. `VoidResult<TError>` = `Result<Unit, TError>`
-3. `VoidResult` = `Result<Unit, IEnumerable<string>>`
+3. `VoidResult` = `Result<Unit, Error>`
 4. `Option<T>` = `Result<T, None>`
 
 ### Building
@@ -44,8 +44,9 @@ private Result<int, Error> ParseInt(string input)
 }
 ```
 
-There is one case where the Implicit converters aren't implemented. This is when returning a `Result<int>` use the extension method `Ok()` for example `10.Ok()` is an expression returning `Result<int>`
-The because it would interfere with any Results that could also be interpreted as an error such as `string`, `IEnumerable<string>`.
+`Result<T>` converts from a `T` and from any `Error`, so `return row;` and `return new OrderNotFound(id);` both work.
+Nothing converts a `string` to an error: `Result<string> r = "message"` is a success. Write
+`Result.Fail<T>("message")` or `Error.From("message")` for a failure with only a message.
 
 ### Pipelining
 
@@ -109,9 +110,8 @@ var retried = result.OrElse(e => Retry(e));        // runs only on a failure, wi
 var count = CountItems().ValueOr(0);               // the value, or a fallback
 ```
 
-`Value` throws `InvalidOperationException` on a failure and `Error` throws on a success. `Result<T>` has
-`IsSuccess`, `IsFailure`, `Value`, `TryGetValue`, `OrElse(other)` and `ValueOr`; its error members come with the
-`Error` type in 0.3.
+`Value` throws `InvalidOperationException` on a failure and `Error` throws on a success. `Result<T>` has the same
+members, with `Error` as the error type.
 
 The zero value (`default`, an array slot, an unassigned field) is neither a success nor a failure. `IsSuccess` and
 `IsFailure` are both `false`, and every member that reads the value or the error (`Match`, `Map`, `Bind`, the async
@@ -139,8 +139,22 @@ Two errors are equal when their type, `Message`, `Cause` and `Context` (element 
 the derived record's own properties. `ToString()` is sealed: it prints the type name, `Message`, `Context`, inner
 errors and the cause chain, and never a derived record's own properties, because they may hold personal data. There
 is no conversion from `string`; write `Error.From("…")`. Deriving from `Error` needs C# 10 or later: C# 9
-reports CS8912, because the base seals `ToString`. `Result<T>` still holds a list of strings in this
-version; it holds an `Error` from 0.3.
+reports CS8912, because the base seals `ToString`.
+
+`Result<T>` holds one `Error` and stops at the first failure. `MapError` on it takes a function from `Error` to
+`Error`, so a note or a wrapper keeps it a `Result<T>`; `Map2` changes the error to another type. A
+`Result<T, TError>` whose error derives from `Error` widens with `AsResult()`:
+
+```cs
+Result<Order> Save(Order o) =>
+    db.Save(o).MapError(e => new SaveFailed(o.Id) { Cause = e });   // db.Save returns Result<Order>
+
+Result<Order> Load(int id) =>
+    repo.Find(id).AsResult().WithContext($"loading order {id}");      // Find returns Result<Order, OrderNotFound>
+```
+
+To gather several failures, collect them into one `ValidationFailed<Error>`; `Plus`, `Fold`, `Reduce` and `Unroll` on
+`Result<T>` and `VoidResult` are gone, and `Validation<T>` takes over in a later version.
 
 ### Attributes for the analyzers and the generator
 
@@ -203,9 +217,9 @@ You always provide an accumulator function which should be `Func<TResult, T, TRe
 
 ### Then, Sequence and Check
 
-`Plus` and `Fold` collect every error, which suits independent checks. When each step depends on the one before,
+`Plus` and `Fold` on `Result<T, TError>` collect every error, which suits independent checks. When each step depends on the one before,
 use `Then`, `Sequence` and `Check`: every step runs only if everything before it succeeded, and the first failure is
-returned unchanged, including any errors it already carried.
+returned unchanged.
 
 ```cs
 VoidResult PlaceOrder(Order order)
@@ -218,7 +232,7 @@ VoidResult PlaceOrder(Order order)
 Result<string> NormaliseName(string input)
     => input.Ok()
         .Then(Trim, NotEmpty, ToTitleCase)                        // Func<string, Result<string>> steps
-        .Check(name => name.Length <= 100 ? Result.Ok() : "name is too long"); // can fail, keeps the value
+        .Check(name => name.Length <= 100 ? Result.Ok() : Result.Fail("name is too long")); // can fail, keeps the value
 ```
 
 - `Sequence(...)` starts a chain of `VoidResult` steps.

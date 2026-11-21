@@ -55,17 +55,6 @@ namespace Resultful.Utils
             Func<TResult, T, TResult> aggrFunc) =>
             value.Map(x => aggrFunc.ThrowIfDefault(nameof(aggrFunc))(acc, x));
 
-        internal static Result<TResult> Func<TResult, T>(
-            Result<TResult> acc,
-            Result<T> value,
-            Func<TResult, T, TResult> aggrFunc) =>
-            acc.Plus(value)
-                .Map(x =>
-                {
-                    var (finalAcc, finalVal) = x;
-                    return aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal);
-                });
-
         internal static Option<Result<TResult>> FuncUntil<TResult, T>(
             Result<TResult> acc,
             Result<T> value,
@@ -86,18 +75,6 @@ namespace Resultful.Utils
             value
                 .MapAsync(async x => await aggrFunc.ThrowIfDefault(nameof(aggrFunc))(acc, x)
                     .ConfigureAwait(false));
-
-        internal static Task<Result<TResult>> FuncAsync<TResult, T>(
-            Result<TResult> acc,
-            Result<T> value,
-            Func<TResult, T, Task<TResult>> aggrFunc) =>
-            acc.Plus(value)
-                .MapAsync(async x =>
-                {
-                    var (finalAcc, finalVal) = x;
-                    return await aggrFunc.ThrowIfDefault(nameof(aggrFunc))(finalAcc, finalVal)
-                        .ConfigureAwait(false);
-                });
 
         internal static Task<Option<Result<TResult>>> FuncUntilAsync<TResult, T>(
             Result<TResult> acc,

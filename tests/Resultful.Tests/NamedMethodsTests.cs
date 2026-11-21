@@ -14,21 +14,22 @@ namespace Resultful.Tests
         static readonly Gen<Result<int, string>> GenResult =
             Gen.Select(Gen.Bool, Gen.Int, Gen.String, (ok, v, e) => ok ? v.Ok<int, string>() : e.Fail<int, string>());
 
+        // Result<T> holds one Error (09); a MessageError per random message, so equal errors come up.
         static readonly Gen<Result<int>> GenErrorList =
-            Gen.Select(Gen.Bool, Gen.Int, Gen.String.Array[0, 3], (ok, v, e) => ok ? v.Ok() : e.Fail<int>());
+            Gen.Select(Gen.Bool, Gen.Int, Gen.OneOf("a", "b", "c"), (ok, v, e) => ok ? v.Ok() : Error.From(e).Fail<int>());
 
         // The case, value and error as Match sees them: the reference every named method is held to.
         static (bool Ok, int Value, string? Error) Model(Result<int, string> r)
             => r.Match(v => (true, v, (string?)null), e => (false, 0, e));
 
-        static (bool Ok, int Value, string[]? Errors) Model(Result<int> r)
-            => r.Match(v => (true, v, (string[]?)null), e => (false, 0, e.ToArray()));
+        static (bool Ok, int Value, Error? Error) Model(Result<int> r)
+            => r.Match(v => (true, v, (Error?)null), e => (false, 0, e));
 
-        static void Same((bool Ok, int Value, string[]? Errors) expected, (bool Ok, int Value, string[]? Errors) actual)
+        static void Same((bool Ok, int Value, Error? Error) expected, (bool Ok, int Value, Error? Error) actual)
         {
             Assert.That(actual.Ok, Is.EqualTo(expected.Ok));
             Assert.That(actual.Value, Is.EqualTo(expected.Value));
-            Assert.That(actual.Errors, Is.EqualTo(expected.Errors));
+            Assert.That(actual.Error, Is.EqualTo(expected.Error));
         }
 
         [Test]
@@ -58,8 +59,16 @@ namespace Resultful.Tests
             GenErrorList.Sample(r =>
             {
                 var m = Model(r);
-                if (m.Ok) Assert.That(r.Value, Is.EqualTo(m.Value));
-                else Assert.That(() => r.Value, Throws.InvalidOperationException.With.Message.Contains("failure"));
+                if (m.Ok)
+                {
+                    Assert.That(r.Value, Is.EqualTo(m.Value));
+                    Assert.That(() => r.Error, Throws.InvalidOperationException.With.Message.Contains("success"));
+                }
+                else
+                {
+                    Assert.That(r.Error, Is.SameAs(m.Error));
+                    Assert.That(() => r.Value, Throws.InvalidOperationException.With.Message.Contains("failure"));
+                }
             });
         }
 
@@ -79,6 +88,8 @@ namespace Resultful.Tests
                 var m = Model(r);
                 Assert.That(r.TryGetValue(out var value), Is.EqualTo(m.Ok));
                 Assert.That(value, Is.EqualTo(m.Ok ? m.Value : default));
+                Assert.That(r.TryGetError(out var error), Is.EqualTo(!m.Ok));
+                Assert.That(error, Is.SameAs(m.Error));
             });
         }
 
@@ -89,6 +100,11 @@ namespace Resultful.Tests
             {
                 var (isSuccess, value, error) = r;
                 Assert.That((isSuccess, value, error), Is.EqualTo(Model(r)));
+            });
+            GenErrorList.Sample(r =>
+            {
+                var (isSuccess, value, error) = r;
+                Same(Model(r), (isSuccess, value, error));
             });
         }
 
@@ -123,6 +139,18 @@ namespace Resultful.Tests
                 Assert.That(Model(result), Is.EqualTo(m.Ok ? m : Model(other)));
                 Assert.That(seen, Is.EqualTo(m.Ok ? Array.Empty<string>() : new[] { m.Error! }));
             });
+            Gen.Select(GenErrorList, GenErrorList).Sample((r, other) =>
+            {
+                var seen = new List<Error>();
+                var result = r.OrElse(e =>
+                {
+                    seen.Add(e);
+                    return other;
+                });
+                var m = Model(r);
+                Same(m.Ok ? m : Model(other), Model(result));
+                Assert.That(seen, Is.EqualTo(m.Ok ? Array.Empty<Error>() : new[] { m.Error! }));
+            });
         }
 
         [Test]
@@ -132,6 +160,10 @@ namespace Resultful.Tests
             Assert.That(() => failed.OrElse((Func<string, Result<int, string>>)null!), Throws.ArgumentNullException);
             Result<int, string> ok = 1;
             Assert.That(() => ok.OrElse((Func<string, Result<int, string>>)null!), Throws.ArgumentNullException);
+            Result<int> failedT = Error.From("bad");
+            Assert.That(() => failedT.OrElse((Func<Error, Result<int>>)null!), Throws.ArgumentNullException);
+            Result<int> okT = 1;
+            Assert.That(() => okT.OrElse((Func<Error, Result<int>>)null!), Throws.ArgumentNullException);
         }
 
         // 08b (ZERO-NULL-ERR): a failure always holds an error, so Fail(null!) throws, which keeps
@@ -143,7 +175,9 @@ namespace Resultful.Tests
             Assert.That(() => ((string)null!).Fail<int, string>(), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("value"));
             Assert.That(() => ((string)null!).Fail(), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("value"));
             Assert.That(() => { Result<int, string> r = (string)null!; }, Throws.ArgumentNullException);
-            Assert.That(() => Result.Fail<int>((IEnumerable<string>)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("errors"));
+            Assert.That(() => Result.Fail<int>((Error)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("error"));
+            Assert.That(() => Result.Fail<int>((string)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("message"));
+            Assert.That(() => { Result<int> r = (Error)null!; }, Throws.ArgumentNullException);
             var ok = ((string?)null).Ok<string?, string>();
             Assert.That(ok.IsSuccess, Is.True);
             Assert.That(ok.Value, Is.Null);
@@ -172,8 +206,12 @@ namespace Resultful.Tests
             Assert.That(zeroList.IsSuccess, Is.False);
             Assert.That(zeroList.IsFailure, Is.False);
             Assert.That(() => zeroList.Value, Throws.InvalidOperationException.With.Message.Contains("zero value"));
+            Assert.That(() => zeroList.Error, Throws.InvalidOperationException.With.Message.Contains("zero value"));
             Assert.That(() => zeroList.TryGetValue(out _), Throws.InvalidOperationException);
+            Assert.That(() => zeroList.TryGetError(out _), Throws.InvalidOperationException);
+            Assert.That(() => { var (_, _, _) = zeroList; }, Throws.InvalidOperationException);
             Assert.That(() => zeroList.OrElse(1.Ok()), Throws.InvalidOperationException);
+            Assert.That(() => zeroList.OrElse(_ => 1), Throws.InvalidOperationException);
             Assert.That(() => zeroList.ValueOr(1), Throws.InvalidOperationException);
             Assert.That(() => zeroList.Match(v => v, _ => -1), Throws.InvalidOperationException.With.Message.Contains("zero value"));
         }
