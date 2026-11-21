@@ -10,7 +10,8 @@ namespace Resultful.Generators.Tests;
 // (CS8785 drops all of its output). Random hierarchies cover depth, nested [ClosedHierarchy] bases, concrete
 // intermediates (RFG0002), open generics (RFG0003), internal leaves (RFG0004), non-partial enclosing types (RFG0005),
 // unsupported declarations (RFG0006), shared simple names across namespaces (RFG0008) and every kind of Success
-// (RFG0001). Determinism: the same sources in any order give byte-identical output.
+// (RFG0001). On net11.0 a plan also has C# 15 error unions: nested, partial or not (RFG0009), holding a case and its
+// subtype, some used as a shape's error. Determinism: the same sources in any order give byte-identical output.
 //
 // Iterations: RESULTFUL_FUZZ_ITER (default 150); a failure prints its CsCheck seed, and CsCheck_Seed replays it.
 public sealed class FuzzTests
@@ -119,6 +120,10 @@ public sealed class FuzzTests
             ("Interface.cs", FixtureCatalog.InterfaceSuccess),
             ("Void.cs", FixtureCatalog.ValuelessShape),
             ("Many.cs", FixtureCatalog.ManyErrorsShape),
+#if NET11_0_OR_GREATER
+            ("TwinUnion.cs", FixtureCatalog.TwinUnion),
+            ("NestedUnion.cs", FixtureCatalog.NestedUnion),
+#endif
         ];
 
         var forward = Generate(files);
@@ -195,10 +200,28 @@ public sealed class FuzzTests
         Gen.Select(Gen.Int[0, 4].Select(i => i == 0), Gen.Int[0, 3].Select(i => i != 0), Gen.Int[0, 29].Select(i => i != 0), (m, p, r) => (m, p, r)),
         (h, s, f) => new ShapeSpec(h, s, f.m, f.p, f.r));
 
-    private static readonly Gen<Plan> Plans = Gen.Select(Hierarchies.Array[1, 3], Shapes.Array[0, 4], (h, s) => new Plan(h, s));
+    // Cases: indices into UnionLeaves; Nest > 0 also holds the union Nest places back; Partial mostly.
+    private sealed record UnionSpec(int[] Cases, bool Partial, int Nest, bool Shape);
 
-    private sealed record Plan(HierarchySpec[] Hierarchies, ShapeSpec[] Shapes)
+    private static readonly Gen<UnionSpec> Unions = Gen.Select(
+        Gen.Int[0, 6].Array[1, 3],
+        Gen.Int[0, 9].Select(i => i != 0),
+        Gen.Int[0, 3],
+        Gen.Int[0, 1].Select(i => i == 1),
+        (c, p, n, sh) => new UnionSpec(c, p, n, sh));
+
+#if NET11_0_OR_GREATER
+    private const int MaxUnions = 3;
+#else
+    private const int MaxUnions = 0;
+#endif
+
+    private static readonly Gen<Plan> Plans = Gen.Select(Hierarchies.Array[1, 3], Shapes.Array[0, 4], Unions.Array[0, MaxUnions], (h, s, u) => new Plan(h, s, u));
+
+    private sealed record Plan(HierarchySpec[] Hierarchies, ShapeSpec[] Shapes, UnionSpec[] Unions)
     {
+        private static readonly string[] UnionLeaves = ["UBase", "UDerived", "UL0", "UL1", "UL2", "UL3", "UL4"];
+
         private static readonly string[] Names = ["NotFound", "Locked", "Gone", "Expired", "Declined", "Missing", "Timeout", "Refused", "Conflict", "Invalid", "Stale", "Busy"];
         private static readonly string[] Namespaces = ["", "Alpha", "Beta"];
         private const string Usings = "using Resultful;\nusing Resultful.CodeAnalysis;\n\n";
@@ -320,6 +343,34 @@ public sealed class FuzzTests
             }
 
             yield return ("Shapes.cs", shapes.ToString());
+
+            if (Unions.Length > 0)
+            {
+                var unions = new StringBuilder(Usings + "namespace UnionFuzz\n{\n");
+                unions.Append("public record UBase() : Error(\"b\");\npublic sealed record UDerived() : UBase;\n");
+                for (var k = 0; k < 5; k++)
+                {
+                    unions.Append($"public sealed record UL{k}() : Error(\"m\");\n");
+                }
+
+                for (var u = 0; u < Unions.Length; u++)
+                {
+                    var spec = Unions[u];
+                    var cases = spec.Cases.Select(c => UnionLeaves[c]).Distinct().ToList();
+                    if (spec.Nest > 0 && u - spec.Nest >= 0)
+                    {
+                        cases.Add($"U{u - spec.Nest}");
+                    }
+
+                    unions.Append($"public {(spec.Partial ? "partial " : string.Empty)}union U{u}({string.Join(", ", cases)});\n");
+                    if (spec.Shape)
+                    {
+                        unions.Append($"[ResultShape(typeof(U{u}), Success = typeof(global::Order))] public readonly partial struct U{u}Result;\n");
+                    }
+                }
+
+                yield return ("Unions.cs", unions.Append("}\n").ToString());
+            }
         }
     }
 }

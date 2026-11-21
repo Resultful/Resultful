@@ -123,5 +123,13 @@ Alternatives rejected:
   [Building the generator](../explorations/building-the-generator.md) goes from 3 to 4.
 - `Resultful.Text.Json` reads unions and hierarchies through a registered case list (12b).
 - RF0002 covers `default` of an error union (16a).
+- A generated union also gets `static Union Wrap(Error leaf)`, the `wrap` that `ErrorUnionJsonConverter` takes: it
+  builds the union from an innermost leaf, rebuilding any nesting, and throws `ArgumentNullException` for `null` and
+  `ArgumentException` for an error that isn't one of its leaves. A leaf reachable both directly and through a nested
+  union is wrapped on the direct path. A `[ClosedHierarchy]` base as a case stands for its leaves: `Cases` adds the
+  base's own `Cases`, and `Wrap` matches the base.
+- Cases are matched most-derived first, so a union may hold a case and its subtype. Members a `partial union`
+  declares itself are not generated, and `RFG0009` (a warning) reports a partial union that holds a nested union the
+  generator can't extend, which then gets no members.
 - Adding a case to a union, like adding a leaf to a hierarchy, changes a shape's `Match` signature: a binary break for
   callers in other assemblies.

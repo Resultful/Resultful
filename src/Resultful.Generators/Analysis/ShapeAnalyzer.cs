@@ -91,13 +91,14 @@ internal static class ShapeAnalyzer
         var errorDerivesFromError = HierarchyAnalyzer.DerivesFrom(errorType, HierarchyAnalyzer.ErrorMetadataName);
         var errorIsClosed = HierarchyAnalyzer.HasAttribute(errorType, HierarchyAnalyzer.ClosedHierarchyAttr);
 
-        // RFG0007 (decision 17): a C# 15 union is a struct that implements IUnion, with one public constructor per
-        // case. Read through symbols only, so the generator built against Roslyn 4.14 sees unions from a 5.x compiler.
-        if (IsUnion(errorType))
+        // RFG0007 (decision 17): every case of a union error is an Error, or a nested union of them.
+        UnionErrorModel? union = null;
+        if (UnionAnalyzer.IsUnion(errorType))
         {
-            foreach (var caseType in UnionCaseTypes(errorType))
+            var cases = new List<LeafModel>();
+            foreach (var caseType in UnionAnalyzer.CaseTypes(errorType).OrderByDescending(UnionAnalyzer.TypeDepth))
             {
-                if (!IsErrorCase(caseType, depth: 0))
+                if (!UnionAnalyzer.IsErrorCase(caseType))
                 {
                     diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.UnionCaseNotError,
@@ -106,8 +107,46 @@ internal static class ShapeAnalyzer
                         errorType.Name,
                         caseType.ToDisplayString()));
                 }
+                else if (caseType is INamedTypeSymbol named && cases.All(c => c.FullName != UnionAnalyzer.Full(named)))
+                {
+                    cases.Add(new LeafModel(UnionAnalyzer.Full(named), named.Name, named.Name, 0, HierarchyAnalyzer.GetEffectiveAccessibilityRank(named)));
+                }
             }
+
+            // Parameter names: the case's simple name, qualified when two cases share one.
+            var leaves = cases
+                .Select(c => cases.Count(o => o.ShortName == c.ShortName) > 1
+                    ? c with { ParamSuffix = HierarchyAnalyzer.StripGlobal(c.FullName).Replace(".", string.Empty) }
+                    : c)
+                .ToArray();
+
+            // RFG0008 for a union that doesn't report it itself (one the generator can't reopen).
+            if (!UnionAnalyzer.CanReopen(errorType))
+            {
+                foreach (var group in UnionAnalyzer.Collisions(errorType))
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.DuplicateLeafSimpleName,
+                        tds.Identifier.GetLocation(),
+                        errorType.Name,
+                        group.Key,
+                        string.Join(", ", group.Select(l => HierarchyAnalyzer.StripGlobal(l.FullName)))));
+                }
+            }
+
+            // A nested leaf converts in too, unless it is also a direct case or reached twice (ambiguous).
+            var nested = UnionAnalyzer.NestedLeaves(errorType);
+            var nestedLeaves = nested
+                .Where(n => nested.Count(o => o.FullName == n.FullName) == 1 && leaves.All(c => c.FullName != n.FullName))
+                .ToArray();
+
+            union = new UnionErrorModel(
+                new EquatableArray<LeafModel>(leaves),
+                new EquatableArray<NestedLeafModel>(nestedLeaves),
+                UnionAnalyzer.ErrorAccess(errorType),
+                UnionAnalyzer.HasWithContext(errorType));
         }
+
         var errorIsExternal = !SymbolEqualityComparer.Default.Equals(errorType.ContainingAssembly, compilation.Assembly);
 
         var externalEntries = errorIsClosed && errorIsExternal
@@ -118,6 +157,19 @@ internal static class ShapeAnalyzer
         if (resolvedSuccess is not null)
         {
             CheckStaticOverlaps(compilation, resolvedSuccess, errorType, manyErrors, overlaps);
+
+            // A union's cases and nested leaves are matched by type pattern like a hierarchy's leaves.
+            if (overlaps.Count == 0 && union is not null && !manyErrors)
+            {
+                foreach (var caseType in UnionAnalyzer.CaseTypes(errorType).Concat(UnionAnalyzer.LeafSymbols(errorType, 0)))
+                {
+                    if (AreConvertibleEitherWay(compilation, resolvedSuccess, caseType))
+                    {
+                        overlaps.Add(caseType.Name);
+                        break;
+                    }
+                }
+            }
         }
 
         return new ResultShapeDeclaration(
@@ -135,6 +187,7 @@ internal static class ShapeAnalyzer
             ErrorDerivesFromError: errorDerivesFromError,
             ErrorIsClosed: errorIsClosed,
             ErrorIsExternal: errorIsExternal,
+            Union: union,
             ShapeAccessibilityRank: HierarchyAnalyzer.GetEffectiveAccessibilityRank(structType),
             ExternalErrorEntries: externalEntries,
             OverlappingErrorCandidates: new EquatableArray<string>(overlaps.ToArray()),
@@ -151,7 +204,7 @@ internal static class ShapeAnalyzer
 
         var leaves = decl.ErrorIsClosed
             ? HierarchyAnalyzer.ResolveLeavesForBase(decl.ErrorFullName, ShortNameOf(decl.ErrorFullName), sourceEntries, new List<DiagnosticInfo>())
-            : EquatableArray<LeafModel>.Empty;
+            : decl.Union?.Cases ?? EquatableArray<LeafModel>.Empty;
 
         // RFG0001: static overlaps (TError, Error, object, IReadOnlyList<TError>)
         for (var i = 0; i < decl.OverlappingErrorCandidates.Length; i++)
@@ -205,6 +258,19 @@ internal static class ShapeAnalyzer
                         ShortNameOf(leaves[i].FullName)));
                 }
             }
+
+            var nested = decl.Union?.NestedLeaves ?? EquatableArray<NestedLeafModel>.Empty;
+            for (var i = 0; i < nested.Length; i++)
+            {
+                if (!HierarchyAnalyzer.IsAccessibleEnough(nested[i].AccessibilityRank, decl.ShapeAccessibilityRank))
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.InaccessibleLeaf,
+                        decl.Position,
+                        decl.Name,
+                        nested[i].ShortName));
+                }
+            }
         }
 
         var hasBlockingError = diagnostics.Any(d => d.Descriptor.DefaultSeverity == DiagnosticSeverity.Error);
@@ -222,23 +288,9 @@ internal static class ShapeAnalyzer
             ErrorDerivesFromError: decl.ErrorDerivesFromError,
             ErrorIsClosed: decl.ErrorIsClosed,
             Leaves: hasBlockingError ? EquatableArray<LeafModel>.Empty : leaves,
+            Union: hasBlockingError ? null : decl.Union,
             Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
     }
-
-    // A case is an Error, or a nested union whose own cases all are (decision 17 keeps a nested union as one case).
-    private static bool IsErrorCase(ITypeSymbol caseType, int depth) =>
-        caseType is INamedTypeSymbol named &&
-        (HierarchyAnalyzer.DerivesFrom(named, HierarchyAnalyzer.ErrorMetadataName) ||
-         (depth < 8 && IsUnion(named) && UnionCaseTypes(named).All(c => IsErrorCase(c, depth + 1))));
-
-    public static bool IsUnion(INamedTypeSymbol type) =>
-        type.TypeKind == TypeKind.Struct &&
-        type.AllInterfaces.Any(i => i.ToDisplayString() == "System.Runtime.CompilerServices.IUnion");
-
-    public static IEnumerable<ITypeSymbol> UnionCaseTypes(INamedTypeSymbol union) =>
-        union.InstanceConstructors
-            .Where(c => c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length == 1)
-            .Select(c => c.Parameters[0].Type);
 
     private static void CheckStaticOverlaps(
         Compilation compilation,
