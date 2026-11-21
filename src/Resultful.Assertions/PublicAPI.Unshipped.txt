@@ -1,0 +1,84 @@
+#nullable enable
+Resultful.Assertions.ResultAssertionException
+Resultful.Assertions.ResultAssertionException.ResultAssertionException() -> void
+Resultful.Assertions.ResultAssertionException.ResultAssertionException(string! message) -> void
+Resultful.Assertions.ResultAssertionException.ResultAssertionException(string! message, System.Exception! innerException) -> void
+Resultful.Assertions.ResultAssertions
+Resultful.Assertions.ResultAssertions.extension(Resultful.Error!)
+Resultful.Assertions.ResultAssertions.extension(Resultful.Error!).ShouldFind<TLeaf>() -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension(Resultful.Error!).ShouldFind<TLeaf>(string? because) -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension(Resultful.IErrorUnion!)
+Resultful.Assertions.ResultAssertions.extension(Resultful.IErrorUnion!).ShouldFind<TLeaf>() -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension(Resultful.IErrorUnion!).ShouldFind<TLeaf>(string? because) -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension(System.Collections.Generic.IEnumerable<Resultful.Error!>!)
+Resultful.Assertions.ResultAssertions.extension(System.Collections.Generic.IEnumerable<Resultful.Error!>!).ShouldFind<TLeaf>() -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension(System.Collections.Generic.IEnumerable<Resultful.Error!>!).ShouldFind<TLeaf>(string? because) -> TLeaf!
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IResultShape<T, TError>!)
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IResultShape<T, TError>!).ShouldFail() -> TError
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IResultShape<T, TError>!).ShouldFail(string? because) -> TError
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IResultShape<T, TError>!).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IResultShape<T, TError>!).ShouldSucceed(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IValidationShape<T, TError>!)
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IValidationShape<T, TError>!).ShouldFail() -> System.Collections.Generic.IReadOnlyList<TError>!
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IValidationShape<T, TError>!).ShouldFail(string? because) -> System.Collections.Generic.IReadOnlyList<TError>!
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IValidationShape<T, TError>!).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.IValidationShape<T, TError>!).ShouldSucceed(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Result<T, TError>)
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Result<T, TError>).ShouldFail() -> TError
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Result<T, TError>).ShouldFail(string? because) -> TError
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Result<T, TError>).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Result<T, TError>).ShouldSucceed(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Validation<T, TError>)
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Validation<T, TError>).ShouldFail() -> System.Collections.Generic.IReadOnlyList<TError>!
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Validation<T, TError>).ShouldFail(string? because) -> System.Collections.Generic.IReadOnlyList<TError>!
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Validation<T, TError>).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T, TError>(Resultful.Validation<T, TError>).ShouldSucceed(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Option<T>)
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Option<T>).ShouldBeNone() -> void
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Option<T>).ShouldBeNone(string? because) -> void
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Option<T>).ShouldBeSome() -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Option<T>).ShouldBeSome(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Result<T>)
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Result<T>).ShouldFail() -> Resultful.Error!
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Result<T>).ShouldFail(string? because) -> Resultful.Error!
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Result<T>).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Result<T>).ShouldSucceed(string? because) -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Validation<T>)
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Validation<T>).ShouldFail() -> System.Collections.Generic.IReadOnlyList<Resultful.Error!>!
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Validation<T>).ShouldFail(string? because) -> System.Collections.Generic.IReadOnlyList<Resultful.Error!>!
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Validation<T>).ShouldSucceed() -> T
+Resultful.Assertions.ResultAssertions.extension<T>(Resultful.Validation<T>).ShouldSucceed(string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldBeNone<T>(this Resultful.Option<T> option) -> void
+static Resultful.Assertions.ResultAssertions.ShouldBeNone<T>(this Resultful.Option<T> option, string? because) -> void
+static Resultful.Assertions.ResultAssertions.ShouldBeSome<T>(this Resultful.Option<T> option) -> T
+static Resultful.Assertions.ResultAssertions.ShouldBeSome<T>(this Resultful.Option<T> option, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.IResultShape<T, TError>! shape) -> TError
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.IResultShape<T, TError>! shape, string? because) -> TError
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.IValidationShape<T, TError>! shape) -> System.Collections.Generic.IReadOnlyList<TError>!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.IValidationShape<T, TError>! shape, string? because) -> System.Collections.Generic.IReadOnlyList<TError>!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.Result<T, TError> result) -> TError
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.Result<T, TError> result, string? because) -> TError
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.Validation<T, TError> validation) -> System.Collections.Generic.IReadOnlyList<TError>!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T, TError>(this Resultful.Validation<T, TError> validation, string? because) -> System.Collections.Generic.IReadOnlyList<TError>!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T>(this Resultful.Result<T> result) -> Resultful.Error!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T>(this Resultful.Result<T> result, string? because) -> Resultful.Error!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T>(this Resultful.Validation<T> validation) -> System.Collections.Generic.IReadOnlyList<Resultful.Error!>!
+static Resultful.Assertions.ResultAssertions.ShouldFail<T>(this Resultful.Validation<T> validation, string? because) -> System.Collections.Generic.IReadOnlyList<Resultful.Error!>!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this Resultful.Error! error) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this Resultful.Error! error, string? because) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this Resultful.IErrorUnion! union) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this Resultful.IErrorUnion! union, string? because) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this System.Collections.Generic.IEnumerable<Resultful.Error!>! errors) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldFind<TLeaf>(this System.Collections.Generic.IEnumerable<Resultful.Error!>! errors, string? because) -> TLeaf!
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.IResultShape<T, TError>! shape) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.IResultShape<T, TError>! shape, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.IValidationShape<T, TError>! shape) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.IValidationShape<T, TError>! shape, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.Result<T, TError> result) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.Result<T, TError> result, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.Validation<T, TError> validation) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T, TError>(this Resultful.Validation<T, TError> validation, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T>(this Resultful.Result<T> result) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T>(this Resultful.Result<T> result, string? because) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T>(this Resultful.Validation<T> validation) -> T
+static Resultful.Assertions.ResultAssertions.ShouldSucceed<T>(this Resultful.Validation<T> validation, string? because) -> T

@@ -13,6 +13,8 @@
 //   - in Resultful.OneOf, a missing OneOf dependency or a floor below 3.0.271 (3.0.178 pulls NETStandard.Library 1.6.1
 //     -> NU1903 on net8+)
 //   - in any other package, a dependency group without Resultful at this package's own version (lockstep)
+//   - in Resultful.Assertions.FluentAssertions, a group without FluentAssertions capped below 8.0.0 by an exclusive upper
+//     bound (8 and later are commercially licensed, and removed the Execute.Assertion the adapter calls)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
 //
 // Analyzer packages (analyzerPackages: Resultful.Generators, Resultful.Analyzers) are checked instead for: no lib/ and no dependencies,
@@ -114,6 +116,12 @@ foreach (var path in args)
         if (id == "Resultful.OneOf" && !ids.ContainsKey("OneOf"))
         {
             failures.Add($"{tfm} group has no OneOf dependency");
+        }
+
+        // Resultful.Assertions.FluentAssertions (21c): FluentAssertions must stay below 8.0.0 in every group.
+        if (id == "Resultful.Assertions.FluentAssertions" && !HasFluentAssertions7Cap(ids))
+        {
+            failures.Add($"{tfm} group: FluentAssertions needs an exclusive upper bound of at most 8.0.0, such as [7.0.0, 8.0.0)");
         }
 
         if (!ids.TryGetValue("Resultful", out var core) || core.Trim('[', ']', '(', ')').Split(',')[0] != version)
@@ -232,4 +240,16 @@ static Version? CodeAnalysisReference(ZipArchiveEntry entry)
         .Where(r => reader.GetString(r.Name) == "Microsoft.CodeAnalysis")
         .Select(r => r.Version)
         .FirstOrDefault();
+}
+
+// Resultful.Assertions.FluentAssertions (21c): "[7.0.0, 8.0.0)" passes; "7.0.0", "[7.0.0, )" or "[7.0.0, 9.0.0)" fail.
+static bool HasFluentAssertions7Cap(Dictionary<string, string> ids)
+{
+    if (!ids.TryGetValue("FluentAssertions", out var range) || !range.EndsWith(')') || !range.Contains(','))
+    {
+        return false;
+    }
+
+    var upper = range[(range.IndexOf(',') + 1)..^1].Trim();
+    return Version.TryParse(upper, out var bound) && bound <= new Version(8, 0, 0);
 }
