@@ -62,20 +62,20 @@ namespace Resultful.Examples
             {
                 return int.Parse(input).Ok();
             }
-            return $"{input} contains a character which is not a digit";
+            return Resultful.Error.From($"{input} contains a character which is not a digit");
         }
 
         public Result<int> GetAndValidateNumberOfPeople(string people)
         {
             if (people == null)
             {
-                return "Cannot return int value given is null";
+                return Resultful.Error.From("Cannot return int value given is null");
             }
             return ParseInt(people).Bind(x =>
             {
                 if (x <= 0)
                 {
-                    return $"{x} must be a value ";
+                    return Result.Fail<int>($"{x} must be a value ");
                 }
                 return x.Ok();
             });

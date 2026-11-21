@@ -89,8 +89,8 @@ namespace Resultful.Tests
             Gen.Const(new Op("DiscardError.Match",
                 (r, _) => r.DiscardError().Match(v => v.Ok<int, string>(), _ => "none".Fail<int, string>()),
                 (m, _) => m.Ok ? M.Success(m.Value) : M.Failure("none"))),
-            Gen.Const(new Op("MapError(list).MapError(join)",
-                (r, _) => r.MapError(e => (IEnumerable<string>)new[] { e }).MapError(es => string.Join(",", es)),
+            Gen.Const(new Op("MapError(Error).Map2(Message)",
+                (r, _) => r.MapError(e => Error.From(e)).Map2(e => e.Message, v => v),
                 (m, _) => m.Ok ? M.Success(m.Value) : M.Failure(m.Error ?? ""))),
             Gen.Const(new Op("Cast.CastError",
                 (r, _) => r.Cast<int>().CastError<string>(),
@@ -217,9 +217,9 @@ namespace Resultful.Tests
 
         // The other types, value by value: each 0.2 member against the same model.
         [Test]
-        public void Result_with_an_error_list_behaves_like_the_reference_model()
+        public void Result_with_an_Error_behaves_like_the_reference_model()
         {
-            var errors = new[] { "x" };
+            var errors = Error.From("x");
             var gen = Gen.Frequency((1, Gen.Const(((byte)0, 0))), (3, Gen.Int[-3, 3].Select(v => ((byte)1, v))), (3, Gen.Const(((byte)2, 0))));
             Gen.Select(gen, gen).Sample((a, b) =>
             {
@@ -238,19 +238,19 @@ namespace Resultful.Tests
                     Assert.That(() => r.DiscardValue(), Throws.InvalidOperationException);
                     return;
                 }
-                Assert.That(r.Match(v => (true, v, (IEnumerable<string>?)null), e => (false, 0, e)), Is.EqualTo((ok, a.Item2, ok ? null : errors)));
+                Assert.That(r.Match(v => (true, v, (Error?)null), e => (false, 0, e)), Is.EqualTo((ok, a.Item2, ok ? null : errors)));
                 Assert.That(r.ToOneOf().IsT0, Is.EqualTo(ok));
                 var mapped = r.Map(x => x * 2).Bind(x => x > 2 ? x.Ok() : Result.Fail<int>("small"));
-                Assert.That(mapped.Match(v => v.ToString(), e => string.Join(",", e)),
+                Assert.That(mapped.Match(v => v.ToString(), e => e.Message),
                     Is.EqualTo(!ok ? "x" : a.Item2 * 2 > 2 ? (a.Item2 * 2).ToString() : "small"));
-                Assert.That(r.DiscardValue().Match(_ => "ok", e => string.Join(",", e)), Is.EqualTo(ok ? "ok" : "x"));
+                Assert.That(r.DiscardValue().Match(_ => "ok", e => e.Message), Is.EqualTo(ok ? "ok" : "x"));
             });
         }
 
         [Test]
         public void VoidResults_behave_like_the_reference_model()
         {
-            var errors = new[] { "x" };
+            var errors = Error.From("x");
             var gen = Gen.Byte[0, 2];
             Gen.Select(gen, gen, Errors).Sample((a, b, error) =>
             {
@@ -280,7 +280,7 @@ namespace Resultful.Tests
                     return;
                 }
 
-                Assert.That(p.Match(u => (true, u, (IEnumerable<string>?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : errors)));
+                Assert.That(p.Match(u => (true, u, (Error?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : errors)));
                 Assert.That(p.ToOneOf().IsT0, Is.EqualTo(ok));
                 Assert.That(p.Map(_ => 1).Match(v => v, _ => -1), Is.EqualTo(ok ? 1 : -1));
 

@@ -37,7 +37,7 @@ namespace Resultful
             return value;
         }
 
-        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the errors and <paramref name="next"/> isn't called.</summary>
+        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the error and <paramref name="next"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The result.</param>
         /// <param name="next">Gives the next result.</param>

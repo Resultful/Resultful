@@ -73,9 +73,9 @@ namespace Resultful.Tests
             new("Result`2", "Map", () => Zero.Map(v => v)),
             new("Result`2", "MapAsync", () => Zero.MapAsync(Async)),
             new("Result`2", "MapError", () => Zero.MapError(e => e)),
-            new("Result`2", "MapError", () => Zero.MapError(e => (IEnumerable<string>)[e])),
+            new("Result`2", "MapError", () => Zero.MapError(e => Error.From(e))),
             new("Result`2", "MapErrorAsync", () => Zero.MapErrorAsync(Async)),
-            new("Result`2", "MapErrorAsync", () => Zero.MapErrorAsync(e => Async((IEnumerable<string>)[e]))),
+            new("Result`2", "MapErrorAsync", () => Zero.MapErrorAsync(e => Async(Error.From(e)))),
             new("Result`2", "Map2", () => Zero.Map2(e => e, v => v)),
             new("Result`2", "Map2Async", () => Zero.Map2Async(Async, Async)),
             new("Result`2", "Tee", () => Zero.Tee(_ => { })),
@@ -104,11 +104,18 @@ namespace Resultful.Tests
             new("Result`2", "Task.Tee", () => Async(Zero).Tee(_ => { })),
             new("Result`2", "Fold", () => new[] { Ok, Zero }.Fold(0, (sum, r) => r.Map(v => sum + v).ValueOr(sum))),
             new("Result`2", "implicit VoidResult", () => { VoidResult<string> v = default(Result<Unit, string>); return v; }),
+            new("Result`2", "AsResult", () => default(Result<int, Error>).AsResult()),
+            new("Result`2", "WithContext", () => default(Result<int, Error>).WithContext("note")),
 
             // Result<T>
             new("Result`1", "Value", () => ZeroList.Value),
+            new("Result`1", "Error", () => ZeroList.Error),
             new("Result`1", "TryGetValue", () => ZeroList.TryGetValue(out _)),
+            new("Result`1", "TryGetError", () => ZeroList.TryGetError(out _)),
+            new("Result`1", "Deconstruct", () => { var (a, b, c) = ZeroList; return (a, b, c); }),
             new("Result`1", "OrElse", () => ZeroList.OrElse(1.Ok())),
+            new("Result`1", "OrElse", () => ZeroList.OrElse(_ => 1.Ok())),
+            new("Result`1", "WithContext", () => ZeroList.WithContext("note")),
             new("Result`1", "ValueOr", () => ZeroList.ValueOr(0)),
             new("Result`1", "Match", () => ZeroList.Match(v => v, _ => 0)),
             new("Result`1", "Switch", () => { ZeroList.Switch(_ => { }, _ => { }); return null; }),
@@ -119,10 +126,10 @@ namespace Resultful.Tests
             new("Result`1", "BindAsync", () => ZeroList.BindAsync(v => Async(v.Ok()))),
             new("Result`1", "Map", () => ZeroList.Map(v => v)),
             new("Result`1", "MapAsync", () => ZeroList.MapAsync(Async)),
-            new("Result`1", "MapError", () => ZeroList.MapError(e => e.Count())),
-            new("Result`1", "MapErrorAsync", () => ZeroList.MapErrorAsync(e => Async(e.Count()))),
-            new("Result`1", "Map2", () => ZeroList.Map2(e => e.Count(), v => v)),
-            new("Result`1", "Map2Async", () => ZeroList.Map2Async(e => Async(e.Count()), Async)),
+            new("Result`1", "MapError", () => ZeroList.MapError(e => e)),
+            new("Result`1", "MapErrorAsync", () => ZeroList.MapErrorAsync(Async)),
+            new("Result`1", "Map2", () => ZeroList.Map2(e => e.Message, v => v)),
+            new("Result`1", "Map2Async", () => ZeroList.Map2Async(e => Async(e.Message), Async)),
             new("Result`1", "Tee", () => ZeroList.Tee(_ => { })),
             new("Result`1", "TeeAsync", () => ZeroList.TeeAsync(NoTask)),
             new("Result`1", "TeeError", () => ZeroList.TeeError(_ => { })),
@@ -141,7 +148,8 @@ namespace Resultful.Tests
             new("Result`1", "Then", () => ZeroList.Then(v => v.Ok())),
             new("Result`1", "Check", () => ZeroList.Check(_ => Result.Ok())),
             new("Result`1", "Task.Map", () => Async(ZeroList).Map(v => v)),
-            new("Result`1", "implicit Result<T>", () => { Result<int> r = default(Result<int, IEnumerable<string>>); return r; }),
+            new("Result`1", "Task.MapError", () => Async(ZeroList).MapError(e => e)),
+            new("Result`1", "implicit VoidResult", () => { VoidResult v = default(Result<Unit>); return v; }),
 
             // VoidResult<TError>
             new("VoidResult`1", "Match", () => ZeroVoid.Match(_ => 1, _ => 0)),
@@ -156,9 +164,9 @@ namespace Resultful.Tests
             new("VoidResult`1", "Map2", () => ZeroVoid.Map2(e => e, _ => 1)),
             new("VoidResult`1", "Map2Async", () => ZeroVoid.Map2Async(Async, () => Async(1))),
             new("VoidResult`1", "MapError", () => ZeroVoid.MapError(e => e)),
-            new("VoidResult`1", "MapError", () => ZeroVoid.MapError(e => (IEnumerable<string>)[e])),
+            new("VoidResult`1", "MapError", () => ZeroVoid.MapError(e => Error.From(e))),
             new("VoidResult`1", "MapErrorAsync", () => ZeroVoid.MapErrorAsync(Async)),
-            new("VoidResult`1", "MapErrorAsync", () => ZeroVoid.MapErrorAsync(e => Async((IEnumerable<string>)[e]))),
+            new("VoidResult`1", "MapErrorAsync", () => ZeroVoid.MapErrorAsync(e => Async(Error.From(e)))),
             new("VoidResult`1", "Bind", () => ZeroVoid.Bind(_ => Result.Ok<string>())),
             new("VoidResult`1", "BindAsync", () => ZeroVoid.BindAsync(_ => Async(Result.Ok<string>()))),
             new("VoidResult`1", "BindValue", () => ZeroVoid.BindValue(_ => Ok)),
@@ -181,11 +189,11 @@ namespace Resultful.Tests
             new("VoidResult", "Map", () => ZeroVoidList.Map(1)),
             new("VoidResult", "MapAsync", () => ZeroVoidList.MapAsync(_ => Async(1))),
             new("VoidResult", "MapAsync", () => ZeroVoidList.MapAsync(Async(1))),
-            new("VoidResult", "Map2", () => ZeroVoidList.Map2(e => e.Count(), _ => 1)),
-            new("VoidResult", "Map2Async", () => ZeroVoidList.Map2Async(e => Async(e.Count()), () => Async(1))),
-            new("VoidResult", "MapError", () => ZeroVoidList.MapError(e => e.Count())),
+            new("VoidResult", "Map2", () => ZeroVoidList.Map2(e => e.Message, _ => 1)),
+            new("VoidResult", "Map2Async", () => ZeroVoidList.Map2Async(e => Async(e.Message), () => Async(1))),
+            new("VoidResult", "MapError", () => ZeroVoidList.MapError(e => e.Message)),
             new("VoidResult", "MapError", () => ZeroVoidList.MapError(e => e)),
-            new("VoidResult", "MapErrorAsync", () => ZeroVoidList.MapErrorAsync(e => Async(e.Count()))),
+            new("VoidResult", "MapErrorAsync", () => ZeroVoidList.MapErrorAsync(e => Async(e.Message))),
             new("VoidResult", "MapErrorAsync", () => ZeroVoidList.MapErrorAsync(Async)),
             new("VoidResult", "Bind", () => ZeroVoidList.Bind(_ => Result.Ok())),
             new("VoidResult", "BindAsync", () => ZeroVoidList.BindAsync(_ => Async(Result.Ok()))),
@@ -231,11 +239,12 @@ namespace Resultful.Tests
                 VoidResult<string> V(int s) => s switch { 0 => default, 1 => Result.Ok<string>(), _ => ("e" + v).Fail() };
                 VoidResult W(int s) => s switch { 0 => default, 1 => Result.Ok(), _ => Result.Fail("e" + v) };
                 object[] left = [R(a), L(a), V(a), W(a)], right = [R(b), L(b), V(b), W(b)];
-                // Error lists (i = 1, 3) are compared by reference, as in 0.2, so two failures built apart differ.
+                // Since 09 the Error (i = 1, 3) compares by value, so two failures built apart with the same message are equal
+                // (0.2 compared the error lists by reference).
                 for (var i = 0; i < left.Length; i++)
                 {
                     var (x, y) = (left[i], right[i]);
-                    Assert.That(x.Equals(y), Is.EqualTo(a == b && !(a == 2 && i % 2 == 1)), $"{x.GetType().Name} {a} {b}");
+                    Assert.That(x.Equals(y), Is.EqualTo(a == b), $"{x.GetType().Name} {a} {b}");
                     Assert.That(x.Equals(x), Is.True);
                     if (x.Equals(y)) Assert.That(x.GetHashCode(), Is.EqualTo(y.GetHashCode()));
                     Assert.That(x.ToString(), a == 0 ? Does.StartWith("<default ") : Does.StartWith("Resultful."));
@@ -283,7 +292,8 @@ namespace Resultful.Tests
             Assert.That(Display(Zero), Is.EqualTo("<default Result>"));
             Assert.That(Display(Ok), Is.EqualTo("Ok(1)"));
             Assert.That(Display(Failed), Is.EqualTo("Fail(bad)"));
-            Assert.That(Display(Result.Fail<int>("a", "b")), Is.EqualTo("Fail(a, b)"));
+            Assert.That(Display(Result.Fail<int>("a")), Is.EqualTo("Fail(MessageError: a)"));
+            Assert.That(Display(Result.Fail("a")), Is.EqualTo("Fail(MessageError: a)"));
             Assert.That(Display(Result.Ok()), Is.EqualTo("Ok"));
             Assert.That(Display(ZeroVoidList), Is.EqualTo("<default VoidResult>"));
             Assert.That(typeof(Result<int, string>).GetCustomAttribute<System.Diagnostics.DebuggerDisplayAttribute>()?.Value, Is.EqualTo("{DebuggerDisplay,nq}"));
@@ -399,16 +409,19 @@ namespace Resultful.Tests
             Assert.That(() => ((string)null!).Fail<int, string>(), Throws.ArgumentNullException);
             Assert.That(() => ((Error)null!).Fail(), Throws.ArgumentNullException);
             Assert.That(() => { VoidResult<string> v = (string)null!; }, Throws.ArgumentNullException);
-            Assert.That(() => Result.Fail<int>((string[])null!), Throws.ArgumentNullException);
+            Assert.That(() => Result.Fail<int>((Error)null!), Throws.ArgumentNullException);
+            Assert.That(() => { Result<int> r = (Error)null!; }, Throws.ArgumentNullException);
+            Assert.That(() => 1.Ok().MapError(_ => null!), Throws.Nothing, "a success never builds a failure");
+            Assert.That(() => Result.Fail<int>("bad").MapError(_ => null!), Throws.ArgumentNullException, "a mapped Error is checked like any other");
             Assert.That(() => Ok.Map2<int, string>(_ => null!, v => v), Throws.Nothing, "a success never builds a failure");
             Assert.That(() => Failed.MapError<string>(_ => null!), Throws.ArgumentNullException, "a mapped error is checked like any other");
             // The list builders read null as no errors in 0.2; a null list is now rejected like a null error.
             Assert.That(() => Result.Fail<int, string>((IEnumerable<string>)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("errors"));
             Assert.That(() => ((IEnumerable<string>)null!).Fail<int, string>(), Throws.ArgumentNullException);
             Assert.That(() => Result.Fail<int, string>((string[])null!), Throws.ArgumentNullException);
-            Assert.That(() => Result.Fail((IEnumerable<string>)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("value"));
-            Assert.That(() => Result.Fail((string[])null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("errors"));
-            Assert.That(() => Result.Fail<string>((string[])null!), Throws.ArgumentNullException);
+            Assert.That(() => Result.Fail((Error)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("error"));
+            Assert.That(() => Result.Fail((string)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("message"));
+            Assert.That(() => Result.Fail<string>((string)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("message"));
             Assert.That(Result.Fail<int, string>(Array.Empty<string>()).Error, Is.Empty, "an empty list is still a failure");
             Assert.That(() => default(int?).Fail<int, int?>(), Throws.ArgumentNullException);
         }
