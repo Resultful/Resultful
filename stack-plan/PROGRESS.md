@@ -52,3 +52,4 @@ Rows are in stack order.
 - 2026-11-21: **checkpoint, the core is finished.** Stack B 05–19 green after review (#51, #54, #58–#67). Preview.1 command given to Ryan (agents never push). Mutation run 1 not run. Next: 13a (generator on the real core, from closed #46), then 13b, 15, 16a, 16b, 17.
 - 2026-11-21: **checkpoint, the tooling is finished** (17 #75). Stack A ready to land (#49 green: assembly version 1.0.0.0, AnyCPU, beta05 upgrade check, merge steps). Ryan accepted all tracker recommendations. Order from here: 20a, 21, 23a (the Shop), 20b, 22, 23b, 24, 25. RF0004 → info goes into #73 once 20a is pushed (with a rebase of #74, #75 and 20a).
 - 2026-11-21: #73–#76 force-pushed (RF0004 → info; 20a union overload). Handover written to `HANDOVER.md`.
+- 2026-11-21: decisions 18 (assertions here) and 19 (F#, HotChocolate, candidates) in draft #77; rows 21b, 21c, 20c added; HANDOVER's order updated.
