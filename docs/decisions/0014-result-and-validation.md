@@ -88,8 +88,6 @@ The one list of open questions for the error design; other documents link here.
 
 - The plural type's name.
 - Whether it is a new type or today's `Result<T, IEnumerable<TError>>` renamed.
-- Whether `Unit` stays a class (as shipped) or becomes a struct in M3, and how a parameterless `Ok()` reaches
-  `Result<Unit, TError>`, whose `TError` it can't infer.
 - When `IPlus` and `Result<T, TError>.Plus` are deprecated.
 Decided in review: no implicit conversion from `string`; context is a note that keeps the type; a `Validation`
 crosses into a `Result` chain as `ValidationFailed`. `Validation` has no `Bind` (as in Haskell and Cats) and no `+`:
@@ -136,3 +134,24 @@ Decided when `Validation` was built (0.3, stack PR 10):
   `AsResult()` does for one error (decision 16 item 8).
 - Source break: with conversions both ways between `VoidResult` and `Result<Unit>` (and the generic pair), a
   conditional `b ? voidResult : resultUnit` no longer has a type and reports CS0172. Cast one side.
+
+Decided when `VoidResult` became obsolete (0.3, stack PR 12):
+- `Unit` stays a class, as shipped. `Result.Ok()` returns `Result<Unit>`; the parameterless form for a typed error is
+  `Result.Ok<TError>()`, returning `Result<Unit, TError>`, since `TError` can't be inferred (or `return Unit.Value;`).
+  `Result.Fail(Error)` and `Result.Fail(string)` return `Result<Unit>`; `error.Fail()` returns `Result<Unit, TError>`.
+- `Sequence`, `Check`, `DiscardValue` and `Unwrap` (and their async and `Task` forms) take and return `Result<Unit>`.
+  The parameterless `Then` steps that `VoidResult` had move to `Result<Unit>` and `Result<Unit, TError>`
+  ([decision 4](0004-sequential-composition-is-additive.md)'s chains, unchanged in shape), so moving a chain is a
+  rename of its type.
+- `VoidResult`, `VoidResult<TError>`, the extensions that take them and `ToOneOf`/`ToVoidResult` on them are
+  `[Obsolete]` (a warning, CS0618, naming the replacement), keep their 0.2 behaviour and their conversions from PRs
+  09 and 10, and are removed at the 1.0 review. Nothing else in the library returns them. A lambda returning a
+  `VoidResult` still fits the `Result<Unit>` members (its return converts); a method group does not (CS0407), nor
+  does a lambda returning `VoidResult<TError>` in `Result.Sequence` or a non-async lambda returning `Task<VoidResult>`
+  in the async forms (CS0029).
+- Consequences: `var r = Result.Ok();` changes type, so the members only `VoidResult` had (`Map(value)`, `BindValue`,
+  `Cast`) need the `Result<T>` spelling; in a `switch` that targets `VoidResult`, `default` beside `Result.Ok()` arms
+  is a `default(Result<Unit>)` and its conversion throws; the debugger shows `Ok(Resultful.Unit)`;
+  `Task<VoidResult> M() => Task.FromResult(Result.Ok())` reports CS0029 (`Task<T>` isn't covariant); mixing
+  `Result.Ok()` and a `VoidResult` with no target type needs a cast (CS8506, CS0826, CS0411, CS0029); and
+  `voidResult.Then(() => Result.Ok())` returns a `Result<Unit>`. The release notes give the fix for each.

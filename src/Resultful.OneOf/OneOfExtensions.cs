@@ -12,6 +12,16 @@ namespace Resultful
     /// <remarks>A result's zero value (<c>default</c>) has no case, so <c>ToOneOf</c> throws <see cref="InvalidOperationException"/> on it, as every other member that reads it does.</remarks>
     public static class OneOfExtensions
     {
+        // [Obsolete] messages for the members that take or return the void types (decision 14, stack PR 12).
+        private const string VoidResultObsolete
+            = "VoidResult is replaced by Result<Unit> (decision 14), which ToOneOf takes. It is removed at the 1.0 review.";
+
+        private const string VoidResultOfErrorObsolete
+            = "VoidResult<TError> is replaced by Result<Unit, TError> (decision 14), which ToOneOf takes. It is removed at the 1.0 review.";
+
+        private const string ToVoidResultObsolete
+            = "VoidResult is replaced by Result<Unit> (decision 14): call ToResult, which returns a Result<Unit> or Result<Unit, TError> for a OneOf<Unit, …>. It is removed at the 1.0 review.";
+
         //Resultful -> OneOf
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the success value, <c>T1</c> is the error.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
@@ -29,11 +39,13 @@ namespace Resultful
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The result.</param>
+        [Obsolete(VoidResultOfErrorObsolete)]
         public static OneOf<Unit, TError> ToOneOf<TError>(this VoidResult<TError> value)
             => value.Match(OneOf<Unit, TError>.FromT0, OneOf<Unit, TError>.FromT1);
 
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
         /// <param name="value">The result.</param>
+        [Obsolete(VoidResultObsolete)]
         public static OneOf<Unit, Error> ToOneOf(this VoidResult value)
             => value.Match(OneOf<Unit, Error>.FromT0, OneOf<Unit, Error>.FromT1);
 
@@ -60,11 +72,13 @@ namespace Resultful
         /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the result.</param>
+        [Obsolete(VoidResultOfErrorObsolete)]
         public static async Task<OneOf<Unit, TError>> ToOneOf<TError>(this Task<VoidResult<TError>> value)
             => (await NotNull(value).ConfigureAwait(false)).ToOneOf();
 
         /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
         /// <param name="value">The task that produces the result.</param>
+        [Obsolete(VoidResultObsolete)]
         public static async Task<OneOf<Unit, Error>> ToOneOf(this Task<VoidResult> value)
             => (await NotNull(value).ConfigureAwait(false)).ToOneOf();
 
@@ -92,14 +106,16 @@ namespace Resultful
         /// <summary>Returns a success for <c>T0</c>, or a failure with <c>T1</c>.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The union.</param>
+        [Obsolete(ToVoidResultObsolete)]
         public static VoidResult<TError> ToVoidResult<TError>(this OneOf<Unit, TError> value)
-            => value.Match(_ => Result.Ok<TError>(), Result.Fail<TError>);
+            => value.ToResult();
 
         /// <summary>Returns a success for <c>T0</c>, or a failure with the <see cref="Error"/> in <c>T1</c>.</summary>
         /// <param name="value">The union.</param>
         /// <exception cref="ArgumentNullException">The union holds a <c>null</c> error.</exception>
+        [Obsolete(ToVoidResultObsolete)]
         public static VoidResult ToVoidResult(this OneOf<Unit, Error> value)
-            => value.Match(_ => Result.Ok(), Result.Fail);
+            => value.ToResult();
 
         /// <summary>Returns an option with <c>T0</c>, or <see cref="Option{T}.None"/> for OneOf's <c>None</c>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
@@ -124,11 +140,13 @@ namespace Resultful
         /// <summary>Awaits <paramref name="value"/>, then returns a success for <c>T0</c>, or a failure with <c>T1</c>.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The task that produces the union.</param>
+        [Obsolete(ToVoidResultObsolete)]
         public static async Task<VoidResult<TError>> ToVoidResult<TError>(this Task<OneOf<Unit, TError>> value)
             => (await NotNull(value).ConfigureAwait(false)).ToVoidResult();
 
         /// <summary>Awaits <paramref name="value"/>, then returns a success for <c>T0</c>, or a failure with the <see cref="Error"/> in <c>T1</c>.</summary>
         /// <param name="value">The task that produces the union.</param>
+        [Obsolete(ToVoidResultObsolete)]
         public static async Task<VoidResult> ToVoidResult(this Task<OneOf<Unit, Error>> value)
             => (await NotNull(value).ConfigureAwait(false)).ToVoidResult();
 

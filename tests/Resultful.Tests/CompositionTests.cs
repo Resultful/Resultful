@@ -18,10 +18,10 @@ namespace Resultful.Tests
         private sealed record StepError(string Message);
 
         // Steps used as method groups (the shape the README recommends).
-        private VoidResult Validate() { _calls.Add(nameof(Validate)); return Result.Ok(); }
-        private VoidResult Reserve() { _calls.Add(nameof(Reserve)); return Result.Ok(); }
-        private VoidResult OutOfStock() { _calls.Add(nameof(OutOfStock)); return Result.Fail("out of stock"); }
-        private VoidResult Notify() { _calls.Add(nameof(Notify)); return Result.Ok(); }
+        private Result<Unit> Validate() { _calls.Add(nameof(Validate)); return Result.Ok(); }
+        private Result<Unit> Reserve() { _calls.Add(nameof(Reserve)); return Result.Ok(); }
+        private Result<Unit> OutOfStock() { _calls.Add(nameof(OutOfStock)); return Result.Fail("out of stock"); }
+        private Result<Unit> Notify() { _calls.Add(nameof(Notify)); return Result.Ok(); }
 
         private Result<string> Trim(string s) { _calls.Add(nameof(Trim)); return s.Trim().Ok(); }
         private Result<string> NotEmpty(string s) { _calls.Add(nameof(NotEmpty)); return s.Length == 0 ? Result.Fail<string>("empty") : s.Ok(); }
@@ -29,10 +29,9 @@ namespace Resultful.Tests
 
         // A failure holds one Error (decision 14); these read its message.
         private static string[] Errors<T>(Result<T> r) => r.Match(_ => throw new AssertionException("expected failure"), e => new[] { e.Message });
-        private static string[] Errors(VoidResult r) => r.Match(_ => throw new AssertionException("expected failure"), e => new[] { e.Message });
         private static T Value<T>(Result<T> r) => r.Match(v => v, e => throw new AssertionException(e.ToString()));
 
-        // ---- Sequence / Then on VoidResult ----
+        // ---- Sequence / Then on Result<Unit> (VoidResult before 0.3) ----
 
         [Test]
         public void Sequence_RunsEveryStepInOrder_WhenAllSucceed()
@@ -53,7 +52,7 @@ namespace Resultful.Tests
         }
 
         [Test]
-        public void Then_OnFailedVoidResult_RunsNothing()
+        public void Then_OnFailedUnitResult_RunsNothing()
         {
             var result = Result.Fail("already failed").Then(Validate, Notify);
 
@@ -71,7 +70,7 @@ namespace Resultful.Tests
         }
 
         [Test]
-        public void Then_FromVoidResultToValue_DoesNotNeedUnitArgument()
+        public void Then_FromUnitResultToValue_DoesNotNeedUnitArgument()
         {
             var result = Result.Sequence(Validate, Reserve).Then(() => "  order-1 ".Ok()).Then(Trim, Upper);
 
@@ -80,7 +79,7 @@ namespace Resultful.Tests
         }
 
         [Test]
-        public void Then_FromFailedVoidResultToValue_SkipsNext()
+        public void Then_FromFailedUnitResultToValue_SkipsNext()
         {
             var invoked = false;
             var result = Result.Sequence(OutOfStock).Then(() => { invoked = true; return 1.Ok(); });
@@ -127,7 +126,7 @@ namespace Resultful.Tests
         public void GenericError_SequenceThenCheck_ReturnsFirstError()
         {
             var steps = new List<int>();
-            VoidResult<StepError> Step(int n, bool ok) { steps.Add(n); return ok ? Result.Ok<StepError>() : new StepError($"step {n}"); }
+            Result<Unit, StepError> Step(int n, bool ok) { steps.Add(n); return ok ? Result.Ok<StepError>() : new StepError($"step {n}"); }
 
             var result = Result.Sequence<StepError>(() => Step(1, true), () => Step(2, false), () => Step(3, true))
                 .Then(() => 10.Ok<int, StepError>())
@@ -150,7 +149,7 @@ namespace Resultful.Tests
 
         // ---- Async ----
 
-        private async Task<VoidResult> StepAsync(string name, bool ok)
+        private async Task<Result<Unit>> StepAsync(string name, bool ok)
         {
             await Task.Yield();
             _calls.Add(name);
@@ -199,7 +198,7 @@ namespace Resultful.Tests
         public async Task GenericError_Async_ShortCircuits()
         {
             var ran = new List<int>();
-            async Task<VoidResult<StepError>> Step(int n, bool ok) { await Task.Yield(); ran.Add(n); return ok ? Result.Ok<StepError>() : new StepError($"step {n}"); }
+            async Task<Result<Unit, StepError>> Step(int n, bool ok) { await Task.Yield(); ran.Add(n); return ok ? Result.Ok<StepError>() : new StepError($"step {n}"); }
 
             var result = await Result.SequenceAsync<StepError>(() => Step(1, true), () => Step(2, false), () => Step(3, true))
                 .ThenAsync(async () => { await Task.Yield(); return 1.Ok<int, StepError>(); });
@@ -214,7 +213,7 @@ namespace Resultful.Tests
         public void NullSteps_Throw()
         {
             FluentActions.Invoking(() => Result.Sequence(Validate, null!)).Should().Throw<ArgumentNullException>();
-            FluentActions.Invoking(() => Result.Sequence((Func<VoidResult>[])null!)).Should().Throw<ArgumentNullException>();
+            FluentActions.Invoking(() => Result.Sequence((Func<Result<Unit>>[])null!)).Should().Throw<ArgumentNullException>();
             FluentActions.Invoking(() => 1.Ok().Check(null!)).Should().Throw<ArgumentNullException>().WithParameterName("checks");
             FluentActions.Awaiting(() => Result.SequenceAsync(null!)).Should().ThrowAsync<ArgumentNullException>();
         }
