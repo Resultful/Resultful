@@ -7,7 +7,7 @@ using OneOf;
 
 namespace Resultful
 {
-    /// <summary>A success with no value, or a failure holding a list of error messages.</summary>
+    /// <summary>A success with no value, or a failure holding one <see cref="Error"/>.</summary>
     /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure (decision 10): every member that reads the case or the error throws <see cref="InvalidOperationException"/>. <c>ToString</c>, <c>Equals</c> and <c>GetHashCode</c> never throw.</remarks>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
 #pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
@@ -15,7 +15,7 @@ namespace Resultful
 #pragma warning restore CA2231
     {
         //Private Members
-        private readonly IEnumerable<string> _errors;
+        private readonly Error _error;
         // State.Zero only for the zero value (default), which no Ok or Fail produced (decision 1, decision 10).
         private readonly byte _state;
 
@@ -27,47 +27,27 @@ namespace Resultful
 
         internal VoidResult(Unit value)
         {
-            _errors = default!;
+            _error = default!;
             _state = value is null ? State.Zero : State.Success;
         }
 
-        internal VoidResult(IEnumerable<string> value)
+        internal VoidResult(Error value)
         {
-            _errors = value;
+            _error = value;
             _state = State.Failure;
         }
 
         //Implicit Converters
-        /// <summary>Converts a result whose value is <see cref="Unit"/> to a result with no value. Errors are kept.</summary>
-        /// <param name="value">The result to convert.</param>
-        public static implicit operator VoidResult(Result<Unit, IEnumerable<string>> value)
-            => value.Match(_ => Result.Ok(), Result.Fail);
-
-        /// <summary>Converts a result whose value is <see cref="Unit"/> to a result with no value. Errors are kept.</summary>
+        /// <summary>Converts a result whose value is <see cref="Unit"/> to a result with no value. The error is kept.</summary>
         /// <param name="value">The result to convert.</param>
         public static implicit operator VoidResult(Result<Unit> value)
-            => value.Match(_ => Result.Ok(), Result.Fail);
+            => value.Match(_ => Result.Ok(), e => Result.Fail(e));
 
-        /// <summary>Converts a result whose error is a list of messages to a <c>VoidResult</c>. Errors are kept.</summary>
-        /// <param name="value">The result to convert.</param>
-        public static implicit operator VoidResult(VoidResult<IEnumerable<string>> value)
-            => value.Match(_ => Result.Ok(), Result.Fail);
-
-        /// <summary>Converts an array of messages to a failure with those errors.</summary>
-        /// <param name="value">The error messages.</param>
-        public static implicit operator VoidResult(string[] value)
-            => Result.Fail(value);
-
-        /// <summary>Converts a list of messages to a failure with those errors.</summary>
-        /// <param name="value">The error messages. They are copied.</param>
-        /// <remarks>Throws <see cref="System.NullReferenceException"/> if the list is <c>null</c>.</remarks>
-        public static implicit operator VoidResult(List<string> value)
-            => Result.Fail(value.ToArray());
-
-        /// <summary>Converts a message to a failure with that one error.</summary>
-        /// <param name="value">The error message.</param>
-        public static implicit operator VoidResult(string value)
-            => Result.Fail(value);
+        /// <summary>Converts an error, including any record derived from <see cref="Error"/>, to a failure holding it.</summary>
+        /// <param name="error">The error.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="error"/> is <c>null</c>.</exception>
+        public static implicit operator VoidResult(Error error)
+            => Result.Fail(error);
 
         /// <summary>Converts <see cref="Unit"/> to a success.</summary>
         /// <param name="value">The unit value.</param>
@@ -75,53 +55,53 @@ namespace Resultful
             => value.Ok();
 
         //Local Methods
-        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and returns what it returns.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and returns what it returns.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called on success.</param>
-        /// <param name="errorFunc">Called with the errors on failure.</param>
-        public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<IEnumerable<string>, TResult> errorFunc)
+        /// <param name="errorFunc">Called with the error on failure.</param>
+        public TResult Match<TResult>(Func<Unit, TResult> successfulFunc, Func<Error, TResult> errorFunc)
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             errorFunc.ThrowIfDefault(nameof(errorFunc));
-            return Case() ? successfulFunc(Unit.Value) : errorFunc(_errors);
+            return Case() ? successfulFunc(Unit.Value) : errorFunc(_error);
         }
 
-        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure.</summary>
         /// <param name="successfulFunc">Called on success.</param>
-        /// <param name="errorFunc">Called with the errors on failure.</param>
-        public void Switch(Action<Unit> successfulFunc, Action<IEnumerable<string>> errorFunc)
+        /// <param name="errorFunc">Called with the error on failure.</param>
+        public void Switch(Action<Unit> successfulFunc, Action<Error> errorFunc)
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             errorFunc.ThrowIfDefault(nameof(errorFunc));
-            if (Case()) successfulFunc(Unit.Value); else errorFunc(_errors);
+            if (Case()) successfulFunc(Unit.Value); else errorFunc(_error);
         }
 
-        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and does not wait for the task it returns.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and does not wait for the task it returns.</summary>
         /// <param name="successfulFunc">Called on success.</param>
-        /// <param name="errorFunc">Called with the errors on failure.</param>
+        /// <param name="errorFunc">Called with the error on failure.</param>
         /// <remarks>The task is dropped, so the method returns before the work finishes and an exception the task throws is lost. To wait for it, use <c>MatchAsync</c> and await the task.</remarks>
-        public void SwitchAsync(Func<Unit, Task> successfulFunc, Func<IEnumerable<string>, Task> errorFunc)
+        public void SwitchAsync(Func<Unit, Task> successfulFunc, Func<Error, Task> errorFunc)
             => _ = Match(successfulFunc, errorFunc);
 
-        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and returns its task.</summary>
+        /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure, and returns its task.</summary>
         /// <typeparam name="TResult">The type both functions return.</typeparam>
         /// <param name="successfulFunc">Called on success.</param>
-        /// <param name="errorFunc">Called with the errors on failure.</param>
-        public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<IEnumerable<string>, Task<TResult>> errorFunc)
+        /// <param name="errorFunc">Called with the error on failure.</param>
+        public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<Error, Task<TResult>> errorFunc)
             => Match(successfulFunc, errorFunc);
 
-        /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the errors.</summary>
-        public OneOf<Unit, IEnumerable<string>> ToOneOf()
-            => Case() ? OneOf<Unit, IEnumerable<string>>.FromT0(Unit.Value) : OneOf<Unit, IEnumerable<string>>.FromT1(_errors);
+        /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
+        public OneOf<Unit, Error> ToOneOf()
+            => Case() ? OneOf<Unit, Error>.FromT0(Unit.Value) : OneOf<Unit, Error>.FromT1(_error);
 
-        /// <summary>Two results are equal when both are successes, both failures with the same error list, or both the zero value.</summary>
+        /// <summary>Two results are equal when both are successes, both failures with the same error, or both the zero value.</summary>
         /// <param name="obj">The object to compare with.</param>
         public override bool Equals(object? obj)
-            => obj is VoidResult other && _state == other._state && (_state != State.Failure || Equals(_errors, other._errors));
+            => obj is VoidResult other && _state == other._state && (_state != State.Failure || Equals(_error, other._error));
 
         /// <summary>A hash of the case and its error.</summary>
         public override int GetHashCode()
-            => _state == State.Failure ? State.Hash(_errors, 1) : State.Hash(SuccessUnit, 0);
+            => _state == State.Failure ? State.Hash(_error, 1) : State.Hash(SuccessUnit, 0);
 
         // The zero value hashes as 0.2's did: a success whose Unit is null.
         private Unit SuccessUnit => _state == State.Zero ? null! : Unit.Value;
@@ -137,99 +117,106 @@ namespace Resultful
             => _state == State.Zero ? State.DefaultVoidResult : typeof(VoidResult).ToString();
 
         private string DebuggerDisplay
-            => _state switch { State.Success => "Ok", State.Failure => $"Fail({string.Join(", ", _errors)})", _ => State.DefaultVoidResult };
+            => _state switch { State.Success => "Ok", State.Failure => $"Fail({_error})", _ => State.DefaultVoidResult };
 
-        /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the errors and <paramref name="mapFunc"/> isn't called.</summary>
+        /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the error and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
         /// <param name="mapFunc">Gives the new value. Its argument is the success's <see cref="Unit"/>.</param>
         public Result<TResult> Map<TResult>(Func<Unit, TResult> mapFunc)
-            => Map2(Result.Id, mapFunc);
+        {
+            mapFunc.ThrowIfDefault(nameof(mapFunc));
+            return Case() ? mapFunc(Unit.Value).Ok() : _error.Fail<TResult>();
+        }
 
-        /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the errors and <paramref name="mapFunc"/> isn't called.</summary>
+        /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the error and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
         /// <param name="mapFunc">Gives the new value. Its argument is the success's <see cref="Unit"/>.</param>
         public Task<Result<TResult>> MapAsync<TResult>(Func<Unit, Task<TResult>> mapFunc)
             => BindValueAsync(async _ => (await mapFunc.ThrowIfDefault(nameof(mapFunc))(_).ConfigureAwait(false)).Ok());
 
-        /// <summary>On success, returns <paramref name="value"/> as the success value. A failure keeps the errors.</summary>
+        /// <summary>On success, returns <paramref name="value"/> as the success value. A failure keeps the error.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The new value.</param>
         public Result<T> Map<T>(T value)
             => Map(_ => value);
 
-        /// <summary>On success, awaits <paramref name="value"/> and returns its value as a success. A failure keeps the errors, and <paramref name="value"/> isn't awaited.</summary>
+        /// <summary>On success, awaits <paramref name="value"/> and returns its value as a success. A failure keeps the error, and <paramref name="value"/> isn't awaited.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that gives the new value.</param>
         public Task<Result<T>> MapAsync<T>(Task<T> value)
             => MapAsync(_ => value);
 
-        /// <summary>Maps both sides: the value with <paramref name="mapFunc"/> on success, or the errors with <paramref name="errorMapFunc"/> on failure.</summary>
+        /// <summary>Maps both sides: the value with <paramref name="mapFunc"/> on success, or the error with <paramref name="errorMapFunc"/> on failure.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
         /// <typeparam name="TError">The type of the error.</typeparam>
-        /// <param name="errorMapFunc">Maps the errors.</param>
+        /// <param name="errorMapFunc">Maps the error.</param>
         /// <param name="mapFunc">Gives the new value.</param>
-        public Result<TResult, TError> Map2<TResult, TError>(Func<IEnumerable<string>, TError> errorMapFunc, Func<Unit, TResult> mapFunc)
+        public Result<TResult, TError> Map2<TResult, TError>(Func<Error, TError> errorMapFunc, Func<Unit, TResult> mapFunc)
             => Match(
                 success => mapFunc.ThrowIfDefault(nameof(mapFunc))(success).Ok<TResult, TError>(),
                 errors => errorMapFunc.ThrowIfDefault(nameof(errorMapFunc))(errors).Fail<TResult, TError>());
 
-        /// <summary>Maps both sides: the value with <paramref name="mapFunc"/> on success, or the errors with <paramref name="errorMapFunc"/> on failure.</summary>
+        /// <summary>Maps both sides: the value with <paramref name="mapFunc"/> on success, or the error with <paramref name="errorMapFunc"/> on failure.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
         /// <typeparam name="TError">The type of the error.</typeparam>
-        /// <param name="errorMapFunc">Maps the errors.</param>
+        /// <param name="errorMapFunc">Maps the error.</param>
         /// <param name="mapFunc">Gives the new value.</param>
-        public Task<Result<TResult, TError>> Map2Async<TResult, TError>(Func<IEnumerable<string>, Task<TError>> errorMapFunc, Func<Task<TResult>> mapFunc)
+        public Task<Result<TResult, TError>> Map2Async<TResult, TError>(Func<Error, Task<TError>> errorMapFunc, Func<Task<TResult>> mapFunc)
             => Match(
                 async success => (await mapFunc().ConfigureAwait(false)).Ok<TResult, TError>(),
                 async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail<TResult, TError>());
 
-        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the errors. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
+        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the error. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
         /// <typeparam name="TErrorResult">The type of the new error.</typeparam>
-        /// <param name="errorMapFunc">Maps the errors.</param>
-        public VoidResult<TErrorResult> MapError<TErrorResult>(Func<IEnumerable<string>, TErrorResult> errorMapFunc)
+        /// <param name="errorMapFunc">Maps the error.</param>
+        /// <remarks>A function that returns a type derived from <see cref="Error"/> picks this overload, so <c>v.MapError(e =&gt; new SaveFailed(id) { Cause = e })</c> gives a <c>VoidResult&lt;SaveFailed&gt;</c>. To stay a <c>VoidResult</c>, return <see cref="Error"/>: <c>v.MapError(Error (e) =&gt; new SaveFailed(id) { Cause = e })</c>. <c>VoidResult</c> is replaced by <c>Result&lt;Unit&gt;</c>, which has no such overload.</remarks>
+        public VoidResult<TErrorResult> MapError<TErrorResult>(Func<Error, TErrorResult> errorMapFunc)
             => Map2(errorMapFunc, Result.Id);
 
-        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the errors. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
+        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the error. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
         /// <typeparam name="TErrorResult">The type of the new error.</typeparam>
-        /// <param name="errorMapFunc">Maps the errors.</param>
-        public Task<VoidResult<TErrorResult>> MapErrorAsync<TErrorResult>(Func<IEnumerable<string>, Task<TErrorResult>> errorMapFunc)
+        /// <param name="errorMapFunc">Maps the error.</param>
+        public Task<VoidResult<TErrorResult>> MapErrorAsync<TErrorResult>(Func<Error, Task<TErrorResult>> errorMapFunc)
             => Match(
                 success => Task.FromResult(Result.Ok<TErrorResult>()),
                 async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail());
 
-        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the errors. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
-        /// <param name="errorMapFunc">Maps the errors.</param>
-        public VoidResult MapError(Func<IEnumerable<string>, IEnumerable<string>> errorMapFunc)
-            => Map2(errorMapFunc, Result.Id);
+        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the error. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
+        /// <param name="errorMapFunc">Maps the error.</param>
+        public VoidResult MapError(Func<Error, Error> errorMapFunc)
+        {
+            errorMapFunc.ThrowIfDefault(nameof(errorMapFunc));
+            return Match(_ => Result.Ok(), e => Result.Fail(errorMapFunc(e)));
+        }
 
-        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the errors. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
-        /// <param name="errorMapFunc">Maps the errors.</param>
-        public Task<VoidResult> MapErrorAsync(Func<IEnumerable<string>, Task<IEnumerable<string>>> errorMapFunc)
+        /// <summary>On failure, returns the error <paramref name="errorMapFunc"/> gives for the error. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
+        /// <param name="errorMapFunc">Maps the error.</param>
+        public Task<VoidResult> MapErrorAsync(Func<Error, Task<Error>> errorMapFunc)
             => Match(
                 success => Task.FromResult(Result.Ok()),
-                async errors => (await errorMapFunc(errors).ConfigureAwait(false)).Fail());
+                async errors => Result.Fail(await errorMapFunc(errors).ConfigureAwait(false)));
 
 
 
-        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the errors and <paramref name="bindFunc"/> isn't called.</summary>
+        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <param name="bindFunc">Returns the next result. Its argument is the success's <see cref="Unit"/>.</param>
         public VoidResult Bind(Func<Unit, VoidResult> bindFunc)
-            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail);
+            => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), e => Result.Fail(e));
 
-        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the errors and <paramref name="bindFunc"/> isn't called.</summary>
+        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <param name="bindFunc">Returns the next result. Its argument is the success's <see cref="Unit"/>.</param>
         public Task<VoidResult> BindAsync(Func<Unit, Task<VoidResult>> bindFunc)
             => Match(
                 x => bindFunc.ThrowIfDefault(nameof(bindFunc))(Unit.Value),
-                error => Task.FromResult(error.Fail()));
+                error => Task.FromResult(Result.Fail(error)));
 
-        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the errors and <paramref name="bindFunc"/> isn't called.</summary>
+        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="bindFunc">Returns the next result. Its argument is the success's <see cref="Unit"/>.</param>
         public Result<T> BindValue<T>(Func<Unit, Result<T>> bindFunc)
             => Match(bindFunc.ThrowIfDefault(nameof(bindFunc)), Result.Fail<T>);
 
-        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the errors and <paramref name="bindFunc"/> isn't called.</summary>
+        /// <summary>On success, returns what <paramref name="bindFunc"/> returns. A failure keeps the error and <paramref name="bindFunc"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="bindFunc">Returns the next result. Its argument is the success's <see cref="Unit"/>.</param>
         public Task<Result<T>> BindValueAsync<T>(Func<Unit, Task<Result<T>>> bindFunc)
@@ -255,18 +242,18 @@ namespace Resultful
                 return Unit.Value;
             }).ConfigureAwait(false);
 
-        /// <summary>Calls <paramref name="action"/> with the errors on failure, and returns the result unchanged. Nothing is called on a success.</summary>
-        /// <param name="action">Called with the errors.</param>
-        public VoidResult TeeError(Action<IEnumerable<string>> action)
+        /// <summary>Calls <paramref name="action"/> with the error on failure, and returns the result unchanged. Nothing is called on a success.</summary>
+        /// <param name="action">Called with the error.</param>
+        public VoidResult TeeError(Action<Error> action)
             => MapError(error =>
             {
                 action.ThrowIfDefault(nameof(action))(error);
                 return error;
             });
 
-        /// <summary>Calls <paramref name="asyncFunc"/> with the errors on failure, awaits it, and returns the result unchanged. Nothing is called on a success.</summary>
-        /// <param name="asyncFunc">Called with the errors.</param>
-        public async Task<VoidResult> TeeErrorAsync(Func<IEnumerable<string>, Task> asyncFunc)
+        /// <summary>Calls <paramref name="asyncFunc"/> with the error on failure, awaits it, and returns the result unchanged. Nothing is called on a success.</summary>
+        /// <param name="asyncFunc">Called with the error.</param>
+        public async Task<VoidResult> TeeErrorAsync(Func<Error, Task> asyncFunc)
             => await MapErrorAsync(async error =>
             {
                 await asyncFunc.ThrowIfDefault(nameof(asyncFunc))(error).ConfigureAwait(false);
