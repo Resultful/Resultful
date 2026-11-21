@@ -10,5 +10,5 @@ strategy: min
 lowest_matching: true
 framework: net8.0, net10.0, net11.0
 
-// The version CI packed; bump it with the project's version.
+// CI rewrites this pin to the version it packed, so it never needs bumping by hand.
 nuget Resultful = 0.2.0
