@@ -12,14 +12,17 @@ namespace Resultful
         /// <summary>Returns a failure holding <paramref name="value"/>.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The error.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException">On <c>net11.0</c>, <paramref name="value"/> is an error union with no value (its zero value).</exception>
         public static VoidResult<TError> Fail<TError>(this TError value)
-            => new VoidResult<TError>(value);
+            => new VoidResult<TError>(value.ThrowIfNoError(nameof(value)));
 
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
         /// <typeparam name="TError">The type of each error.</typeparam>
-        /// <param name="errors">The errors. <c>null</c> is treated as no errors.</param>
+        /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static VoidResult<IEnumerable<TError>> Fail<TError>(params TError[] errors)
-            => new VoidResult<IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
+            => new VoidResult<IEnumerable<TError>>(errors.ThrowIfNoError(nameof(errors)));
 
         /// <summary>Returns a success with no value.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>
@@ -28,14 +31,16 @@ namespace Resultful
 
         //Builder for VoidResult
         /// <summary>Returns a failure holding <paramref name="value"/>.</summary>
-        /// <param name="value">The errors. <c>null</c> is treated as no errors.</param>
+        /// <param name="value">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <c>null</c>.</exception>
         public static VoidResult Fail(this IEnumerable<string> value)
-            => new VoidResult(value ?? EmptyArray<string>.Get);
+            => new VoidResult(value.ThrowIfNoError(nameof(value)));
 
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
-        /// <param name="errors">The errors. <c>null</c> is treated as no errors.</param>
+        /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static VoidResult Fail(params string[] errors)
-            => new VoidResult(errors ?? EmptyArray<string>.Get);
+            => new VoidResult(errors.ThrowIfNoError(nameof(errors)));
 
         /// <summary>Returns a success with no value.</summary>
         public static VoidResult Ok()

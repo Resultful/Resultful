@@ -83,8 +83,11 @@ namespace Resultful
         public T ValueOr(T fallback)
             => Case() ? _value : fallback;
 
-        // true for a success, false for a failure; the zero value throws (decision 10's default, recorded for 05).
+        // true for a success, false for a failure; the zero value throws (decision 10). Every member that reads the case goes through it.
         private bool Case() => _state == State.Zero ? throw NamedErrors.Zero(typeof(Result<T, TError>)) : _state == State.Success;
+
+        // Throws on the zero value; for members that would otherwise return it unread (Then and Check with no steps).
+        internal void ThrowIfZero() => _ = Case();
     }
 
     public partial struct Result<T>
@@ -126,12 +129,18 @@ namespace Resultful
         public T ValueOr(T fallback)
             => Case() ? _value : fallback;
 
-        // true for a success, false for a failure; the zero value throws (decision 10's default, recorded for 05).
+        // true for a success, false for a failure; the zero value throws (decision 10). Every member that reads the case goes through it.
         private bool Case() => _state == State.Zero ? throw NamedErrors.Zero(typeof(Result<T>)) : _state == State.Success;
+
+        // Throws on the zero value; for members that would otherwise return it unread (Then and Check with no steps).
+        internal void ThrowIfZero() => _ = Case();
     }
 
     internal static class NamedErrors
     {
+        internal const string NoConstructor
+            = "The parameterless constructor gives the zero value, which is neither a success nor a failure. Create results with Result.Ok or Result.Fail.";
+
         internal static InvalidOperationException NoValue()
             => new("The result is a failure, so it has no value. Check IsSuccess or call TryGetValue first.");
 

@@ -8,7 +8,7 @@ namespace Resultful
 {
     /// <summary>A <typeparamref name="T"/> value, or none.</summary>
     /// <typeparam name="T">The type of the value.</typeparam>
-    /// <remarks>The zero value (<c>default</c>) holds <c>default(T)</c>; it is not <see cref="None"/>.</remarks>
+    /// <remarks>The zero value (<c>default</c>) is <see cref="None"/> (decision 10): unlike a result's, it has a safe meaning, so it doesn't throw.</remarks>
     [CodeAnalysis.MustObserve]
 #pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public struct Option<T>
@@ -16,8 +16,8 @@ namespace Resultful
     {
         //Private Members
         private readonly T _value;
-        // State.Zero only for the zero value (default), which 0.2 reads as an option holding default(T) (08b makes it
-        // None). None is the unit struct, so a None holds nothing else (decision 1).
+        // State.Zero only for the zero value (default), which reads as None (decision 10). None is the unit struct, so a
+        // None holds nothing else (decision 1).
         private readonly byte _state;
 
         //Constructors
@@ -58,7 +58,7 @@ namespace Resultful
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            if (_state == State.Failure) noneFunc(default); else successfulFunc(_value);
+            if (_state != State.Success) noneFunc(default); else successfulFunc(_value);
         }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with the value if there is one, or <paramref name="noneFunc"/> if the option is None, and returns what it returns.</summary>
@@ -69,7 +69,7 @@ namespace Resultful
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            return _state == State.Failure ? noneFunc(default) : successfulFunc(_value);
+            return _state != State.Success ? noneFunc(default) : successfulFunc(_value);
         }
 
         /// <summary>Calls <paramref name="someFunc"/> with the value if there is one, or <paramref name="noneFunc"/> if the option is None, and returns a task that completes when the call's task does.</summary>
@@ -79,7 +79,7 @@ namespace Resultful
         {
             someFunc.ThrowIfDefault(nameof(someFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            return _state == State.Failure ? noneFunc(default) : someFunc(_value);
+            return _state != State.Success ? noneFunc(default) : someFunc(_value);
         }
 
         /// <summary>Calls <paramref name="someFunc"/> with the value if there is one, or <paramref name="noneFunc"/> if the option is None, and returns its task.</summary>
@@ -90,23 +90,23 @@ namespace Resultful
         {
             someFunc.ThrowIfDefault(nameof(someFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            return _state == State.Failure ? noneFunc(default) : someFunc(_value);
+            return _state != State.Success ? noneFunc(default) : someFunc(_value);
         }
 
         /// <summary>Returns the option as a <c>OneOf</c>: <c>T0</c> is the value, <c>T1</c> is <c>None</c>.</summary>
         public OneOf<T, None> ToOneOf()
-            => _state == State.Failure ? OneOf<T, None>.FromT1(default) : OneOf<T, None>.FromT0(_value);
+            => _state != State.Success ? OneOf<T, None>.FromT1(default) : OneOf<T, None>.FromT0(_value);
 
-        /// <summary>Two options are equal when both have equal values or both are None. The zero value equals an option holding <c>default(T)</c>.</summary>
+        /// <summary>Two options are equal when both have equal values or both are None. The zero value is None.</summary>
         /// <param name="obj">The object to compare with.</param>
         /// <remarks>Values and errors are compared with <c>object.Equals</c>, as in 0.2.</remarks>
         public override bool Equals(object? obj)
-            => obj is Option<T> other && (_state == State.Failure) == (other._state == State.Failure)
-                && (_state == State.Failure || Equals(_value, other._value));
+            => obj is Option<T> other && (_state == State.Success) == (other._state == State.Success)
+                && (_state != State.Success || Equals(_value, other._value));
 
         /// <summary>A hash of the case and its value.</summary>
         public override int GetHashCode()
-            => _state == State.Failure ? State.Hash(default(None), 1) : State.Hash(_value, 0);
+            => _state != State.Success ? State.Hash(default(None), 1) : State.Hash(_value, 0);
 
         /// <summary>If the option has a value, returns what <paramref name="bindFunc"/> returns for it. None stays None and <paramref name="bindFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>

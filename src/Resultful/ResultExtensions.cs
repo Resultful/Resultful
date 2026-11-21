@@ -26,28 +26,32 @@ namespace Resultful
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <typeparam name="TError">The type of each error.</typeparam>
-        /// <param name="errors">The errors. <c>null</c> is treated as no errors.</param>
+        /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static Result<T, IEnumerable<TError>> Fail<T, TError>(this IEnumerable<TError> errors)
-            => new Result<T, IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
+            => new Result<T, IEnumerable<TError>>(errors.ThrowIfNoError(nameof(errors)));
 
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <typeparam name="TError">The type of each error.</typeparam>
-        /// <param name="errors">The errors. <c>null</c> is treated as no errors.</param>
+        /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static Result<T, IEnumerable<TError>> Fail<T, TError>(params TError[] errors)
-            => new Result<T, IEnumerable<TError>>(errors ?? EmptyArray<TError>.Get);
+            => new Result<T, IEnumerable<TError>>(errors.ThrowIfNoError(nameof(errors)));
 
         /// <summary>Returns a failure holding <paramref name="value"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <typeparam name="TError">The type of the error.</typeparam>
         /// <param name="value">The error.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException">On <c>net11.0</c>, <paramref name="value"/> is an error union with no value (its zero value).</exception>
         public static Result<T, TError> Fail<T, TError>(this TError value)
-            => new Result<T, TError>(value);
+            => new Result<T, TError>(value.ThrowIfNoError(nameof(value)));
 
         /// <summary>Returns a success holding <paramref name="value"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <typeparam name="TError">The type of the error.</typeparam>
-        /// <param name="value">The success value.</param>
+        /// <param name="value">The success value. <c>null</c> is allowed: it gives a success holding <c>null</c>.</param>
         public static Result<T, TError> Ok<T, TError>(this T value)
             => new Result<T, TError>(value);
 
@@ -55,19 +59,21 @@ namespace Resultful
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static Result<T> Fail<T>(this IEnumerable<string> errors)
-            => new Result<T>(errors);
+            => new Result<T>(errors.ThrowIfNoError(nameof(errors)));
 
         /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="errors">The errors.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
         public static Result<T> Fail<T>(params string[] errors)
-            => new Result<T>(errors);
+            => new Result<T>(errors.ThrowIfNoError(nameof(errors)));
 
 
         /// <summary>Returns a success holding <paramref name="value"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="value">The success value.</param>
+        /// <param name="value">The success value. <c>null</c> is allowed: it gives a success holding <c>null</c>.</param>
         public static Result<T> Ok<T>(this T value)
             => new Result<T>(value);
 

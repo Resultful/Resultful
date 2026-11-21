@@ -111,8 +111,13 @@ var count = CountItems().ValueOr(0);               // the value, or a fallback
 
 `Value` throws `InvalidOperationException` on a failure and `Error` throws on a success. `Result<T>` has
 `IsSuccess`, `IsFailure`, `Value`, `TryGetValue`, `OrElse(other)` and `ValueOr`; its error members come with the
-`Error` type in 0.3. The zero value (`default`) is neither a success nor a failure: `IsSuccess` and `IsFailure` are
-both `false`, and the other named methods throw.
+`Error` type in 0.3.
+
+The zero value (`default`, an array slot, an unassigned field) is neither a success nor a failure. `IsSuccess` and
+`IsFailure` are both `false`, and every member that reads the value or the error (`Match`, `Map`, `Bind`, the async
+and LINQ extensions, …) throws `InvalidOperationException`. `ToString` (`"<default Result>"`), `Equals` and
+`GetHashCode` never throw. `new Result<T, TError>()` doesn't compile. `Fail(null)` and a `null` error list throw `ArgumentNullException`;
+`Ok(null)` is a success holding `null`. A default `Option<T>` is `None`.
 
 ### Errors
 
