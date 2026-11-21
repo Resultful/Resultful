@@ -443,3 +443,65 @@ static Resultful.Validation<T>.operator ==(Resultful.Validation<T> left, Resultf
 static Resultful.VoidResult.implicit operator Resultful.Result<Resultful.Unit!>(Resultful.VoidResult value) -> Resultful.Result<Resultful.Unit!>
 static Resultful.VoidResult<TError>.implicit operator Resultful.Result<Resultful.Unit!, TError>(Resultful.VoidResult<TError> value) -> Resultful.Result<Resultful.Unit!, TError>
 static Resultful.Validation.AsValidation<T, TError>(this Resultful.Validation<T, TError!> validation) -> Resultful.Validation<T>
+Resultful.Operators.ResultOperators
+Resultful.Operators.ResultOperators.extension<T, TError>(Resultful.Result<T, TError>)
+Resultful.Operators.ResultOperators.extension<T, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>!)
+Resultful.Operators.ResultOperators.extension<T, TResult, TError>(Resultful.Result<T, TError>)
+Resultful.Operators.ResultOperators.extension<T, TResult, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>!)
+Resultful.Operators.ResultOperators.extension<T, TResult>(Resultful.Result<T>)
+Resultful.Operators.ResultOperators.extension<T, TResult>(System.Threading.Tasks.Task<Resultful.Result<T>>!)
+Resultful.Operators.ResultOperators.extension<T>(Resultful.Result<T>)
+Resultful.Operators.ResultOperators.extension<T>(System.Threading.Tasks.Task<Resultful.Result<T>>!)
+Resultful.Operators.ValidationOperators
+Resultful.Operators.ValidationOperators.extension<T1, T2, TError>(Resultful.Validation<T1, TError>)
+Resultful.Operators.ValidationOperators.extension<T1, T2>(Resultful.Validation<T1>)
+static Resultful.Operators.ResultOperators.extension<T, TError>(Resultful.Result<T, TError>).operator false(Resultful.Result<T, TError> value) -> bool
+static Resultful.Operators.ResultOperators.extension<T, TError>(Resultful.Result<T, TError>).operator true(Resultful.Result<T, TError> value) -> bool
+static Resultful.Operators.ResultOperators.extension<T, TError>(Resultful.Result<T, TError>).operator |(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> Resultful.Result<T, TError>
+static Resultful.Operators.ResultOperators.extension<T, TError>(Resultful.Result<T, TError>).operator |(Resultful.Result<T, TError> left, T fallback) -> T
+static Resultful.Operators.ResultOperators.extension<T, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>!).operator |(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, Resultful.Result<T, TError> right) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
+static Resultful.Operators.ResultOperators.extension<T, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>!).operator |(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Operators.ResultOperators.extension<T, TResult, TError>(Resultful.Result<T, TError>).operator >>(Resultful.Result<T, TError> left, System.Func<T, Resultful.Result<TResult, TError>>! bind) -> Resultful.Result<TResult, TError>
+static Resultful.Operators.ResultOperators.extension<T, TResult, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>!).operator >>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!>! bind) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
+static Resultful.Operators.ResultOperators.extension<T, TResult>(Resultful.Result<T>).operator >>(Resultful.Result<T> left, System.Func<T, Resultful.Result<TResult>>! bind) -> Resultful.Result<TResult>
+static Resultful.Operators.ResultOperators.extension<T, TResult>(System.Threading.Tasks.Task<Resultful.Result<T>>!).operator >>(System.Threading.Tasks.Task<Resultful.Result<T>>! left, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult>>!>! bind) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
+static Resultful.Operators.ResultOperators.extension<T>(Resultful.Result<T>).operator false(Resultful.Result<T> value) -> bool
+static Resultful.Operators.ResultOperators.extension<T>(Resultful.Result<T>).operator true(Resultful.Result<T> value) -> bool
+static Resultful.Operators.ResultOperators.extension<T>(Resultful.Result<T>).operator |(Resultful.Result<T> left, Resultful.Result<T> right) -> Resultful.Result<T>
+static Resultful.Operators.ResultOperators.extension<T>(Resultful.Result<T>).operator |(Resultful.Result<T> left, T fallback) -> T
+static Resultful.Operators.ResultOperators.extension<T>(System.Threading.Tasks.Task<Resultful.Result<T>>!).operator |(System.Threading.Tasks.Task<Resultful.Result<T>>! left, Resultful.Result<T> right) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
+static Resultful.Operators.ResultOperators.extension<T>(System.Threading.Tasks.Task<Resultful.Result<T>>!).operator |(System.Threading.Tasks.Task<Resultful.Result<T>>! left, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T, TError>(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> Resultful.Result<T, TError>
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T, TError>(Resultful.Result<T, TError> left, T fallback) -> T
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, Resultful.Result<T, TError> right) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T>(Resultful.Result<T> left, Resultful.Result<T> right) -> Resultful.Result<T>
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T>(Resultful.Result<T> left, T fallback) -> T
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T>(System.Threading.Tasks.Task<Resultful.Result<T>>! left, Resultful.Result<T> right) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
+static Resultful.Operators.ResultOperators.op_BitwiseOr<T>(System.Threading.Tasks.Task<Resultful.Result<T>>! left, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Operators.ResultOperators.op_False<T, TError>(Resultful.Result<T, TError> value) -> bool
+static Resultful.Operators.ResultOperators.op_False<T>(Resultful.Result<T> value) -> bool
+static Resultful.Operators.ResultOperators.op_RightShift<T, TResult, TError>(Resultful.Result<T, TError> left, System.Func<T, Resultful.Result<TResult, TError>>! bind) -> Resultful.Result<TResult, TError>
+static Resultful.Operators.ResultOperators.op_RightShift<T, TResult, TError>(System.Threading.Tasks.Task<Resultful.Result<T, TError>>! left, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!>! bind) -> System.Threading.Tasks.Task<Resultful.Result<TResult, TError>>!
+static Resultful.Operators.ResultOperators.op_RightShift<T, TResult>(Resultful.Result<T> left, System.Func<T, Resultful.Result<TResult>>! bind) -> Resultful.Result<TResult>
+static Resultful.Operators.ResultOperators.op_RightShift<T, TResult>(System.Threading.Tasks.Task<Resultful.Result<T>>! left, System.Func<T, System.Threading.Tasks.Task<Resultful.Result<TResult>>!>! bind) -> System.Threading.Tasks.Task<Resultful.Result<TResult>>!
+static Resultful.Operators.ResultOperators.op_True<T, TError>(Resultful.Result<T, TError> value) -> bool
+static Resultful.Operators.ResultOperators.op_True<T>(Resultful.Result<T> value) -> bool
+static Resultful.Operators.ValidationOperators.extension<T1, T2, TError>(Resultful.Validation<T1, TError>).operator &(Resultful.Validation<T1, TError> left, Resultful.Validation<T2, TError> right) -> Resultful.Validation<(T1, T2), TError>
+static Resultful.Operators.ValidationOperators.extension<T1, T2>(Resultful.Validation<T1>).operator &(Resultful.Validation<T1> left, Resultful.Validation<T2> right) -> Resultful.Validation<(T1, T2)>
+static Resultful.Operators.ValidationOperators.op_BitwiseAnd<T1, T2, TError>(Resultful.Validation<T1, TError> left, Resultful.Validation<T2, TError> right) -> Resultful.Validation<(T1, T2), TError>
+static Resultful.Operators.ValidationOperators.op_BitwiseAnd<T1, T2>(Resultful.Validation<T1> left, Resultful.Validation<T2> right) -> Resultful.Validation<(T1, T2)>
+static Resultful.Option<T>.operator !=(Resultful.Option<T> left, Resultful.Option<T> right) -> bool
+static Resultful.Option<T>.operator ==(Resultful.Option<T> left, Resultful.Option<T> right) -> bool
+static Resultful.Result.OrElse<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, Resultful.Result<T, TError> other) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
+static Resultful.Result.OrElse<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, Resultful.Result<T> other) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
+static Resultful.Result.ValueOr<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Result.ValueOr<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value, T fallback) -> System.Threading.Tasks.Task<T>!
+static Resultful.Result<T, TError>.operator !=(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> bool
+static Resultful.Result<T, TError>.operator ==(Resultful.Result<T, TError> left, Resultful.Result<T, TError> right) -> bool
+static Resultful.Result<T>.operator !=(Resultful.Result<T> left, Resultful.Result<T> right) -> bool
+static Resultful.Result<T>.operator ==(Resultful.Result<T> left, Resultful.Result<T> right) -> bool
+static Resultful.VoidResult.operator !=(Resultful.VoidResult left, Resultful.VoidResult right) -> bool
+static Resultful.VoidResult.operator ==(Resultful.VoidResult left, Resultful.VoidResult right) -> bool
+static Resultful.VoidResult<TError>.operator !=(Resultful.VoidResult<TError> left, Resultful.VoidResult<TError> right) -> bool
+static Resultful.VoidResult<TError>.operator ==(Resultful.VoidResult<TError> left, Resultful.VoidResult<TError> right) -> bool

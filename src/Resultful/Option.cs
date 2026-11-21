@@ -8,9 +8,7 @@ namespace Resultful
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <remarks>The zero value (<c>default</c>) is <see cref="None"/> (decision 10): unlike a result's, it has a safe meaning, so it doesn't throw.</remarks>
     [CodeAnalysis.MustObserve]
-#pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public struct Option<T>
-#pragma warning restore CA2231
     {
         //Private Members
         private readonly T _value;
@@ -97,6 +95,16 @@ namespace Resultful
         public override bool Equals(object? obj)
             => obj is Option<T> other && (_state == State.Success) == (other._state == State.Success)
                 && (_state != State.Success || Equals(_value, other._value));
+
+        /// <summary>Compares two options with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first option.</param>
+        /// <param name="right">The second option.</param>
+        public static bool operator ==(Option<T> left, Option<T> right) => left.Equals(right);
+
+        /// <summary>Compares two options with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first option.</param>
+        /// <param name="right">The second option.</param>
+        public static bool operator !=(Option<T> left, Option<T> right) => !left.Equals(right);
 
         /// <summary>A hash of the case and its value.</summary>
         public override int GetHashCode()

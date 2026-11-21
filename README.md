@@ -158,8 +158,8 @@ Result<Order> Load(int id) =>
 ### Validation
 
 `Validation<T, TError>` gathers: checks that don't depend on each other all run, and every failure is kept, in order.
-`Validation.Combine` takes two to eight and names the values (an `&` operator for two arrives with the opt-in
-operators in stack PR 18). A failed `Validation` is never empty. It has no `Bind` and no `+`: a step that needs the
+`Validation.Combine` takes two to eight and names the values (`a & b` combines two into a tuple with the opt-in
+operators). A failed `Validation` is never empty. It has no `Bind` and no `+`: a step that needs the
 value comes after the checks, in a `Result`.
 
 ```cs
@@ -275,6 +275,42 @@ var result = await Result.SequenceAsync(() => LoadAsync(id))
     .Then(Trim, NotEmpty)
     .CheckAsync(name => AuditAsync(name));
 ```
+
+## Opt-in operators
+
+`using Resultful.Operators;` adds C# 14 extension operators (decision 9). Each is a one-line call to the named
+method beside it, which stays the API; without the `using` there are none. Consumers need C# 14 (the default on
+`net10.0` and later). `==` and `!=` are on the types themselves and need no `using`.
+
+| Operator | Named method | C# precedence, tightest first |
+|---|---|---|
+| `a >> f` | `a.Bind(f)` (`BindAsync` on a `Task<Result<…>>`) | shift |
+| `a == b`, `a != b` | `a.Equals(b)` | equality |
+| `a & b` (`Validation` only) | `Validation.Combine(a, b)`: a tuple, or every error | logical AND |
+| `a \| b` | `a.OrElse(b)`: the first success wins | logical OR |
+| `a \| value` | `a.ValueOr(value)`: a `T`, not a result (`a \| someError` is `OrElse`: the error converts to a failure, which becomes the fallback) | logical OR |
+| `a \|\| b` | `a.OrElse(b)`, but `b` runs only when `a` fails | conditional OR |
+| `if (a)`, `a ? x : y` | `a.IsSuccess` (`operator true`; `operator false` is `IsFailure`) | |
+
+The same `|` and `>>` work on `Task<Result<T>>` and `Task<Result<T, TError>>`, with an async step on the right of `>>`.
+There is no `+`, `-` or `*`, and no `&&` (decision 14: gathering is `Validation`'s job, and `&` is the tuple combine).
+
+```cs
+using Resultful.Operators;
+
+Result<int> Port(string key) =>
+    (Read(env, key) || Vault(key) | Read(file, key)) >> Parse >> InRange;   // Vault runs only if env has no key
+
+Validation<(string, int)> fields = Host(request.Host) & PortField(request.Port);
+int timeout = await (ReadAsync(file, "timeout") >> (s => ParseAsync(s)) | 30);
+```
+
+Precedence is C#'s, so `>>` binds tighter than `|`: `cached | Load(id) >> Parse` is `cached | (Load(id) >> Parse)`,
+which parses only the fallback. Write `(cached | Load(id)) >> Parse` to parse whichever wins. A lambda on the right of
+`>>` needs parentheses, and `a || b | c` is `a || (b | c)`.
+
+When `T` is a base type of the result's own type (`Result<object>`), `r | "s"` is ambiguous (CS9342): cast the value
+or call `ValueOr`. `a & b & c` nests (`((a, b), c)`); for three or more checks use `Validation.Combine(a, b, c)`.
 
 ## IPlus
 

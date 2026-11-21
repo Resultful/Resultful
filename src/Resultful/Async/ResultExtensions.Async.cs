@@ -138,6 +138,37 @@ namespace Resultful
         public static Task<Result<TResult>> BindAsync<TResult, T>(this Task<Result<T>> value, Func<T, Task<Result<TResult>>> bindFunc)
             => value.Bind(item => item.BindAsync(bindFunc));
 
+        //OrElse and ValueOr on Task<Result<…>>
+        /// <summary>Awaits <paramref name="value"/>, then returns it if it is a success, otherwise <paramref name="other"/>. The first success wins.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The task that produces the result.</param>
+        /// <param name="other">The result to use when the awaited result is a failure.</param>
+        public static Task<Result<T, TError>> OrElse<T, TError>(this Task<Result<T, TError>> value, Result<T, TError> other)
+            => value.Map(item => item.OrElse(other));
+
+        /// <summary>Awaits <paramref name="value"/>, then returns it if it is a success, otherwise <paramref name="other"/>. The first success wins.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The task that produces the result.</param>
+        /// <param name="other">The result to use when the awaited result is a failure.</param>
+        public static Task<Result<T>> OrElse<T>(this Task<Result<T>> value, Result<T> other)
+            => value.Map(item => item.OrElse(other));
+
+        /// <summary>Awaits <paramref name="value"/>, then returns the value of a success, otherwise <paramref name="fallback"/>.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="value">The task that produces the result.</param>
+        /// <param name="fallback">The value to return when the awaited result is a failure.</param>
+        public static Task<T> ValueOr<T, TError>(this Task<Result<T, TError>> value, T fallback)
+            => value.Map(item => item.ValueOr(fallback));
+
+        /// <summary>Awaits <paramref name="value"/>, then returns the value of a success, otherwise <paramref name="fallback"/>.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The task that produces the result.</param>
+        /// <param name="fallback">The value to return when the awaited result is a failure.</param>
+        public static Task<T> ValueOr<T>(this Task<Result<T>> value, T fallback)
+            => value.Map(item => item.ValueOr(fallback));
+
         //MapAsync on Result<T, TError>
         /// <summary>Awaits <paramref name="value"/>, then: on success, returns the value <paramref name="mapFunc"/> gives for the value, as a success. A failure keeps the error and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
