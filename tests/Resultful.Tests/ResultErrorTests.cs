@@ -43,21 +43,18 @@ namespace Resultful.Tests
             public List<string> Log { get; } = [];
             public List<Order> Saved { get; } = [];
 
-            // Independent checks that should all run: every failure is reported, as one ValidationFailed<Error>.
-            public static Result<ValidOrder> Validate(OrderRequest r)
-            {
-                Result<Unit>[] checks =
-                [
-                    string.IsNullOrWhiteSpace(r.Customer) ? new Required("customer") : Unit.Value,
-                    string.IsNullOrWhiteSpace(r.Sku) ? new Required("sku") : Unit.Value,
-                    r.Quantity <= 0 ? new Required("quantity") : r.Quantity > 10 ? new TooMany("quantity", 10) : Unit.Value,
-                    string.IsNullOrWhiteSpace(r.Card) ? new Required("card") : Unit.Value,
-                ];
-                var errors = checks.Where(c => c.IsFailure).Select(c => c.Error).ToArray();
-                return errors.Length == 0
-                    ? new ValidOrder(r.Customer, r.Sku, r.Quantity, r.Card)
-                    : new ValidationFailed<Error>(errors);
-            }
+            // Independent checks that should all run: Validation gathers every failure (10), and ToResult carries them on
+            // as one ValidationFailed<Error>.
+            static Validation<string> Present(string field, string value) =>
+                string.IsNullOrWhiteSpace(value) ? new Required(field) : value;
+
+            static Validation<int> Quantity(int quantity) =>
+                quantity <= 0 ? new Required("quantity") : quantity > 10 ? new TooMany("quantity", 10) : quantity;
+
+            public static Result<ValidOrder> Validate(OrderRequest r) =>
+                Validation.Combine(Present("customer", r.Customer), Present("sku", r.Sku), Quantity(r.Quantity), Present("card", r.Card),
+                    (customer, sku, quantity, card) => new ValidOrder(customer, sku, quantity, card))
+                .ToResult();
 
             // A step that converts both ways: `return reservation;` and `return new OutOfStock(…);`.
             public Result<Reservation> Reserve(string sku, int quantity)

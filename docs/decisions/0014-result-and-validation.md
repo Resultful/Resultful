@@ -88,13 +88,12 @@ The one list of open questions for the error design; other documents link here.
 
 - The plural type's name.
 - Whether it is a new type or today's `Result<T, IEnumerable<TError>>` renamed.
-- `Bind` on `Validation`: none (Haskell, Cats) or one that stops at the first failure (FsToolkit).
 - Whether `Unit` stays a class (as shipped) or becomes a struct in M3, and how a parameterless `Ok()` reaches
   `Result<Unit, TError>`, whose `TError` it can't infer.
-- `+` on `Validation` values, or only `&` and `Combine`.
 - When `IPlus` and `Result<T, TError>.Plus` are deprecated.
 Decided in review: no implicit conversion from `string`; context is a note that keeps the type; a `Validation`
-crosses into a `Result` chain as `ValidationFailed`.
+crosses into a `Result` chain as `ValidationFailed`. `Validation` has no `Bind` (as in Haskell and Cats) and no `+`:
+it combines with `Validation.Combine`, and `&` arrives with the opt-in operators (stack PR 18).
 
 Decided when `Error` was built (0.3, stack PR 06):
 - `Context` takes part in equality, compared element by element, so two identical errors are equal before and
@@ -118,9 +117,22 @@ Decided when `Result<T>` moved to `Error` (0.3, stack PR 09):
   another type.
 - Gathering on `Result<T>` and `VoidResult` with no merge function (`Plus`, `Fold`, `Reduce`, `Unroll`, the tuple
   `Plus` and the async forms) is removed; the `Until` forms, which stop at the first failure, stay. `Result<T, TError>`
-  keeps its forms that take a merge function. Until `Validation` arrives, independent checks gather into one
-  `ValidationFailed<Error>`.
+  keeps its forms that take a merge function. Independent checks gather in `Validation` (PR 10).
 - `VoidResult` holds an `Error` too, so it and `Result<Unit>` convert without loss, and it converts from any `Error`.
   Its generic `MapError<TError>` keeps the overload trap (`v.MapError(e => new SaveFailed(id) { Cause = e })` gives
   `VoidResult<SaveFailed>`); it is documented, not fixed, because `Result<Unit>` replaces `VoidResult` in PR 12. `AsResult()` and `WithContext` on
   results arrive here.
+
+Decided when `Validation` was built (0.3, stack PR 10):
+- `Validation<T, TError>` keeps its own state byte, value and read-only list; `Validation<T>` wraps a
+  `Validation<T, Error>`. The zero value throws on use as a result's does.
+- The way into a `Result<T>` when the errors derive from `Error` is `ToResult()`, as this decision writes it (not
+  `AsResult()`, which names a lossless widening of one error). `ToResult(combine)` is the explicit form.
+- `Validation<T>.MapError` takes `Func<Error, Error>` and stays a `Validation<T>`, as `Result<T>.MapError` does.
+- `VoidResult` converts to `Result<Unit>` and `VoidResult<TError>` to `Result<Unit, TError>`, so both directions
+  exist. `Validation` has `==` and `!=`; equality compares the errors element by element, as `ValidationFailed` does.
+- `IValidationShape<T, TError>.AsValidation()` is what a gathering shape implements, and the `AsValidation()`
+  extension widens `Validation<T, TError>` (where `TError : Error`) to `Validation<T>` with the errors kept flat, as
+  `AsResult()` does for one error (decision 16 item 8).
+- Source break: with conversions both ways between `VoidResult` and `Result<Unit>` (and the generic pair), a
+  conditional `b ? voidResult : resultUnit` no longer has a type and reports CS0172. Cast one side.

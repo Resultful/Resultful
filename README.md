@@ -11,13 +11,15 @@ Instructions to install using your appropriate package manager can be [found her
 
 ## Types
 
-There are 5 fundamental types in this library
+There are 7 fundamental types in this library
 
 1. `Result<T, TError>` - Union of `T` and `TError`
 2. `Result<T>` - Union of `T` and one `Error`
-3. `VoidResult<TError>` - Union of `Unit` and `TError`
-4. `VoidResult` - Union of `Unit` and one `Error`
-5. `Option<T>` - Union of `T` and `None`
+3. `Validation<T, TError>` - Union of `T` and a non-empty list of `TError`
+4. `Validation<T>` - Union of `T` and a non-empty list of `Error`
+5. `VoidResult<TError>` - Union of `Unit` and `TError`
+6. `VoidResult` - Union of `Unit` and one `Error`
+7. `Option<T>` - Union of `T` and `None`
 
 ## Usage
 
@@ -153,8 +155,30 @@ Result<Order> Load(int id) =>
     repo.Find(id).AsResult().WithContext($"loading order {id}");      // Find returns Result<Order, OrderNotFound>
 ```
 
-To gather several failures, collect them into one `ValidationFailed<Error>`; `Plus`, `Fold`, `Reduce` and `Unroll` on
-`Result<T>` and `VoidResult` are gone, and `Validation<T>` takes over in a later version.
+### Validation
+
+`Validation<T, TError>` gathers: checks that don't depend on each other all run, and every failure is kept, in order.
+`Validation.Combine` takes two to eight and names the values (an `&` operator for two arrives with the opt-in
+operators in stack PR 18). A failed `Validation` is never empty. It has no `Bind` and no `+`: a step that needs the
+value comes after the checks, in a `Result`.
+
+```cs
+Validation<string, InputError> Name(string? v) => string.IsNullOrWhiteSpace(v) ? new Required("name") : v;
+
+Validation<SignUp, InputError> Validate(SignUpRequest r) =>
+    Validation.Combine(Name(r.Name), Email(r.Email), Password(r.Password),
+        (name, email, password) => new SignUp(name, email, password));
+
+Result<Account> Handle(SignUpRequest r) =>
+    Validate(r).ToResult()        // the errors travel as one ValidationFailed<InputError>, which TryFind searches
+        .Bind(Register);          // stops at the first failure
+```
+
+`ToResult(combine)` turns the list into one error your way; a `Result` converts to a `Validation` implicitly (one
+error is a list of one), `AsValidation()` widens `Validation<T, TError>` to `Validation<T>` when `TError` derives
+from `Error`, and a `VoidResult` converts to `Result<Unit>`. With both directions, `b ? voidResult : resultUnit`
+reports CS0172; cast one side. `Plus`, `Fold`, `Reduce` and `Unroll` on
+`Result<T>` and `VoidResult` are gone: gathering is `Validation`'s job.
 
 ### Attributes for the analyzers and the generator
 

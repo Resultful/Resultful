@@ -261,3 +261,81 @@ virtual Resultful.Error.Inner() -> System.Collections.Generic.IEnumerable<Result
 virtual Resultful.Error.PrintMembers(System.Text.StringBuilder! builder) -> bool
 ~static Resultful.ValidationFailed<TError>.operator !=(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool
 ~static Resultful.ValidationFailed<TError>.operator ==(Resultful.ValidationFailed<TError>? left, Resultful.ValidationFailed<TError>? right) -> bool
+Resultful.IValidationShape<T, TError>
+Resultful.IValidationShape<T, TError>.AsValidation() -> Resultful.Validation<T, TError>
+Resultful.Validation
+Resultful.Validation<T, TError>
+Resultful.Validation<T, TError>.Deconstruct(out bool isSuccess, out T? value, out System.Collections.Generic.IReadOnlyList<TError>? errors) -> void
+Resultful.Validation<T, TError>.Equals(Resultful.Validation<T, TError> other) -> bool
+Resultful.Validation<T, TError>.Errors.get -> System.Collections.Generic.IReadOnlyList<TError>!
+Resultful.Validation<T, TError>.IsFailure.get -> bool
+Resultful.Validation<T, TError>.IsSuccess.get -> bool
+Resultful.Validation<T, TError>.Map<TResult>(System.Func<T, TResult>! mapFunc) -> Resultful.Validation<TResult, TError>
+Resultful.Validation<T, TError>.MapError<TErrorResult>(System.Func<TError, TErrorResult>! errorMapFunc) -> Resultful.Validation<T, TErrorResult>
+Resultful.Validation<T, TError>.Match<TResult>(System.Func<T, TResult>! successfulFunc, System.Func<System.Collections.Generic.IReadOnlyList<TError>!, TResult>! errorFunc) -> TResult
+Resultful.Validation<T, TError>.Switch(System.Action<T>! successfulFunc, System.Action<System.Collections.Generic.IReadOnlyList<TError>!>! errorFunc) -> void
+Resultful.Validation<T, TError>.Tee(System.Action<T>! teeAction) -> Resultful.Validation<T, TError>
+Resultful.Validation<T, TError>.ToResult(System.Func<System.Collections.Generic.IReadOnlyList<TError>!, TError>! combine) -> Resultful.Result<T, TError>
+Resultful.Validation<T, TError>.TryGetErrors(out System.Collections.Generic.IReadOnlyList<TError>! errors) -> bool
+Resultful.Validation<T, TError>.TryGetValue(out T value) -> bool
+Resultful.Validation<T, TError>.Validation() -> void
+Resultful.Validation<T, TError>.Value.get -> T
+Resultful.Validation<T>
+Resultful.Validation<T>.Deconstruct(out bool isSuccess, out T? value, out System.Collections.Generic.IReadOnlyList<Resultful.Error!>? errors) -> void
+Resultful.Validation<T>.Equals(Resultful.Validation<T> other) -> bool
+Resultful.Validation<T>.Errors.get -> System.Collections.Generic.IReadOnlyList<Resultful.Error!>!
+Resultful.Validation<T>.IsFailure.get -> bool
+Resultful.Validation<T>.IsSuccess.get -> bool
+Resultful.Validation<T>.Map<TResult>(System.Func<T, TResult>! mapFunc) -> Resultful.Validation<TResult>
+Resultful.Validation<T>.MapError(System.Func<Resultful.Error!, Resultful.Error!>! errorMapFunc) -> Resultful.Validation<T>
+Resultful.Validation<T>.Match<TResult>(System.Func<T, TResult>! successfulFunc, System.Func<System.Collections.Generic.IReadOnlyList<Resultful.Error!>!, TResult>! errorFunc) -> TResult
+Resultful.Validation<T>.Switch(System.Action<T>! successfulFunc, System.Action<System.Collections.Generic.IReadOnlyList<Resultful.Error!>!>! errorFunc) -> void
+Resultful.Validation<T>.Tee(System.Action<T>! teeAction) -> Resultful.Validation<T>
+Resultful.Validation<T>.ToResult() -> Resultful.Result<T>
+Resultful.Validation<T>.ToResult(System.Func<System.Collections.Generic.IReadOnlyList<Resultful.Error!>!, Resultful.Error!>! combine) -> Resultful.Result<T>
+Resultful.Validation<T>.TryGetErrors(out System.Collections.Generic.IReadOnlyList<Resultful.Error!>! errors) -> bool
+Resultful.Validation<T>.TryGetValue(out T value) -> bool
+Resultful.Validation<T>.Validation() -> void
+Resultful.Validation<T>.Value.get -> T
+override Resultful.Validation<T, TError>.Equals(object? obj) -> bool
+override Resultful.Validation<T, TError>.GetHashCode() -> int
+override Resultful.Validation<T, TError>.ToString() -> string!
+override Resultful.Validation<T>.Equals(object? obj) -> bool
+override Resultful.Validation<T>.GetHashCode() -> int
+override Resultful.Validation<T>.ToString() -> string!
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, T7, T8, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, Resultful.Validation<T4, TError> v4, Resultful.Validation<T5, TError> v5, Resultful.Validation<T6, TError> v6, Resultful.Validation<T7, TError> v7, Resultful.Validation<T8, TError> v8, System.Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, Resultful.Validation<T4> v4, Resultful.Validation<T5> v5, Resultful.Validation<T6> v6, Resultful.Validation<T7> v7, Resultful.Validation<T8> v8, System.Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, T7, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, Resultful.Validation<T4, TError> v4, Resultful.Validation<T5, TError> v5, Resultful.Validation<T6, TError> v6, Resultful.Validation<T7, TError> v7, System.Func<T1, T2, T3, T4, T5, T6, T7, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, T7, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, Resultful.Validation<T4> v4, Resultful.Validation<T5> v5, Resultful.Validation<T6> v6, Resultful.Validation<T7> v7, System.Func<T1, T2, T3, T4, T5, T6, T7, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, Resultful.Validation<T4, TError> v4, Resultful.Validation<T5, TError> v5, Resultful.Validation<T6, TError> v6, System.Func<T1, T2, T3, T4, T5, T6, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, T6, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, Resultful.Validation<T4> v4, Resultful.Validation<T5> v5, Resultful.Validation<T6> v6, System.Func<T1, T2, T3, T4, T5, T6, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, Resultful.Validation<T4, TError> v4, Resultful.Validation<T5, TError> v5, System.Func<T1, T2, T3, T4, T5, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, T4, T5, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, Resultful.Validation<T4> v4, Resultful.Validation<T5> v5, System.Func<T1, T2, T3, T4, T5, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, T3, T4, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, Resultful.Validation<T4, TError> v4, System.Func<T1, T2, T3, T4, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, T4, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, Resultful.Validation<T4> v4, System.Func<T1, T2, T3, T4, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, T3, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, Resultful.Validation<T3, TError> v3, System.Func<T1, T2, T3, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, T3, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, Resultful.Validation<T3> v3, System.Func<T1, T2, T3, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2, TError, TResult>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2, System.Func<T1, T2, TResult>! combine) -> Resultful.Validation<TResult, TError>
+static Resultful.Validation.Combine<T1, T2, TError>(Resultful.Validation<T1, TError> v1, Resultful.Validation<T2, TError> v2) -> Resultful.Validation<(T1, T2), TError>
+static Resultful.Validation.Combine<T1, T2, TResult>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2, System.Func<T1, T2, TResult>! combine) -> Resultful.Validation<TResult>
+static Resultful.Validation.Combine<T1, T2>(Resultful.Validation<T1> v1, Resultful.Validation<T2> v2) -> Resultful.Validation<(T1, T2)>
+static Resultful.Validation.Fail<T, TError>(System.Collections.Generic.IEnumerable<TError>! errors) -> Resultful.Validation<T, TError>
+static Resultful.Validation.Fail<T, TError>(TError error) -> Resultful.Validation<T, TError>
+static Resultful.Validation.Fail<T>(Resultful.Error! error) -> Resultful.Validation<T>
+static Resultful.Validation.Fail<T>(System.Collections.Generic.IEnumerable<Resultful.Error!>! errors) -> Resultful.Validation<T>
+static Resultful.Validation.Ok<T, TError>(T value) -> Resultful.Validation<T, TError>
+static Resultful.Validation.Ok<T>(T value) -> Resultful.Validation<T>
+static Resultful.Validation.ToResult<T, TError>(this Resultful.Validation<T, TError!> validation) -> Resultful.Result<T>
+static Resultful.Validation<T, TError>.implicit operator Resultful.Validation<T, TError>(Resultful.Result<T, TError> result) -> Resultful.Validation<T, TError>
+static Resultful.Validation<T, TError>.implicit operator Resultful.Validation<T, TError>(T value) -> Resultful.Validation<T, TError>
+static Resultful.Validation<T, TError>.implicit operator Resultful.Validation<T, TError>(TError error) -> Resultful.Validation<T, TError>
+static Resultful.Validation<T, TError>.operator !=(Resultful.Validation<T, TError> left, Resultful.Validation<T, TError> right) -> bool
+static Resultful.Validation<T, TError>.operator ==(Resultful.Validation<T, TError> left, Resultful.Validation<T, TError> right) -> bool
+static Resultful.Validation<T>.implicit operator Resultful.Validation<T>(Resultful.Error! error) -> Resultful.Validation<T>
+static Resultful.Validation<T>.implicit operator Resultful.Validation<T>(Resultful.Result<T> result) -> Resultful.Validation<T>
+static Resultful.Validation<T>.implicit operator Resultful.Validation<T>(T value) -> Resultful.Validation<T>
+static Resultful.Validation<T>.operator !=(Resultful.Validation<T> left, Resultful.Validation<T> right) -> bool
+static Resultful.Validation<T>.operator ==(Resultful.Validation<T> left, Resultful.Validation<T> right) -> bool
+static Resultful.VoidResult.implicit operator Resultful.Result<Resultful.Unit!>(Resultful.VoidResult value) -> Resultful.Result<Resultful.Unit!>
+static Resultful.VoidResult<TError>.implicit operator Resultful.Result<Resultful.Unit!, TError>(Resultful.VoidResult<TError> value) -> Resultful.Result<Resultful.Unit!, TError>
+static Resultful.Validation.AsValidation<T, TError>(this Resultful.Validation<T, TError!> validation) -> Resultful.Validation<T>
