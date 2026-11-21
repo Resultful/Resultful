@@ -186,7 +186,7 @@ public sealed class CodeFixTests
             .Replace("r.Match(o => \"order\", (OrderLocked l) => \"locked\", _ => \"missing\")",
                 "r.Match((Order o) => \"order\", (OrderLocked l) => \"locked\", (OrderNotFound _) => \"missing\")", StringComparison.Ordinal),
             fixedText);
-        Verify(fixedText, generate: true);
+        Verify(fixedText.Replace("var a = e.Match(", "var a = e.Match( // expect: RF0005", StringComparison.Ordinal), generate: true);
     }
 
     // ---- RF0009: replace Map with Bind ----

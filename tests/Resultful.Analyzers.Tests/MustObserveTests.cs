@@ -370,7 +370,7 @@ public sealed class MustObserveTests
         using Resultful.CodeAnalysis;
 
         public sealed record Order(int Id);
-        [ClosedHierarchy] public abstract partial record OrderError(string Message) : Error(Message);
+        [ClosedHierarchy] public abstract partial record OrderError : Error;
         public sealed record OrderLocked(int Id) : OrderError("locked");
         public sealed record OrderNotFound(int Id) : OrderError("missing");
 
