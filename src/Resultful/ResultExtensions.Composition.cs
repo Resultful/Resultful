@@ -25,10 +25,12 @@ namespace Resultful
         /// <summary>Runs <paramref name="steps"/> in order while the result is a success, and stops at the first failure, which is returned unchanged. Later steps don't run.</summary>
         /// <param name="value">The result.</param>
         /// <param name="steps">The steps to run.</param>
-        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
+        /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs, and <see cref="System.InvalidOperationException"/> on the zero value, even with no steps.</remarks>
         public static VoidResult Then(this VoidResult value, params Func<VoidResult>[] steps)
         {
-            foreach (var step in Steps(steps))
+            Steps(steps);
+            value.ThrowIfZero();
+            foreach (var step in steps)
             {
                 value = value.Bind(_ => step());
             }
@@ -54,7 +56,9 @@ namespace Resultful
         /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static VoidResult<TError> Then<TError>(this VoidResult<TError> value, params Func<VoidResult<TError>>[] steps)
         {
-            foreach (var step in Steps(steps))
+            Steps(steps);
+            value.ThrowIfZero();
+            foreach (var step in steps)
             {
                 value = value.Bind(_ => step());
             }
@@ -81,7 +85,9 @@ namespace Resultful
         /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static Result<T> Then<T>(this Result<T> value, params Func<T, Result<T>>[] steps)
         {
-            foreach (var step in Steps(steps))
+            Steps(steps);
+            value.ThrowIfZero();
+            foreach (var step in steps)
             {
                 value = value.Bind(step);
             }
@@ -97,7 +103,9 @@ namespace Resultful
         /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="steps"/> or any step is <c>null</c>, before any step runs.</remarks>
         public static Result<T, TError> Then<T, TError>(this Result<T, TError> value, params Func<T, Result<T, TError>>[] steps)
         {
-            foreach (var step in Steps(steps))
+            Steps(steps);
+            value.ThrowIfZero();
+            foreach (var step in steps)
             {
                 value = value.Bind(step);
             }
@@ -112,7 +120,9 @@ namespace Resultful
         /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="checks"/> or any check is <c>null</c>, before any check runs.</remarks>
         public static Result<T> Check<T>(this Result<T> value, params Func<T, VoidResult>[] checks)
         {
-            foreach (var check in Steps(checks, nameof(checks)))
+            Steps(checks, nameof(checks));
+            value.ThrowIfZero();
+            foreach (var check in checks)
             {
                 value = value.Bind(item => check(item).Map(item));
             }
@@ -128,7 +138,9 @@ namespace Resultful
         /// <remarks>Throws <see cref="System.ArgumentNullException"/> if <paramref name="checks"/> or any check is <c>null</c>, before any check runs.</remarks>
         public static Result<T, TError> Check<T, TError>(this Result<T, TError> value, params Func<T, VoidResult<TError>>[] checks)
         {
-            foreach (var check in Steps(checks, nameof(checks)))
+            Steps(checks, nameof(checks));
+            value.ThrowIfZero();
+            foreach (var check in checks)
             {
                 value = value.Bind(item => check(item).Map(item));
             }

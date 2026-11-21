@@ -40,5 +40,15 @@ Alternatives rejected:
 Still to check: the .NET 11 union experiment ([decision 3](0003-unions-are-chosen-by-measurement.md)) looks at
 whether a union's zero value (`HasValue == false`) gets extra compile-time checks in an exhaustive `switch`.
 
+Built in 0.3 (stack PR 08b): `IsSuccess` and `IsFailure` are both `false` on the zero value, and there is no
+separate `IsDefault`. Only reading the value, the error or the case throws; `ToString` (`"<default Result>"`), `Equals`,
+`GetHashCode` and the debugger display never throw, so logging, dictionaries and the debugger survive the bug. A
+failure always holds an error: `Fail(null)` throws `ArgumentNullException`, and on `net11.0` `Fail` rejects an error
+union with no case ([decision 17](0017-error-unions.md)), whether the type argument is the union, a `Nullable` of it,
+an interface or `object`. The list builders reject a `null` list too (0.2 read it as no errors). A success may hold
+`null`. The parameterless constructor throws, so `Activator.CreateInstance`, `new T()` under a `new()` constraint and
+any serializer that constructs through it now throw: the JSON converters (12b) must build results with `Ok` and
+`Fail`, never through that constructor.
+
 Consequences: this is a behaviour break and ships with `0.3.0-beta01` ([decision 8](0008-version-0-3-0.md)), with
 characterisation tests from roadmap M1 showing the change.

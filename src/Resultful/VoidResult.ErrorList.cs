@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Resultful.Utils;
 using OneOf;
@@ -7,7 +8,8 @@ using OneOf;
 namespace Resultful
 {
     /// <summary>A success with no value, or a failure holding a list of error messages.</summary>
-    /// <remarks>The zero value (<c>default</c>) is a success whose <see cref="Unit"/> is <c>null</c>, not <see cref="Unit.Value"/>.</remarks>
+    /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure (decision 10): every member that reads the case or the error throws <see cref="InvalidOperationException"/>. <c>ToString</c>, <c>Equals</c> and <c>GetHashCode</c> never throw.</remarks>
+    [DebuggerDisplay("{DebuggerDisplay,nq}")]
 #pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public struct VoidResult
 #pragma warning restore CA2231
@@ -18,6 +20,11 @@ namespace Resultful
         private readonly byte _state;
 
         //Constructors
+        /// <summary>Not supported: <c>new VoidResult()</c> would be the zero value, which is neither a success nor a failure. Use <c>Result.Ok</c> or <c>Result.Fail</c>.</summary>
+        /// <exception cref="InvalidOperationException">Always.</exception>
+        [Obsolete(NamedErrors.NoConstructor, error: true)]
+        public VoidResult() => throw new InvalidOperationException(NamedErrors.NoConstructor);
+
         internal VoidResult(Unit value)
         {
             _errors = default!;
@@ -76,7 +83,7 @@ namespace Resultful
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             errorFunc.ThrowIfDefault(nameof(errorFunc));
-            return _state == State.Failure ? errorFunc(_errors) : successfulFunc(SuccessUnit);
+            return Case() ? successfulFunc(Unit.Value) : errorFunc(_errors);
         }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure.</summary>
@@ -86,7 +93,7 @@ namespace Resultful
         {
             successfulFunc.ThrowIfDefault(nameof(successfulFunc));
             errorFunc.ThrowIfDefault(nameof(errorFunc));
-            if (_state == State.Failure) errorFunc(_errors); else successfulFunc(SuccessUnit);
+            if (Case()) successfulFunc(Unit.Value); else errorFunc(_errors);
         }
 
         /// <summary>Calls <paramref name="successfulFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the errors on failure, and does not wait for the task it returns.</summary>
@@ -105,7 +112,7 @@ namespace Resultful
 
         /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the errors.</summary>
         public OneOf<Unit, IEnumerable<string>> ToOneOf()
-            => _state == State.Failure ? OneOf<Unit, IEnumerable<string>>.FromT1(_errors) : OneOf<Unit, IEnumerable<string>>.FromT0(SuccessUnit);
+            => Case() ? OneOf<Unit, IEnumerable<string>>.FromT0(Unit.Value) : OneOf<Unit, IEnumerable<string>>.FromT1(_errors);
 
         /// <summary>Two results are equal when both are successes, both failures with the same error list, or both the zero value.</summary>
         /// <param name="obj">The object to compare with.</param>
@@ -116,8 +123,21 @@ namespace Resultful
         public override int GetHashCode()
             => _state == State.Failure ? State.Hash(_errors, 1) : State.Hash(SuccessUnit, 0);
 
-        // The zero value is a success whose Unit is null, as in 0.2 (08b changes this).
+        // The zero value hashes as 0.2's did: a success whose Unit is null.
         private Unit SuccessUnit => _state == State.Zero ? null! : Unit.Value;
+
+        // true for a success, false for a failure; the zero value throws (decision 10).
+        private bool Case() => _state == State.Zero ? throw NamedErrors.Zero(typeof(VoidResult)) : _state == State.Success;
+
+        // Throws on the zero value; for members that would otherwise return it unread (Then and Check with no steps).
+        internal void ThrowIfZero() => _ = Case();
+
+        /// <summary>The type's name, as in 0.2; <c>"&lt;default VoidResult&gt;"</c> for the zero value. Never throws.</summary>
+        public override string ToString()
+            => _state == State.Zero ? State.DefaultVoidResult : typeof(VoidResult).ToString();
+
+        private string DebuggerDisplay
+            => _state switch { State.Success => "Ok", State.Failure => $"Fail({string.Join(", ", _errors)})", _ => State.DefaultVoidResult };
 
         /// <summary>On success, returns the value <paramref name="mapFunc"/> gives as a success. A failure keeps the errors and <paramref name="mapFunc"/> isn't called.</summary>
         /// <typeparam name="TResult">The type of the new value.</typeparam>
