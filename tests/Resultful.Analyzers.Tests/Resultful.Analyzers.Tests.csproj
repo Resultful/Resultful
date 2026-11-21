@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Resultful.Analyzers' own tests: consumer code compiled in process with Roslyn against the real core (and, for
-    generated shapes, the real generator), RF0001 and RF0002 compared with `// expect:` markers both ways, the `_ =`
-    fix and fix-all, the .editorconfig key, the 4.14 build loaded by path, and the one negative-compile check for
+    generated shapes, the real generator), every RF rule compared with `// expect:` markers both ways, the code fixes
+    and fix-all, the .editorconfig keys, the 4.14 build loaded by path, and the one negative-compile check for
     decision 9 (operators need `using Resultful.Operators;`).
   -->
   <PropertyGroup>

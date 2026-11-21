@@ -17,6 +17,7 @@ internal sealed class Symbols
 {
     public const string MustObserveAttribute = "Resultful.CodeAnalysis.MustObserveAttribute";
     public const string ResultShapeAttribute = "Resultful.CodeAnalysis.ResultShapeAttribute";
+    public const string ClosedHierarchyAttribute = "Resultful.CodeAnalysis.ClosedHierarchyAttribute";
     const string ErrorType = "Resultful.Error";
     const string ErrorUnionInterface = "Resultful.IErrorUnion";
     const string UnionInterface = "System.Runtime.CompilerServices.IUnion";
@@ -125,6 +126,12 @@ internal sealed class Symbols
             if (t.ToDisplayString() == fullName) return true;
         return false;
     }
+
+    // ---- [ClosedHierarchy] and [ResultShape] (RF0008) ----
+
+    public static bool IsClosedHierarchy(INamedTypeSymbol type) => HasAttribute(type.OriginalDefinition, ClosedHierarchyAttribute);
+
+    public static bool IsResultShape(INamedTypeSymbol type) => HasAttribute(type.OriginalDefinition, ResultShapeAttribute);
 
     static bool HasAttribute(ISymbol symbol, string fullName) =>
         symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == fullName);
