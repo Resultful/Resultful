@@ -1,0 +1,14 @@
+// Paket with lowest-matching resolution (strategy: min), as a consumer would use it. CI's compatibility job runs
+// `paket install --force` here with an empty NuGet packages folder and a cleared Paket cache, then checks paket.lock:
+// Resultful from the packed nupkg (../../../artifacts) and OneOf 3.0.271 from nuget.org, and nothing else.
+// 0.2.0-beta05 failed this: its OneOf >= 3.0.178 floor brought NETStandard.Library 1.6.1 and NU1903 packages.
+source ../../../artifacts
+source https://api.nuget.org/v3/index.json
+
+storage: none
+strategy: min
+lowest_matching: true
+framework: net8.0, net10.0, net11.0
+
+// CI rewrites this pin to the version it packed, so it never needs bumping by hand.
+nuget Resultful = 0.2.0
