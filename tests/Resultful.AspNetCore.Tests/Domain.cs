@@ -108,6 +108,12 @@ public sealed class LogSink : ILoggerProvider
 
     public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
 
+    /// <summary>The entries so far, copied under the lock: a host can still be logging (e.g. "Request finished").</summary>
+    public List<(string Category, LogLevel Level, EventId Id, string Message)> Snapshot()
+    {
+        lock (Entries) return [.. Entries];
+    }
+
     public void Dispose() { }
 
     sealed class Logger(LogSink sink, string category) : ILogger

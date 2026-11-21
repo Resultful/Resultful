@@ -146,7 +146,7 @@ public sealed class ScenarioTests
         foreach (var secret in new[] { "hunter2", "insert into", "ada@example.com", "saving the order", "DbTimeout" })
             Assert.DoesNotContain(secret, slow.Text, StringComparison.Ordinal);
 
-        var entry = Assert.Single(log.Entries, e => e.Category == "Resultful.AspNetCore.ResultHttpResult");
+        var entry = Assert.Single(log.Snapshot(), e => e.Category == "Resultful.AspNetCore.ResultHttpResult");
         Assert.Equal(LogLevel.Error, entry.Level);
         Assert.Contains("saving the order", entry.Message, StringComparison.Ordinal);
         Assert.Contains("Password=hunter2 rejected", entry.Message, StringComparison.Ordinal);
