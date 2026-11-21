@@ -42,38 +42,28 @@ fields opt-in). Before going on: restack them linearly on 20a in the order 21 �
 (`Directory.Packages.props`, `Resultful.slnx`, `docs/architecture.md`, `eng/verify-package.cs`, `README.md`,
 `RELEASE_NOTES.md`) by keeping every block; retarget each PR's base; force-push needs Ryan's go-ahead.
 
-## Next, in order
+## Next, in order (consolidated 2026-11-21 after an independent scope cross-check)
 
-Decisions 18–21 are merged on `main` (#77): 19 is F# interop, 20 HotChocolate, 21 the M5 candidates. Decision 22
-(native C# paths) is proposed in #84.
+Decisions 18–21 are merged on `main` (#77). Decision 22 (native C# paths) is accepted, in #84. The 0.3 core is
+finished at 24 (preview.1 moves there from 19).
 
-1. **21** `fluentvalidation-diagnostics`, on 20a. Reuse the reviewed code of closed #52
-   (`origin/rtkelly13/stack-21-fluentvalidation-diagnostics`, ignore its history and stand-in core): FluentValidation
-   12.0.0 floor, `AttemptedValue`/`CustomState` dropped, logs/traces never carry leaf properties, `resultful.error.type`
-   tag, docs on `RecordFailure(null)` and `Activity.Current`.
-2. **21b** `fsharp`: `Resultful.FSharp`, interop only (conversions; decision 19). Ryan wants this early.
-3. **21c** `assertions`: `Resultful.Assertions` plus the AwesomeAssertions and FluentAssertions 7.x adapters
-   (decision 18). `FluentAssertions.Resultful` in the other repository has no assertions to port.
-4. **23a** the Shop, moved ahead of 20b: one cohesive `samples/Resultful.Shop` built from the packed packages, with
-   real HTTP cases (the HTTP map: 400 ValidationProblemDetails, 404, 409, 500 with no `Message` outside Development),
-   an OpenAPI check and use cases from `docs/errors-in-practice.md`. 04d's branch has useful material. Its tests use
-   21c's assertions.
-5. **20b** endpoint filter, `WithResultful`, Minimal API validation bridge, OpenAPI statuses per route from
-   `ResultHttpResult<T, TError>` (mapped statuses assignable to `TError`, 500, 400 only when `TError` can be a
-   `ValidationFailed`), tested on the Shop.
-6. **20c** `hotchocolate`: `Resultful.HotChocolate` (decision 19), HotChocolate 16 (16.7.6 at writing), with a
-   GraphQL endpoint on the Shop. HotChocolate's `FieldResult<T, E1..E5>` + `AddQueryConventions()` is the model to
-   match; chillicream.com is blocked here, read the source on GitHub (raw.githubusercontent.com works).
-7. **22** native-AOT publish of the Shop on net11.0, no IL2xxx/IL3xxx (use 12b's resolver pattern; never `AddResultful`).
-8. **23b** samples: an MIT-licensed mediator (not MediatR 13+, which is RPL/commercial), Polly v8, EF Core.
-9. **24** `[Union]` on the core result types on net11, correctness matrix, BenchmarkDotNet allocations net10 vs net11,
-   a new decision recording the numbers (decision 3).
-10. **24b–24e** native C# paths (decision 22, proposed in #84; build only once Ryan accepts it): early return with
-    `Failed`, the `TError` conversion, async and shape query syntax, `Ensure`, collections, async streams, and the
-    `await` probe. Rows in `GOAL.md`; the options and rejections in `docs/explorations/native-functional-csharp.md`.
-11. **25** docs sync: roadmap statuses, `docs/log.md`, `architecture.md` (Generators, FSharp, HotChocolate,
-    assertions; candidates from decision 19), decision statuses (15, 16 item 8, 17 accepted by Ryan), doc snippets
-    match the Shop, migration notes, stable 0.3.0 prepared (not published).
+1. **Restack, once** (after Ryan lands stack A and says go; one pass, not two): stack B onto stack A, then the
+   siblings into a line: 20a → 21 #78 → 21b #79 → 21c #81 → 20c #80 → 24b → 24c → 24d #85. Keep every shared-file
+   block; port `eng/*.cs` script edits (incl. 21b/21c's `eng/verify-package.cs`) into `eng/build.cs`; fold 21b's
+   three test projects into one (AGENTS.md: one per satellite); switch satellite tests above 21c to 21c's assertions.
+2. **24b** `early-return`, **24c** `comprehensions` (sync collections, `Collect`, not `Sequence`), **24d** `async-streams`
+   (all async traversal): finish review and fixes.
+3. **24** `[Union]` on the core types (net11), with a `benchmarks/` project. If it slips, it moves after 0.3.
+4. **23a** the Shop: HTTP host and worker, one handler per style, tests on 21c's assertions.
+5. **20b** endpoint filter, `WithResultful`, Minimal API validation bridge, OpenAPI statuses per route, on the Shop.
+6. **20d** the Shop's GraphQL host on `Resultful.HotChocolate`.
+7. **22** native-AOT publish of the Shop's HTTP host only.
+8. **25** docs sync and release prep (row in `GOAL.md`): decisions sync, guide, migration page, release notes per
+   package, API pass, AssemblyVersion, mutation run 3.
+
+Off the release path: **24e** (the `await` probe; findings note only) and **23b** (samples). Packed-consumer checks
+for every new satellite (`tests/Compatibility`) are a 0.3 must-have, in 25 or alongside the restack. The future list
+(after 0.3, candidates, ideas) is in the tracker's Future scope section.
 
 Also owed: mutation runs 1 (core, at 19) and 2 (tooling, at 17), with survivors noted in those PR bodies.
 
