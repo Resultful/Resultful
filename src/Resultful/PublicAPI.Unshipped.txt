@@ -53,9 +53,19 @@ override Resultful.Error.Equals(object? obj) -> bool
 override Resultful.Error.GetHashCode() -> int
 override Resultful.MessageError.Equals(object? obj) -> bool
 override Resultful.MessageError.GetHashCode() -> int
+override Resultful.Option<T>.Equals(object? obj) -> bool
+override Resultful.Option<T>.GetHashCode() -> int
+override Resultful.Result<T, TError>.Equals(object? obj) -> bool
+override Resultful.Result<T, TError>.GetHashCode() -> int
+override Resultful.Result<T>.Equals(object? obj) -> bool
+override Resultful.Result<T>.GetHashCode() -> int
 override Resultful.ValidationFailed<TError>.Equals(object? obj) -> bool
 override Resultful.ValidationFailed<TError>.GetHashCode() -> int
 override Resultful.ValidationFailed<TError>.Inner() -> System.Collections.Generic.IEnumerable<Resultful.Error!>!
+override Resultful.VoidResult.Equals(object? obj) -> bool
+override Resultful.VoidResult.GetHashCode() -> int
+override Resultful.VoidResult<TError>.Equals(object? obj) -> bool
+override Resultful.VoidResult<TError>.GetHashCode() -> int
 override sealed Resultful.Error.ToString() -> string!
 override sealed Resultful.MessageError.Equals(Resultful.Error? other) -> bool
 override sealed Resultful.ValidationFailed<TError>.Equals(Resultful.Error? other) -> bool
