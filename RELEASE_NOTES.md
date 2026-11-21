@@ -52,6 +52,11 @@
   (`{"ok":true,"value":…}`, `{"ok":false,"error":{"type","message","context","cause",…}}`, `"errors":[…]`).
   `AddResultful()` registers them all (it needs dynamic code); native-AOT apps add the converters and
   `AddErrorCases<TError>(cases)` to a source-generated context. An unknown `type` reads as a `JsonException`.
+- **Opt-in operators** in `Resultful.Operators` (decision 9), each a call to a named method: `|` (`OrElse`, or
+  `ValueOr` with a plain value), `||` (a lazy `OrElse`, through `operator true`/`false`, which also allows
+  `if (result)`), `>>` (`Bind`) on `Result<T>`, `Result<T, TError>` and their tasks, and `&` (`Validation.Combine`)
+  on `Validation`. New named `OrElse` and `ValueOr` overloads on `Task<Result<…>>`. The README has the precedence table.
+- `==` and `!=` on `Result<T>`, `Result<T, TError>`, `Option<T>` and the obsolete void results, matching `Equals`.
 
 ### Build
 
