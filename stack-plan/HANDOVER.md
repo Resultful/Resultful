@@ -44,7 +44,8 @@ fields opt-in). Before going on: restack them linearly on 20a in the order 21 �
 
 ## Next, in order
 
-Decisions 18 and 19 (draft PR #77, on `main`, docs only) added 21b, 21c and 20c; their `GOAL.md` rows have the scope.
+Decisions 18–21 are merged on `main` (#77): 19 is F# interop, 20 HotChocolate, 21 the M5 candidates. Decision 22
+(native C# paths) is proposed in #84.
 
 1. **21** `fluentvalidation-diagnostics`, on 20a. Reuse the reviewed code of closed #52
    (`origin/rtkelly13/stack-21-fluentvalidation-diagnostics`, ignore its history and stand-in core): FluentValidation
@@ -67,7 +68,10 @@ Decisions 18 and 19 (draft PR #77, on `main`, docs only) added 21b, 21c and 20c;
 8. **23b** samples: an MIT-licensed mediator (not MediatR 13+, which is RPL/commercial), Polly v8, EF Core.
 9. **24** `[Union]` on the core result types on net11, correctness matrix, BenchmarkDotNet allocations net10 vs net11,
    a new decision recording the numbers (decision 3).
-10. **25** docs sync: roadmap statuses, `docs/log.md`, `architecture.md` (Generators, FSharp, HotChocolate,
+10. **24b–24e** native C# paths (decision 22, proposed in #84; build only once Ryan accepts it): early return with
+    `Failed`, the `TError` conversion, async and shape query syntax, `Ensure`, collections, async streams, and the
+    `await` probe. Rows in `GOAL.md`; the options and rejections in `docs/explorations/native-functional-csharp.md`.
+11. **25** docs sync: roadmap statuses, `docs/log.md`, `architecture.md` (Generators, FSharp, HotChocolate,
     assertions; candidates from decision 19), decision statuses (15, 16 item 8, 17 accepted by Ryan), doc snippets
     match the Shop, migration notes, stable 0.3.0 prepared (not published).
 

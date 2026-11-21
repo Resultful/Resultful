@@ -54,3 +54,4 @@ Rows are in stack order.
 - 2026-11-21: #73–#76 force-pushed (RF0004 → info; 20a union overload). Handover written to `HANDOVER.md`.
 - 2026-11-21: decisions 18 (assertions here) and 19 (F#, HotChocolate, candidates) in draft #77; rows 21b, 21c, 20c added; HANDOVER's order updated.
 - 2026-11-21: parallel batch done and reviewed: #78 (21), #79 (21b), #81 (21c), #80 (20c), all green; linear restack pending Ryan's go-ahead.
+- 2026-11-21: exploration + proposed decision 22 (native C# paths) in #84; rows 24b–24e added to GOAL and HANDOVER.
