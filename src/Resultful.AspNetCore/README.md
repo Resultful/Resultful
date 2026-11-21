@@ -21,6 +21,12 @@ app.MapGet("/orders/{id}", (int id, Orders orders) => orders.Find(id).ToHttpResu
   environment, and is logged once at Error with `Error.ToString()`. A 4xx `detail` is the mapped error's `Message`.
 - `ToHttpResult()` returns `ResultHttpResult<T, TError>`. A result whose error is an error union answers for the
   union's leaf, as a `ResultHttpResult<T, Error>`.
+- A `Result<IAsyncEnumerable<T>>` (an error union too) becomes a `StreamHttpResult<T, TError>`. A failure is the
+  mapped problem, before any byte. A success reads the first item before sending the 200, then streams a JSON array
+  with the app's JSON options; a client that goes away cancels the producer. The headers wait for the first item, so
+  a slow producer can meet a proxy's or `HttpClient`'s timeout first. Once the response has started, an exception from
+  the stream can only end it: it is noted at Warning (`ResultStreamFailed`, the host logs the exception) and the
+  response is aborted, so the client sees a truncated array and a read error, never a ProblemDetails.
 
 Native AOT needs nothing more: problems use ASP.NET Core's own metadata, and a success value the app's JSON options.
 

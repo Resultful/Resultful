@@ -1,7 +1,12 @@
 #nullable enable
 Resultful.AspNetCore.ErrorUnionHttpResultExtensions
+Resultful.AspNetCore.ErrorUnionStreamHttpResultExtensions
+Resultful.AspNetCore.StreamHttpResult<T, TError>
+Resultful.AspNetCore.StreamHttpResult<T, TError>.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
+Resultful.AspNetCore.StreamHttpResultExtensions
 static Resultful.AspNetCore.ErrorUnionHttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.Error!>!
 Resultful.AspNetCore.HttpResultExtensions
+static Resultful.AspNetCore.ErrorUnionStreamHttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<System.Collections.Generic.IAsyncEnumerable<T>!, TError> result) -> Resultful.AspNetCore.StreamHttpResult<T, Resultful.Error!>!
 static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, TError!>!
 static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Validation<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.ValidationFailed<TError!>!>!
 static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Result<T> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.Error!>!
@@ -19,3 +24,6 @@ static Resultful.AspNetCore.ResultfulServiceCollectionExtensions.AddResultful(th
 Resultful.AspNetCore.ResultHttpResult<T, TError>
 Resultful.AspNetCore.ResultHttpResult<T, TError>.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
 static Resultful.AspNetCore.ResultHttpResult<T, TError>.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
+static Resultful.AspNetCore.StreamHttpResult<T, TError>.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
+static Resultful.AspNetCore.StreamHttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<System.Collections.Generic.IAsyncEnumerable<T>!, TError!> result) -> Resultful.AspNetCore.StreamHttpResult<T, TError!>!
+static Resultful.AspNetCore.StreamHttpResultExtensions.ToHttpResult<T>(this Resultful.Result<System.Collections.Generic.IAsyncEnumerable<T>!> result) -> Resultful.AspNetCore.StreamHttpResult<T, Resultful.Error!>!
