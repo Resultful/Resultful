@@ -37,8 +37,8 @@ The jobs:
 | `plan` | Checks the map: main only for a real run; each package is in the manifest; strict SemVer, no `v`; the tag and nuget.org version are free (or were made by this commit, for a re-run); the version is above every published one on its major.minor line; coupled packages released together. Writes `plan_json` | `contents: read` |
 | `verify_ci` | The commit's `ci` check passed (a dry run only warns) | `checks: read` |
 | `pack` | Writes `release-versions.props`, packs into `artifacts/<package>/`, runs the package checks and a NuGet consumer against it | `contents: read` |
-| `publish` | Pushes with trusted publishing, `--skip-duplicate`, in the `release` environment. No checkout | `id-token: write` |
-| `finalize` | Waits until each version is on nuget.org, tags `<package>/v<version>` (e.g. `Resultful/v0.2.0`) at the run's commit and creates its GitHub Release (a pre-release when the version has a `-`), in the `release-verify` environment. No checkout | `contents: write` |
+| `publish` | Stages each package (and its symbols) on nuget.org with `dotnet package stage push` and trusted publishing, in the `release` environment. Nothing is public until a maintainer promotes it on nuget.org, signed in with 2FA. No checkout | `id-token: write` |
+| `finalize` | Approved (`release-verify` environment) after promotion. Waits until each version is on nuget.org, tags `<package>/v<version>` (e.g. `Resultful/v0.2.0`) at the run's commit and creates its GitHub Release (a pre-release when the version has a `-`) No checkout | `contents: write` |
 
 The logic is in `eng/build.cs` (`ReleasePlan`, `ReleaseProps`, `ReleaseCheckArtifacts`), and runs only in the
 read-only jobs. The two jobs that can write run no repository code.
@@ -53,11 +53,14 @@ Consequences:
 - 0.2 pre-releases keep the zero-padded `betaNN` form until 0.2.0 is stable: NuGet compares labels without dots
   as text, so `beta.6` would sort below `beta05`. New pre-release lines use dotted labels (`beta.1`).
 - Older releases were tagged `v<version>`. Those tags stay, and count as `Resultful`'s for its release notes.
-- nuget.org's trusted publishing policy for Resultful names `release.yml` and the `release` environment.
+- nuget.org's trusted publishing policy for Resultful names `release.yml` and the `release` environment, and may
+  only stage: a compromised workflow can submit a package for review but can't release it.
+- Not yet seen on a real run: what staging the same version twice does, and how long an unpromoted package lasts.
+  Before re-running `publish`, check nuget.org's staged packages.
 - CI's packed consumers run against `0.0.0-dev`, which sorts below `0.2.0-beta05`; the upgrade check allows that
   downgrade warning (`NU1605`), since what it checks is the run-time binding.
-- If a run fails part way, "Re-run failed jobs" finishes it: the push skips what is on nuget.org, and the tag and
-  release steps accept what an earlier attempt made.
+- If `plan`, `pack` or `finalize` fails, "Re-run failed jobs" finishes the run: the tag and release steps accept
+  what an earlier attempt made.
 - A run that published but never tagged (cancelled, or its jobs can no longer be re-run) needs the tag and release
   made by hand: a new dispatch refuses a version that is already on nuget.org without its tag at that commit.
 - The package validation baseline is the newest stable version on the line, so a pre-release of a line with no

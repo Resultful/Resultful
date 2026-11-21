@@ -57,7 +57,8 @@ until you are ready to move; 0.3's release notes carry the migration.
   on the packed package, on `net8.0` and `net10.0`.
 - Releases are a manual `release.yml` run given the packages and versions to publish; no version is committed,
   and each package is tagged `<package>/v<version>` (`Resultful/v0.2.0`) with its own GitHub Release
-  ([decision 22](docs/decisions/0022-releases-are-a-dispatch-map.md)). Merging to `main` never publishes.
+  ([decision 22](docs/decisions/0022-releases-are-a-dispatch-map.md)). It stages each package on nuget.org, which
+  goes public only when promoted there with 2FA. Merging to `main` never publishes.
 
 ## 0.2.0-beta06
 
