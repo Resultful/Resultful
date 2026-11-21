@@ -17,6 +17,9 @@
     <Project Path="src/Resultful.Generators.Roslyn5/Resultful.Generators.Roslyn5.csproj" />
     <Project Path="src/Resultful.OneOf/Resultful.OneOf.csproj" />
     <Project Path="src/Resultful.Text.Json/Resultful.Text.Json.csproj" />
+    <!-- Resultful.FluentValidation and Resultful.Diagnostics (stack B 21) -->
+    <Project Path="src/Resultful.Diagnostics/Resultful.Diagnostics.csproj" />
+    <Project Path="src/Resultful.FluentValidation/Resultful.FluentValidation.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
@@ -27,6 +30,9 @@
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />
     <Project Path="tests/Resultful.Text.Json.Tests/Resultful.Text.Json.Tests.csproj" />
+    <!-- Resultful.FluentValidation and Resultful.Diagnostics (stack B 21) -->
+    <Project Path="tests/Resultful.Diagnostics.Tests/Resultful.Diagnostics.Tests.csproj" />
+    <Project Path="tests/Resultful.FluentValidation.Tests/Resultful.FluentValidation.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <File Path="samples/Directory.Build.props" />

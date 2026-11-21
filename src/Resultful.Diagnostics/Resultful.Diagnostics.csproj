@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.Diagnostics</AssemblyName>
+    <RootNamespace>Resultful.Diagnostics</RootNamespace>
+    <Description>Opt-in logging and tracing hooks for Resultful failures. Nothing is logged or tagged unless a call asks for it.</Description>
+    <PackageId>Resultful.Diagnostics</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;logging;tracing;diagnostics</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

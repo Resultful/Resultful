@@ -30,4 +30,10 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="11.0.0" />
   </ItemGroup>
+  <!-- Resultful.FluentValidation and Resultful.Diagnostics (stack B 21): a satellite depends on the lowest version it needs,
+       on every target, and the tests run on that floor. -->
+  <ItemGroup>
+    <PackageVersion Include="FluentValidation" Version="12.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+  </ItemGroup>
 </Project>

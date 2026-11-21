@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- FluentValidation 12 targets net8.0 only; the satellite ships the repository's .NET targets and drops netstandard2.0 (decision 11). -->
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.FluentValidation</AssemblyName>
+    <RootNamespace>Resultful.FluentValidation</RootNamespace>
+    <Description>A FluentValidation adapter for Resultful: a validator's result becomes a Validation&lt;T&gt;, one error per failure.</Description>
+    <PackageId>Resultful.FluentValidation</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;validation;fluentvalidation</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <PackageReference Include="FluentValidation" />
+    <!-- One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
