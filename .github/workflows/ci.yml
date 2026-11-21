@@ -80,7 +80,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Pack
-        run: dotnet pack src/Resultful/Resultful.csproj --configuration Release --no-build -p:ContinuousIntegrationBuild=true -o artifacts
+        run: dotnet pack Resultful.slnx --configuration Release --no-build -p:ContinuousIntegrationBuild=true -o artifacts
 
       - name: Check package shape
         run: dotnet run eng/verify-package.cs -- artifacts/*.nupkg

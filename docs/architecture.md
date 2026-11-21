@@ -41,7 +41,7 @@ publishes only the packages that changed, as in `Resultful.Assertions`.
 | `Resultful` | `Result<T>`, `Result<T, TError>`, `Validation<T, TError>` and `Error` (*decision 14*), `Unit`, `VoidResult` (deprecated), `Option<T>`, `Resultful.CodeAnalysis` attributes, composition, LINQ, async, operators | **nothing** | `netstandard2.0`, `net10.0`, `net11.0` |
 | *`Resultful.Analyzers`* | Roslyn analyzers and code fixes, a separate package that a project opts into (the core carries no analyzer assets) | Roslyn (build time only), as a development dependency | `netstandard2.0` (analyzer) |
 | *`Resultful.Generators`* | Incremental source generator for Tier 1 `[ClosedHierarchy]` plumbing/mappers and Tier 2 `[ResultShape]` union-backed structs ([decision 16](decisions/0016-source-generated-result-shapes.md)) | Roslyn (build time only), as a development dependency | `netstandard2.0` (analyzer) |
-| `Resultful.OneOf` | `ToOneOf`, `FromOneOf`, `None` interop | `OneOf` ≥ 3.0.271 | as core |
+| `Resultful.OneOf` | `ToOneOf`; `ToResult`, `ToVoidResult`, `ToOption` back; `None` interop | `OneOf` ≥ 3.0.271 | as core |
 | *`Resultful.AspNetCore`* | `ToHttpResult()`, `Results<Ok<T>, ProblemHttpResult>`, ProblemDetails, endpoint filter, error-to-status map, Minimal API validation bridge | `Microsoft.AspNetCore.App` framework reference | `net10.0`, `net11.0` |
 | *`Resultful.Text.Json`* | `System.Text.Json` converters, source-generation friendly, AOT-safe | in-box `System.Text.Json` | `net10.0`, `net11.0` |
 | *`Resultful.FluentValidation`* | `validator.ValidateToResult(x)` | `FluentValidation` | as `FluentValidation` |

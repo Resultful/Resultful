@@ -15,6 +15,16 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- Lockstep: every Resultful.* package shares this version and one release tag. Keep the betaNN form: NuGet compares
+         pre-release labels lexically, so beta.6 would sort below beta05. -->
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionSuffix>beta06</VersionSuffix>
+    <PackageReleaseNotes>See https://github.com/Resultful/Resultful/blob/main/RELEASE_NOTES.md</PackageReleaseNotes>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- Every public member is documented: the XML file ships in the package, and a missing comment fails the build. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.OneOf</AssemblyName>
+    <RootNamespace>Resultful</RootNamespace>
+    <Description>Converts Resultful's results and options to and from OneOf unions.</Description>
+    <PackageId>Resultful.OneOf</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;functional;oneof</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <!--
+      The floor matters to consumers using lowest-matching resolution (Paket strategy: min). OneOf 3.0.178 only had a
+      .NETStandard1.3 group, which drags NETStandard.Library 1.6.1 and the vulnerable System.Net.Http /
+      System.Text.RegularExpressions 4.3.0 into net8+ apps; 3.0.271 adds an empty netstandard2.0 group.
+      eng/verify-package.cs enforces this floor (decision 5).
+    -->
+    <PackageReference Include="OneOf" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

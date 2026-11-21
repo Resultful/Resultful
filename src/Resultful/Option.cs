@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Resultful.Utils;
-using OneOf.Types;
-using OneOf;
 
 namespace Resultful
 {
@@ -92,10 +90,6 @@ namespace Resultful
             noneFunc.ThrowIfDefault(nameof(noneFunc));
             return _state != State.Success ? noneFunc(default) : someFunc(_value);
         }
-
-        /// <summary>Returns the option as a <c>OneOf</c>: <c>T0</c> is the value, <c>T1</c> is <c>None</c>.</summary>
-        public OneOf<T, None> ToOneOf()
-            => _state != State.Success ? OneOf<T, None>.FromT1(default) : OneOf<T, None>.FromT0(_value);
 
         /// <summary>Two options are equal when both have equal values or both are None. The zero value is None.</summary>
         /// <param name="obj">The object to compare with.</param>

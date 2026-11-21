@@ -10,6 +10,7 @@
   <Folder Name="/src/">
     <File Path="src/Directory.Build.props" />
     <Project Path="src/Resultful/Resultful.csproj" />
+    <Project Path="src/Resultful.OneOf/Resultful.OneOf.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
