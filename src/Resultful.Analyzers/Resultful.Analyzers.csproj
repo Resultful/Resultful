@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RF0001 (a [MustObserve] value never observed) and RF0002 (a result created with default), with RF0001's `_ =` fix.
+    The rules read attributes by full name, never a Resultful type (decision 15). The Roslyn 4.14 build (SDK 9.0.3xx)
+    and the package; Resultful.Analyzers.Roslyn5 is the same sources against the lowest 5.x. Both DLLs go into
+    analyzers/dotnet/roslyn{version}/cs/, as Resultful.Generators does. No lib/.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- RS1038: the code fix shares the assembly. The analyzers never touch a Workspaces type, so csc loads them
+         without Workspaces (the compatibility legs build with the package). -->
+    <NoWarn>$(NoWarn);RS1038</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Resultful.Analyzers</PackageId>
+    <Description>Analyzers for Resultful: a result that is never observed (RF0001, with a `_ =` fix) and a result created with default (RF0002).</Description>
+    <PackageTags>result;railway-oriented-programming;error-handling;analyzers;roslyn</PackageTags>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <IncludeSymbols>false</IncludeSymbols>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The lowest Roslyn this build loads in; the central version is the tests' 5.12.0. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\Resultful.Analyzers.Roslyn5\Resultful.Analyzers.Roslyn5.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalyzerBuilds</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <!-- This build and the Roslyn5 project's, each from its own output (GetTargetPath builds nothing). -->
+  <Target Name="AddAnalyzerBuilds">
+    <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath" Condition="'%(Filename)' == 'Resultful.Analyzers.Roslyn5'">
+      <Output TaskParameter="TargetOutputs" ItemName="Roslyn5Build" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(TargetPath)" PackagePath="analyzers/dotnet/roslyn4.14/cs" />
+      <TfmSpecificPackageFile Include="@(Roslyn5Build)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
+    </ItemGroup>
+  </Target>
+
+</Project>
