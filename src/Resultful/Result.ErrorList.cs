@@ -11,9 +11,7 @@ namespace Resultful
     /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure (decision 10): <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>, and every member that reads the value or the error throws <see cref="InvalidOperationException"/>. <c>ToString</c>, <c>Equals</c> and <c>GetHashCode</c> never throw. It means <c>Result&lt;T, Error&gt;</c> (decision 14): one error, and <c>Bind</c> stops at the first failure. Nothing converts a <see cref="string"/> to an error.</remarks>
     [CodeAnalysis.MustObserve]
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
-#pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public partial struct Result<T>
-#pragma warning restore CA2231
     {
         //Private Members
         private readonly T _value;
@@ -97,6 +95,16 @@ namespace Resultful
             => obj is Result<T> other && _state == other._state && (_state == State.Failure
                 ? Equals(_error, other._error)
                 : Equals(_value, other._value));
+
+        /// <summary>Compares two results with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first result.</param>
+        /// <param name="right">The second result.</param>
+        public static bool operator ==(Result<T> left, Result<T> right) => left.Equals(right);
+
+        /// <summary>Compares two results with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first result.</param>
+        /// <param name="right">The second result.</param>
+        public static bool operator !=(Result<T> left, Result<T> right) => !left.Equals(right);
 
         /// <summary>A hash of the case and its value or error.</summary>
         public override int GetHashCode()
