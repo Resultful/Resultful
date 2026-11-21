@@ -23,6 +23,8 @@
     <Project Path="tests/Compatibility/Resultful.Compatibility.Tests/Resultful.Compatibility.Tests.csproj" />
     <Project Path="tests/Resultful.Analyzers.Tests/Resultful.Analyzers.Tests.csproj" />
     <Project Path="tests/Resultful.AspNetCore.Tests/Resultful.AspNetCore.Tests.csproj" />
+    <!-- 24e await-probe: decision 22 item 6, no package -->
+    <Project Path="tests/Resultful.AwaitProbe.Tests/Resultful.AwaitProbe.Tests.csproj" />
     <Project Path="tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj" />
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />

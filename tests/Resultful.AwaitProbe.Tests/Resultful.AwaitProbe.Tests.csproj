@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The probe of decision 22 item 6: `await` on a result as a short-circuit, through method-level async builders that
+    are internal to this project (Probe.cs). No package API; the findings are in docs/explorations/await-short-circuit.md.
+    xunit.v3 scenarios and CsCheck laws, plus one Roslyn compile of Probe.cs for the compiler and RF diagnostics.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.AwaitProbe.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck; CA2007 no ConfigureAwait in tests. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
+    <!-- CostTests measure steady-state allocations: with tiering, the first calls run unoptimised code that boxes. -->
+    <TieredCompilation>false</TieredCompilation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- The RF rules run in process on probe code (DiagnosticTests), from the Roslyn 5 build. -->
+    <ProjectReference Include="..\..\src\Resultful.Analyzers.Roslyn5\Resultful.Analyzers.Roslyn5.csproj" />
+    <!-- Probe.cs is compiled again in process with consumer snippets. -->
+    <EmbeddedResource Include="Probe.cs" LogicalName="Probe.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+</Project>
