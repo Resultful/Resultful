@@ -29,3 +29,7 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 11 | [A family of satellite packages around a dependency-free core](0011-package-family.md) | stable | 20 November 2026 |
 | 12 | [Assertions live in `Resultful.Assertions`](0012-assertions-live-in-resultful-assertions.md) | stable | 20 November 2026 |
 | 13 | [Repository layout: `src`, `tests`, `samples`, `benchmarks`](0013-repository-layout.md) | stable | 20 November 2026 |
+| 18 | [Assertions for Resultful live in this repository](0018-resultful-assertions-live-here.md) (partly supersedes 12) | stable | 21 November 2026 |
+| 19 | [`Resultful.FSharp` is thin interop with `FSharp.Core`](0019-fsharp-interop.md) | stable | 21 November 2026 |
+| 20 | [`Resultful.HotChocolate` maps error cases to GraphQL error types](0020-hotchocolate-graphql.md) | stable | 21 November 2026 |
+| 21 | [M5 ecosystem candidates and samples](0021-ecosystem-candidates.md) | proposed | 21 November 2026 |
