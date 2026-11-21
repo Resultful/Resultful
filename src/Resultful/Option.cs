@@ -75,7 +75,7 @@ namespace Resultful
         {
             someFunc.ThrowIfDefault(nameof(someFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            return _state != State.Success ? noneFunc(default) : someFunc(_value);
+            return _state != State.Success ? AsyncStep.Await(noneFunc, default(None)) : AsyncStep.Await(someFunc, _value);
         }
 
         /// <summary>Calls <paramref name="someFunc"/> with the value if there is one, or <paramref name="noneFunc"/> if the option is None, and returns its task.</summary>
@@ -86,7 +86,7 @@ namespace Resultful
         {
             someFunc.ThrowIfDefault(nameof(someFunc));
             noneFunc.ThrowIfDefault(nameof(noneFunc));
-            return _state != State.Success ? noneFunc(default) : someFunc(_value);
+            return _state != State.Success ? AsyncStep.Await(noneFunc, default(None)) : AsyncStep.Await(someFunc, _value);
         }
 
         /// <summary>Two options are equal when both have equal values or both are None. The zero value is None.</summary>

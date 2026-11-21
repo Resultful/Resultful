@@ -78,7 +78,7 @@ namespace Resultful
         {
             using (var enumerator = values.ThrowIfDefault(nameof(values)).GetEnumerator())
             {
-                return await InternalList.FoldInternalAsync(enumerator, seed, aggrFunc);
+                return await InternalList.FoldInternalAsync(enumerator, seed, aggrFunc).ConfigureAwait(false);
             }
         }
 
