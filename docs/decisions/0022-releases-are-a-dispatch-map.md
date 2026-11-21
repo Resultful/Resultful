@@ -58,3 +58,9 @@ Consequences:
   downgrade warning (`NU1605`), since what it checks is the run-time binding.
 - If a run fails part way, "Re-run failed jobs" finishes it: the push skips what is on nuget.org, and the tag and
   release steps accept what an earlier attempt made.
+- A run that published but never tagged (cancelled, or its jobs can no longer be re-run) needs the tag and release
+  made by hand: a new dispatch refuses a version that is already on nuget.org without its tag at that commit.
+- The package validation baseline is the newest stable version on the line, so a pre-release of a line with no
+  stable version yet (all of 0.2 today) has none. `CompatUpgrade` still checks a beta05 consumer at run time.
+- The pack step packs only `Resultful`. A second package in the manifest needs `Pack` to pack each planned one.
+- There were no tags before this workflow, so the first release's notes reach back up to 50 commits.

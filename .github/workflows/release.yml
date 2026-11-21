@@ -108,11 +108,15 @@ jobs:
       - name: Build, pack and verify (Cake)
         run: dotnet run eng/build.cs -- --target=Pack --ci=true --artifacts=artifacts/Resultful
 
-      - name: Exactly the planned packages were packed
-        run: dotnet run eng/build.cs -- --target=ReleaseCheckArtifacts
-
       - name: Consumers restore and run the packed package (net8.0, net10.0, net11.0)
         run: dotnet run eng/build.cs -- --target=CompatNuGet --artifacts=artifacts/Resultful
+
+      - name: A library built against 0.2.0-beta05 runs on the packed package
+        run: dotnet run eng/build.cs -- --target=CompatUpgrade --artifacts=artifacts/Resultful
+
+      # Last before the upload, so nothing after it can add a file that publish would push.
+      - name: Exactly the planned packages were packed
+        run: dotnet run eng/build.cs -- --target=ReleaseCheckArtifacts
 
       - name: Upload packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -120,6 +124,7 @@ jobs:
           name: release-artifacts
           path: artifacts
           if-no-files-found: error
+          overwrite: true # "Re-run all jobs" packs again
 
   # No checkout, no repository code: only the packed artifact and a short-lived NuGet key.
   publish:
@@ -198,4 +203,5 @@ jobs:
           TITLE: ${{ matrix.package.package_id }} ${{ matrix.package.version }}
           NOTES: ${{ matrix.package.notes }}
           PRERELEASE: ${{ matrix.package.prerelease }}
-        run: gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes "$NOTES" --prerelease="$PRERELEASE" --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)" || gh release view "$TAG" --repo "$REPO" --json tagName
+          LATEST: ${{ !matrix.package.prerelease }}
+        run: gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes "$NOTES" --prerelease="$PRERELEASE" --latest="$LATEST" || gh release view "$TAG" --repo "$REPO" --json tagName

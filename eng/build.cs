@@ -276,7 +276,7 @@ async System.Threading.Tasks.Task ReleasePlan()
         string? tagSha = tags.Contains(tag) ? Git("rev-list", "-n", "1", tag) : null;
         if (tagSha is not null && tagSha != sha)
             failures.Add($"{key}: tag {tag} already points at {tagSha}, not {sha}.");
-        if (tags.Contains($"v{normalized}"))
+        if (key == "Resultful" && tags.Contains($"v{normalized}")) // older releases tagged only the core, as v<version>
             failures.Add($"{key}: the older tag v{normalized} already exists; {normalized} was released before this workflow.");
         if (isPublished && tagSha != sha)
             failures.Add($"{key}: {package.PackageId} {normalized} is already on nuget.org and wasn't released from {sha}.");
@@ -340,18 +340,18 @@ void ReleaseProps()
 
 void ReleaseCheckArtifacts()
 {
-    var failures = new List<string>();
-    foreach (var p in ReadReleasePlan())
-    {
-        var dir = System.IO.Path.Combine(ReleaseArtifactsRoot, p.Key);
-        var expected = new[] { $"{p.PackageId}.{p.Version}.nupkg", $"{p.PackageId}.{p.Version}.snupkg" };
-        var found = System.IO.Directory.Exists(dir) ? System.IO.Directory.GetFiles(dir).Select(System.IO.Path.GetFileName).Order(StringComparer.Ordinal).ToArray() : [];
-        if (!found.SequenceEqual(expected.Order(StringComparer.Ordinal)))
-            failures.Add($"{dir} holds [{string.Join(", ", found)}], expected [{string.Join(", ", expected)}].");
-    }
-    if (failures.Count > 0)
-        throw new ReleaseException(string.Join("%0A", failures));
-    Console.WriteLine("Every planned package was packed at its planned version.");
+    // The whole tree, not only the planned folders: publish pushes every .nupkg it is handed.
+    var expected = ReadReleasePlan()
+        .SelectMany(p => new[] { $"{p.Key}/{p.PackageId}.{p.Version}.nupkg", $"{p.Key}/{p.PackageId}.{p.Version}.snupkg" })
+        .Order(StringComparer.Ordinal).ToArray();
+    var found = System.IO.Directory.Exists(ReleaseArtifactsRoot)
+        ? System.IO.Directory.GetFiles(ReleaseArtifactsRoot, "*", System.IO.SearchOption.AllDirectories)
+            .Select(f => System.IO.Path.GetRelativePath(ReleaseArtifactsRoot, f).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal).ToArray()
+        : [];
+    if (!found.SequenceEqual(expected))
+        throw new ReleaseException($"{ReleaseArtifactsRoot}/ holds [{string.Join(", ", found)}], expected exactly [{string.Join(", ", expected)}].");
+    Console.WriteLine("artifacts/ holds exactly the planned packages at their planned versions.");
 }
 
 static List<KeyValuePair<string, string>> ParseMap(string text)
