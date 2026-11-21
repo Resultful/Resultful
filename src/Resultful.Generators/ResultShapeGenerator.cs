@@ -22,6 +22,8 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
     public const string ShapesTrackingName = "Resultful.Shapes";
     /// <summary>The tracking name of the check for <c>[Union]</c> support.</summary>
     public const string UnionAvailableTrackingName = "Resultful.UnionAvailable";
+    /// <summary>The tracking name of the check that the nullable flow attributes are accessible to the consumer.</summary>
+    public const string NullableAttributesTrackingName = "Resultful.NullableAttributes";
     /// <summary>The tracking name of the error union models.</summary>
     public const string ErrorUnionsTrackingName = "Resultful.ErrorUnions";
     /// <summary>The tracking name of the emitted sources.</summary>
@@ -60,6 +62,13 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
                 po is CSharpParseOptions cs && (int)cs.LanguageVersion >= CSharp15))
             .Select(static (pair, _) => UnionCapableBuild && pair.Left && pair.Right)
             .WithTrackingName(UnionAvailableTrackingName);
+
+        // MaybeNullWhen and NotNullWhen are public on .NET Core 3.0+, but a netstandard2.0 consumer may only see the core's
+        // internal copies, which it can't name (CS0122). The emitted code names them only when the consumer can.
+        var nullableAttributes = context.CompilationProvider
+            .Select(static (c, _) => IsAccessible(c, "System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute")
+                && IsAccessible(c, "System.Diagnostics.CodeAnalysis.NotNullWhenAttribute"))
+            .WithTrackingName(NullableAttributesTrackingName);
 
         // Stage B1: [ClosedHierarchy] declarations combined with Stage A index
         var hierarchies = context.SyntaxProvider
@@ -106,7 +115,8 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
 
         // Final emit models
         var hierarchyEmits = hierarchies
-            .Select(static (h, _) => new EmitItem(h, null, false, EquatableArray<string>.Empty))
+            .Combine(nullableAttributes)
+            .Select(static (pair, _) => new EmitItem(pair.Left, null, false, pair.Right, EquatableArray<string>.Empty))
             .WithTrackingName(EmitTrackingName);
 
         // Decision 16 item 5: every emitted shape, so each converts from those with its success type whose error type it
@@ -119,8 +129,9 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
 
         var shapeEmits = shapes
             .Combine(unionAvailable)
+            .Combine(nullableAttributes)
             .Combine(peers)
-            .Select(static (pair, _) => new EmitItem(null, pair.Left.Left, pair.Left.Right, ShapeAnalyzer.PeersOf(pair.Left.Left, pair.Right)))
+            .Select(static (pair, _) => new EmitItem(null, pair.Left.Left.Left, pair.Left.Left.Right, pair.Left.Right, ShapeAnalyzer.PeersOf(pair.Left.Left.Left, pair.Right)))
             .WithTrackingName(EmitTrackingName);
 
         context.RegisterSourceOutput(hierarchyEmits, static (spc, item) =>
@@ -128,7 +139,7 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             var h = item.Hierarchy!;
             if (h.EmitConstructor || h.EmitMembers)
             {
-                spc.AddSource(h.HintName, ClosedHierarchyEmitter.Emit(h));
+                spc.AddSource(h.HintName, ClosedHierarchyEmitter.Emit(h, item.NullableAttributes));
             }
         });
 
@@ -137,7 +148,7 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             var s = item.Shape!;
             if (!HasError(s.Diagnostics))
             {
-                spc.AddSource(s.HintName, ResultShapeEmitter.Emit(s, item.UnionAvailable, item.Peers));
+                spc.AddSource(s.HintName, ResultShapeEmitter.Emit(s, item.UnionAvailable, item.NullableAttributes, item.Peers));
             }
         });
 
@@ -189,4 +200,7 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
 
         return false;
     }
+
+    private static bool IsAccessible(Compilation compilation, string metadataName) =>
+        compilation.GetTypesByMetadataName(metadataName).Any(t => compilation.IsSymbolAccessibleWithin(t, compilation.Assembly));
 }

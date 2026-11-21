@@ -121,6 +121,29 @@ and LINQ extensions, …) throws `InvalidOperationException`. `ToString` (`"<def
 `GetHashCode` never throw. `new Result<T, TError>()` doesn't compile. `Fail(null)` and a `null` error list throw `ArgumentNullException`;
 `Ok(null)` is a success holding `null`. A default `Option<T>` is `None`.
 
+### Early return
+
+When a step has branches, loops, `try` or `using`, plain C# reads better than a pipeline. `Failed` reads the case
+once, and the error converts to the method's result, so a failure goes straight back:
+
+```cs
+Result<Receipt, Error> Ship(int id)
+{
+    if (FindOrder(id).Failed(out var order, out var error))
+        return error;                // error is not null here
+
+    return new Receipt(order.Id);    // order is not null here: no `!`
+}
+```
+
+Every result type has it: `Result<T>`, `Result<T, TError>`, generated shapes, and `Validation`, whose
+`Failed(out value, out errors)` gives the list. An async step needs brackets:
+`if ((await FindOrderAsync(id)).Failed(out var order, out var error)) return error;`. The zero value throws, as
+`TryGetValue` does. `return error;` needs `T` and `TError` to differ (the two conversions are ambiguous otherwise,
+CS0457) and `TError` not to be an interface (C# applies no user-defined conversion from one, CS0029): use
+`error.Fail<T, TError>()` then. For a value-type `T`, `order` is `default` inside the branch, which the
+compiler can't flag; Resultful.Analyzers' RF0011 does.
+
 ### Errors
 
 `Error` is an abstract record for one failure. Derive a record for each kind of failure and keep its data in typed

@@ -21,7 +21,7 @@ namespace Resultful
     /// </remarks>
     [CodeAnalysis.MustObserve]
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
-    public readonly struct Validation<T, TError> : IEquatable<Validation<T, TError>>
+    public readonly partial struct Validation<T, TError> : IEquatable<Validation<T, TError>>
     {
         private readonly T _value;
         // Never empty on a failure; a read-only wrapper over an array no caller can reach.
@@ -280,7 +280,7 @@ namespace Resultful
     /// <remarks>It means <c>Validation&lt;T, Error&gt;</c> (decision 14), as a separate type. <see cref="ToResult()"/> carries the errors into a <c>Result&lt;T&gt;</c> as one <see cref="ValidationFailed{TError}"/>. The zero value (<c>default</c>) behaves as <see cref="Validation{T, TError}"/>'s does.</remarks>
     [CodeAnalysis.MustObserve]
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
-    public readonly struct Validation<T> : IEquatable<Validation<T>>
+    public readonly partial struct Validation<T> : IEquatable<Validation<T>>
     {
         // The storage: Validation<T, Error> holds the state byte, the value and the list.
         private readonly Validation<T, Error> _inner;

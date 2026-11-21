@@ -18,6 +18,8 @@
     <ProjectReference Include="..\..\src\Resultful.Analyzers\Resultful.Analyzers.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" />
     <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- 24b: the netstandard2.0 build of the core, read by path to check Failed's nullable flow through its polyfilled attributes. -->
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" SetTargetFramework="TargetFramework=netstandard2.0" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyMetadata Include="CoreNetStandardBuild" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful/bin/$(Configuration)/netstandard2.0/Resultful.dll'))" />
     <AssemblyMetadata Include="Roslyn414Build" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful.Analyzers/bin/$(Configuration)/netstandard2.0/Resultful.Analyzers.dll'))" />
   </ItemGroup>
 </Project>

@@ -8,10 +8,12 @@ internal static class ResultShapeEmitter
     private const string InlineAttr =
         "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
 
-    public static string Emit(ResultShapeModel m, bool unionAvailable, EquatableArray<string> peers)
+    public static string Emit(ResultShapeModel m, bool unionAvailable, bool nullableAttributes, EquatableArray<string> peers)
     {
         var w = new SourceWriter();
-        w.OpenNamespaceAndEnclosing(m.Namespace, m.EnclosingTypes);
+        w.OpenNamespaceAndEnclosing(m.Namespace, m.EnclosingTypes, nullableAttributes);
+        string MaybeNullWhen(bool value) => SourceWriter.FlowAttribute(nullableAttributes, "MaybeNullWhen", value);
+        string NotNullWhen(bool value) => SourceWriter.FlowAttribute(nullableAttributes, "NotNullWhen", value);
 
         var ok = m.SuccessFullName;
         var err = m.ErrorFullName;
@@ -111,7 +113,7 @@ internal static class ResultShapeEmitter
             if (m.ManyErrors)
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {errListType} errors) => _inner.TryGetErrors(out errors);");
+                w.WriteLine($"public bool TryGetValue({MaybeNullWhen(false)}out {errListType} errors) => _inner.TryGetErrors(out errors);");
             }
             else if (union is not null && hasLeaves)
             {
@@ -119,7 +121,7 @@ internal static class ResultShapeEmitter
                 {
                     var leaf = m.Leaves[i];
                     w.WriteLine(InlineAttr);
-                    w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {leaf.FullName} error)");
+                    w.WriteLine($"public bool TryGetValue({MaybeNullWhen(false)}out {leaf.FullName} error)");
                     w.OpenBrace();
                     w.WriteLine($"if (_inner.TryGetError(out var e) && e.Value is {leaf.FullName} c) {{ error = c; return true; }}");
                     w.WriteLine("error = default;");
@@ -133,13 +135,13 @@ internal static class ResultShapeEmitter
                 {
                     var leaf = m.Leaves[i];
                     w.WriteLine(InlineAttr);
-                    w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {leaf.FullName} error) => (error = _inner.TryGetError(out var e) ? e as {leaf.FullName} : null) is not null;");
+                    w.WriteLine($"public bool TryGetValue({MaybeNullWhen(false)}out {leaf.FullName} error) => (error = _inner.TryGetError(out var e) ? e as {leaf.FullName} : null) is not null;");
                 }
             }
             else
             {
                 w.WriteLine(InlineAttr);
-                w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {err} error) => _inner.TryGetError(out error);");
+                w.WriteLine($"public bool TryGetValue({MaybeNullWhen(false)}out {err} error) => _inner.TryGetError(out error);");
             }
         }
 
@@ -268,11 +270,14 @@ internal static class ResultShapeEmitter
         // TryGetValue / TryGetError(s)
         w.WriteLine();
         w.WriteLine(InlineAttr);
-        w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {ok} value) => _inner.TryGetValue(out value);");
+        w.WriteLine($"public bool TryGetValue({MaybeNullWhen(false)}out {ok} value) => _inner.TryGetValue(out value);");
         if (m.ManyErrors)
         {
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public bool TryGetErrors([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {errListType} errors) => _inner.TryGetErrors(out errors);");
+            w.WriteLine($"public bool TryGetErrors({MaybeNullWhen(false)}out {errListType} errors) => _inner.TryGetErrors(out errors);");
+            // Decision 22 item 1: early return, forwarded to the core's one implementation.
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public bool Failed({MaybeNullWhen(true)}out {ok} value, {NotNullWhen(true)}out {errListType}{(nullableAttributes ? "?" : "")} errors) => _inner.Failed(out value, out errors);");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public TResult Match<TResult>(global::System.Func<{ok}, TResult> onSuccess, global::System.Func<{errListType}, TResult> onErrors) => _inner.Match(onSuccess, onErrors);");
             w.WriteLine(InlineAttr);
@@ -281,7 +286,12 @@ internal static class ResultShapeEmitter
         else
         {
             w.WriteLine(InlineAttr);
-            w.WriteLine($"public bool TryGetError([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {err} error) => _inner.TryGetError(out error);");
+            w.WriteLine($"public bool TryGetError({MaybeNullWhen(false)}out {err} error) => _inner.TryGetError(out error);");
+            // Decision 22 item 1: early return, forwarded to the core's one implementation. The core's `out TError?` is
+            // the union itself for an error union (a struct), and the nullable base for a closed hierarchy. Without
+            // NotNullWhen (netstandard2.0) the error is declared non-null, as TryGetValue's out parameters are.
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public bool Failed({MaybeNullWhen(true)}out {ok} value, {NotNullWhen(true)}out {err}{(union is null && nullableAttributes ? "?" : "")} error) => _inner.Failed(out value, out error);");
 
             // Forwarded Map & Bind (per building-the-generator.md verified finding)
             w.WriteLine(InlineAttr);
