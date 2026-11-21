@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shapes over the hierarchy in another assembly, built and run against the packed packages. -->
+  <PropertyGroup>
+    <TargetFramework>$(CompatTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <DefineConstants Condition="'$(CompatDropArm)' == 'true'">$(DefineConstants);DROP_ARM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Resultful.Compatibility.Domain/Resultful.Compatibility.Domain.csproj" />
+    <PackageReference Include="Resultful" Version="[$(ResultfulVersion)]" />
+    <PackageReference Include="Resultful.Generators" Version="[$(ResultfulVersion)]" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- The analyzers the compiler was given, so the test can tell which build of the generator loaded. -->
+  <Target Name="CompatReportAnalyzers" AfterTargets="CoreCompile">
+    <WriteLinesToFile File="$(IntermediateOutputPath)analyzers.txt" Lines="@(Analyzer->'%(FullPath)')" Overwrite="true" />
+  </Target>
+</Project>

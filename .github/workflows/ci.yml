@@ -92,6 +92,37 @@ jobs:
           path: artifacts
           if-no-files-found: error
 
+  # Resultful.Generators from the packed package, one compiler leg per SDK: 9.0.3xx (Roslyn 4.14, net8.0), 10.0.1xx
+  # (Roslyn 5.0, net10.0), 10.0.4xx (net10.0) and 11.0.1xx (net10.0, and net11.0 with [Union]).
+  # tests/Compatibility/Resultful.Compatibility.Tests packs and runs them.
+  generator-legs:
+    name: generator-legs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # SourceLink and the package's repository commit
+
+      - name: Setup .NET SDKs
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: |
+            9.0.3xx
+            10.0.1xx
+            10.0.4xx
+
+      - name: List SDKs
+        run: dotnet --list-sdks
+
+      - name: Pack, build and run each leg
+        run: dotnet run --project tests/Compatibility/Resultful.Compatibility.Tests --configuration Release
+
   lint:
     name: lint
     runs-on: ubuntu-latest
