@@ -247,4 +247,61 @@ internal static class FixtureCatalog
             public readonly partial struct CheckoutResult;
         }
         """;
+
+    // Decision 16 item 5: next to FlatHierarchy, ManyErrorsShape and ValuelessShape, a shape with the same types as
+    // PlaceOrderResult and as RegisterResult, and one with PlaceOrderResult's success type but another error type. None
+    // of them converts into another: a shape with the same error type goes through AsResult().
+    public const string ShapePeers = """
+        using Resultful.CodeAnalysis;
+
+        namespace Fixture.Flat
+        {
+            [ResultShape(typeof(OrderError), Success = typeof(Order))]
+            public readonly partial struct LoadOrderResult;
+
+            [ResultShape(typeof(Fixture.Void.CancelError), Success = typeof(Order))]
+            public readonly partial struct CancelForOrderResult;
+        }
+
+        namespace Fixture.Many
+        {
+            [ResultShape(typeof(InputError), Success = typeof(Registration), ManyErrors = true)]
+            public readonly partial struct ReviewResult;
+        }
+        """;
+
+    // Appended to DeepFourLevelHierarchy (no using directives): shapes whose errors are closed bases nested under
+    // AppError. CheckoutResult converts from PayResult and DomainResult, DomainResult from PayResult, AppChecks from
+    // DomainChecks.
+    public const string NestedPeers = """
+
+        namespace Fixture.Deep
+        {
+            [Resultful.CodeAnalysis.ResultShape(typeof(PaymentError), Success = typeof(Receipt))]
+            public readonly partial struct PayResult;
+
+            [Resultful.CodeAnalysis.ResultShape(typeof(DomainError), Success = typeof(Receipt))]
+            public readonly partial struct DomainResult;
+
+            [Resultful.CodeAnalysis.ResultShape(typeof(DomainError), Success = typeof(Receipt), ManyErrors = true)]
+            public readonly partial struct DomainChecks;
+
+            [Resultful.CodeAnalysis.ResultShape(typeof(AppError), Success = typeof(Receipt), ManyErrors = true)]
+            public readonly partial struct AppChecks;
+        }
+        """;
+
+    // Appended to NestedUnion: a shape over the inner union, a direct case of CheckoutError, so CheckoutResult converts
+    // from it; and one over CardDeclined, a leaf of the inner union, which doesn't (decision 17's direct-case rule).
+    public const string NestedUnionPeers = """
+
+        namespace Fixture.Nested
+        {
+            [Resultful.CodeAnalysis.ResultShape(typeof(PaymentError), Success = typeof(Receipt))]
+            public readonly partial struct ChargeResult;
+
+            [Resultful.CodeAnalysis.ResultShape(typeof(CardDeclined), Success = typeof(Receipt))]
+            public readonly partial struct DeclineResult;
+        }
+        """;
 }

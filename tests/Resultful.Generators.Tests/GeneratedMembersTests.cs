@@ -41,10 +41,7 @@ public sealed class GeneratedMembersTests
         (ErrorUnion, "static Union Wrap(Error leaf)"),
     ];
 
-    private static readonly Dictionary<(string Declaration, string Member), string> Deferred = new()
-    {
-        [(ShapeOfHierarchy, "implicit operator Shape(OtherShape)")] = "15 (shape conversions)",
-    };
+    private static readonly Dictionary<(string Declaration, string Member), string> Deferred = new();
 
     private static readonly Dictionary<(string Declaration, string Member), Action<Emitted>> Checks = new()
     {
@@ -153,8 +150,26 @@ public sealed class GeneratedMembersTests
         },
         [(ShapeOfHierarchy, "implicit operator Shape(Result<T, TError>)")] = e =>
         {
-            // From the core value. From another shape is decision 16 item 5, built in 15 (shape-conversions).
             Assert.Contains(Conversions(e.Shape), c => c.Parameters[0].Type.ToDisplayString() == "Resultful.Result<Fixture.Flat.Order, Fixture.Flat.OrderError>");
+        },
+        [(ShapeOfHierarchy, "implicit operator Shape(OtherShape)")] = e =>
+        {
+            // From each shape with the same success type and kind whose error is a closed base nested under this one's;
+            // not from one with the same error type (AsResult() converts those) or another hierarchy.
+            INamedTypeSymbol Type(string name) => e.Compilation.GetTypeByMetadataName(name)!;
+            static string[] From(INamedTypeSymbol shape) => Conversions(shape)
+                .Where(c => SymbolEqualityComparer.Default.Equals(c.ReturnType, shape) &&
+                    c.Parameters[0].Type.GetAttributes().Any(a => a.AttributeClass?.Name == "ResultShapeAttribute"))
+                .Select(c => c.Parameters[0].Type.ToDisplayString())
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            Assert.Equal(["Fixture.Deep.DomainResult", "Fixture.Deep.PayResult"], From(Type("Fixture.Deep.CheckoutResult")));
+            Assert.Equal(["Fixture.Deep.PayResult"], From(Type("Fixture.Deep.DomainResult")));
+            Assert.Empty(From(Type("Fixture.Deep.PayResult")));
+            Assert.Equal(["Fixture.Deep.DomainChecks"], From(Type("Fixture.Deep.AppChecks")));
+            Assert.Empty(From(e.Shape));
+            Assert.Empty(From(Type("Fixture.Flat.LoadOrderResult")));
+            Assert.Empty(From(e.ManyShape));
         },
         [(ShapeOfHierarchy, "implicit operator Result<T, TError>(Shape), implicit operator Result<T>(Shape)")] = e =>
         {
@@ -328,6 +343,8 @@ public sealed class GeneratedMembersTests
             ("Flat.cs", FixtureCatalog.FlatHierarchy),
             ("Many.cs", FixtureCatalog.ManyErrorsShape),
             ("Void.cs", FixtureCatalog.ValuelessShape),
+            ("Peers.cs", FixtureCatalog.ShapePeers),
+            ("Deep.cs", FixtureCatalog.DeepFourLevelHierarchy + FixtureCatalog.NestedPeers),
             ("Bare.cs", "namespace Fixture.Bare { [Resultful.CodeAnalysis.ClosedHierarchy] public abstract partial record BareError : Resultful.Error; public sealed record Boom() : BareError(\"boom\"); }"),
         ]);
         var output = GeneratorTestHarness.Run(comp, out _);

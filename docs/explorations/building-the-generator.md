@@ -127,6 +127,32 @@ the build against Roslyn 4.14 needs no union syntax.
   `Match`. Callers in other assemblies built against the old shape fail with `MissingMethodException` until they are
   rebuilt; `ErrorUnionTests` pins this.
 
+## Conversions between shapes
+
+Decision 16 item 5. A shape gets an implicit conversion from every other shape in the same compilation with the same
+success type and kind (`ManyErrors` or not) whose error type it holds: a `[ClosedHierarchy]` nested under its own
+error (cast up) or a direct case of its error union (wrapped, so a nested union keeps its type). The conversion runs
+one way, from the narrower error to the wider. The zero value converts to the zero value; only reading it throws
+(decision 10).
+
+- **Not between shapes with the same error type.** Each of `n` such shapes would convert from every other: `n(n - 1)`
+  operators (200 shapes gave 41k operators, 10 MB of source and a 12 s compile). Write `other.AsResult()` (or
+  `AsValidation()`); the core value converts into the shape. This differs from item 5 as written; decision 16's
+  consequences record it. Conversions from nested bases and union cases grow with the number of such shapes, one
+  operator each, and `ShapeConversionTests` checks both.
+- **CS0029, from the compiler,** for everything else: the same error type, another error type, another success type,
+  a plain shape and a `ManyErrors` one, a wider error into a narrower one. A shape whose error is a leaf of a nested
+  union doesn't convert into the outer union's shape: only direct cases do (decision 17).
+- **A public shape has no conversion from an internal one** (a public operator can't take it, CS0057). Shapes in
+  other assemblies aren't looked for. `AsResult()` covers both.
+- **Overloads change.** A shape now converts to the wider shape as well as to its core types, so existing calls can
+  bind differently: `K(CheckoutResult)` now wins over `K(object)` and `K(Result<Receipt>)` for a `PayResult`, and
+  `K(CheckoutResult)` next to `K(Result<Receipt, PaymentError>)` is CS0121, where the second used to bind. `?:`,
+  `switch` expressions and array literals that mix the two shapes now have the wider shape as their type. Shapes never
+  convert both ways, so no new CS0172; two shapes with the same types still have no common type (CS0173, CS8506,
+  CS0826, CS0411). `ShapeConversionTests` pins each.
+- **Budgets:** `+1P` members for `P` such shapes, and one ceiling for the conversion's IL (`IL_PEER_CONVERSION_MAX`).
+
 ## Packaging
 
 `Resultful.Generators` is an analyzer package (`developmentDependency`, no `lib/`) with one build per compiler:
@@ -149,7 +175,8 @@ two folders and that each DLL's `Microsoft.CodeAnalysis` reference is no newer t
   `Result<Unit, TError>` or a `Validation<T, TError>`. Its size is the core value's size.
 - **What a shape emits:**
   - `Ok`, `Fail` and `AsResult()`
-  - implicit conversions from `Success` and from each leaf, and to the core types
+  - implicit conversions from `Success`, from each leaf and from each shape over an error it holds, and to the core
+    types
   - `TryGetValue` and `TryGetError`
   - `Match`
   - on .NET 11, the `[Union]` members: `HasValue`, `Value`, and a constructor and a `TryGetValue(out Leaf)` for
