@@ -187,6 +187,9 @@ internal static class ShapeAnalyzer
             ErrorDerivesFromError: errorDerivesFromError,
             ErrorIsClosed: errorIsClosed,
             ErrorIsExternal: errorIsExternal,
+            ErrorClosedAncestors: errorIsClosed
+                ? new EquatableArray<string>(HierarchyAnalyzer.ClosedAncestors(errorType).ToArray())
+                : EquatableArray<string>.Empty,
             Union: union,
             ShapeAccessibilityRank: HierarchyAnalyzer.GetEffectiveAccessibilityRank(structType),
             ExternalErrorEntries: externalEntries,
@@ -275,6 +278,8 @@ internal static class ShapeAnalyzer
 
         var hasBlockingError = diagnostics.Any(d => d.Descriptor.DefaultSeverity == DiagnosticSeverity.Error);
         return new ResultShapeModel(
+            FullName: decl.FullName,
+            AccessibilityRank: decl.ShapeAccessibilityRank,
             HintName: decl.HintName,
             Namespace: decl.Namespace,
             EnclosingTypes: decl.EnclosingTypes,
@@ -287,9 +292,39 @@ internal static class ShapeAnalyzer
             SuccessIsInterface: decl.SuccessIsInterface,
             ErrorDerivesFromError: decl.ErrorDerivesFromError,
             ErrorIsClosed: decl.ErrorIsClosed,
+            ErrorClosedAncestors: decl.ErrorClosedAncestors,
             Leaves: hasBlockingError ? EquatableArray<LeafModel>.Empty : leaves,
             Union: hasBlockingError ? null : decl.Union,
             Diagnostics: new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
+    }
+
+    // The shapes this one converts from (decision 16 item 5): the same success type and kind, and an error type that is a
+    // closed base nested under this one's or (decision 17) a direct case of this shape's error union. Not a shape with
+    // the same error type: n such shapes would need n(n - 1) operators, so `other.AsResult()` converts those. Only shapes
+    // a public operator on this shape can name: public, or internal when this shape is no more than internal (CS0057).
+    public static EquatableArray<string> PeersOf(ResultShapeModel shape, EquatableArray<ShapePeer> all)
+    {
+        var peers = new List<string>();
+        for (var i = 0; i < all.Length; i++)
+        {
+            var p = all[i];
+            if (p.ErrorFullName == shape.ErrorFullName ||
+                p.ManyErrors != shape.ManyErrors ||
+                p.SuccessFullName != shape.SuccessFullName ||
+                !(p.AccessibilityRank == 3 || (p.AccessibilityRank == 1 && shape.AccessibilityRank <= 1)))
+            {
+                continue;
+            }
+
+            if (shape.Union is { } union && !shape.ManyErrors
+                ? union.Cases.Any(c => c.FullName == p.ErrorFullName)
+                : shape.ErrorIsClosed && p.ErrorClosedAncestors.Contains(shape.ErrorFullName))
+            {
+                peers.Add(p.FullName);
+            }
+        }
+
+        return new EquatableArray<string>(peers.ToArray());
     }
 
     private static void CheckStaticOverlaps(

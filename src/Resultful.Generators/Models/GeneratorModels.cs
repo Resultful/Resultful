@@ -79,6 +79,7 @@ internal sealed record ResultShapeDeclaration(
     bool ErrorDerivesFromError,
     bool ErrorIsClosed,
     bool ErrorIsExternal,
+    EquatableArray<string> ErrorClosedAncestors,
     UnionErrorModel? Union,
     int ShapeAccessibilityRank,
     EquatableArray<BaseIndexEntry> ExternalErrorEntries,
@@ -87,6 +88,8 @@ internal sealed record ResultShapeDeclaration(
     SourcePosition? Position);
 
 internal sealed record ResultShapeModel(
+    string FullName,
+    int AccessibilityRank,
     string HintName,
     string? Namespace,
     EquatableArray<EnclosingTypeModel> EnclosingTypes,
@@ -99,6 +102,7 @@ internal sealed record ResultShapeModel(
     bool SuccessIsInterface,
     bool ErrorDerivesFromError,
     bool ErrorIsClosed,
+    EquatableArray<string> ErrorClosedAncestors,
     EquatableArray<LeafModel> Leaves,
     UnionErrorModel? Union,
     EquatableArray<DiagnosticInfo> Diagnostics);
@@ -138,7 +142,19 @@ internal sealed record ErrorUnionModel(
 
 internal sealed record UnionCaseModel(string FullName, bool IsUnion);
 
+// A shape of the compilation that others may convert from (decision 16 item 5). ErrorClosedAncestors are
+// the [ClosedHierarchy] bases of its error type when that type is closed itself, nearest first.
+internal sealed record ShapePeer(
+    string FullName,
+    string SuccessFullName,
+    string ErrorFullName,
+    EquatableArray<string> ErrorClosedAncestors,
+    bool ManyErrors,
+    int AccessibilityRank);
+
+
 internal sealed record EmitItem(
     ClosedHierarchyModel? Hierarchy,
     ResultShapeModel? Shape,
-    bool UnionAvailable);
+    bool UnionAvailable,
+    EquatableArray<string> Peers);
