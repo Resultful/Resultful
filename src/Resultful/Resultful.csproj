@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- The version is shared by every package (lockstep, decision 11): VersionPrefix in src/Directory.Build.props. -->
+    <!-- The package version is set per release, never committed (decision 22): see src/Directory.Build.props. -->
     <!--
       Every published 0.2.0 pre-release (beta03 to beta05) has assembly and file version 1.0.0.0. A lower assembly
       version breaks apps on .NET Core that use a library compiled against one of them (FileNotFoundException:

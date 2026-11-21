@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "primary_package": "Resultful",
+  "packages": {
+    "Resultful": {
+      "ecosystem": "nuget",
+      "package_id": "Resultful",
+      "path": "src/Resultful",
+      "inputs": ["src/Resultful", "src/Directory.Build.props", "Directory.Build.props", "Directory.Packages.props", "global.json"],
+      "depends_on": [],
+      "coupled_with": []
+    }
+  }
+}

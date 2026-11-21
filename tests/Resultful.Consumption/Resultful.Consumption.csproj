@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <!--
-    The package version under test comes from src/Directory.Build.props (lockstep), so it can't drift from what is packed.
+    The package version under test comes from src/Directory.Build.props (the 0.0.0-dev placeholder), so it can't drift from what is packed.
     A VersionSuffix passed on the command line (CI packs a run-unique one) replaces the file's suffix.
     ResultfulPackageVersion can still be passed directly.
   -->

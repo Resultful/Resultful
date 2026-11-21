@@ -1,7 +1,7 @@
 ---
 type: decision
 title: "CI takes current hardening practice, not a full job graph"
-description: "Least-privilege tokens, zizmor, ls-lint, Dependabot, pack checks on every PR; one required check, the ci gate; main publishes."
+description: "Least-privilege tokens, zizmor, ls-lint, Dependabot, pack checks on every PR; one required check, the ci gate; publishing is a separate manual workflow (decision 22)."
 status: proposed
 tags: [resultful, decision]
 decided:
@@ -25,9 +25,8 @@ needs extra plumbing to stay safe.
 Job names are short snake_case. `main` requires one check, `ci`: a gate job that passes only if every other job
 passed, so adding a job never means touching branch protection.
 
-Publishing is manual: running the workflow on `main` with the `publish` input ticked pushes the packed packages
-and tags the commit `v<version>`. It authenticates with NuGet trusted publishing, so no API key is stored: nuget.org
-trusts this repository's `ci.yml` in the `release` environment and gives a key that lasts an hour
-([decision 11](0011-package-family.md), "How a release works"). Merging never publishes, so pull requests can
-land freely while the library is being reshaped. (The previous workflow tried to publish on every push to `main`,
-but its condition read a step-level `env` from the step's own `if`, so it never fired.)
+Publishing is a separate, manual workflow, `release.yml` ([decision 22](0022-releases-are-a-dispatch-map.md)): it
+publishes only a commit whose `ci` check passed, and authenticates with NuGet trusted publishing, so no API key is
+stored. Merging never publishes, so pull requests can land freely while the library is being reshaped. (The previous
+workflow tried to publish on every push to `main`, but its condition read a step-level `env` from the step's own
+`if`, so it never fired.)

@@ -1,7 +1,7 @@
 ---
 type: decision
 title: "Assertions for Resultful live in this repository"
-description: "Resultful.Assertions and its adapters are built here against the in-repo core and released in lockstep; the OneOf and union assertion packages stay in the other repository. Partly supersedes decision 12."
+description: "Resultful.Assertions and its adapters are built here against the in-repo core and released from this repository (decision 22); the OneOf and union assertion packages stay in the other repository. Partly supersedes decision 12."
 status: stable
 tags: [resultful, decision, assertions]
 decided:

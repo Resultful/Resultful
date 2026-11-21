@@ -13,7 +13,7 @@
 
 - **Single Cake.Sdk entry point:** All build, test, pack, preview, and compatibility orchestration lives in `eng/build.cs` (`#:sdk Cake.Sdk@7.0.0`). Add new targets there instead of creating standalone `eng/*.cs` scripts.
 - **Prefer SDK built-ins over custom gates:** Use `<EnablePackageValidation>true</EnablePackageValidation>`, `TreatWarningsAsErrors`, and Roslyn `PublicApiAnalyzers` instead of custom API/IL diff scripts, test-count/coverage JSON ratchets, or PR-body suppression checkers.
-- **Lockstep versioning:** All `Resultful.*` packages share one version in `Directory.Build.props` and one release tag.
+- **Versions are chosen at release time, never committed:** source builds are `0.0.0-dev`; `release.yml` takes a map of packages and versions and tags each `<package>/v<version>` (decision 22). Add a new package to `.github/release-packages.json`.
 
 ## Public API & File Hygiene
 

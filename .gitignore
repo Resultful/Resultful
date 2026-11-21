@@ -46,6 +46,8 @@ dlldata.c
 project.lock.json
 project.fragment.lock.json
 artifacts/
+# Written by the release workflow for one run (decision 22); never committed.
+release-versions.props
 **/Properties/launchSettings.json
 
 *_i.c
