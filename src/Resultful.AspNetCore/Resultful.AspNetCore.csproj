@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <AssemblyName>Resultful.AspNetCore</AssemblyName>
+    <RootNamespace>Resultful.AspNetCore</RootNamespace>
+    <Description>ASP.NET Core for Resultful: a result becomes an IResult, its error an RFC 9457 ProblemDetails through a configurable error-to-status map.</Description>
+    <PackageId>Resultful.AspNetCore</PackageId>
+    <PackageTags>result;railway-oriented-programming;error-handling;aspnetcore;problemdetails</PackageTags>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This package's own readme replaces the core's, which src/Directory.Build.props packs by default. -->
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- No Resultful.Text.Json: problems are written with ASP.NET Core's own source-generated metadata. -->
+    <ProjectReference Include="..\Resultful\Resultful.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- One pair: the API is the same on both targets. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>
