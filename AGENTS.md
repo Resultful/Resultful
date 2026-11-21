@@ -22,7 +22,9 @@
 
 ## Testing Guardrails
 
-- **Larger, real-world scenario tests:** Write normal compiled xUnit v3 scenario suites exercising multi-step pipelines (validation → domain errors → async composition → JSON/HTTP), plus CsCheck property laws and packed-package consumer checks (`tests/Compatibility`, cohesive `samples/Resultful.Shop`).
+- **One test project per satellite:** Keep at most **one** test project per satellite package (`tests/Resultful.<Satellite>.Tests`). Do not split a thin satellite across 2–3 separate `.csproj`/`.fsproj` test projects; keep shared test helpers in a single shared helper project or compile link.
+- **Larger, real-world scenario tests:** Write normal compiled xUnit v3 scenario suites exercising multi-step pipelines (validation → domain errors → async composition → JSON/HTTP), plus CsCheck property laws and packed-package consumer checks (`tests/Compatibility`, cohesive `samples/Resultful.Shop`). For thin satellites (`<500` LOC), keep 2–3 cohesive files (`Scenarios.cs`, `Laws.cs`) rather than mirroring every helper in its own file.
+- **Readable, structural assertions:** Prefer whole-structure assertions over 6–10 line assertion blocks — use `JsonAssert.Equal` for JSON/ProblemDetails payloads, projected tuple tables instead of parallel `.Select(...)` arrays, small snapshot records for multi-field spans/responses, and dogfood `Resultful.Assertions` across satellite tests once available (core law tests keep using `Match` directly).
 - **Roslyn compile harnesses for diagnostics only:** Reserve in-process Roslyn compilation tests strictly for source-generator output/budgets and negative-compile or analyzer diagnostics (`RFG*`, `RF*`, `CS8509`).
 
 ## PR Hygiene
