@@ -179,6 +179,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # the release tag
+      id-token: write # NuGet trusted publishing: an OIDC token, exchanged for a short-lived API key
     environment: release
     steps:
       - name: Download packages
@@ -192,15 +193,18 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Trusted publishing: nuget.org's policy for Resultful trusts this repo, ci.yml and the release environment,
+      # and gives a key that lasts an hour. No long-lived key is stored anywhere.
+      - name: Log in to NuGet
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: rtk_13 # the nuget.org account that owns the trusted publishing policy
+
       - name: Push to NuGet
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_KEY }}
-        run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::the NUGET_KEY secret is not available; nothing was published."
-            exit 1
-          fi
-          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Tag the release
         env:
