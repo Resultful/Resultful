@@ -25,8 +25,14 @@ namespace Compatibility.Shapes
             Result<Order> wide = locked.WithContext("placing");
             Console.WriteLine($"widen: {wide.Error is OrderLocked} {string.Join("|", wide.Error.Context)}");
             Console.WriteLine("cases: " + string.Join("|", OrderError.Cases.Select(t => t.Name)));
+#pragma warning disable RF0002 // the zero value is the point of this check
             Console.WriteLine($"zero: {default(PlaceOrderResult).IsDefault}");
+#pragma warning restore RF0002
             Console.WriteLine($"union: {typeof(PlaceOrderResult).GetInterfaces().Any(i => i.Name == "IUnion")}");
+#if DROP_RESULT
+            // Built with DROP_RESULT, a result thrown away must fail the build with RF0001.
+            locked.WithContext("dropped");
+#endif
 #if NET11_0_OR_GREATER
             Console.WriteLine("switch: " + string.Join(",", Status(ok), Status(locked), Status(new OrderNotFound(3))));
             CheckoutResult declined = new CardDeclined("limit");

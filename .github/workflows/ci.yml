@@ -92,7 +92,7 @@ jobs:
           path: artifacts
           if-no-files-found: error
 
-  # Resultful.Generators from the packed package, one compiler leg per SDK: 9.0.3xx (Roslyn 4.14, net8.0), 10.0.1xx
+  # Resultful.Generators and Resultful.Analyzers from the packed packages, one compiler leg per SDK: 9.0.3xx (Roslyn 4.14, net8.0), 10.0.1xx
   # (Roslyn 5.0, net10.0), 10.0.4xx (net10.0) and 11.0.1xx (net10.0, and net11.0 with [Union]).
   # tests/Compatibility/Resultful.Compatibility.Tests packs and runs them.
   generator-legs:
