@@ -42,7 +42,7 @@ namespace Compatibility.Shapes
         }
 
         private static string Name(PlaceOrderResult r) =>
-            r.Match(o => "order " + o.Id, l => "locked " + l.Id, nf => "missing " + nf.Id);
+            r.Match((Order o) => "order " + o.Id, (OrderLocked l) => "locked " + l.Id, (OrderNotFound nf) => "missing " + nf.Id);
 
 #if NET11_0_OR_GREATER
         // Exhaustive with no discard: built with DROP_ARM, it must fail with CS8509.
