@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UsePackedPackage Condition="'$(UsePackedPackage)' == ''">false</UsePackedPackage>
+  </PropertyGroup>
+
+  <!--
+    The package version under test comes from the core project, so it can't drift from what is packed.
+    A VersionSuffix passed on the command line (CI packs a run-unique one) replaces the file's suffix.
+    ResultfulPackageVersion can still be passed directly.
+  -->
+  <PropertyGroup>
+    <_ResultfulProjectText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../src/Resultful/Resultful.csproj'))</_ResultfulProjectText>
+    <_ResultfulVersionPrefix>$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionPrefix&gt;\s*([^&lt;]*?)\s*&lt;/VersionPrefix&gt;').Groups[1].Value)</_ResultfulVersionPrefix>
+    <_ResultfulVersionSuffix>$(VersionSuffix)</_ResultfulVersionSuffix>
+    <_ResultfulVersionSuffix Condition="'$(_ResultfulVersionSuffix)' == ''">$([System.Text.RegularExpressions.Regex]::Match($(_ResultfulProjectText), '&lt;VersionSuffix&gt;\s*([^&lt;]*?)\s*&lt;/VersionSuffix&gt;').Groups[1].Value)</_ResultfulVersionSuffix>
+    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == '' and '$(_ResultfulVersionSuffix)' == ''">$(_ResultfulVersionPrefix)</ResultfulPackageVersion>
+    <ResultfulPackageVersion Condition="'$(ResultfulPackageVersion)' == ''">$(_ResultfulVersionPrefix)-$(_ResultfulVersionSuffix)</ResultfulPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UsePackedPackage)' != 'true'">
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <!-- NetStandardLoadTests loads the netstandard2.0 build, so make sure it is built. -->
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" SetTargetFramework="TargetFramework=netstandard2.0" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!--
+    A packed run without a VersionSuffix would restore the file's version (e.g. 0.2.0-beta06), which may
+    come from nuget.org or the global package cache rather than a fresh pack. Require a unique suffix.
+  -->
+  <Target Name="_RequireVersionSuffixForPackedRun" BeforeTargets="CollectPackageReferences;Restore;Build" Condition="'$(UsePackedPackage)' == 'true' and '$(VersionSuffix)' == ''">
+    <Error Text="UsePackedPackage=true needs -p:VersionSuffix=&lt;unique suffix&gt; matching a freshly packed Resultful, so the run can't silently test a published or cached package." />
+  </Target>
+
+  <ItemGroup Condition="'$(UsePackedPackage)' == 'true'">
+    <PackageReference Include="Resultful" VersionOverride="$(ResultfulPackageVersion)" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="ConsumptionTestsDir" Value="$(MSBuildProjectDirectory)" />
+    <AssemblyMetadata Include="RepoRootDir" Value="$(MSBuildThisFileDirectory)..\.." />
+    <AssemblyMetadata Include="BuildConfiguration" Value="$(Configuration)" />
+    <AssemblyMetadata Include="UsePackedPackage" Value="$(UsePackedPackage)" />
+    <AssemblyMetadata Include="ResultfulPackageVersion" Value="$(ResultfulPackageVersion)" />
+    <AssemblyMetadata Include="ResultfulPackageDir" Value="$(PkgResultful)" Condition="'$(UsePackedPackage)' == 'true'" />
+  </ItemGroup>
+
+</Project>
