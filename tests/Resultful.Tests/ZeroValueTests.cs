@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using CsCheck;
 using NUnit.Framework;
-using OneOf.Types;
 using Resultful.LINQ;
 
 namespace Resultful.Tests

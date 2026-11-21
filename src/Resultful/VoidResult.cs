@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Resultful.Utils;
-using OneOf;
 
 namespace Resultful
 {
@@ -97,10 +96,6 @@ namespace Resultful
         /// <param name="errorFunc">Called with the error on failure.</param>
         public Task<TResult> MatchAsync<TResult>(Func<Unit, Task<TResult>> successfulFunc, Func<TError, Task<TResult>> errorFunc)
             => Match(successfulFunc, errorFunc);
-
-        /// <summary>Returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
-        public OneOf<Unit, TError> ToOneOf()
-            => Case() ? OneOf<Unit, TError>.FromT0(Unit.Value) : OneOf<Unit, TError>.FromT1(_error);
 
         /// <summary>Two results are equal when both are successes, both failures with equal errors, or both the zero value.</summary>
         /// <param name="obj">The object to compare with.</param>

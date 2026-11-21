@@ -1,0 +1,24 @@
+#nullable enable
+Resultful.OneOfExtensions
+static Resultful.OneOfExtensions.ToOneOf(this Resultful.None value) -> OneOf.Types.None
+static Resultful.OneOfExtensions.ToOneOf(this Resultful.VoidResult value) -> OneOf.OneOf<Resultful.Unit!, Resultful.Error!>
+static Resultful.OneOfExtensions.ToOneOf(this System.Threading.Tasks.Task<Resultful.VoidResult>! value) -> System.Threading.Tasks.Task<OneOf.OneOf<Resultful.Unit!, Resultful.Error!>>!
+static Resultful.OneOfExtensions.ToOneOf<T, TError>(this Resultful.Result<T, TError> value) -> OneOf.OneOf<T, TError>
+static Resultful.OneOfExtensions.ToOneOf<T, TError>(this System.Threading.Tasks.Task<Resultful.Result<T, TError>>! value) -> System.Threading.Tasks.Task<OneOf.OneOf<T, TError>>!
+static Resultful.OneOfExtensions.ToOneOf<T>(this Resultful.Option<T> value) -> OneOf.OneOf<T, OneOf.Types.None>
+static Resultful.OneOfExtensions.ToOneOf<T>(this Resultful.Result<T> value) -> OneOf.OneOf<T, Resultful.Error!>
+static Resultful.OneOfExtensions.ToOneOf<T>(this System.Threading.Tasks.Task<Resultful.Option<T>>! value) -> System.Threading.Tasks.Task<OneOf.OneOf<T, OneOf.Types.None>>!
+static Resultful.OneOfExtensions.ToOneOf<T>(this System.Threading.Tasks.Task<Resultful.Result<T>>! value) -> System.Threading.Tasks.Task<OneOf.OneOf<T, Resultful.Error!>>!
+static Resultful.OneOfExtensions.ToOneOf<TError>(this Resultful.VoidResult<TError> value) -> OneOf.OneOf<Resultful.Unit!, TError>
+static Resultful.OneOfExtensions.ToOneOf<TError>(this System.Threading.Tasks.Task<Resultful.VoidResult<TError>>! value) -> System.Threading.Tasks.Task<OneOf.OneOf<Resultful.Unit!, TError>>!
+static Resultful.OneOfExtensions.ToOption<T>(this OneOf.OneOf<T, OneOf.Types.None> value) -> Resultful.Option<T>
+static Resultful.OneOfExtensions.ToOption<T>(this System.Threading.Tasks.Task<OneOf.OneOf<T, OneOf.Types.None>>! value) -> System.Threading.Tasks.Task<Resultful.Option<T>>!
+static Resultful.OneOfExtensions.ToResult<T, TError>(this OneOf.OneOf<T, TError> value) -> Resultful.Result<T, TError>
+static Resultful.OneOfExtensions.ToResult<T, TError>(this System.Threading.Tasks.Task<OneOf.OneOf<T, TError>>! value) -> System.Threading.Tasks.Task<Resultful.Result<T, TError>>!
+static Resultful.OneOfExtensions.ToResult<T>(this OneOf.OneOf<T, Resultful.Error!> value) -> Resultful.Result<T>
+static Resultful.OneOfExtensions.ToResult<T>(this System.Threading.Tasks.Task<OneOf.OneOf<T, Resultful.Error!>>! value) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
+static Resultful.OneOfExtensions.ToResultful(this OneOf.Types.None value) -> Resultful.None
+static Resultful.OneOfExtensions.ToVoidResult(this OneOf.OneOf<Resultful.Unit!, Resultful.Error!> value) -> Resultful.VoidResult
+static Resultful.OneOfExtensions.ToVoidResult(this System.Threading.Tasks.Task<OneOf.OneOf<Resultful.Unit!, Resultful.Error!>>! value) -> System.Threading.Tasks.Task<Resultful.VoidResult>!
+static Resultful.OneOfExtensions.ToVoidResult<TError>(this OneOf.OneOf<Resultful.Unit!, TError> value) -> Resultful.VoidResult<TError>
+static Resultful.OneOfExtensions.ToVoidResult<TError>(this System.Threading.Tasks.Task<OneOf.OneOf<Resultful.Unit!, TError>>! value) -> System.Threading.Tasks.Task<Resultful.VoidResult<TError>>!
