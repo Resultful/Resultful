@@ -36,6 +36,7 @@ ls:
   docs:
     .dir: kebab-case
     .md: kebab-case
+    .json: regex:config        # docs/config.json — upstream portal manifest for rtkelly-labs/docs
   "docs/**":
     .dir: kebab-case
     .md: kebab-case
