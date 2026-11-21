@@ -9,14 +9,14 @@ using OneOf.Types;
 
 namespace Resultful.Tests
 {
-    // 08a: every type keeps its own state, a state byte, instead of OneOf storage. Nothing a caller can see changes, so
-    // the laws hold every type to a small reference model of the 0.2 storage (plus 05's named members), and the
-    // examples pin struct sizes and allocations.
+    // 08a: every type keeps its own state, a state byte, instead of OneOf storage. The laws hold every type to a small
+    // reference model of the 0.2 storage (plus 05's named members and 08b's zero value), and the examples pin struct
+    // sizes and allocations.
     [TestFixture]
     public class StorageTests
     {
-        // The reference model. State 0 is the zero value, 1 a success, 2 a failure. The 0.2 members see the zero
-        // value as a success holding default(T); 05's named members see neither case and throw.
+        // The reference model. State 0 is the zero value, 1 a success, 2 a failure. Since 08b every member that reads
+        // the zero value's case throws (0.2's members saw a success holding default(T)); Ok and SeenValue apply to 1 and 2.
         readonly record struct M(byte State, int Value, string? Error)
         {
             public bool Ok => State != 2;
@@ -37,15 +37,18 @@ namespace Resultful.Tests
         static Result<int, string> Make(M m)
             => m.State switch { 0 => default, 1 => m.Value.Ok<int, string>(), _ => m.Error!.Fail<int, string>() };
 
-        // One step of a sequence: what it does to a result, and what the model says it does. Model returns null when
-        // the step throws InvalidOperationException (a named member on the zero value). Both write to a log, so
-        // callbacks are checked too.
+        // One step of a sequence: what it does to a result, and what the model says it does. A step that reads its input
+        // throws InvalidOperationException on the zero value (08b); Model returns null for any other step that throws.
+        // Both write to a log, so callbacks are checked too.
         sealed record Op(string Name, Func<Result<int, string>, List<string>, Result<int, string>> Run, Func<M, List<string>, M?> Model)
         {
+            public bool ReadsInput { get; init; } = true;
+
             public override string ToString() => Name;
         }
 
-        static readonly Gen<string?> Errors = Gen.OneOf<string?>(Gen.Const((string?)null), Gen.OneOf<string?>("a", "b", "İ"));
+        // No null: since 08b Fail(null!) throws ArgumentNullException (0.2 gave a failure holding null).
+        static readonly Gen<string?> Errors = Gen.OneOf<string?>("a", "b", "İ");
 
         static readonly Gen<M> Models = Gen.Frequency(
             (1, Gen.Const(new M(0, 0, null))),
@@ -72,13 +75,13 @@ namespace Resultful.Tests
                 (r, _) => r.OrElse(Make(o)),
                 (m, _) => m.State == 0 ? null : m.Ok ? m : o)),
             Gen.Const(new Op("OrElse(func)",
-                (r, log) => r.OrElse(e => { log.Add("else " + e); return e is null ? 9.Ok<int, string>() : (e + "?").Fail<int, string>(); }),
+                (r, log) => r.OrElse(e => { log.Add("else " + e); return e == "b" ? 9.Ok<int, string>() : (e + "?").Fail<int, string>(); }),
                 (m, log) =>
                 {
                     if (m.State == 0) return null;
                     if (m.Ok) return m;
                     log.Add("else " + m.Error);
-                    return m.Error is null ? M.Success(9) : M.Failure(m.Error + "?");
+                    return m.Error == "b" ? M.Success(9) : M.Failure(m.Error + "?");
                 })),
             Gen.Int[-3, 3].Select(k => new Op($"DiscardValue.Map({k})",
                 (r, _) => r.DiscardValue().Map(k),
@@ -92,31 +95,35 @@ namespace Resultful.Tests
             Gen.Const(new Op("Cast.CastError",
                 (r, _) => r.Cast<int>().CastError<string>(),
                 (m, _) => m.Ok ? M.Success(m.Value) : m)),
-            Gen.Int[-3, 3].Select(k => new Op($"= {k}", (_, _) => k, (_, _) => M.Success(k))),
-            Gen.Const(new Op("= \"c\"", (_, _) => "c", (_, _) => M.Failure("c"))),
-            Gen.Const(new Op("= default", (_, _) => default, (_, _) => new M(0, 0, null))));
+            Gen.Int[-3, 3].Select(k => new Op($"= {k}", (_, _) => k, (_, _) => M.Success(k)) { ReadsInput = false }),
+            Gen.Const(new Op("= \"c\"", (_, _) => "c", (_, _) => M.Failure("c")) { ReadsInput = false }),
+            Gen.Const(new Op("= default", (_, _) => default, (_, _) => new M(0, 0, null)) { ReadsInput = false }));
 
         // Everything a caller can observe about one result, checked against the model.
         static void Observe(Result<int, string> r, M m)
         {
-            Assert.That(r.Match(v => (true, v, (string?)null), e => (false, 0, e)), Is.EqualTo((m.Ok, m.SeenValue, m.Ok ? null : m.Error)));
-            (bool, int, string?) switched = default;
-            r.Switch(v => switched = (true, v, null), e => switched = (false, 0, e));
-            Assert.That(switched, Is.EqualTo((m.Ok, m.SeenValue, m.Ok ? null : m.Error)));
-            var oneOf = r.ToOneOf();
-            Assert.That((oneOf.IsT0, oneOf.Match(v => (object?)v, e => e)), Is.EqualTo((m.Ok, m.Ok ? m.SeenValue : (object?)m.Error)));
             Assert.That((r.IsSuccess, r.IsFailure), Is.EqualTo((m.State == 1, m.State == 2)));
-            Assert.That(r.ToString(), Is.EqualTo("Resultful.Result`2[System.Int32,System.String]"));
+            Assert.That(r.ToString(), Is.EqualTo(m.State == 0 ? "<default Result>" : "Resultful.Result`2[System.Int32,System.String]"));
             Assert.That(r.Equals(r) && r.Equals((object)r), Is.True);
-            Assert.That(r.Equals(null) || r.Equals(m.Value) || r.Equals(Make(m).MapError(e => (object?)e)), Is.False);
+            Assert.That(r.Equals(null) || r.Equals(m.Value), Is.False);
             if (m.State == 0)
             {
+                Assert.That(() => r.Match(v => v, _ => 0), Throws.InvalidOperationException);
+                Assert.That(() => r.Switch(_ => { }, _ => { }), Throws.InvalidOperationException);
+                Assert.That(() => r.ToOneOf(), Throws.InvalidOperationException);
                 Assert.That(() => r.Value, Throws.InvalidOperationException);
                 Assert.That(() => r.Error, Throws.InvalidOperationException);
                 Assert.That(() => r.TryGetValue(out _), Throws.InvalidOperationException);
                 Assert.That(() => r.ValueOr(5), Throws.InvalidOperationException);
                 return;
             }
+            Assert.That(r.Equals(Make(m).MapError(e => (object?)e)), Is.False);
+            Assert.That(r.Match(v => (true, v, (string?)null), e => (false, 0, e)), Is.EqualTo((m.Ok, m.SeenValue, m.Ok ? null : m.Error)));
+            (bool, int, string?) switched = default;
+            r.Switch(v => switched = (true, v, null), e => switched = (false, 0, e));
+            Assert.That(switched, Is.EqualTo((m.Ok, m.SeenValue, m.Ok ? null : m.Error)));
+            var oneOf = r.ToOneOf();
+            Assert.That((oneOf.IsT0, oneOf.Match(v => (object?)v, e => e)), Is.EqualTo((m.Ok, m.Ok ? m.SeenValue : (object?)m.Error)));
             Assert.That(r.TryGetValue(out var value) ? (true, value) : (false, value), Is.EqualTo((m.Ok, m.SeenValue)));
             Assert.That(r.TryGetError(out var error) ? (true, error) : (false, error), Is.EqualTo((!m.Ok, m.Ok ? null : m.Error)));
             Assert.That(r.ValueOr(5), Is.EqualTo(m.Ok ? m.Value : 5));
@@ -138,7 +145,7 @@ namespace Resultful.Tests
                 Observe(r, m);
                 foreach (var op in ops)
                 {
-                    var next = op.Model(m, expectedLog);
+                    var next = m.State == 0 && op.ReadsInput ? null : op.Model(m, expectedLog);
                     if (next is null)
                     {
                         Assert.That(() => op.Run(r, log), Throws.InvalidOperationException, op.Name);
@@ -219,12 +226,20 @@ namespace Resultful.Tests
                 Result<int> Make((byte State, int Value) m) => m.State switch { 0 => default, 1 => m.Value.Ok(), _ => errors.Fail<int>() };
                 var (r, s) = (Make(a), Make(b));
                 var ok = a.Item1 != 2;
-                Assert.That(r.Match(v => (true, v, (IEnumerable<string>?)null), e => (false, 0, e)), Is.EqualTo((ok, a.Item2, ok ? null : errors)));
                 Assert.That((r.IsSuccess, r.IsFailure), Is.EqualTo((a.Item1 == 1, a.Item1 == 2)));
-                Assert.That(r.ToOneOf().IsT0, Is.EqualTo(ok));
                 Assert.That(r.GetHashCode() == s.GetHashCode(), Is.EqualTo(Of(ok, a.Item2, errors) == Of(b.Item1 != 2, b.Item2, errors)));
                 Assert.That(r.Equals(s), Is.EqualTo(a.Item1 == b.Item1 && (!ok || a.Item2 == b.Item2)));
-                Assert.That(r.ToString(), Is.EqualTo("Resultful.Result`1[System.Int32]"));
+                Assert.That(r.ToString(), Is.EqualTo(a.Item1 == 0 ? "<default Result>" : "Resultful.Result`1[System.Int32]"));
+                if (a.Item1 == 0)
+                {
+                    Assert.That(() => r.Match(v => v, _ => 0), Throws.InvalidOperationException);
+                    Assert.That(() => r.ToOneOf(), Throws.InvalidOperationException);
+                    Assert.That(() => r.Map(x => x * 2), Throws.InvalidOperationException);
+                    Assert.That(() => r.DiscardValue(), Throws.InvalidOperationException);
+                    return;
+                }
+                Assert.That(r.Match(v => (true, v, (IEnumerable<string>?)null), e => (false, 0, e)), Is.EqualTo((ok, a.Item2, ok ? null : errors)));
+                Assert.That(r.ToOneOf().IsT0, Is.EqualTo(ok));
                 var mapped = r.Map(x => x * 2).Bind(x => x > 2 ? x.Ok() : Result.Fail<int>("small"));
                 Assert.That(mapped.Match(v => v.ToString(), e => string.Join(",", e)),
                     Is.EqualTo(!ok ? "x" : a.Item2 * 2 > 2 ? (a.Item2 * 2).ToString() : "small"));
@@ -241,25 +256,36 @@ namespace Resultful.Tests
             {
                 VoidResult Plain(byte state) => state switch { 0 => default, 1 => Result.Ok(), _ => Result.Fail(errors) };
                 VoidResult<string?> Typed(byte state) => state switch { 0 => default, 1 => Result.Ok<string?>(), _ => error.Fail<string?>() };
-                // The zero value is a success whose Unit is null; Ok() holds Unit.Value.
+                // The zero value hashes as a success whose Unit is null, as in 0.2; reading its case throws (08b).
                 var unit = a == 1 ? Unit.Value : null;
                 var ok = a != 2;
                 bool Same() => a == b;
 
                 var (p, q) = (Plain(a), Plain(b));
-                Assert.That(p.Match(u => (true, u, (IEnumerable<string>?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : errors)));
-                Assert.That(p.ToOneOf().IsT0, Is.EqualTo(ok));
                 Assert.That(p.GetHashCode() == q.GetHashCode(), Is.EqualTo(Of(ok, unit, errors) == Of(b != 2, b == 1 ? Unit.Value : null, errors)));
                 Assert.That(p.Equals(q), Is.EqualTo(Same()));
-                Assert.That(p.ToString(), Is.EqualTo("Resultful.VoidResult"));
-                Assert.That(p.Map(_ => 1).Match(v => v, _ => -1), Is.EqualTo(ok ? 1 : -1));
-
+                Assert.That(p.ToString(), Is.EqualTo(a == 0 ? "<default VoidResult>" : "Resultful.VoidResult"));
                 var (t, u2) = (Typed(a), Typed(b));
-                Assert.That(t.Match(u => (true, u, (string?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : error)));
-                Assert.That(t.ToOneOf().IsT0, Is.EqualTo(ok));
                 Assert.That(t.GetHashCode() == u2.GetHashCode(), Is.EqualTo(Of(ok, unit, error) == Of(b != 2, b == 1 ? Unit.Value : null, error)));
                 Assert.That(t.Equals(u2), Is.EqualTo(Same()));
-                Assert.That(t.ToString(), Is.EqualTo("Resultful.VoidResult`1[System.String]"));
+                Assert.That(t.ToString(), Is.EqualTo(a == 0 ? "<default VoidResult>" : "Resultful.VoidResult`1[System.String]"));
+                if (a == 0)
+                {
+                    Assert.That(() => p.Match(_ => 1, _ => 0), Throws.InvalidOperationException);
+                    Assert.That(() => p.ToOneOf(), Throws.InvalidOperationException);
+                    Assert.That(() => p.Map(_ => 1), Throws.InvalidOperationException);
+                    Assert.That(() => t.Switch(_ => { }, _ => { }), Throws.InvalidOperationException);
+                    Assert.That(() => t.Bind(_ => Result.Ok<string?>()), Throws.InvalidOperationException);
+                    Assert.That(() => t.MapError(e => e), Throws.InvalidOperationException);
+                    return;
+                }
+
+                Assert.That(p.Match(u => (true, u, (IEnumerable<string>?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : errors)));
+                Assert.That(p.ToOneOf().IsT0, Is.EqualTo(ok));
+                Assert.That(p.Map(_ => 1).Match(v => v, _ => -1), Is.EqualTo(ok ? 1 : -1));
+
+                Assert.That(t.Match(u => (true, u, (string?)null), e => (false, (Unit?)null, e)), Is.EqualTo((ok, ok ? unit : null, ok ? null : error)));
+                Assert.That(t.ToOneOf().IsT0, Is.EqualTo(ok));
                 Assert.That(t.Bind(_ => "next".Fail<string?>()).Match(_ => "ok", e => e), Is.EqualTo(ok ? "next" : error));
                 Assert.That(t.MapError(e => e + "!").Match(_ => "ok", e => e), Is.EqualTo(ok ? "ok" : error + "!"));
             });
@@ -268,17 +294,17 @@ namespace Resultful.Tests
         [Test]
         public void Option_behaves_like_the_reference_model()
         {
-            // 0.2: the zero value is Some(default(T)) in every way, equality and hash included (08b makes it None).
+            // Decision 10 (08b): the zero value is None in every way, equality and hash included (0.2 saw Some(default(T))).
             var gen = Gen.Frequency((1, Gen.Const(((byte)0, 0))), (3, Gen.Int[-3, 3].Select(v => ((byte)1, v))), (3, Gen.Const(((byte)2, 0))));
             Gen.Select(gen, gen).Sample((a, b) =>
             {
                 Option<int> Make((byte State, int Value) m) => m.State switch { 0 => default, 1 => m.Value.Some(), _ => Option<int>.None };
                 var (o, p) = (Make(a), Make(b));
-                var some = a.Item1 != 2;
-                Assert.That(o.Match(v => (true, v), _ => (false, 0)), Is.EqualTo((some, a.Item2)));
+                var some = a.Item1 == 1;
+                Assert.That(o.Match(v => (true, v), _ => (false, 0)), Is.EqualTo((some, some ? a.Item2 : 0)));
                 Assert.That(o.ToOneOf().IsT0, Is.EqualTo(some));
-                Assert.That(o.GetHashCode() == p.GetHashCode(), Is.EqualTo(Of(some, a.Item2, new None()) == Of(b.Item1 != 2, b.Item2, new None())));
-                Assert.That(o.Equals(p), Is.EqualTo(some == (b.Item1 != 2) && (!some || a.Item2 == b.Item2)));
+                Assert.That(o.GetHashCode() == p.GetHashCode(), Is.EqualTo(Of(some, a.Item2, new None()) == Of(b.Item1 == 1, b.Item2, new None())));
+                Assert.That(o.Equals(p), Is.EqualTo(some == (b.Item1 == 1) && (!some || a.Item2 == b.Item2)));
                 Assert.That(o.ToString(), Is.EqualTo("Resultful.Option`1[System.Int32]"));
                 Assert.That(o.Map(x => x + 1).Or(-1), Is.EqualTo(some ? a.Item2 + 1 : -1));
                 Assert.That(o.Bind(x => x > 0 ? x.Some() : Option<int>.None).Or(-1), Is.EqualTo(some && a.Item2 > 0 ? a.Item2 : -1));
