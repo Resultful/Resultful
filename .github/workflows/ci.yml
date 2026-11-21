@@ -23,7 +23,7 @@ env:
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
-  # `build` is the check main's branch protection requires; keep the name.
+  # Job names are short snake_case so branch protection can name them; main requires only `ci`, the gate at the end.
   build:
     name: build
     runs-on: ubuntu-latest
@@ -69,8 +69,9 @@ jobs:
           path: artifacts
           if-no-files-found: error
 
-  compatibility:
-    name: compatibility (NuGet + Paket)
+  # Consumers on NuGet (and the beta05 upgrade) and Paket.
+  compat:
+    name: compat
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -122,8 +123,8 @@ jobs:
             exit 1
           fi
 
-  compatibility-net481:
-    name: compatibility (net481)
+  compat_net481:
+    name: compat_net481
     needs: build
     runs-on: windows-latest
     timeout-minutes: 20
@@ -171,11 +172,31 @@ jobs:
       - name: Audit workflows (zizmor)
         run: uvx zizmor@1.31.1 --offline --format github .
 
+  # The one required check: passes only if every job above passed. New jobs go in its `needs`, not in branch protection.
+  ci:
+    name: ci
+    if: always()
+    needs: [ build, compat, compat_net481, lint ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::every job must pass; results: $RESULTS"
+              exit 1
+            fi
+          done
+
   # Publishing is manual: run the workflow on main with `publish` ticked. Merging never publishes.
   # Lockstep (decision 11): every package shares one version, and the run's commit is tagged v<version>.
   publish:
     name: publish
-    needs: [ build, lint, compatibility, compatibility-net481 ]
+    needs: ci
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
