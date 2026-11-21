@@ -1,0 +1,28 @@
+# Emitted API and IL budgets for Resultful.Generators, checked by tests/Resultful.Generators.Tests/BudgetAndIlTests.cs.
+# L is the concrete leaf count of the closed hierarchy. Measured on SDK 11.0.100 against the real core (src/Resultful):
+#   narrow_net10:     MEMBERS = 16+1L, PARAMETERS = 1+1L
+#   narrow_net11:     MEMBERS = 19+3L (the [Union] members), PARAMETERS = 1+1L
+#   valueless_net10:  MEMBERS = 16+1L (Ok() instead of Ok(T)), PARAMETERS = 1+1L
+#   valueless_net11:  MEMBERS = 19+3L, PARAMETERS = 1+1L
+#   many_errors:      MEMBERS = 14+0L (net10) / 19+0L (net11), PARAMETERS = 2+0L
+#   closed_hierarchy: MEMBERS = 4+0L (Match, Switch, TryMap, Cases), PARAMETERS = 2+1L
+# Ceilings are the measured value + 25%, rounded up; per-leaf terms are kept as measured.
+
+# Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
+narrow_net10 MEMBERS=20+1L PARAMETERS=2+1L
+narrow_net11 MEMBERS=24+3L PARAMETERS=2+1L
+valueless_net10 MEMBERS=20+1L PARAMETERS=2+1L
+valueless_net11 MEMBERS=24+3L PARAMETERS=2+1L
+many_errors MEMBERS=24+0L PARAMETERS=3+0L
+closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
+
+# IL byte budgets (Release IL), measured against the real core:
+#   forwarding: max 36 bytes (IsDefault: IsSuccess and IsFailure), 39 for TryGetValue(out Leaf) on net11.0, 42 for the
+#               ManyErrors WithContext (a closure); all other forwarders <= 24 bytes
+#   dispatch: Match = 51 + 22L bytes, TryMap (foreach Causes()) = 111 bytes at L = 2
+#   no `box` outside get_Value
+# building-the-generator.md starts forwarding at 32 bytes and dispatch at 32 + 24L; these ceilings follow the
+# measurements instead.
+IL_FORWARDING_MAX=45
+IL_DISPATCH_BASE=80
+IL_DISPATCH_PER_LEAF=30
