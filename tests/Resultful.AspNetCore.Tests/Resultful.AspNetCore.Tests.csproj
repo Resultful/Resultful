@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests for Resultful.AspNetCore: xunit.v3 scenarios on DefaultHttpContext and TestServer, and CsCheck laws, run by
+       `dotnet test` (VSTest). -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.AspNetCore.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck; the test app's JSON uses Resultful.Text.Json's factory. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007;IL2026;IL3050</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.AspNetCore\Resultful.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+</Project>
