@@ -78,6 +78,10 @@ characterisation suite pins every public operator's current behaviour, and cover
   collection's comparer (still under exploration).
 - Async: `ValueTask` on new overloads, `IAsyncEnumerable<Result<T>>` helpers, `CancellationToken` everywhere it
   applies.
+- Native paths for complicated binding steps ([decision 22](decisions/0022-native-functional-paths.md);
+  [exploration](explorations/native-functional-csharp.md)): `Failed(out value, out error)` early returns, async
+  query syntax and query syntax on shapes, `Ensure`, `Traverse`/`Sequence`, `IAsyncEnumerable<Result<T>>`
+  operators, and a probe of `await` as a short-circuit.
 
 **Done when** every operator has a named equivalent, tests for its laws, and a row in the README's operator
 table.
