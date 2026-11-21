@@ -15,7 +15,7 @@
 //   - in any other package, a dependency group without Resultful at this package's own version (lockstep)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
 //
-// Analyzer packages (analyzerPackages: Resultful.Generators) are checked instead for: no lib/ and no dependencies,
+// Analyzer packages (analyzerPackages: Resultful.Generators, Resultful.Analyzers) are checked instead for: no lib/ and no dependencies,
 // developmentDependency, exactly one DLL in each of analyzers/dotnet/roslyn4.14/cs/ and roslyn5.0/cs/ (the SDK parses
 // the folder as roslyn<major>.<minor>, so "roslyn5.x" would load in every compiler next to the 4.14 build), and each
 // DLL's Microsoft.CodeAnalysis reference no newer than its folder's version (or that compiler reports CS9057).
@@ -34,7 +34,7 @@ if (args.Length == 0)
 var minOneOf = new Version(3, 0, 271);
 string[] banned = ["NETStandard.Library", "System.ValueTuple"];
 string[] netStandardPackages = ["Resultful", "Resultful.OneOf"];
-string[] analyzerPackages = ["Resultful.Generators"];
+string[] analyzerPackages = ["Resultful.Generators", "Resultful.Analyzers"];
 string[] roslynFolders = ["roslyn4.14", "roslyn5.0"];
 var exit = 0;
 var versions = new Dictionary<string, string>(StringComparer.Ordinal);

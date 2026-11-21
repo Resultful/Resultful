@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Resultful.Analyzers' own tests: consumer code compiled in process with Roslyn against the real core (and, for
+    generated shapes, the real generator), RF0001 and RF0002 compared with `// expect:` markers both ways, the `_ =`
+    fix and fix-all, the .editorconfig key, the 4.14 build loaded by path, and the one negative-compile check for
+    decision 9 (operators need `using Resultful.Operators;`).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <!-- CA1859/CA1034 don't fit test code; CA1515 public xunit classes; CA2007 no ConfigureAwait in tests. -->
+    <NoWarn>$(NoWarn);CA1859;CA1034;CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- In process with Roslyn 5.12, so the 5.x builds. The 4.14 build is loaded by path in RoslynBuildTests. -->
+    <ProjectReference Include="..\..\src\Resultful.Analyzers.Roslyn5\Resultful.Analyzers.Roslyn5.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.Analyzers\Resultful.Analyzers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" />
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="Roslyn414Build" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../src/Resultful.Analyzers/bin/$(Configuration)/netstandard2.0/Resultful.Analyzers.dll'))" />
+  </ItemGroup>
+</Project>
