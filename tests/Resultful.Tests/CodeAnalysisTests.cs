@@ -52,6 +52,8 @@ namespace Resultful.Tests
 
         [TestCase(typeof(Result<int>))]
         [TestCase(typeof(Result<int, string>))]
+        [TestCase(typeof(Validation<int>))]
+        [TestCase(typeof(Validation<int, string>))]
         [TestCase(typeof(Option<int>))]
         public void The_core_results_carry_MustObserve(Type type)
             => Assert.That(type.IsDefined(typeof(MustObserveAttribute), inherit: false), Is.True);
@@ -99,11 +101,31 @@ namespace Resultful.Tests
             var shape = typeof(CountResult).GetCustomAttribute<ResultShapeAttribute>()!;
             Assert.That((shape.ErrorType, shape.Success, shape.ManyErrors), Is.EqualTo((typeof(Error), typeof(int), false)));
         }
+
+        // A shape that gathers (ManyErrors = true) wraps a Validation and implements IValidationShape (decision 16, 10).
+        [ResultShape(typeof(Error), Success = typeof(int), ManyErrors = true)]
+        readonly struct CountsResult(Validation<int, Error> inner) : IValidationShape<int, Error>
+        {
+            public Validation<int, Error> AsValidation() => inner;
+        }
+
+        [Test]
+        public void An_extension_over_IValidationShape_reads_every_error()
+        {
+            var ok = new CountsResult(Validation.Ok<int, Error>(3));
+            var failed = new CountsResult(Validation.Fail<int, Error>([Error.From("a"), Error.From("b")]));
+
+            Assert.That(ok.Describe(), Is.EqualTo("ok 3"));
+            Assert.That(failed.Describe(), Is.EqualTo("failed: a, b"));
+        }
     }
 
     static class ShapeExtensions
     {
         public static string Describe<T, TError>(this IResultShape<T, TError> shape) where TError : Error
             => shape.AsResult().TryGetValue(out var value) ? $"ok {value}" : $"failed: {shape.AsResult().Error.Message}";
+
+        public static string Describe<T, TError>(this IValidationShape<T, TError> shape) where TError : Error
+            => shape.AsValidation().Match(value => $"ok {value}", errors => $"failed: {string.Join(", ", errors.Select(e => e.Message))}");
     }
 }

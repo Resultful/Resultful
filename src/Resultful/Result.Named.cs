@@ -180,6 +180,12 @@ namespace Resultful
         internal const string NoConstructor
             = "The parameterless constructor gives the zero value, which is neither a success nor a failure. Create results with Result.Ok or Result.Fail.";
 
+        internal const string NoValidationConstructor
+            = "The parameterless constructor gives the zero value, which is neither a success nor a failure. Create validations with Validation.Ok or Validation.Fail.";
+
+        internal static InvalidOperationException NoErrors()
+            => new("The validation is a success, so it has no errors. Check IsFailure or call TryGetErrors first.");
+
         internal static InvalidOperationException NoValue()
             => new("The result is a failure, so it has no value. Check IsSuccess or call TryGetValue first.");
 

@@ -43,6 +43,13 @@ namespace Resultful
         public static implicit operator VoidResult(Result<Unit> value)
             => value.Match(_ => Result.Ok(), e => Result.Fail(e));
 
+        /// <summary>Converts to a result whose value is <see cref="Unit"/>: a success holds <see cref="Unit.Value"/>, and a failure keeps its error.</summary>
+        /// <param name="value">The result to convert.</param>
+        /// <remarks>With the conversion the other way, code can move from <c>VoidResult</c> to <c>Result&lt;Unit&gt;</c> one call at a time (decision 14, roadmap M2).</remarks>
+        /// <exception cref="InvalidOperationException"><paramref name="value"/> is the zero value (<c>default</c>).</exception>
+        public static implicit operator Result<Unit>(VoidResult value)
+            => value.Match(u => u.Ok(), e => e.Fail<Unit>());
+
         /// <summary>Converts an error, including any record derived from <see cref="Error"/>, to a failure holding it.</summary>
         /// <param name="error">The error.</param>
         /// <exception cref="ArgumentNullException"><paramref name="error"/> is <c>null</c>.</exception>
