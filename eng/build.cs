@@ -217,7 +217,8 @@ Task("CI")
 
 // Release targets, run by .github/workflows/release.yml in its read-only jobs (decision 22):
 //   ReleasePlan            validate PACKAGES (e.g. "Resultful=0.2.0", or JSON {"Resultful":"0.2.0"}) against
-//                          .github/release-packages.json, nuget.org and the tags; write plan_json to $GITHUB_OUTPUT
+//                          .github/release-packages.json, nuget.org and the tags; write plan_json to $GITHUB_OUTPUT.
+//                          Draft releases are invisible to this read-only job: release.yml's `draft` job checks those
 //   ReleaseProps           write the gitignored release-versions.props from $PLAN_JSON
 //   ReleaseCheckArtifacts  require artifacts/<key>/ to hold exactly the planned packages
 const string ManifestPath = ".github/release-packages.json";
@@ -273,13 +274,13 @@ async System.Threading.Tasks.Task ReleasePlan()
         var published = await PublishedVersions(http, package.PackageId);
         var isPublished = published.Contains(version);
 
-        string? tagSha = tags.Contains(tag) ? Git("rev-list", "-n", "1", tag) : null;
-        if (tagSha is not null && tagSha != sha)
-            failures.Add($"{key}: tag {tag} already points at {tagSha}, not {sha}.");
+        // A tag is made only when finalize.yml publishes the version's draft release, so an existing tag means done.
+        if (tags.Contains(tag))
+            failures.Add($"{key}: {tag} already exists, at {Git("rev-list", "-n", "1", tag)}; {normalized} is released.");
+        else if (isPublished)
+            failures.Add($"{key}: {package.PackageId} {normalized} is on nuget.org but not tagged; run finalize.yml for its draft release {tag}.");
         if (key == "Resultful" && tags.Contains($"v{normalized}")) // older releases tagged only the core, as v<version>
             failures.Add($"{key}: the older tag v{normalized} already exists; {normalized} was released before this workflow.");
-        if (isPublished && tagSha != sha)
-            failures.Add($"{key}: {package.PackageId} {normalized} is already on nuget.org and wasn't released from {sha}.");
 
         // Monotonic within a major.minor line, so a fix to an older line (0.1.x after 0.2.0) is still allowed.
         var line = published.Where(v => v.Major == version.Major && v.Minor == version.Minor && v != version).ToList();
@@ -301,10 +302,9 @@ async System.Threading.Tasks.Task ReleasePlan()
             .DefaultIfEmpty()
             .Max();
 
-        var releaseExists = tagSha is not null && ReleaseExists(tag);
         plan.Add(new ReleasePlanEntry(
             key, package.PackageId, normalized, tag, version.IsPrerelease, baseline?.ToNormalizedString() ?? "",
-            tagSha is not null, isPublished, releaseExists, Notes(key, package, version, tags)));
+            Notes(key, package, version, tags)));
     }
 
     if (failures.Count > 0)
@@ -312,9 +312,9 @@ async System.Threading.Tasks.Task ReleasePlan()
 
     var json = JsonSerializer.Serialize(plan, ReleasePlanJson.Options);
     AppendTo("GITHUB_OUTPUT", $"plan_json={json}\n");
-    var summary = new StringBuilder($"### Release plan{(dryRun ? " (dry run)" : "")} for `{sha}`\n\n| Package | Version | Tag | Baseline | State |\n|---|---|---|---|---|\n");
+    var summary = new StringBuilder($"### Release plan{(dryRun ? " (dry run)" : "")} for `{sha}`\n\n| Package | Version | Tag | Baseline |\n|---|---|---|---|\n");
     foreach (var p in plan)
-        summary.Append(CultureInfo.InvariantCulture, $"| {p.PackageId} | {p.Version} | `{p.Tag}` | {(p.Baseline is "" ? "none" : p.Baseline)} | {(p.Published ? "published, resuming" : "new")} |\n");
+        summary.Append(CultureInfo.InvariantCulture, $"| {p.PackageId} | {p.Version} | `{p.Tag}` | {(p.Baseline is "" ? "none" : p.Baseline)} |\n");
     AppendTo("GITHUB_STEP_SUMMARY", summary.ToString());
     Console.WriteLine(json);
 }
@@ -430,13 +430,6 @@ string Notes(string key, ReleasePackage package, NuGetVersion version, HashSet<s
     return $"Changes to {package.PackageId} since {since}:\n\n{body}\n\nSee RELEASE_NOTES.md for the full notes.";
 }
 
-static bool ReleaseExists(string tag)
-{
-    var repo = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") ?? "Resultful/Resultful";
-    var (exit, _) = RunCaptured("gh", ["release", "view", tag, "--repo", repo, "--json", "tagName"], throwOnError: false);
-    return exit == 0;
-}
-
 static List<ReleasePlanEntry> ReadReleasePlan()
 {
     var json = Environment.GetEnvironmentVariable("PLAN_JSON") ?? throw new ReleaseException("PLAN_JSON isn't set.");
@@ -453,7 +446,7 @@ static void AppendTo(string variable, string text)
 
 static string Git(params string[] arguments) => RunCaptured("git", arguments).Output;
 
-static (int Exit, string Output) RunCaptured(string file, string[] arguments, bool throwOnError = true)
+static (int Exit, string Output) RunCaptured(string file, string[] arguments)
 {
     var start = new ProcessStartInfo(file) { RedirectStandardOutput = true, RedirectStandardError = true };
     foreach (var argument in arguments)
@@ -462,7 +455,7 @@ static (int Exit, string Output) RunCaptured(string file, string[] arguments, bo
     var output = process.StandardOutput.ReadToEnd();
     var error = process.StandardError.ReadToEnd();
     process.WaitForExit();
-    if (throwOnError && process.ExitCode != 0)
+    if (process.ExitCode != 0)
         throw new ReleaseException($"{file} {string.Join(' ', arguments)} failed ({process.ExitCode}): {error.Trim()}");
     return (process.ExitCode, output.Trim());
 }
@@ -473,7 +466,7 @@ sealed record ReleasePackage(string PackageId, string[] Inputs, string[] Depends
 
 sealed record ReleasePlanEntry(
     string Key, string PackageId, string Version, string Tag, bool Prerelease, string Baseline,
-    bool TagExists, bool Published, bool ReleaseExists, string Notes);
+    string Notes);
 
 static class ReleasePlanJson
 {

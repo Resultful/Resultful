@@ -15,7 +15,8 @@ generated:
 # 22. Releases are a manual run with a map of packages and versions
 
 This replaces the lockstep release in [decision 11](0011-package-family.md) ("How a release works") and the
-publish job in [decision 7](0007-ci-hardening.md).
+publish job in [decision 7](0007-ci-hardening.md). [Decision 23](0023-draft-release-then-finalize.md) amends it: a
+draft GitHub Release records each staged version, and `finalize.yml` replaces the `finalize` job it first had.
 
 **A release is a manual run of `.github/workflows/release.yml`**, given the packages to release and their versions,
 for example `Resultful=0.2.0-beta07` or `{"Resultful":"0.2.0-beta07"}`. A run releases only the packages it names,
@@ -34,11 +35,11 @@ The jobs:
 
 | Job | Does | Permissions |
 |---|---|---|
-| `plan` | Checks the map: main only for a real run; each package is in the manifest; strict SemVer, no `v`; the tag and nuget.org version are free (or were made by this commit, for a re-run); the version is above every published one on its major.minor line; coupled packages released together. Writes `plan_json` | `contents: read` |
+| `plan` | Checks the map: main only for a real run; each package is in the manifest; strict SemVer, no `v`; the tag and nuget.org version are free; the version is above every published one on its major.minor line; coupled packages released together. Writes `plan_json` | `contents: read` |
 | `verify_ci` | The commit's `ci` check passed (a dry run only warns) | `checks: read` |
 | `pack` | Writes `release-versions.props`, packs into `artifacts/<package>/`, runs the package checks and a NuGet consumer against it | `contents: read` |
-| `publish` | Stages each package (and its symbols) on nuget.org with `dotnet package stage push` and trusted publishing, in the `release` environment. Nothing is public until a maintainer promotes it on nuget.org, signed in with 2FA. No checkout | `id-token: write` |
-| `finalize` | Approved (`release-verify` environment) after promotion. Waits until each version is on nuget.org, tags `<package>/v<version>` (e.g. `Resultful/v0.2.0`) at the run's commit and creates its GitHub Release (a pre-release when the version has a `-`) No checkout | `contents: write` |
+| `publish` | After `draft`, stages each package (and its symbols) on nuget.org with `dotnet package stage push` and trusted publishing, in the `release` environment. Nothing is public until a maintainer promotes it on nuget.org, signed in with 2FA. No checkout | `id-token: write` |
+| `draft` | Creates a draft GitHub Release per package at the run's commit, before staging ([decision 23](0023-draft-release-then-finalize.md)). No checkout | `contents: write` |
 
 The logic is in `eng/build.cs` (`ReleasePlan`, `ReleaseProps`, `ReleaseCheckArtifacts`), and runs only in the
 read-only jobs. The two jobs that can write run no repository code.
@@ -46,7 +47,7 @@ read-only jobs. The two jobs that can write run no repository code.
 Why:
 - Committing a version meant a pull request per release, and lockstep republished packages that hadn't changed.
 - Choosing versions at dispatch time lets a fix to one package ship alone, and keeps every release a deliberate,
-  reviewed act (two environment approvals).
+  reviewed act (the `release` environment approval, then promotion on nuget.org with 2FA).
 - Per-package tags and releases say exactly which package a tag is for once there is more than one.
 
 Consequences:
@@ -59,10 +60,9 @@ Consequences:
   Before re-running `publish`, check nuget.org's staged packages.
 - CI's packed consumers run against `0.0.0-dev`, which sorts below `0.2.0-beta05`; the upgrade check allows that
   downgrade warning (`NU1605`), since what it checks is the run-time binding.
-- If `plan`, `pack` or `finalize` fails, "Re-run failed jobs" finishes the run: the tag and release steps accept
-  what an earlier attempt made.
-- A run that published but never tagged (cancelled, or its jobs can no longer be re-run) needs the tag and release
-  made by hand: a new dispatch refuses a version that is already on nuget.org without its tag at that commit.
+- If a job fails, "Re-run failed jobs" finishes the run. Once a draft exists, a new dispatch for that version fails
+  at `draft`, and `plan` refuses a version that is on nuget.org: finalize it with `finalize.yml`
+  ([decision 23](0023-draft-release-then-finalize.md)).
 - The package validation baseline is the newest stable version on the line, so a pre-release of a line with no
   stable version yet (all of 0.2 today) has none. `CompatUpgrade` still checks a beta05 consumer at run time.
 - The pack step packs only `Resultful`. A second package in the manifest needs `Pack` to pack each planned one.

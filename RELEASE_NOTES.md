@@ -58,7 +58,9 @@ until you are ready to move; 0.3's release notes carry the migration.
 - Releases are a manual `release.yml` run given the packages and versions to publish; no version is committed,
   and each package is tagged `<package>/v<version>` (`Resultful/v0.2.0`) with its own GitHub Release
   ([decision 22](docs/decisions/0022-releases-are-a-dispatch-map.md)). It stages each package on nuget.org, which
-  goes public only when promoted there with 2FA. Merging to `main` never publishes.
+  goes public only when promoted there with 2FA, and drafts its GitHub Release; once the version is public,
+  `finalize.yml` publishes the draft, which tags it ([decision 23](docs/decisions/0023-draft-release-then-finalize.md)).
+  Merging to `main` never publishes.
 
 ## 0.2.0-beta06
 

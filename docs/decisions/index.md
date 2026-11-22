@@ -34,3 +34,4 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 20 | [`Resultful.HotChocolate` maps error cases to GraphQL error types](0020-hotchocolate-graphql.md) | stable | 21 November 2026 |
 | 21 | [M5 ecosystem candidates and samples](0021-ecosystem-candidates.md) | proposed | 21 November 2026 |
 | 22 | [Releases are a manual run with a map of packages and versions](0022-releases-are-a-dispatch-map.md) (replaces lockstep, 11) | stable | 21 November 2026 |
+| 23 | [A draft GitHub Release records what was staged; `finalize.yml` publishes it](0023-draft-release-then-finalize.md) (amends 22) | stable | 22 November 2026 |
