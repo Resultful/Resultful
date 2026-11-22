@@ -23,6 +23,8 @@ staged from which commit, with which notes. **That record is a draft GitHub Rele
 - **`release.yml`'s `draft` job** runs after `pack` and before `publish`. For each package it creates a draft release
   named for the tag `<package>/v<version>`, targeting the run's commit, with the release notes. A draft creates no
   tag. If the tag already has a release, draft or published, the job fails and nothing is staged.
+- **`pack`** checks that each package's nuspec records the run's commit (`<repository commit=…>`), the value
+  `finalize.yml` later matches against the draft. 0.2.0-beta05 on nuget.org doesn't record it.
 - **`publish`** stages the packages only after every draft exists, so each staged version has a draft.
 - **`finalize.yml`** is the last step, run after the version is promoted on nuget.org, by hand or by a local agent:
   `gh workflow run finalize.yml -f tag=Resultful/v0.2.0`. It checks:
@@ -62,5 +64,7 @@ Consequences:
 - GitHub accepts a second draft with the same tag without complaint, and ignores `target_commitish` if the tag
   already exists. Both scripts check for these, and `finalize` refuses rather than guessing.
 - A dependant promoted before its dependency waits: `finalize` refuses it until the dependency's draft is published.
+- If nuget.org or the GitHub API answers with anything but a clear yes or no, `finalize` stops rather than guessing,
+  so an outage can't make it discard a live version's draft.
 - Dry runs stop after `pack`, so they never exercise `draft`, `publish` or `finalize`.
 - The `release-verify` environment is deleted once the last release that used it is tagged.
