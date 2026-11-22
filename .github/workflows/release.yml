@@ -154,14 +154,30 @@ jobs:
           NOTES: ${{ matrix.package.notes }}
           PRERELEASE: ${{ matrix.package.prerelease }}
         run: |
-          existing=$(gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.tag_name == env.TAG) | "\(.target_commitish) (draft: \(.draft))"')
+          set -euo pipefail
+          releases_for_tag() { gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.tag_name == env.TAG) | "\(.id) \(.target_commitish) (draft: \(.draft))"'; }
+          existing=$(releases_for_tag | paste -sd ';' -)
           if [ -n "$existing" ]; then
             echo "::error::$TAG already has a release: $existing. Finalize or delete it (finalize.yml) before releasing again."
             exit 1
           fi
-          created=$(gh api "repos/$REPO/releases" -f tag_name="$TAG" -f target_commitish="$SHA" -f name="$TITLE" \
-            -f body="$NOTES" -F draft=true -F prerelease="$PRERELEASE" --jq .tag_name)
+          read -r id created < <(gh api "repos/$REPO/releases" -f tag_name="$TAG" -f target_commitish="$SHA" -f name="$TITLE" \
+            -f body="$NOTES" -F draft=true -F prerelease="$PRERELEASE" --jq '"\(.id) \(.tag_name)"')
           [ "$created" = "$TAG" ] || { echo "::error::GitHub created the draft as $created, not $TAG."; exit 1; }
+
+          # The release list lags a new draft by seconds, so the check above can miss one made at the same time. Wait
+          # until this draft is listed, then this must be the tag's only release; if not, take this one back.
+          for _ in $(seq 1 12); do
+            listed=$(releases_for_tag)
+            grep -q "^$id " <<<"$listed" && break
+            sleep 5
+          done
+          grep -q "^$id " <<<"$listed" || { echo "::error::the draft $id for $TAG never appeared in the release list."; exit 1; }
+          if [ "$(wc -l <<<"$listed")" -ne 1 ]; then
+            gh api -X DELETE "repos/$REPO/releases/$id"
+            echo "::error::$TAG has more than one release ($(paste -sd ';' - <<<"$listed")); deleted this run's draft $id."
+            exit 1
+          fi
           echo "- Drafted \`$TAG\` at \`$SHA\`." >> "$GITHUB_STEP_SUMMARY"
 
   # No checkout, no repository code: only the packed artifact and a short-lived NuGet key. Stages, never publishes.

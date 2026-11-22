@@ -63,6 +63,9 @@ Consequences:
   `finalize.yml` with `discard`.
 - GitHub accepts a second draft with the same tag without complaint, and ignores `target_commitish` if the tag
   already exists. Both scripts check for these, and `finalize` refuses rather than guessing.
+- The release list shows a new draft only seconds after it is made, so a check just before creating can miss a draft
+  made at the same time. `draft` waits until its own draft is listed, and deletes it if the tag has another release.
+  `finalize` runs long after the draft is made, when the list has caught up.
 - A dependant promoted before its dependency waits: `finalize` refuses it until the dependency's draft is published.
 - If nuget.org or the GitHub API answers with anything but a clear yes or no, `finalize` stops rather than guessing,
   so an outage can't make it discard a live version's draft.
