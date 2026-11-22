@@ -93,9 +93,9 @@ jobs:
           fi
           [[ "$ref_error" == *"HTTP 404"* ]] || fail "couldn't check whether $TAG exists: $ref_error"
 
-          # A package this one depends on, released from the same commit, must be finalized first.
+          # A package this one depends on, drafted at the same commit, must be finalized first.
           for dep in $(jq -r --arg k "$key" '.packages[$k].depends_on // [] | .[]' <<<"$manifest"); do
-            pending=$(DEP="$dep/v" gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.draft and (.tag_name | startswith(env.DEP))) | .tag_name' | paste -sd ',' -)
+            pending=$(DEP="$dep/v" SHA="$sha" gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.draft and .target_commitish == env.SHA and (.tag_name | startswith(env.DEP))) | .tag_name' | paste -sd ',' -)
             [ -z "$pending" ] || fail "$key depends on $dep, whose draft $pending isn't finalized yet; finalize it first."
           done
 
