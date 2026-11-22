@@ -100,7 +100,8 @@ jobs:
           done
 
           latest=$([ "$prerelease" = "true" ] && echo false || echo true)
-          gh api -X PATCH "repos/$REPO/releases/$id" -F draft=false -F prerelease="$prerelease" -f make_latest="$latest" --silent
+          # Name the tag again: an edit that leaves tag_name out can turn a draft into "untagged-<hash>".
+          gh api -X PATCH "repos/$REPO/releases/$id" -f tag_name="$TAG" -F draft=false -F prerelease="$prerelease" -f make_latest="$latest" --silent
           tagged=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)
           [ "$tagged" = "$sha" ] || fail "published, but $TAG points at $tagged, not $sha."
           summary "Published $TAG: tagged at \`$sha\`."
