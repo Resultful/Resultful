@@ -1,0 +1,107 @@
+name: finalize
+
+# The last step of a release (decision 23). release.yml leaves a draft GitHub Release per package at the commit it
+# built, and stages the package on nuget.org. Once a maintainer has promoted the version there, run this with the
+# draft's tag (`gh workflow run finalize.yml -f tag=Resultful/v0.2.0`): it checks the version is public and was built
+# from the draft's commit, then publishes the draft, and GitHub creates the tag at that commit. A version that isn't
+# public yet changes nothing, so this is safe to run again and again. `discard` deletes a draft whose version will never
+# be promoted (it expired on nuget.org, or was rejected).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The draft release to finalize, e.g. Resultful/v0.2.0'
+        type: string
+        required: true
+      discard:
+        description: 'Delete the draft instead (only if the version is not on nuget.org)'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: finalize-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  # No checkout, no repository code: GitHub's API and nuget.org only.
+  finalize:
+    name: finalize
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # publish or delete the draft (drafts are only visible to a token that can write)
+    steps:
+      - name: Finalize ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          DISCARD: ${{ inputs.discard }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          summary() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+
+          [[ "$TAG" =~ ^([A-Za-z0-9._-]+)/v([0-9A-Za-z.+-]+)$ ]] || fail "'$TAG' isn't <package>/v<version>."
+          key="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+
+          # releases/tags/{tag} never returns drafts, so search the list.
+          releases=$(gh api --paginate "repos/$REPO/releases?per_page=100" --jq '[.[] | select(.tag_name == env.TAG)]' | jq -s 'add // []')
+          published=$(jq '[.[] | select(.draft | not)] | length' <<<"$releases")
+          drafts=$(jq '[.[] | select(.draft)] | length' <<<"$releases")
+          if [ "$published" -gt 0 ]; then summary "$TAG is already published; nothing to do."; exit 0; fi
+          [ "$drafts" -eq 1 ] || fail "expected one draft release for $TAG, found $drafts."
+          id=$(jq -r '.[0].id' <<<"$releases")
+          sha=$(jq -r '.[0].target_commitish' <<<"$releases")
+          prerelease=$(jq -r '.[0].prerelease' <<<"$releases")
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || fail "the draft for $TAG targets '$sha', not a commit."
+
+          # The manifest at the draft's commit gives the package id and its dependencies (read as data, never run).
+          manifest=$(gh api "repos/$REPO/contents/.github/release-packages.json?ref=$sha" --jq .content | base64 -d)
+          id_lower=$(jq -r --arg k "$key" '.packages[$k].package_id // empty' <<<"$manifest" | tr '[:upper:]' '[:lower:]')
+          [ -n "$id_lower" ] || fail "$key isn't in .github/release-packages.json at $sha."
+          version_lower=$(tr '[:upper:]' '[:lower:]' <<<"$version")
+          # 200 is public, 404 is not; anything else (an outage) stops here rather than being read as "not public".
+          nuspec_file=$(mktemp)
+          status=$(curl -sS -o "$nuspec_file" -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/$id_lower/$version_lower/$id_lower.nuspec")
+          case "$status" in
+            200) nuspec=$(cat "$nuspec_file") ;;
+            404) nuspec="" ;;
+            *) fail "nuget.org answered HTTP $status for $key $version; try again later." ;;
+          esac
+
+          if [ "$DISCARD" = "true" ]; then
+            [ -z "$nuspec" ] || fail "$key $version is on nuget.org; finalize it rather than discarding it."
+            gh api -X DELETE "repos/$REPO/releases/$id"
+            summary "Deleted the draft for $TAG (was at \`$sha\`)."
+            exit 0
+          fi
+          if [ -z "$nuspec" ]; then summary "$key $version isn't on nuget.org yet (promote it there first); nothing changed."; exit 0; fi
+
+          # The package records the commit it was built from; it must be the draft's.
+          built=$(grep -o 'commit="[0-9a-f]*"' <<<"$nuspec" | head -n 1 | cut -d'"' -f2)
+          [ "$built" = "$sha" ] || fail "$key $version on nuget.org was built from '$built', but the draft is at $sha."
+
+          # target_commitish is ignored when the tag already exists, so a tag made by hand would be adopted silently.
+          # Only a 404 means the tag is absent; any other error stops here.
+          if ref_error=$(gh api "repos/$REPO/git/ref/tags/$TAG" --silent 2>&1); then
+            fail "the tag $TAG already exists; the draft would not create it at $sha."
+          fi
+          [[ "$ref_error" == *"HTTP 404"* ]] || fail "couldn't check whether $TAG exists: $ref_error"
+
+          # A package this one depends on, drafted at the same commit, must be finalized first.
+          for dep in $(jq -r --arg k "$key" '.packages[$k].depends_on // [] | .[]' <<<"$manifest"); do
+            pending=$(DEP="$dep/v" SHA="$sha" gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.draft and .target_commitish == env.SHA and (.tag_name | startswith(env.DEP))) | .tag_name' | paste -sd ',' -)
+            [ -z "$pending" ] || fail "$key depends on $dep, whose draft $pending isn't finalized yet; finalize it first."
+          done
+
+          latest=$([ "$prerelease" = "true" ] && echo false || echo true)
+          # Name the tag again: an edit that leaves tag_name out can turn a draft into "untagged-<hash>".
+          gh api -X PATCH "repos/$REPO/releases/$id" -f tag_name="$TAG" -F draft=false -F prerelease="$prerelease" -f make_latest="$latest" --silent
+          tagged=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)
+          [ "$tagged" = "$sha" ] || fail "published, but $TAG points at $tagged, not $sha."
+          summary "Published $TAG: tagged at \`$sha\`."

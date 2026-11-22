@@ -1,10 +1,11 @@
 name: release
 
-# Publishing is a manual run of this workflow (decision 22). Give the packages to release and their versions, e.g.
-# `Resultful=0.2.0-beta07` (or JSON {"Resultful":"0.2.0-beta07"}); versions are never committed. A dry run (the
+# Publishing is a manual run of this workflow (decisions 22 and 23). Give the packages to release and their versions,
+# e.g. `Resultful=0.2.0-beta07` (or JSON {"Resultful":"0.2.0-beta07"}); versions are never committed. A dry run (the
 # default) plans, checks and packs without publishing, on any branch. A real run publishes from main only, and only a
-# commit whose `ci` check passed. It stages the packages on nuget.org: they go public only when promoted there (signed
-# in with 2FA), and then approving `release-verify` tags them. If a run fails part way, use "Re-run failed jobs".
+# commit whose `ci` check passed. It drafts a GitHub Release per package at the run's commit, then stages the packages
+# on nuget.org: they go public only when promoted there (signed in with 2FA). Once a version is public, finalize.yml
+# publishes its draft, which tags it. If a run fails part way, use "Re-run failed jobs".
 on:
   workflow_dispatch:
     inputs:
@@ -56,7 +57,6 @@ jobs:
         env:
           PACKAGES: ${{ inputs.packages }}
           DRY_RUN: ${{ inputs.dry_run }}
-          GH_TOKEN: ${{ github.token }}
         run: dotnet run eng/build.cs -- --target=ReleasePlan
 
   # The commit must have passed ci.yml's `ci` gate. A dry run only warns, so any branch can be tried.
@@ -126,11 +126,65 @@ jobs:
           if-no-files-found: error
           overwrite: true # "Re-run all jobs" packs again
 
+  # One draft GitHub Release per package, at the run's commit, before anything is staged. The draft is the record of
+  # what was staged from which commit; it creates no tag. finalize.yml publishes it once the version is on nuget.org,
+  # and only then does GitHub create the tag <package>/v<version> at the draft's commit. No checkout.
+  draft:
+    name: draft
+    needs: [ plan, verify_ci, pack ]
+    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && needs.verify_ci.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # draft releases (drafts are only visible to a token that can write)
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.plan.outputs.plan_json) }}
+    steps:
+      # Any existing draft means a run already got this far, and may have staged the version: staging it again is
+      # untested, so stop. GitHub would accept a second draft for the same tag without complaint.
+      - name: Draft ${{ matrix.package.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TAG: ${{ matrix.package.tag }}
+          TITLE: ${{ matrix.package.package_id }} ${{ matrix.package.version }}
+          NOTES: ${{ matrix.package.notes }}
+          PRERELEASE: ${{ matrix.package.prerelease }}
+        run: |
+          set -euo pipefail
+          releases_for_tag() { gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | select(.tag_name == env.TAG) | "\(.id) \(.target_commitish) (draft: \(.draft))"'; }
+          existing=$(releases_for_tag | paste -sd ';' -)
+          if [ -n "$existing" ]; then
+            echo "::error::$TAG already has a release: $existing. Finalize or delete it (finalize.yml) before releasing again."
+            exit 1
+          fi
+          read -r id created < <(gh api "repos/$REPO/releases" -f tag_name="$TAG" -f target_commitish="$SHA" -f name="$TITLE" \
+            -f body="$NOTES" -F draft=true -F prerelease="$PRERELEASE" --jq '"\(.id) \(.tag_name)"')
+          [ "$created" = "$TAG" ] || { echo "::error::GitHub created the draft as $created, not $TAG."; exit 1; }
+
+          # The release list lags a new draft by seconds, so the check above can miss one made at the same time. Wait
+          # until this draft is listed, then this must be the tag's only release; if not, take this one back.
+          for _ in $(seq 1 12); do
+            listed=$(releases_for_tag)
+            grep -q "^$id " <<<"$listed" && break
+            sleep 5
+          done
+          grep -q "^$id " <<<"$listed" || { echo "::error::the draft $id for $TAG never appeared in the release list."; exit 1; }
+          if [ "$(wc -l <<<"$listed")" -ne 1 ]; then
+            gh api -X DELETE "repos/$REPO/releases/$id"
+            echo "::error::$TAG has more than one release ($(paste -sd ';' - <<<"$listed")); deleted this run's draft $id."
+            exit 1
+          fi
+          echo "- Drafted \`$TAG\` at \`$SHA\`." >> "$GITHUB_STEP_SUMMARY"
+
   # No checkout, no repository code: only the packed artifact and a short-lived NuGet key. Stages, never publishes.
   publish:
     name: publish
-    needs: [ plan, verify_ci, pack ]
-    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && needs.verify_ci.result == 'success' }}
+    needs: [ plan, verify_ci, pack, draft ]
+    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && needs.verify_ci.result == 'success' && needs.draft.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -164,50 +218,5 @@ jobs:
           shopt -s globstar
           for pkg in artifacts/**/*.nupkg; do
             dotnet package stage push "$pkg" --source https://api.nuget.org/v3/index.json
-            echo "- Staged \`$(basename "$pkg")\`: promote it on nuget.org, then approve \`release-verify\`." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Staged \`$(basename "$pkg")\`: promote it on nuget.org; finalize.yml then publishes its draft release." >> "$GITHUB_STEP_SUMMARY"
           done
-
-  # Approve release-verify once each version is promoted on nuget.org: this tags <package>/v<version> at the run's
-  # commit and creates its GitHub Release.
-  finalize:
-    name: finalize
-    needs: [ plan, publish ]
-    if: ${{ needs.publish.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write # the tag and the release
-    environment: release-verify
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJSON(needs.plan.outputs.plan_json) }}
-    steps:
-      # 404 until the package is promoted and indexed (minutes after promotion).
-      - name: Wait until ${{ matrix.package.package_id }} ${{ matrix.package.version }} is on nuget.org
-        env:
-          ID: ${{ matrix.package.package_id }}
-          VERSION: ${{ matrix.package.version }}
-        run: curl -fsS -o /dev/null --retry 60 --retry-delay 20 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/${ID,,}/${VERSION,,}/${ID,,}.nuspec"
-
-      - name: Tag ${{ matrix.package.tag }}
-        if: ${{ !matrix.package.tag_exists }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-          TAG: ${{ matrix.package.tag }}
-        # A re-run accepts the tag if an earlier attempt made it at this commit.
-        run: gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" --silent || [ "$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)" = "$SHA" ]
-
-      - name: GitHub Release ${{ matrix.package.tag }}
-        if: ${{ !matrix.package.release_exists }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ matrix.package.tag }}
-          TITLE: ${{ matrix.package.package_id }} ${{ matrix.package.version }}
-          NOTES: ${{ matrix.package.notes }}
-          PRERELEASE: ${{ matrix.package.prerelease }}
-          LATEST: ${{ !matrix.package.prerelease }}
-        run: gh release create "$TAG" --repo "$REPO" --verify-tag --title "$TITLE" --notes "$NOTES" --prerelease="$PRERELEASE" --latest="$LATEST" || gh release view "$TAG" --repo "$REPO" --json tagName
