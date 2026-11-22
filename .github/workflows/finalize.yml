@@ -65,7 +65,14 @@ jobs:
           id_lower=$(jq -r --arg k "$key" '.packages[$k].package_id // empty' <<<"$manifest" | tr '[:upper:]' '[:lower:]')
           [ -n "$id_lower" ] || fail "$key isn't in .github/release-packages.json at $sha."
           version_lower=$(tr '[:upper:]' '[:lower:]' <<<"$version")
-          nuspec=$(curl -fsS "https://api.nuget.org/v3-flatcontainer/$id_lower/$version_lower/$id_lower.nuspec" || true)
+          # 200 is public, 404 is not; anything else (an outage) stops here rather than being read as "not public".
+          nuspec_file=$(mktemp)
+          status=$(curl -sS -o "$nuspec_file" -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/$id_lower/$version_lower/$id_lower.nuspec")
+          case "$status" in
+            200) nuspec=$(cat "$nuspec_file") ;;
+            404) nuspec="" ;;
+            *) fail "nuget.org answered HTTP $status for $key $version; try again later." ;;
+          esac
 
           if [ "$DISCARD" = "true" ]; then
             [ -z "$nuspec" ] || fail "$key $version is on nuget.org; finalize it rather than discarding it."
@@ -80,7 +87,11 @@ jobs:
           [ "$built" = "$sha" ] || fail "$key $version on nuget.org was built from '$built', but the draft is at $sha."
 
           # target_commitish is ignored when the tag already exists, so a tag made by hand would be adopted silently.
-          if gh api "repos/$REPO/git/ref/tags/$TAG" --silent 2>/dev/null; then fail "the tag $TAG already exists; the draft would not create it at $sha."; fi
+          # Only a 404 means the tag is absent; any other error stops here.
+          if ref_error=$(gh api "repos/$REPO/git/ref/tags/$TAG" --silent 2>&1); then
+            fail "the tag $TAG already exists; the draft would not create it at $sha."
+          fi
+          [[ "$ref_error" == *"HTTP 404"* ]] || fail "couldn't check whether $TAG exists: $ref_error"
 
           # A package this one depends on, released from the same commit, must be finalized first.
           for dep in $(jq -r --arg k "$key" '.packages[$k].depends_on // [] | .[]' <<<"$manifest"); do

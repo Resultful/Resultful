@@ -351,7 +351,20 @@ void ReleaseCheckArtifacts()
         : [];
     if (!found.SequenceEqual(expected))
         throw new ReleaseException($"{ReleaseArtifactsRoot}/ holds [{string.Join(", ", found)}], expected exactly [{string.Join(", ", expected)}].");
-    Console.WriteLine("artifacts/ holds exactly the planned packages at their planned versions.");
+
+    // finalize.yml publishes a draft only if the package on nuget.org records the draft's commit (decision 23).
+    var sha = Env("GITHUB_SHA", "") is { Length: > 0 } s ? s : Git("rev-parse", "HEAD");
+    foreach (var nupkg in found.Where(f => f.EndsWith(".nupkg", StringComparison.Ordinal)))
+    {
+        using var zip = System.IO.Compression.ZipFile.OpenRead(System.IO.Path.Combine(ReleaseArtifactsRoot, nupkg));
+        var entry = zip.Entries.Single(e => !e.FullName.Contains('/') && e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+        using var stream = entry.Open();
+        var commit = System.Xml.Linq.XDocument.Load(stream).Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "repository")?.Attribute("commit")?.Value;
+        if (commit != sha)
+            throw new ReleaseException($"{nupkg} records repository commit '{commit}', not {sha}; finalize.yml could not match it to its draft.");
+    }
+    Console.WriteLine($"artifacts/ holds exactly the planned packages at their planned versions, built from {sha}.");
 }
 
 static List<KeyValuePair<string, string>> ParseMap(string text)
