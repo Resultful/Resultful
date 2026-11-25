@@ -15,6 +15,7 @@
     <Project Path="src/Resultful.AspNetCore/Resultful.AspNetCore.csproj" />
     <Project Path="src/Resultful.Generators/Resultful.Generators.csproj" />
     <Project Path="src/Resultful.Generators.Roslyn5/Resultful.Generators.Roslyn5.csproj" />
+    <Project Path="src/Resultful.HotChocolate/Resultful.HotChocolate.csproj" />
     <Project Path="src/Resultful.OneOf/Resultful.OneOf.csproj" />
     <Project Path="src/Resultful.Text.Json/Resultful.Text.Json.csproj" />
   </Folder>
@@ -24,6 +25,7 @@
     <Project Path="tests/Resultful.Analyzers.Tests/Resultful.Analyzers.Tests.csproj" />
     <Project Path="tests/Resultful.AspNetCore.Tests/Resultful.AspNetCore.Tests.csproj" />
     <Project Path="tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj" />
+    <Project Path="tests/Resultful.HotChocolate.Tests/Resultful.HotChocolate.Tests.csproj" />
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />
     <Project Path="tests/Resultful.Text.Json.Tests/Resultful.Text.Json.Tests.csproj" />
