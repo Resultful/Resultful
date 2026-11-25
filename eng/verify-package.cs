@@ -6,12 +6,14 @@
 // Fails if a package regresses to the 0.2.0-beta05 shape that broke Paket/NuGet audit consumers:
 //   - a NETStandard.Library or System.ValueTuple dependency
 //   - a .NETStandard1.x or .NETFramework dependency group (beta05 had a bogus ".NETFramework5.0")
-//   - a lib/netstandard1.x asset, no lib/net10.0 asset, or, in Resultful and Resultful.OneOf (the hardcoded
+//   - a lib/netstandard1.x asset, no lib/net10.0 asset, or, in Resultful, Resultful.OneOf and Resultful.FSharp (the hardcoded
 //     netStandardPackages list), no lib/netstandard2.0 asset; other packages, such as Resultful.Text.Json, target
 //     net10.0 and net11.0 only (System.Text.Json is in the box there)
 //   - any dependency at all in the core, Resultful (decision 1); it may have no dependency groups
 //   - in Resultful.OneOf, a missing OneOf dependency or a floor below 3.0.271 (3.0.178 pulls NETStandard.Library 1.6.1
 //     -> NU1903 on net8+)
+//   - in Resultful.FSharp, a missing FSharp.Core dependency or a floor below 4.5.0 (the first with voption); it is also
+//     in netStandardPackages
 //   - in any other package, a dependency group without Resultful at this package's own version (lockstep)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
 //
@@ -32,8 +34,10 @@ if (args.Length == 0)
 }
 
 var minOneOf = new Version(3, 0, 271);
+// Resultful.FSharp: FSharp.Core 4.5.0 is the first with voption and an empty netstandard2.0 group.
+var minFSharpCore = new Version(4, 5, 0);
 string[] banned = ["NETStandard.Library", "System.ValueTuple"];
-string[] netStandardPackages = ["Resultful", "Resultful.OneOf"];
+string[] netStandardPackages = ["Resultful", "Resultful.OneOf", "Resultful.FSharp"];
 string[] analyzerPackages = ["Resultful.Generators", "Resultful.Analyzers"];
 string[] roslynFolders = ["roslyn4.14", "roslyn5.0"];
 var exit = 0;
@@ -116,6 +120,12 @@ foreach (var path in args)
             failures.Add($"{tfm} group has no OneOf dependency");
         }
 
+        // Resultful.FSharp: every group depends on FSharp.Core.
+        if (id == "Resultful.FSharp" && !ids.ContainsKey("FSharp.Core"))
+        {
+            failures.Add($"{tfm} group has no FSharp.Core dependency");
+        }
+
         if (!ids.TryGetValue("Resultful", out var core) || core.Trim('[', ']', '(', ')').Split(',')[0] != version)
         {
             failures.Add($"{tfm} group does not depend on Resultful {version}");
@@ -143,6 +153,12 @@ foreach (var path in args)
         if (depId.Equals("OneOf", StringComparison.OrdinalIgnoreCase) && (!Version.TryParse(range, out var floor) || floor < minOneOf))
         {
             failures.Add($"OneOf floor {range} is below {minOneOf}");
+        }
+
+        // Resultful.FSharp: FSharp.Core floor.
+        if (depId.Equals("FSharp.Core", StringComparison.OrdinalIgnoreCase) && (!Version.TryParse(range, out var fsFloor) || fsFloor < minFSharpCore))
+        {
+            failures.Add($"FSharp.Core floor {range} is below {minFSharpCore}");
         }
     }
 

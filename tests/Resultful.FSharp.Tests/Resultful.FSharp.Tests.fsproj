@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Resultful.FSharp from F#: the conversions read naturally in F# code (pattern matching, FSharp.Core's Result
+       module, a C# service consumed end to end). The conversion laws are in tests/Resultful.FSharp.Laws.Tests. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <!-- FSharp.Core comes from the explicit reference below, not the SDK's implicit one (central package management). -->
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <!-- F# nullness checks, as warnings that fail the build: the conversions must read without them (explicit, though the
+         repository's Directory.Build.props sets both). -->
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="InteropTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.FSharp\Resultful.FSharp.csproj" />
+    <ProjectReference Include="..\Resultful.FSharp.Tests.Domain\Resultful.FSharp.Tests.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Today's FSharp.Core, as an F# app would have; the C# laws run against the package's 4.5.0 floor. -->
+    <PackageReference Include="FSharp.Core" VersionOverride="10.0.102" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,15 @@
+#nullable enable
+Resultful.FSharp.FSharpInterop
+static Resultful.FSharp.FSharpInterop.ToFSharp<T, TError>(this Resultful.Result<T, TError> value) -> Microsoft.FSharp.Core.FSharpResult<T, TError>
+static Resultful.FSharp.FSharpInterop.ToFSharp<T, TError>(this Resultful.Validation<T, TError> value) -> Microsoft.FSharp.Core.FSharpResult<T, Microsoft.FSharp.Collections.FSharpList<TError>!>
+static Resultful.FSharp.FSharpInterop.ToFSharp<T>(this Resultful.Option<T> value) -> Microsoft.FSharp.Core.FSharpOption<T>!
+static Resultful.FSharp.FSharpInterop.ToFSharp<T>(this Resultful.Result<T> value) -> Microsoft.FSharp.Core.FSharpResult<T, Resultful.Error!>
+static Resultful.FSharp.FSharpInterop.ToFSharp<T>(this Resultful.Validation<T> value) -> Microsoft.FSharp.Core.FSharpResult<T, Microsoft.FSharp.Collections.FSharpList<Resultful.Error!>!>
+static Resultful.FSharp.FSharpInterop.ToFSharpUnit(this Resultful.Result<Resultful.Unit!> value) -> Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Core.Unit?, Resultful.Error!>
+static Resultful.FSharp.FSharpInterop.ToFSharpUnit<TError>(this Resultful.Result<Resultful.Unit!, TError> value) -> Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Core.Unit?, TError>
+static Resultful.FSharp.FSharpInterop.ToFSharpValueOption<T>(this Resultful.Option<T> value) -> Microsoft.FSharp.Core.FSharpValueOption<T>
+static Resultful.FSharp.FSharpInterop.ToResultful<T, TError>(this Microsoft.FSharp.Core.FSharpResult<T, TError> value) -> Resultful.Result<T, TError>
+static Resultful.FSharp.FSharpInterop.ToResultful<T>(this Microsoft.FSharp.Core.FSharpOption<T>? value) -> Resultful.Option<T>
+static Resultful.FSharp.FSharpInterop.ToResultful<T>(this Microsoft.FSharp.Core.FSharpValueOption<T> value) -> Resultful.Option<T>
+static Resultful.FSharp.FSharpInterop.ToResultfulUnit<TError>(this Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Core.Unit?, TError> value) -> Resultful.Result<Resultful.Unit!, TError>
+static Resultful.FSharp.FSharpInterop.ToValidation<T, TError>(this Microsoft.FSharp.Core.FSharpResult<T, Microsoft.FSharp.Collections.FSharpList<TError>!> value) -> Resultful.Validation<T, TError>

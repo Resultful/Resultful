@@ -6,6 +6,8 @@
     <!-- Runtime -->
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="OneOf" Version="3.0.271" />
+    <!-- Resultful.FSharp: the floor with voption and an empty netstandard2.0 group. Its F# tests override it. -->
+    <PackageVersion Include="FSharp.Core" Version="4.5.0" />
 
     <!-- Generators and analyzers: built against 4.14.0 with VersionOverride (SDK 9.0.3xx, loads in every later compiler). The tests
          compile in process with 5.12.0, SDK 11.0.100's compiler, so they parse C# 15 unions. -->

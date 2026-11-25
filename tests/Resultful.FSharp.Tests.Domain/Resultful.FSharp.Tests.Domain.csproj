@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A C# service and its closed error hierarchy, for the F# tests: F# can't derive from a C# record, so the shapes F#
+       consumes are defined here, as they would be in a real mixed solution. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <NoWarn>$(NoWarn);CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+  </ItemGroup>
+</Project>
