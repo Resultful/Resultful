@@ -22,7 +22,7 @@ public static partial class AnalyzerHarness
     public static readonly ImmutableArray<DiagnosticAnalyzer> Analyzers =
     [
         new MustObserveAnalyzer(), new DefaultResultAnalyzer(), new UncheckedValueAnalyzer(), new BareStringAnalyzer(), new MatchToSwitchAnalyzer(),
-        new UnassignedFieldAnalyzer(), new ClosedHierarchyAnalyzer(), new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(),
+        new UnassignedFieldAnalyzer(), new ClosedHierarchyAnalyzer(), new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(), new ClosedHierarchySuppressor(),
     ];
 
 #if NET11_0_OR_GREATER
@@ -54,10 +54,18 @@ public static partial class AnalyzerHarness
     /// false; with <paramref name="generate"/>, through Resultful.Generators first.
     /// </summary>
     public static Compilation Compile(IEnumerable<string> sources, bool withCore = true, bool generate = false, bool executable = false,
-        string? library = null)
+        string? library = null, string? dependent = null, string? aliased = null)
     {
         var trees = sources.Select((s, i) => CSharpSyntaxTree.ParseText(s, ParseOptions, path: $"Test{i}.cs", encoding: Encoding.UTF8));
         var refs = withCore ? FrameworkRefs.Value.Add(Core) : FrameworkRefs.Value;
+        if (aliased is not null)
+        {
+            // An unrelated assembly referenced under `extern alias O`, whose types may share the library's names.
+            var other = CSharpCompilation.Create("Other", [CSharpSyntaxTree.ParseText(aliased, ParseOptions, path: "Other.cs", encoding: Encoding.UTF8)], refs,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            refs = refs.Add(Image(other).WithAliases(["O"]));
+        }
+
         if (library is not null)
         {
             // A second assembly the consumer references, built through the generator (RF0010's foreign derived types).
@@ -66,7 +74,15 @@ public static partial class AnalyzerHarness
             CSharpGeneratorDriver.Create([new ResultShapeGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
                 .RunGeneratorsAndUpdateCompilation(lib, out var built, out _);
             Assert.Empty(built.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
-            refs = refs.Add(built.ToMetadataReference());
+            refs = refs.Add(Image(built));
+            if (dependent is not null)
+            {
+                // A third assembly that references the library (RFSP0001 looks for derived types there too).
+                var dep = CSharpCompilation.Create("Dependent", [CSharpSyntaxTree.ParseText(dependent, ParseOptions, path: "Dependent.cs", encoding: Encoding.UTF8)], refs,
+                    new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+                Assert.Empty(dep.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+                refs = refs.Add(Image(dep));
+            }
         }
 
         Compilation compilation = CSharpCompilation.Create("Consumer", trees, refs,
@@ -81,6 +97,15 @@ public static partial class AnalyzerHarness
         return compilation;
     }
 
+    /// <summary>The assembly as a compiler reads a referenced DLL: from metadata, which shows only its public types by default.</summary>
+    static MetadataReference Image(Compilation compilation)
+    {
+        using var stream = new MemoryStream();
+        var emit = compilation.Emit(stream);
+        Assert.True(emit.Success, string.Join("\n", emit.Diagnostics));
+        return MetadataReference.CreateFromImage(stream.ToArray());
+    }
+
     /// <summary>The .editorconfig values; <paramref name="analyzeGenerated"/> sets `generated_code = false`, as the compatibility legs do.</summary>
     public static AnalyzerOptions Options(string? mustObserveTypes, bool analyzeGenerated = false, string? closedHierarchyTypes = null)
     {
@@ -91,22 +116,30 @@ public static partial class AnalyzerHarness
         return new([], new ConfigProvider(values));
     }
 
-    /// <summary>Compiler and analyzer diagnostics together.</summary>
+    /// <summary>
+    /// Compiler and analyzer diagnostics together; with <paramref name="reportSuppressed"/>, also those a suppressor
+    /// suppressed (<see cref="Diagnostic.IsSuppressed"/>), as Roslyn's own suppressor tests read them.
+    /// </summary>
     public static ImmutableArray<Diagnostic> Diagnose(Compilation compilation, string? mustObserveTypes = null, bool analyzeGenerated = false,
-        string? closedHierarchyTypes = null) =>
-        compilation.WithAnalyzers(Analyzers, Options(mustObserveTypes, analyzeGenerated, closedHierarchyTypes)).GetAllDiagnosticsAsync().GetAwaiter().GetResult();
+        string? closedHierarchyTypes = null, bool reportSuppressed = false, ImmutableArray<DiagnosticAnalyzer>? analyzers = null) =>
+        compilation.WithAnalyzers(analyzers ?? Analyzers, new CompilationWithAnalyzersOptions(Options(mustObserveTypes, analyzeGenerated, closedHierarchyTypes),
+                onAnalyzerException: null, concurrentAnalysis: true, logAnalyzerExecutionTime: false, reportSuppressedDiagnostics: reportSuppressed))
+            .GetAllDiagnosticsAsync().GetAwaiter().GetResult();
 
     [GeneratedRegex(@"//\s*expect:\s*(?<ids>[A-Z]+[0-9]+(\s*,\s*[A-Z]+[0-9]+)*)")]
     private static partial Regex ExpectMarker();
 
-    public static IReadOnlySet<(string File, int Line, string Id)> Markers(IReadOnlyList<string> sources)
+    [GeneratedRegex(@"//\s*suppressed:\s*(?<ids>[A-Z]+[0-9]+(\s*,\s*[A-Z]+[0-9]+)*)")]
+    private static partial Regex SuppressedMarker();
+
+    public static IReadOnlySet<(string File, int Line, string Id)> Markers(IReadOnlyList<string> sources, bool suppressed = false)
     {
         var markers = new HashSet<(string, int, string)>();
         for (var f = 0; f < sources.Count; f++)
         {
             var lines = sources[f].Split('\n');
             for (var i = 0; i < lines.Length; i++)
-                if (ExpectMarker().Match(lines[i]) is { Success: true } m)
+                if ((suppressed ? SuppressedMarker() : ExpectMarker()).Match(lines[i]) is { Success: true } m)
                     foreach (var id in m.Groups["ids"].Value.Split(',', StringSplitOptions.TrimEntries))
                         markers.Add(($"Test{f}.cs", i + 1, id));
         }
@@ -144,6 +177,40 @@ public static partial class AnalyzerHarness
             .ToList();
         Assert.True(problems.Count == 0, string.Join("\n", problems));
     }
+
+    /// <summary>
+    /// <see cref="Verify(string, string?, bool, bool, bool, string?, string?)"/> with suppressions: a `// suppressed: CS8509`
+    /// marker is a diagnostic reported there and suppressed by RFSP0001, an `// expect:` marker one reported and kept,
+    /// and no other line has either.
+    /// </summary>
+    public static void VerifySuppressions(string source, string? library = null, string? dependent = null, string? closedHierarchyTypes = null,
+        bool generate = false, string? aliased = null)
+    {
+        string[] sources = [source];
+        var expected = Markers(sources);
+        var expectedSuppressed = Markers(sources, suppressed: true);
+        var ids = expected.Concat(expectedSuppressed).Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        var compilation = Compile(sources, generate: generate, library: library, dependent: dependent, aliased: aliased);
+        var diagnostics = Diagnose(compilation, closedHierarchyTypes: closedHierarchyTypes, analyzeGenerated: generate, reportSuppressed: true)
+            .Where(d => d.Location.IsInSource)
+            .Where(d => d.Severity == DiagnosticSeverity.Error || d.Id.StartsWith("RF", StringComparison.Ordinal) || ids.Contains(d.Id))
+            .ToList();
+        // A `#pragma warning disable` (the generator's own, for RF0002) is not a suppressor's suppression.
+        diagnostics.RemoveAll(d => d.IsSuppressed && !SuppressedBy(d, compilation).Any());
+        var kept = diagnostics.Where(d => !d.IsSuppressed).Select(Key).ToHashSet();
+        var suppressed = diagnostics.Where(d => d.IsSuppressed).ToList();
+        var problems = expected.Where(m => !kept.Contains(m)).Select(m => $"expected {m.Id} at {m.File}:{m.Line}, not reported (or suppressed)")
+            .Concat(expectedSuppressed.Where(m => !suppressed.Any(d => Key(d) == m)).Select(m => $"expected {m.Id} suppressed at {m.File}:{m.Line}"))
+            .Concat(diagnostics.Where(d => !d.IsSuppressed && !expected.Contains(Key(d))).Select(d => $"unexpected {d}"))
+            .Concat(suppressed.Where(d => !expectedSuppressed.Contains(Key(d))).Select(d => $"unexpected suppression of {d}"))
+            .Concat(suppressed.Where(d => !SuppressedBy(d, compilation).Contains(Descriptors.ClosedHierarchySwitch.Id)).Select(d => $"{d} suppressed, but not by RFSP0001"))
+            .ToList();
+        Assert.True(problems.Count == 0, string.Join("\n", problems));
+    }
+
+    /// <summary>The IDs of the suppressors that suppressed a diagnostic.</summary>
+    public static IEnumerable<string> SuppressedBy(Diagnostic diagnostic, Compilation compilation) =>
+        diagnostic.GetSuppressionInfo(compilation)?.ProgrammaticSuppressions.Select(s => s.Descriptor.Id) ?? [];
 
     // ---- code fixes ----
 

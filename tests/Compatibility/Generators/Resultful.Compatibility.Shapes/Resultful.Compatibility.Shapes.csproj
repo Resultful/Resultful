@@ -10,6 +10,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <DefineConstants Condition="'$(CompatDropArm)' == 'true'">$(DefineConstants);DROP_ARM</DefineConstants>
     <DefineConstants Condition="'$(CompatDropResult)' == 'true'">$(DefineConstants);DROP_RESULT</DefineConstants>
+    <DefineConstants Condition="'$(CompatDropClosedArm)' == 'true'">$(DefineConstants);DROP_CLOSED_ARM</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Resultful.Compatibility.Domain/Resultful.Compatibility.Domain.csproj" />

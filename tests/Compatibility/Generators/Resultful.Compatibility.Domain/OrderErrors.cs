@@ -12,6 +12,13 @@ namespace Compatibility.Domain
 
     public sealed record Order(int Id);
 
+    // No [ClosedHierarchy]: closed for the shapes project by resultful.closed_hierarchy_types, as a third-party type would be.
+    public abstract record Shipment;
+
+    public sealed record Shipped : Shipment;
+
+    public sealed record Pending : Shipment;
+
 #if NET11_0_OR_GREATER
     public sealed record CardDeclined(string Reason) : Error($"Card declined: {Reason}");
 

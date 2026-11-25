@@ -18,21 +18,14 @@ namespace Resultful.Analyzers;
 /// <summary>
 /// RF0005's fix, "rewrite as a switch expression", with fix-all: one arm per handler, in the handlers' order. A lambda
 /// keeps its parameter name and body (<c>NotFound n =&gt; 404</c>); a method group <c>M</c> becomes <c>NotFound notFound =&gt; M(notFound)</c>.
-/// A name already in scope gets a number. Not offered until RFSP0001 ships (stack 17), since the switch it writes gets CS8509
-/// without the suppressor; the tests construct it with <c>offered: true</c>.
+/// A name already in scope gets a number. The compiler reports CS8509 on the switch it writes, which RFSP0001 suppresses since
+/// the handlers matched every case.
 /// </summary>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(MatchToSwitchCodeFixProvider)), Shared]
 public sealed class MatchToSwitchCodeFixProvider : CodeFixProvider
 {
     /// <summary>The code action's title.</summary>
     public const string Title = "Rewrite as a switch expression";
-
-    readonly bool _offered;
-
-    /// <summary>The fix as shipped: not offered yet (see the remarks on RF0005).</summary>
-    public MatchToSwitchCodeFixProvider() : this(offered: false) { }
-
-    internal MatchToSwitchCodeFixProvider(bool offered) => _offered = offered;
 
     /// <inheritdoc />
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create(Descriptors.MatchToSwitch.Id);
@@ -44,7 +37,7 @@ public sealed class MatchToSwitchCodeFixProvider : CodeFixProvider
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root is null || !_offered) return;
+        if (root is null) return;
         foreach (var diagnostic in context.Diagnostics)
         {
             if (root.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<InvocationExpressionSyntax>() is not { } invocation) continue;

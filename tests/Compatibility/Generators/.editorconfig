@@ -3,3 +3,6 @@ root = true
 # The bare compile: analyzers also check the generated files, with the SDK defaults and warnings as errors.
 [*.cs]
 generated_code = false
+
+# RFSP0001 and RF0010 treat this base, which carries no [ClosedHierarchy], as closed.
+resultful.closed_hierarchy_types = T:Compatibility.Domain.Shipment
