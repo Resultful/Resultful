@@ -323,3 +323,43 @@ Or anywhere that accepts `Func<T, T, T>` is typically written to remove that arg
 There are Async operations available which can either accept the input as a Task and/or the `Func` given returns a `Task`. These should be available for all standard operations of the library such as `Map`, `Bind`, `Tee`.
 This has not been implemented for Plus or Fold as the Task could actually be in a variety of locations on the arguments. Everything desired could be achieved using other methods in the library or using methods in the TPL.
 Also some special ones unique for Async such as ones that convert `Result<Task<T>>` into `Task<Result<T>>`.
+
+<!-- Streams: stack PR 24d (decision 22, item 5). -->
+## Streams
+
+On `net10.0` and later the core has result-aware operators over `IAsyncEnumerable<Result<T>>` (and `Result<T, TError>`);
+.NET's in-box `System.Linq.AsyncEnumerable` does everything else.
+
+| Operator | Gives |
+|---|---|
+| `SelectResultAsync(f)` | maps (`T → U`) or binds (`T → Result<U>`) each success, sync or `ValueTask` with the token; failures pass through as items |
+| `Successes()`, `Failures()` | the values, or the errors, as a stream |
+| `PartitionAsync(ct)` | both lists |
+| `CollectAsync(ct)` | `Result<IReadOnlyList<T>>`: stops at the first failure, stops reading and disposes the source |
+| `CollectAllAsync(ct)` | `Validation<IReadOnlyList<T>>` with every failure, in order |
+| `TraverseAsync(f, maxConcurrency, preserveOrder, ct)` | runs `f` on a stream of plain items with a concurrency limit and returns the earliest item's failure, the same answer as one at a time; once no earlier item can fail, later work is cancelled. `preserveOrder` orders only the values. `TraverseAllAsync` keeps every failure |
+
+A queue worker reads with `await foreach` and handles each failure where it is:
+
+```csharp
+await foreach (var r in queue.ReadAllAsync(ct).Select(Parse).SelectResultAsync(ReserveAsync).WithCancellation(ct))
+{
+    if (!r.TryGetValue(out var reservation)) { deadLetter.Add(r.Error); continue; }
+    await Publish(reservation, ct);
+}
+```
+
+`r.Failed(out var reservation, out var error)` (coming with early returns) will make that check one call.
+
+- An exception from the producer or a selector stays an exception; nothing turns it into a failure.
+- Cancellation reaches the source: the token you give `WithCancellation` (or an eager operator) is passed to the
+  producer and to each async selector, and checked before each item.
+- Stopping early (a `break`, a fail-fast collect, a cancelled token) disposes the source's enumerator, so the
+  producer's `finally` runs.
+- There is no query syntax over streams of results, and no async traversal over `IEnumerable<T>` (it would be
+  ambiguous for types that are both, such as an EF Core `DbSet`): traverse a list with `list.ToAsyncEnumerable()`.
+  None of this exists on `netstandard2.0`.
+
+`Resultful.AspNetCore` answers a `Result<IAsyncEnumerable<T>>`: a failure is the mapped ProblemDetails, written before
+any byte; a success waits for the first item, then streams a JSON array. A failure after the response has started can
+only end it.
