@@ -13,3 +13,4 @@ RFG0005 | Resultful.Generators | Error | An attributed declaration is nested in 
 RFG0006 | Resultful.Generators | Error | The attribute is on a declaration the generator can't extend
 RFG0007 | Resultful.Generators | Error | A case of an error union doesn't derive from Error
 RFG0008 | Resultful.Generators | Error | Two leaves of one hierarchy or union share a simple name
+RFG0009 | Resultful.Generators | Warning | A partial union of errors holds a union the generator can't extend

@@ -23,6 +23,12 @@ internal static class ResultShapeEmitter
             : $"global::Resultful.IResultShape<{ok}, {err}>";
         var errListType = $"global::System.Collections.Generic.IReadOnlyList<{err}>";
 
+        // Decision 17: a union error's direct cases are the shape's leaves, wrapped into the union to fail; a nested
+        // union stays one case, and its own leaves still convert in.
+        var union = m.ManyErrors ? null : m.Union;
+        var hasLeaves = (m.ErrorIsClosed || union is not null) && m.Leaves.Length > 0;
+        string Wrap(string leaf) => union is null ? leaf : $"new {err}({leaf})";
+
         // The core has no static Ok/Fail on the result structs: the named builders are on Result and Validation.
         string OkCore(string value) => m.ManyErrors
             ? $"global::Resultful.Validation.Ok<{ok}, {err}>({value})"
@@ -68,13 +74,13 @@ internal static class ResultShapeEmitter
                 w.WriteLine(InlineAttr);
                 w.WriteLine($"public {m.Name}({errListType} errors) => _inner = {FailCore("errors")};");
             }
-            else if (m.ErrorIsClosed && m.Leaves.Length > 0)
+            else if (hasLeaves)
             {
                 for (var i = 0; i < m.Leaves.Length; i++)
                 {
                     var leaf = m.Leaves[i];
                     w.WriteLine(InlineAttr);
-                    w.WriteLine($"public {m.Name}({leaf.FullName} error) => _inner = {FailCore("error")};");
+                    w.WriteLine($"public {m.Name}({leaf.FullName} error) => _inner = {FailCore(Wrap("error"))};");
                 }
             }
             else
@@ -97,7 +103,9 @@ internal static class ResultShapeEmitter
             w.WriteLine(InlineAttr);
             w.WriteLine(m.ManyErrors
                 ? "get => _inner.TryGetValue(out var v) ? (object?)v : (_inner.TryGetErrors(out var e) ? e : null);"
-                : "get => _inner.TryGetValue(out var v) ? (object?)v : (_inner.TryGetError(out var e) ? e : null);");
+                : union is not null
+                    ? "get => _inner.TryGetValue(out var v) ? (object?)v : (_inner.TryGetError(out var e) ? e.Value : null);"
+                    : "get => _inner.TryGetValue(out var v) ? (object?)v : (_inner.TryGetError(out var e) ? e : null);");
             w.CloseBrace();
 
             if (m.ManyErrors)
@@ -105,7 +113,21 @@ internal static class ResultShapeEmitter
                 w.WriteLine(InlineAttr);
                 w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {errListType} errors) => _inner.TryGetErrors(out errors);");
             }
-            else if (m.ErrorIsClosed && m.Leaves.Length > 0)
+            else if (union is not null && hasLeaves)
+            {
+                for (var i = 0; i < m.Leaves.Length; i++)
+                {
+                    var leaf = m.Leaves[i];
+                    w.WriteLine(InlineAttr);
+                    w.WriteLine($"public bool TryGetValue([global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out {leaf.FullName} error)");
+                    w.OpenBrace();
+                    w.WriteLine($"if (_inner.TryGetError(out var e) && e.Value is {leaf.FullName} c) {{ error = c; return true; }}");
+                    w.WriteLine("error = default;");
+                    w.WriteLine("return false;");
+                    w.CloseBrace();
+                }
+            }
+            else if (hasLeaves)
             {
                 for (var i = 0; i < m.Leaves.Length; i++)
                 {
@@ -182,13 +204,21 @@ internal static class ResultShapeEmitter
         {
             w.WriteLine(InlineAttr);
             w.WriteLine($"public static implicit operator {m.Name}({err} error) => Fail(error);");
-            if (m.ErrorIsClosed)
+            if (hasLeaves)
             {
                 for (var i = 0; i < m.Leaves.Length; i++)
                 {
                     w.WriteLine(InlineAttr);
-                    w.WriteLine($"public static implicit operator {m.Name}({m.Leaves[i].FullName} error) => Fail(error);");
+                    w.WriteLine($"public static implicit operator {m.Name}({m.Leaves[i].FullName} error) => Fail({Wrap("error")});");
                 }
+            }
+
+            // C# applies one user-defined conversion at a time, so leaf -> inner union -> outer union needs its own.
+            var nested = union?.NestedLeaves ?? EquatableArray<NestedLeafModel>.Empty;
+            for (var i = 0; i < nested.Length; i++)
+            {
+                w.WriteLine(InlineAttr);
+                w.WriteLine($"public static implicit operator {m.Name}({nested[i].FullName} error) => Fail({nested[i].WrapOpen}error{new string(')', nested[i].Depth)});");
             }
 
             w.WriteLine(InlineAttr);
@@ -200,6 +230,12 @@ internal static class ResultShapeEmitter
                 w.WriteLine(InlineAttr);
                 w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => global::Resultful.Result.AsResult(shape._inner);");
             }
+            else if (union?.ErrorAccess is { } access)
+            {
+                // Widens to the leaf, through IErrorUnion.Error, as a hierarchy's shape does.
+                w.WriteLine(InlineAttr);
+                w.WriteLine($"public static implicit operator global::Resultful.Result<{ok}>({m.Name} shape) => shape._inner.MapError(static e => {access});");
+            }
         }
 
         // A note on the error that keeps the shape (decision 16 item 4), so it can still be switched over.
@@ -210,6 +246,13 @@ internal static class ResultShapeEmitter
             w.WriteLine(m.ManyErrors
                 ? $"public {m.Name} WithContext(string message) => new(_inner.MapError(e => global::Resultful.ErrorExtensions.WithContext(e, message)));"
                 : $"public {m.Name} WithContext(string message) => new(global::Resultful.Result.WithContext(_inner, message));");
+        }
+        else if (union is { HasWithContext: true })
+        {
+            // The union's WithContext rewraps the leaf, so the shape and its union keep their types.
+            w.WriteLine();
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public {m.Name} WithContext(string message) => message is null ? throw new global::System.ArgumentNullException(nameof(message)) : new(_inner.MapError(e => e.WithContext(message)));");
         }
 
         // TryGetValue / TryGetError(s)
@@ -237,7 +280,7 @@ internal static class ResultShapeEmitter
             w.WriteLine($"public global::Resultful.Result<TOut, {err}> Bind<TOut>(global::System.Func<{ok}, global::Resultful.Result<TOut, {err}>> bind) => _inner.Bind(bind);");
 
             // Match
-            if (m.ErrorIsClosed && m.Leaves.Length > 0)
+            if (hasLeaves)
             {
                 var leafParams = string.Join(
                     ", ",
@@ -246,7 +289,7 @@ internal static class ResultShapeEmitter
                 w.OpenBrace();
                 w.WriteLine("if (_inner.TryGetValue(out var v)) { return onSuccess(v); }");
                 w.WriteLine("_inner.TryGetError(out var err);");
-                w.WriteLine("switch (err)");
+                w.WriteLine(union is not null ? "switch (err.Value)" : "switch (err)");
                 w.OpenBrace();
                 for (var i = 0; i < m.Leaves.Length; i++)
                 {

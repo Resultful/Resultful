@@ -77,6 +77,25 @@ public sealed class IncrementalityTests
         AssertAllStepsCachedOrUnchanged(result, ResultShapeGenerator.EmitTrackingName);
     }
 
+#if NET11_0_OR_GREATER
+    [Fact]
+    public void Unrelated_edit_keeps_error_union_models_cached_or_unchanged()
+    {
+        var comp1 = GeneratorTestHarness.CreateCompilation([("Nested.cs", FixtureCatalog.NestedUnion), ("Misc.cs", UnrelatedFile)]);
+        GeneratorTestHarness.Run(comp1, out var driver);
+
+        var ct = TestContext.Current.CancellationToken;
+        var oldTree = comp1.SyntaxTrees.First(t => t.FilePath == "Misc.cs");
+        var newTree = CSharpSyntaxTree.ParseText(UnrelatedFile + "\n// harmless comment\n", (CSharpParseOptions)oldTree.Options, path: "Misc.cs", cancellationToken: ct);
+        driver = driver.RunGenerators(comp1.ReplaceSyntaxTree(oldTree, newTree), ct);
+        var result = driver.GetRunResult().Results.Single();
+
+        Assert.Equal(2, GetOutputReasons(result, ResultShapeGenerator.ErrorUnionsTrackingName).Count);
+        AssertAllStepsCachedOrUnchanged(result, ResultShapeGenerator.ErrorUnionsTrackingName);
+        AssertAllStepsCachedOrUnchanged(result, ResultShapeGenerator.ShapesTrackingName);
+    }
+#endif
+
     [Fact]
     public void Editing_method_body_in_leaf_file_keeps_Emit_unchanged()
     {
