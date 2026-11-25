@@ -1,0 +1,21 @@
+#nullable enable
+Resultful.AspNetCore.ErrorUnionHttpResultExtensions
+static Resultful.AspNetCore.ErrorUnionHttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.Error!>!
+Resultful.AspNetCore.HttpResultExtensions
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Result<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, TError!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T, TError>(this Resultful.Validation<T, TError!> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.ValidationFailed<TError!>!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Result<T> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.Error!>!
+static Resultful.AspNetCore.HttpResultExtensions.ToHttpResult<T>(this Resultful.Validation<T> result) -> Resultful.AspNetCore.ResultHttpResult<T, Resultful.ValidationFailed<Resultful.Error!>!>!
+Resultful.AspNetCore.ResultfulHttpOptions
+Resultful.AspNetCore.ResultfulHttpOptions.DefaultStatusCode.get -> int
+Resultful.AspNetCore.ResultfulHttpOptions.DefaultStatusCode.set -> void
+Resultful.AspNetCore.ResultfulHttpOptions.Map<TError>(int statusCode) -> Resultful.AspNetCore.ResultfulHttpOptions!
+Resultful.AspNetCore.ResultfulHttpOptions.ResultfulHttpOptions() -> void
+Resultful.AspNetCore.ResultfulHttpOptions.ValidationKey.get -> System.Func<Resultful.Error!, string!>!
+Resultful.AspNetCore.ResultfulHttpOptions.ValidationKey.set -> void
+Resultful.AspNetCore.ResultfulServiceCollectionExtensions
+static Resultful.AspNetCore.ResultfulServiceCollectionExtensions.AddResultful(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Resultful.AspNetCore.ResultfulServiceCollectionExtensions.AddResultful(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Resultful.AspNetCore.ResultfulHttpOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Resultful.AspNetCore.ResultHttpResult<T, TError>
+Resultful.AspNetCore.ResultHttpResult<T, TError>.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
+static Resultful.AspNetCore.ResultHttpResult<T, TError>.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void

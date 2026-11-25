@@ -66,6 +66,13 @@
   (`{"ok":true,"value":…}`, `{"ok":false,"error":{"type","message","context","cause",…}}`, `"errors":[…]`).
   `AddResultful()` registers them all (it needs dynamic code); native-AOT apps add the converters and
   `AddErrorCases<TError>(cases)` to a source-generated context. An unknown `type` reads as a `JsonException`.
+- **`Resultful.AspNetCore`**: `ToHttpResult()` turns a `Result` or `Validation` into a `ResultHttpResult<T, TError>`
+  (an `IResult`): 200 with the value (no body for `Unit`), or an RFC 9457 ProblemDetails. `AddResultful(errors =>
+  errors.Map<OrderNotFound>(404))` fills the error-to-status map, walked outside in through `Error.Causes()`; a leaf's
+  entry beats its base's. A result whose error is an error union answers for the union's leaf. The result's own
+  `ValidationFailed` answers 400 with a validation problem keyed by `ValidationKey`. Anything unmapped answers
+  `DefaultStatusCode` (500). A 5xx has a fixed title, no `detail` outside Development, and is logged once at Error; a
+  4xx `detail` is the mapped error's `Message`.
 - **Opt-in operators** in `Resultful.Operators` (decision 9), each a call to a named method: `|` (`OrElse`, or
   `ValueOr` with a plain value), `||` (a lazy `OrElse`, through `operator true`/`false`, which also allows
   `if (result)`), `>>` (`Bind`) on `Result<T>`, `Result<T, TError>` and their tasks, and `&` (`Validation.Combine`)
