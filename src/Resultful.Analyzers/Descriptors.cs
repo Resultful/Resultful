@@ -3,8 +3,8 @@ using Microsoft.CodeAnalysis;
 namespace Resultful.Analyzers;
 
 /// <summary>
-/// RF0001 and RF0002: the IDs, severities, titles and the .editorconfig key are the 0.3 analyzer contract, and
-/// AnalyzerReleases.Unshipped.md lists them.
+/// RF0001 to RF0004, RF0006, RF0008 and RF0009: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
+/// AnalyzerReleases.Unshipped.md lists them. Each description says what the rule covers and what it doesn't.
 /// </summary>
 public static class Descriptors
 {
@@ -78,4 +78,76 @@ public static class Descriptors
             + "Comparing with default (`r == default`, `r.Equals(default)`) is not reported, nor is `default` in a pattern (the compiler's own rules apply). "
             + "Every other zero value is, including `default` assigned to an out parameter: suppress RF0002 where a zero value is meant. "
             + "Not covered: arrays of zero values (`new Result<int>[3]`) and fields no constructor assigns.");
+
+    /// <summary>RF0003: <c>r.Value</c> where no check of <c>r</c> guards the read.</summary>
+    public static readonly DiagnosticDescriptor UncheckedValue = new(
+        "RF0003",
+        "Value is read without checking IsSuccess",
+        "{0}.Value is read without checking IsSuccess: it throws on a failure",
+        Category,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Value throws on a failure (and on the zero value). Scope: the Value property of a [MustObserve] type that also has IsSuccess "
+            + "(Result, Validation, a user's own). A read of a local, parameter or field passes when a check of the same variable guards it: "
+            + "inside `if (r.IsSuccess)`, `r.IsSuccess ? r.Value : …`, `r.IsSuccess && r.Value…`, the else of `if (r.IsFailure)`, "
+            + "a pattern (`r is { IsSuccess: true }`, `r.IsSuccess is true`), a `TryGetValue` call in the condition, or after "
+            + "`if (!r.IsSuccess) return;` (any exit) earlier in an enclosing block, switch section or the top-level statements. "
+            + "Any other receiver, such as `Get().Value`, is reported. Not covered: an assignment to the variable between the check and the read, "
+            + "a check in a switch arm or nested pattern, a check in a helper method, and `Debug.Assert`.");
+
+    /// <summary>RF0004: a string literal converted implicitly to a result whose success type is string.</summary>
+    public static readonly DiagnosticDescriptor BareString = new(
+        "RF0004",
+        "A bare string becomes the success of a Result<string>",
+        "This string becomes the success of a {0}: say which with Result.Ok(…) or Result.Fail<string>(…)",
+        Category,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Before 0.3, `Result<T> r = \"message\";` was a failure. Now the string is the value (decision 9), so code written as a failure "
+            + "compiles as a success. Info, not a warning: since 0.3 the conversion is a valid success, often intended. Scope: a string literal, an interpolated string or a concatenation with one, converted implicitly by a "
+            + "[MustObserve] type's conversion from its first type parameter (or a [ResultShape]'s conversion from string). Not reported: a string "
+            + "variable or call (assumed to be a value), an explicit cast, and `Result.Ok(\"x\")`. The fix wraps it in Result.Ok or Result.Fail, "
+            + "offered for Resultful.Result<string> only; other types are fixed by hand. No fix-all: each one is a choice.");
+
+    /// <summary>RF0006: a result field that no constructor assigns (decision 10, layer 3).</summary>
+    public static readonly DiagnosticDescriptor UnassignedField = new(
+        "RF0006",
+        "A result field is never assigned by a constructor (decision 10 layer 3)",
+        "{0} is a {1} that a constructor never assigns: until it is, it holds the zero value",
+        Category,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The zero value of a result holds neither a value nor an error (decision 10). Scope: a field or get-only auto-property of a result "
+            + "type (as RF0002 defines it) in a class, with no initializer, that some constructor leaves unassigned: a declared constructor that "
+            + "doesn't chain to `this(…)` and doesn't assign it (directly, by `out`/`ref`, or in a deconstruction), or the implicit one. "
+            + "A static field needs an initializer or a static constructor that assigns it. Not reported: `required` members, settable properties "
+            + "(an object initializer may set them), and structs (whose own zero value holds zero results anyway). "
+            + "Not covered: a constructor that assigns through a helper method, and arrays of zero values (`new Result<int>[3]`).");
+
+    /// <summary>RF0008: an implicitly typed handler passed to a generated multi-case Match, Switch or TryMap.</summary>
+    public static readonly DiagnosticDescriptor UntypedHandler = new(
+        "RF0008",
+        "A handler passed to a generated multi-case Match, Switch or TryMap isn't explicitly typed or a method group (core's two-handler Match is exempt)",
+        "This handler for {0} doesn't name its parameter type: write ({1} …) => so a reordered case doesn't compile",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A generated Match, Switch or TryMap takes one handler per case, in an order that renaming or adding a case can change. "
+            + "An untyped lambda such as `_ => NotFound()` would then silently handle another case; with the type, the compiler rejects the call. "
+            + "Scope: every lambda (or anonymous method) argument without parameter types to a Match, Switch or TryMap on a [ClosedHierarchy] type "
+            + "with two or more case handlers, or on a [ResultShape] with two or more leaf handlers besides onSuccess. A method group, a typed lambda "
+            + "and a delegate variable pass. Exempt: core's Match(onSuccess, onError) and a shape's two-handler Match, whose order is fixed. "
+            + "The fix adds the types (fix-all too). Configure with dotnet_diagnostic.RF0008.severity.");
+
+    /// <summary>RF0009: Map whose selector returns a result.</summary>
+    public static readonly DiagnosticDescriptor MapToBind = new(
+        "RF0009",
+        "Map's selector returns a result: use Bind",
+        "Map's selector returns a {0}, so this is a {1}: use {2}",
+        Category,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A result nested in a result hides the inner failure behind an outer success. Scope: Map or MapAsync whose selector returns a "
+            + "result type (as RF0002 defines it; for MapAsync, a Task or ValueTask of one), on a result or a Task or ValueTask of one. The fix replaces Map with Bind (MapAsync with BindAsync), "
+            + "fix-all too, offered only where Bind binds: when the error types differ, map the error first.");
 }
