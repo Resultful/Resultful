@@ -11,9 +11,7 @@ namespace Resultful
     /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure (decision 10): every member that reads the case or the error throws <see cref="InvalidOperationException"/>. <c>ToString</c>, <c>Equals</c> and <c>GetHashCode</c> never throw.</remarks>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     [Obsolete(NamedErrors.VoidResultOfErrorObsolete)]
-#pragma warning disable CA2231 // Equals keeps 0.2's equality; == and != would be new API, not part of 08a.
     public struct VoidResult<TError>
-#pragma warning restore CA2231
     {
         //Private Members
         private readonly TError _error;
@@ -103,6 +101,16 @@ namespace Resultful
         /// <remarks>Values and errors are compared with <c>object.Equals</c>, as in 0.2.</remarks>
         public override bool Equals(object? obj)
             => obj is VoidResult<TError> other && _state == other._state && (_state != State.Failure || Equals(_error, other._error));
+
+        /// <summary>Compares two results with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first result.</param>
+        /// <param name="right">The second result.</param>
+        public static bool operator ==(VoidResult<TError> left, VoidResult<TError> right) => left.Equals(right);
+
+        /// <summary>Compares two results with <see cref="Equals(object)"/>.</summary>
+        /// <param name="left">The first result.</param>
+        /// <param name="right">The second result.</param>
+        public static bool operator !=(VoidResult<TError> left, VoidResult<TError> right) => !left.Equals(right);
 
         /// <summary>A hash of the case and its error.</summary>
         public override int GetHashCode()
