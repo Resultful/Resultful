@@ -302,6 +302,7 @@ namespace Resultful
         // What ToString and the debugger show for the zero value; neither throws (decision 10).
         internal const string DefaultResult = "<default Result>";
         internal const string DefaultVoidResult = "<default VoidResult>";
+        internal const string DefaultValidation = "<default Validation>";
 
         // OneOf<T0, T1>.GetHashCode, which 0.2's results hashed: the case's hash times 397, xor the case index.
         internal static int Hash<T>(T value, int index)

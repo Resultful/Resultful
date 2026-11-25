@@ -124,7 +124,8 @@ Validation<SignUp, InputError> Validate(SignUpRequest r) =>
 ```
 
 Each leaf's positional `Field` reuses the base's `Field` property rather than hiding it (**verified**: no CS0108).
-`&` works for two checks; `Combine` names the values and needs no nested tuples.
+`&` works for two checks once the opt-in operators arrive (stack PR 18); until then `Validation.Combine(a, b)` gives
+the same tuple. `Combine` names the values and needs no nested tuples.
 
 At the endpoint:
 
