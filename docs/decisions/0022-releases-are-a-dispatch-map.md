@@ -36,12 +36,13 @@ The jobs:
 |---|---|---|
 | `plan` | Checks the map: main only for a real run; each package is in the manifest; strict SemVer, no `v`; the tag and nuget.org version are free (or were made by this commit, for a re-run); the version is above every published one on its major.minor line; coupled packages released together. Writes `plan_json` | `contents: read` |
 | `verify_ci` | The commit's `ci` check passed (a dry run only warns) | `checks: read` |
-| `pack` | Writes `release-versions.props`, packs into `artifacts/<package>/`, runs the package checks and a NuGet consumer against it | `contents: read` |
+| `pack` | Writes `release-versions.props`, packs into `artifacts/<package>/`, runs the package checks and a NuGet consumer against it. A real run then attests build provenance for each package, its symbols and the assemblies inside it | `contents: read`, `id-token: write`, `attestations: write` |
 | `publish` | Stages each package (and its symbols) on nuget.org with `dotnet package stage push` and trusted publishing, in the `release` environment. Nothing is public until a maintainer promotes it on nuget.org, signed in with 2FA. No checkout | `id-token: write` |
 | `finalize` | Approved (`release-verify` environment) after promotion. Waits until each version is on nuget.org, tags `<package>/v<version>` (e.g. `Resultful/v0.2.0`) at the run's commit and creates its GitHub Release (a pre-release when the version has a `-`) No checkout | `contents: write` |
 
-The logic is in `eng/build.cs` (`ReleasePlan`, `ReleaseProps`, `ReleaseCheckArtifacts`), and runs only in the
-read-only jobs. The two jobs that can write run no repository code.
+The logic is in `eng/build.cs` (`ReleasePlan`, `ReleaseProps`, `ReleaseCheckArtifacts`). `publish` and `finalize`
+run no repository code. `pack` does, and can sign attestations: its OIDC token can't stage, because nuget.org's
+policy is bound to the `release` environment.
 
 Why:
 - Committing a version meant a pull request per release, and lockstep republished packages that hadn't changed.
@@ -52,7 +53,11 @@ Why:
 Consequences:
 - 0.2 pre-releases keep the zero-padded `betaNN` form until 0.2.0 is stable: NuGet compares labels without dots
   as text, so `beta.6` would sort below `beta05`. New pre-release lines use dotted labels (`beta.1`).
-- Older releases were tagged `v<version>`. Those tags stay, and count as `Resultful`'s for its release notes.
+- Older releases were never tagged. 0.2.0-beta03 to beta05 were tagged `Resultful/v<version>` afterwards from
+  publish times, version bumps and their DLLs; each tag message gives the evidence. `v<version>` tags would also
+  count as `Resultful`'s.
+- Attestations prove which repository, workflow and commit built a package: `gh attestation verify <file> --repo
+  Resultful/Resultful`. nuget.org repository-signs packages, so verify a downloaded one by `lib/<tfm>/Resultful.dll`.
 - nuget.org's trusted publishing policy for Resultful names `release.yml` and the `release` environment, and may
   only stage: a compromised workflow can submit a package for review but can't release it.
 - Not yet seen on a real run: what staging the same version twice does, and how long an unpromoted package lasts.
@@ -66,4 +71,4 @@ Consequences:
 - The package validation baseline is the newest stable version on the line, so a pre-release of a line with no
   stable version yet (all of 0.2 today) has none. `CompatUpgrade` still checks a beta05 consumer at run time.
 - The pack step packs only `Resultful`. A second package in the manifest needs `Pack` to pack each planned one.
-- There were no tags before this workflow, so the first release's notes reach back up to 50 commits.
+- The first release's notes run from `Resultful/v0.2.0-beta05`.

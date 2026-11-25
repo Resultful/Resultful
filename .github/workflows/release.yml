@@ -85,6 +85,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      id-token: write # Sigstore signing for the attestations below; nuget.org's trust policy is bound to `release`
+      attestations: write
     env:
       PLAN_JSON: ${{ needs.plan.outputs.plan_json }}
     steps:
@@ -117,6 +119,26 @@ jobs:
       # Last before the upload, so nothing after it can add a file that publish would push.
       - name: Exactly the planned packages were packed
         run: dotnet run eng/build.cs -- --target=ReleaseCheckArtifacts
+
+      # Signed provenance (repository, workflow, commit) for each package and the assemblies inside it. nuget.org
+      # repository-signs a package on upload, which changes its hash, so verify a downloaded package by an assembly:
+      # `gh attestation verify lib/<tfm>/Resultful.dll --repo Resultful/Resultful`. Outside artifacts, so not published.
+      - name: Extract assemblies to attest
+        if: ${{ !inputs.dry_run }}
+        run: |
+          shopt -s globstar
+          for pkg in artifacts/**/*.nupkg; do
+            unzip -q "$pkg" 'lib/*.dll' -d "$RUNNER_TEMP/attest/$(basename "$pkg" .nupkg)"
+          done
+
+      - name: Attest build provenance
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/**/*.nupkg
+            artifacts/**/*.snupkg
+            ${{ runner.temp }}/attest/**/*.dll
 
       - name: Upload packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
