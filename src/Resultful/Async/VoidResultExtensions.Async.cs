@@ -245,7 +245,7 @@ namespace Resultful
         /// <param name="errorMapFunc">Maps the error.</param>
         [Obsolete(NamedErrors.VoidResultOfErrorObsolete)]
         public static async Task<VoidResult<TErrorResult>> MapError<TError, TErrorResult>(this Task<VoidResult<TError>> value, Func<TError, TErrorResult> errorMapFunc)
-            => await value.Map(item => item.MapError(errorMapFunc));
+            => await value.Map(item => item.MapError(errorMapFunc)).ConfigureAwait(false);
 
         /// <summary>Awaits <paramref name="value"/>, then: on failure, returns the error <paramref name="errorMapFunc"/> gives for the error. A success keeps its value and <paramref name="errorMapFunc"/> isn't called.</summary>
         /// <typeparam name="TError">The type of the error.</typeparam>

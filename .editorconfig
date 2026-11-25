@@ -30,3 +30,7 @@ tab_width = 4
 [*.linq]
 indent_style = space
 tab_width = 4
+
+# Library code never resumes on the caller's context: every await in src/ needs ConfigureAwait(false) (stack PR 19).
+[src/**/*.cs]
+dotnet_diagnostic.CA2007.severity = error

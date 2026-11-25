@@ -43,6 +43,14 @@
   - `voidResult.Then(() => Result.Ok())` binds the `Then<T>` that returns a value, so it gives a `Result<Unit>`: a
     `var` holding it changes type.
   - The debugger shows a `Result.Ok()` as `Ok(Resultful.Unit)` instead of `Ok`.
+- **The instance `SwitchAsync` returns a `Task` that awaits the callback** on `Result<T>`, `Result<T, TError>` and the
+  obsolete void results. It returned `void` and dropped the callback's task, so the work could finish after the call
+  and its exception was lost. Migration: `await result.SwitchAsync(…)` (a binary break: recompile). Inside an `async`
+  method, a call that isn't awaited now gives CS4014, an error under `TreatWarningsAsErrors`. A callback that throws,
+  even synchronously, now faults the returned task instead of throwing at the call, so an unawaited call loses it.
+  The zero value and a `null` callback still throw at the call. The non-token `BindAsync`, `MatchAsync`,
+  `ReturnOrValueAsync` and `Option`'s `SwitchAsync`/`MatchAsync` likewise fault their task when the function throws
+  synchronously, where they threw at the call.
 
 ### Added
 
@@ -56,6 +64,15 @@
   `ValueOr` with a plain value), `||` (a lazy `OrElse`, through `operator true`/`false`, which also allows
   `if (result)`), `>>` (`Bind`) on `Result<T>`, `Result<T, TError>` and their tasks, and `&` (`Validation.Combine`)
   on `Validation`. New named `OrElse` and `ValueOr` overloads on `Task<Result<…>>`. The README has the precedence table.
+- **Async** (M2): `MapAsync`, `BindAsync` and `TeeAsync` on `Result<T>` and `Result<T, TError>` take a step with a
+  `CancellationToken` and the token; an already-cancelled token cancels a success's task before the step runs. On
+  `net10.0` and later, `ValueTask<Result<…>>` gets `Map`, `Bind`, `BindAsync`, `MapError`, `Match` and `Tee`, and
+  `IAsyncEnumerable<Result<…>>` gets `CollectAsync` (stops at the first failure) and `PartitionAsync` (reads every
+  item). Nothing in the core catches: a throwing step faults the task and cancellation propagates.
+  `Result.Try(func, onException)` and `Result.TryAsync` (also with a token) are the opt-in that turn an exception into
+  the `Error` you build; they never catch cancellation (`OperationCanceledException`, or an `AggregateException` of
+  only those) or the fatal `OutOfMemoryException`, `StackOverflowException`, `AccessViolationException` and
+  `ThreadAbortException`.
 - `==` and `!=` on `Result<T>`, `Result<T, TError>`, `Option<T>` and the obsolete void results, matching `Equals`.
 
 ### Build
@@ -63,6 +80,7 @@
 - CI hardened: least-privilege tokens, no persisted credentials, SDK from `global.json`, NuGet cache, format check,
   pack and package check on every pull request, zizmor, ls-lint, Dependabot.
 - Public API tracking with `Microsoft.CodeAnalysis.PublicApiAnalyzers`.
+- CA2007 is an error in `src/`: every `await` in the packages uses `ConfigureAwait(false)`.
 - The package check is a C# file-based app: `dotnet run eng/verify-package.cs -- <nupkg>`.
 - Publishing is a manual workflow run (`publish` input); merging to `main` never publishes.
 
