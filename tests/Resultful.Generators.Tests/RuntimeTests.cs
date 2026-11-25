@@ -157,7 +157,7 @@ public sealed class RuntimeTests
         ],
         "Runtime");
 
-    private static Assembly Compile(IEnumerable<(string FileName, string Source)> sources, string name)
+    internal static Assembly Compile(IEnumerable<(string FileName, string Source)> sources, string name)
     {
         var comp = GeneratorTestHarness.CreateCompilation(sources, assemblyName: "Fixture" + name);
         var output = GeneratorTestHarness.Run(comp, out _);

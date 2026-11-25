@@ -51,6 +51,12 @@
   The zero value and a `null` callback still throw at the call. The non-token `BindAsync`, `MatchAsync`,
   `ReturnOrValueAsync` and `Option`'s `SwitchAsync`/`MatchAsync` likewise fault their task when the function throws
   synchronously, where they threw at the call.
+- **Generated shapes convert from shapes over a narrower error** (`Resultful.Generators`): a shape converts from
+  each shape with its success type whose error is a closed base nested under its own, or a direct case of its error
+  union. Shapes with the same error type don't convert into each other; write `other.AsResult()`. Declaring such a
+  shape changes existing calls that take the narrower one: `K(Wider)` now wins over `K(object)` and
+  `K(Result<T>)`; `K(Wider)` next to `K(Result<T, NarrowerError>)` is CS0121, where the second used to bind; and
+  `?:`, `switch` expressions and array literals that mix the two now have the wider shape as their type.
 
 ### Added
 
