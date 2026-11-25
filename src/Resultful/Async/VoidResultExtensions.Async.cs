@@ -3,27 +3,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Resultful.Utils;
 using TaskExt;
-using OneOf;
-using OneOf.Types;
 
 namespace Resultful
 {
     public static partial class Result
     {
-        //ToOneOf
-        /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="value">The task that produces the result.</param>
-        public static Task<OneOf<Unit, Error>> ToOneOf<T>(this Task<VoidResult> value)
-            => value.Map(x => x.ToOneOf());
-
-        /// <summary>Awaits <paramref name="value"/>, then returns the result as a <c>OneOf</c>: <c>T0</c> is the <see cref="Unit"/> of a success, <c>T1</c> is the error.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <typeparam name="TError">The type of the error.</typeparam>
-        /// <param name="value">The task that produces the result.</param>
-        public static Task<OneOf<Unit, TError>> ToOneOf<T, TError>(this Task<VoidResult<TError>> value)
-            => value.Map(x => x.ToOneOf());
-
         //Switch on Task<Result<T>>
         /// <summary>Awaits <paramref name="value"/>, then calls <paramref name="successFunc"/> with <see cref="Unit.Value"/> on success, or <paramref name="errorFunc"/> with the error on failure.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>

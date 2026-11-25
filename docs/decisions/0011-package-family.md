@@ -52,5 +52,8 @@ Consequences:
 - Releases need per-package versions in each project, change detection by path and through the project
   dependency graph, and one tag per package (`Resultful.OneOf/v0.3.0`). This is built in M1, after the layout
   move, following the design in `Resultful.Assertions`.
+- **Superseded by `AGENTS.md` (lockstep versioning):** every `Resultful.*` package shares one version, set in
+  `src/Directory.Build.props`, and one release tag; a satellite depends on the same core version. The per-package
+  versions, change detection and per-package tags above are not built.
 - The compatibility question, "which `Resultful.AspNetCore` goes with which `Resultful`?", is answered by each
   satellite's dependency range, and the README lists the minimum core version per satellite.

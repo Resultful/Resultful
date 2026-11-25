@@ -16,7 +16,7 @@ generated:
 
 `Resultful` keeps its own discriminated storage inside `Result`, `VoidResult` and `Option`, and its own
 `Resultful.None`. A new package, `Resultful.OneOf`, carries `ToOneOf()` (including the `Task` forms),
-`FromOneOf` and conversions between `OneOf.Types.None` and `Resultful.None`.
+`ToResult`/`ToVoidResult`/`ToOption` (from a `OneOf`, also on `Task`) and conversions between `OneOf.Types.None` and `Resultful.None`.
 
 Why: OneOf's old `netstandard1.3` group pulled vulnerable packages into net8+ apps (beta05 broke `paket install`
 in rig), and C# unions on .NET 11 will change how a union library fits at all. A result library should not make its

@@ -1,6 +1,6 @@
 # Resultful
 
-Utility classes for Railway Oriented Programming using OneOf a Discriminated Union library.
+Utility classes for Railway Oriented Programming. The core package depends on nothing; `Resultful.OneOf` converts to and from OneOf unions.
 
 Inspired by this article on [F# for fun and profit](https://fsharpforfunandprofit.com/posts/recipe-part2/)
 Designed to be consumed for C#.
@@ -79,7 +79,7 @@ private Result<int, Error> NumberIsGreaterThanZero(string input)
 ### Consuming
 
 When the value needs to be consumed by something which cannot be pipelined typically being the boundaries of the application such as the controller on a WebAPI.
-There is a method called Match which is the core API in this library and is built upon the API that OneOf surfaces.
+There is a method called Match which is the core API in this library.
 
 This method typically has the signature
 `TResult Match<TResult>(Func<T, TResult> successFunc, Func<TError, TResult> errorFunc)` where `T` and `TError` are the cases of the `Result`.
