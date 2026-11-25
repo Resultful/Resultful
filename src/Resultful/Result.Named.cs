@@ -11,21 +11,21 @@ namespace Resultful
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(true, nameof(Value))]
         [MemberNotNullWhen(false, nameof(Error))]
-        public bool IsSuccess => _initialized && _value.IsT0;
+        public bool IsSuccess => _state == State.Success;
 
         /// <summary><c>true</c> if this is a failure. Then <see cref="Error"/> is set and <see cref="Value"/> throws.</summary>
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(false, nameof(Value))]
         [MemberNotNullWhen(true, nameof(Error))]
-        public bool IsFailure => _initialized && _value.IsT1;
+        public bool IsFailure => _state == State.Failure;
 
         /// <summary>The value of a success.</summary>
         /// <exception cref="InvalidOperationException">This is a failure, or the zero value (<c>default</c>).</exception>
-        public T Value => Case() ? _value.AsT0 : throw NamedErrors.NoValue();
+        public T Value => Case() ? _value : throw NamedErrors.NoValue();
 
         /// <summary>The error of a failure.</summary>
         /// <exception cref="InvalidOperationException">This is a success, or the zero value (<c>default</c>).</exception>
-        public TError Error => Case() ? throw NamedErrors.NoError() : _value.AsT1;
+        public TError Error => Case() ? throw NamedErrors.NoError() : _error;
 
         /// <summary>Gets the value of a success, like <c>Dictionary.TryGetValue</c>.</summary>
         /// <param name="value">The value on success; <c>default</c> on failure.</param>
@@ -34,7 +34,7 @@ namespace Resultful
         public bool TryGetValue([MaybeNullWhen(false)] out T value)
         {
             var isSuccess = Case();
-            value = isSuccess ? _value.AsT0 : default;
+            value = isSuccess ? _value : default;
             return isSuccess;
         }
 
@@ -45,7 +45,7 @@ namespace Resultful
         public bool TryGetError([MaybeNullWhen(false)] out TError error)
         {
             var isSuccess = Case();
-            error = isSuccess ? default : _value.AsT1;
+            error = isSuccess ? default : _error;
             return !isSuccess;
         }
 
@@ -57,8 +57,8 @@ namespace Resultful
         public void Deconstruct(out bool isSuccess, out T? value, out TError? error)
         {
             isSuccess = Case();
-            value = isSuccess ? _value.AsT0 : default;
-            error = isSuccess ? default : _value.AsT1;
+            value = isSuccess ? _value : default;
+            error = isSuccess ? default : _error;
         }
 
         /// <summary>Returns this result if it is a success, otherwise <paramref name="other"/>. The first success wins.</summary>
@@ -74,17 +74,17 @@ namespace Resultful
         public Result<T, TError> OrElse(Func<TError, Result<T, TError>> other)
         {
             other.ThrowIfDefault(nameof(other));
-            return Case() ? this : other(_value.AsT1);
+            return Case() ? this : other(_error);
         }
 
         /// <summary>Returns the value of a success, otherwise <paramref name="fallback"/>.</summary>
         /// <param name="fallback">The value to return when this is a failure.</param>
         /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
         public T ValueOr(T fallback)
-            => Case() ? _value.AsT0 : fallback;
+            => Case() ? _value : fallback;
 
         // true for a success, false for a failure; the zero value throws (decision 10's default, recorded for 05).
-        private bool Case() => _initialized ? _value.IsT0 : throw NamedErrors.Zero(typeof(Result<T, TError>));
+        private bool Case() => _state == State.Zero ? throw NamedErrors.Zero(typeof(Result<T, TError>)) : _state == State.Success;
     }
 
     public partial struct Result<T>
@@ -92,16 +92,16 @@ namespace Resultful
         /// <summary><c>true</c> if this is a success. Then <see cref="Value"/> is set.</summary>
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(true, nameof(Value))]
-        public bool IsSuccess => _initialized && _value.IsT0;
+        public bool IsSuccess => _state == State.Success;
 
         /// <summary><c>true</c> if this is a failure. Then <see cref="Value"/> throws.</summary>
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(false, nameof(Value))]
-        public bool IsFailure => _initialized && _value.IsT1;
+        public bool IsFailure => _state == State.Failure;
 
         /// <summary>The value of a success.</summary>
         /// <exception cref="InvalidOperationException">This is a failure, or the zero value (<c>default</c>).</exception>
-        public T Value => Case() ? _value.AsT0 : throw NamedErrors.NoValue();
+        public T Value => Case() ? _value : throw NamedErrors.NoValue();
 
         /// <summary>Gets the value of a success, like <c>Dictionary.TryGetValue</c>.</summary>
         /// <param name="value">The value on success; <c>default</c> on failure.</param>
@@ -110,7 +110,7 @@ namespace Resultful
         public bool TryGetValue([MaybeNullWhen(false)] out T value)
         {
             var isSuccess = Case();
-            value = isSuccess ? _value.AsT0 : default;
+            value = isSuccess ? _value : default;
             return isSuccess;
         }
 
@@ -124,10 +124,10 @@ namespace Resultful
         /// <param name="fallback">The value to return when this is a failure.</param>
         /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
         public T ValueOr(T fallback)
-            => Case() ? _value.AsT0 : fallback;
+            => Case() ? _value : fallback;
 
         // true for a success, false for a failure; the zero value throws (decision 10's default, recorded for 05).
-        private bool Case() => _initialized ? _value.IsT0 : throw NamedErrors.Zero(typeof(Result<T>));
+        private bool Case() => _state == State.Zero ? throw NamedErrors.Zero(typeof(Result<T>)) : _state == State.Success;
     }
 
     internal static class NamedErrors
