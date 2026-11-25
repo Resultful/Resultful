@@ -15,9 +15,12 @@ Each rule's description (shown by the IDE) lists what it covers and its known ga
 | RF0002 | warning | A result created with `default` or `new T()`: a struct that forbids `new T()` with `[Obsolete(..., error: true)]`, a `[ResultShape]`, or an error union. A comparison with `default` is not reported; suppress RF0002 where a zero value is meant (Resultful.Generators does in its output). |
 | RF0003 | warning | `r.Value` without an `IsSuccess`, `IsFailure` or `TryGetValue` check of the same variable guarding it (an `if`, `?:`, `&&`, `\|\|`, or an earlier `if (…) return;`). |
 | RF0004 | info | A string literal or interpolated string that becomes the success of a `Result<string>` (a failure before 0.3). The fix wraps it in `Result.Ok(…)` or `Result.Fail<string>(…)`. |
+| RF0005 | info | A `Match` on a `[ClosedHierarchy]` type whose handlers are typed expression lambdas or method groups. Its fix to a switch expression is off until RFSP0001 ships, since the compiler reports CS8509 on that switch without it. |
 | RF0006 | warning | A result field, or get-only auto-property, with no initializer that a constructor leaves unassigned, so it holds the zero value. |
+| RF0007 | info | A `[ClosedHierarchy]` base with a public or protected constructor (the implicit one and a positional record's included). The fix makes it `private protected` (fix-all); a positional record gets its own message and is fixed by hand. Internal bases are not reported. |
 | RF0008 | **error** | An untyped lambda passed to a generated multi-case `Match`, `Switch` or `TryMap`: adding or renaming a case can reorder the handlers. The fix adds the types (fix-all). Core's `Match(onSuccess, onError)` is exempt. |
 | RF0009 | warning | `Map` whose selector returns a result (`Result<Result<T>>`). The fix replaces it with `Bind` (fix-all). |
+| RF0010 | **error** | A type in another assembly that derives, directly or not, from a `[ClosedHierarchy]` base. |
 
 The rules read attributes by full name, so a library's own `internal` copy of
 `Resultful.CodeAnalysis.MustObserveAttribute` counts. For a third-party type you can't mark, list its documentation ID:
@@ -25,6 +28,7 @@ The rules read attributes by full name, so a library's own `internal` copy of
 ```ini
 [*.cs]
 resultful.must_observe_types = T:Vendor.ApiResponse`1, M:Vendor.Client.TrySend
+resultful.closed_hierarchy_types = T:Vendor.ApiError
 ```
 
 The package holds one build per compiler: `analyzers/dotnet/roslyn4.14` (SDK 9.0.3xx) and `analyzers/dotnet/roslyn5.0`

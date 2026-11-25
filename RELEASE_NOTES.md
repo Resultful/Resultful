@@ -89,7 +89,10 @@
   the success of a `Result<string>` (it was a failure before 0.3), with a `Result.Ok`/`Result.Fail` fix; RF0006
   (warning) a result field no constructor assigns; RF0008 (**error**) an untyped lambda passed to a generated
   multi-case `Match`, `Switch` or `TryMap`, whose handler order can change, with a fix that adds the types; RF0009
-  (warning) `Map` whose selector returns a result, with a fix to `Bind`.
+  (warning) `Map` whose selector returns a result, with a fix to `Bind`. For `[ClosedHierarchy]` bases: RF0005 (info)
+  a `Match` that could be a switch expression (its fix waits for RFSP0001); RF0007 (info) a base another assembly can derive from
+  through a constructor, with a `private protected` fix; RF0010 (**error**) a type in another assembly that derives
+  from one, also for third-party bases listed under `resultful.closed_hierarchy_types`.
 
 ### Build
 

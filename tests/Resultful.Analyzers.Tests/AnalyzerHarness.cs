@@ -21,8 +21,8 @@ public static partial class AnalyzerHarness
 {
     public static readonly ImmutableArray<DiagnosticAnalyzer> Analyzers =
     [
-        new MustObserveAnalyzer(), new DefaultResultAnalyzer(), new UncheckedValueAnalyzer(), new BareStringAnalyzer(), new UnassignedFieldAnalyzer(),
-        new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(),
+        new MustObserveAnalyzer(), new DefaultResultAnalyzer(), new UncheckedValueAnalyzer(), new BareStringAnalyzer(), new MatchToSwitchAnalyzer(),
+        new UnassignedFieldAnalyzer(), new ClosedHierarchyAnalyzer(), new UntypedHandlerAnalyzer(), new MapToBindAnalyzer(),
     ];
 
 #if NET11_0_OR_GREATER
@@ -53,10 +53,22 @@ public static partial class AnalyzerHarness
     /// Compiles consumer sources (Test0.cs, Test1.cs, …) against the core, or alone with <paramref name="withCore"/>
     /// false; with <paramref name="generate"/>, through Resultful.Generators first.
     /// </summary>
-    public static Compilation Compile(IEnumerable<string> sources, bool withCore = true, bool generate = false, bool executable = false)
+    public static Compilation Compile(IEnumerable<string> sources, bool withCore = true, bool generate = false, bool executable = false,
+        string? library = null)
     {
         var trees = sources.Select((s, i) => CSharpSyntaxTree.ParseText(s, ParseOptions, path: $"Test{i}.cs", encoding: Encoding.UTF8));
         var refs = withCore ? FrameworkRefs.Value.Add(Core) : FrameworkRefs.Value;
+        if (library is not null)
+        {
+            // A second assembly the consumer references, built through the generator (RF0010's foreign derived types).
+            var lib = CSharpCompilation.Create("Library", [CSharpSyntaxTree.ParseText(library, ParseOptions, path: "Library.cs", encoding: Encoding.UTF8)], refs,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            CSharpGeneratorDriver.Create([new ResultShapeGenerator().AsSourceGenerator()], parseOptions: ParseOptions)
+                .RunGeneratorsAndUpdateCompilation(lib, out var built, out _);
+            Assert.Empty(built.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+            refs = refs.Add(built.ToMetadataReference());
+        }
+
         Compilation compilation = CSharpCompilation.Create("Consumer", trees, refs,
             new CSharpCompilationOptions(executable ? OutputKind.ConsoleApplication : OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         if (generate)
@@ -70,17 +82,19 @@ public static partial class AnalyzerHarness
     }
 
     /// <summary>The .editorconfig values; <paramref name="analyzeGenerated"/> sets `generated_code = false`, as the compatibility legs do.</summary>
-    public static AnalyzerOptions Options(string? mustObserveTypes, bool analyzeGenerated = false)
+    public static AnalyzerOptions Options(string? mustObserveTypes, bool analyzeGenerated = false, string? closedHierarchyTypes = null)
     {
         var values = new Dictionary<string, string>();
         if (mustObserveTypes is not null) values[Descriptors.MustObserveTypesKey] = mustObserveTypes;
+        if (closedHierarchyTypes is not null) values[Descriptors.ClosedHierarchyTypesKey] = closedHierarchyTypes;
         if (analyzeGenerated) values["generated_code"] = "false";
         return new([], new ConfigProvider(values));
     }
 
     /// <summary>Compiler and analyzer diagnostics together.</summary>
-    public static ImmutableArray<Diagnostic> Diagnose(Compilation compilation, string? mustObserveTypes = null, bool analyzeGenerated = false) =>
-        compilation.WithAnalyzers(Analyzers, Options(mustObserveTypes, analyzeGenerated)).GetAllDiagnosticsAsync().GetAwaiter().GetResult();
+    public static ImmutableArray<Diagnostic> Diagnose(Compilation compilation, string? mustObserveTypes = null, bool analyzeGenerated = false,
+        string? closedHierarchyTypes = null) =>
+        compilation.WithAnalyzers(Analyzers, Options(mustObserveTypes, analyzeGenerated, closedHierarchyTypes)).GetAllDiagnosticsAsync().GetAwaiter().GetResult();
 
     [GeneratedRegex(@"//\s*expect:\s*(?<ids>[A-Z]+[0-9]+(\s*,\s*[A-Z]+[0-9]+)*)")]
     private static partial Regex ExpectMarker();
@@ -110,16 +124,17 @@ public static partial class AnalyzerHarness
     /// Every marker is reported on its line, and nothing else is: no other RF diagnostic, no error, no warning a
     /// marker names elsewhere.
     /// </summary>
-    public static void Verify(string source, string? mustObserveTypes = null, bool withCore = true, bool generate = false, bool executable = false) =>
-        Verify([source], mustObserveTypes, withCore, generate, executable);
+    public static void Verify(string source, string? mustObserveTypes = null, bool withCore = true, bool generate = false, bool executable = false,
+        string? library = null, string? closedHierarchyTypes = null) =>
+        Verify([source], mustObserveTypes, withCore, generate, executable, library, closedHierarchyTypes);
 
     public static void Verify(IReadOnlyList<string> sources, string? mustObserveTypes = null, bool withCore = true, bool generate = false,
-        bool executable = false)
+        bool executable = false, string? library = null, string? closedHierarchyTypes = null)
     {
         var expected = Markers(sources);
         var ids = expected.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         // Generated shapes are analyzed too: the generator's own code must pass the rules.
-        var diagnostics = Diagnose(Compile(sources, withCore, generate, executable), mustObserveTypes, analyzeGenerated: generate)
+        var diagnostics = Diagnose(Compile(sources, withCore, generate, executable, library), mustObserveTypes, analyzeGenerated: generate, closedHierarchyTypes)
             .Where(d => d.Location.IsInSource)
             .Where(d => d.Severity == DiagnosticSeverity.Error || d.Id.StartsWith("RF", StringComparison.Ordinal) || ids.Contains(d.Id))
             .ToList();

@@ -43,7 +43,7 @@ public sealed class HandlerRulesTests
                 Func<OrderNotFound, string> missing)
             {
                 _ = e.Match(l => "locked", n => "missing"); // expect: RF0008, RF0008
-                _ = e.Match((OrderLocked l) => "locked", (OrderNotFound n) => "missing");
+                _ = e.Match((OrderLocked l) => "locked", (OrderNotFound n) => "missing"); // expect: RF0005
                 _ = e.Match(Locked, missing);
                 _ = e.Match(Locked, _ => "missing"); // expect: RF0008
                 _ = e.Match(onOrderLocked: (OrderLocked l) => "locked", onOrderNotFound: (n) => "missing"); // expect: RF0008

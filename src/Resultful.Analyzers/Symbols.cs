@@ -25,6 +25,7 @@ internal sealed class Symbols
     readonly ConcurrentDictionary<ISymbol, bool> _mustObserve = new(SymbolEqualityComparer.Default);
     readonly ConcurrentDictionary<ITypeSymbol, bool> _resultType = new(SymbolEqualityComparer.Default);
     readonly ConcurrentDictionary<SyntaxTree, ImmutableHashSet<string>> _configured = new();
+    readonly ConcurrentDictionary<SyntaxTree, ImmutableHashSet<string>> _configuredClosed = new();
     readonly AnalyzerConfigOptionsProvider _options;
 
     public Symbols(AnalyzerOptions options) => _options = options.AnalyzerConfigOptionsProvider;
@@ -127,7 +128,11 @@ internal sealed class Symbols
         return false;
     }
 
-    // ---- [ClosedHierarchy] and [ResultShape] (RF0008) ----
+    // ---- [ClosedHierarchy] and [ResultShape] (RF0005, RF0007, RF0008, RF0010) ----
+
+    /// <summary>Documentation IDs listed under <c>resultful.closed_hierarchy_types</c> for the tree's files.</summary>
+    public ImmutableHashSet<string> ConfiguredClosed(SyntaxTree tree) => _configuredClosed.GetOrAdd(tree, t =>
+        _options.GetOptions(t).TryGetValue(Descriptors.ClosedHierarchyTypesKey, out var value) ? ParseIds(value) : ImmutableHashSet<string>.Empty);
 
     public static bool IsClosedHierarchy(INamedTypeSymbol type) => HasAttribute(type.OriginalDefinition, ClosedHierarchyAttribute);
 

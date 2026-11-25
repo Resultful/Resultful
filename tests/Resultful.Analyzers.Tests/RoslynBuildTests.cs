@@ -15,8 +15,8 @@ public sealed class RoslynBuildTests
 {
     static readonly string[] AnalyzerTypes =
     [
-        "MustObserveAnalyzer", "DefaultResultAnalyzer", "UncheckedValueAnalyzer", "BareStringAnalyzer", "UnassignedFieldAnalyzer",
-        "UntypedHandlerAnalyzer", "MapToBindAnalyzer",
+        "MustObserveAnalyzer", "DefaultResultAnalyzer", "UncheckedValueAnalyzer", "BareStringAnalyzer", "MatchToSwitchAnalyzer",
+        "UnassignedFieldAnalyzer", "ClosedHierarchyAnalyzer", "UntypedHandlerAnalyzer", "MapToBindAnalyzer",
     ];
 
     // diagnostics.tsv and code-fixes.tsv of the 0.3 analyzer contract.
@@ -26,14 +26,18 @@ public sealed class RoslynBuildTests
         ["RF0002"] = DiagnosticSeverity.Warning,
         ["RF0003"] = DiagnosticSeverity.Warning,
         ["RF0004"] = DiagnosticSeverity.Info,
+        ["RF0005"] = DiagnosticSeverity.Info,
         ["RF0006"] = DiagnosticSeverity.Warning,
+        ["RF0007"] = DiagnosticSeverity.Info,
         ["RF0008"] = DiagnosticSeverity.Error,
         ["RF0009"] = DiagnosticSeverity.Warning,
+        ["RF0010"] = DiagnosticSeverity.Error,
     };
 
     static readonly (CodeFixProvider Fix, string Id, bool FixAll)[] Fixes =
     [
         (new MustObserveCodeFixProvider(), "RF0001", true), (new BareStringCodeFixProvider(), "RF0004", false),
+        (new MatchToSwitchCodeFixProvider(), "RF0005", true), (new PrivateProtectedCodeFixProvider(), "RF0007", true),
         (new UntypedHandlerCodeFixProvider(), "RF0008", true), (new MapToBindCodeFixProvider(), "RF0009", true),
     ];
 
@@ -50,6 +54,7 @@ public sealed class RoslynBuildTests
         });
         Assert.All(supported.Where(d => d.Id == "RF0001"), d => Assert.Equal(Descriptors.MustObserveTitle, d.Title.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         Assert.Equal("resultful.must_observe_types", Descriptors.MustObserveTypesKey);
+        Assert.Equal("resultful.closed_hierarchy_types", Descriptors.ClosedHierarchyTypesKey);
         Assert.All(Fixes, f =>
         {
             Assert.Equal([f.Id], f.Fix.FixableDiagnosticIds);
@@ -71,6 +76,11 @@ public sealed class RoslynBuildTests
     {
         const string Source = """
             using Resultful;
+            using Resultful.CodeAnalysis;
+
+            [ClosedHierarchy] public abstract record Shape { }
+            public sealed record Circle : Shape;
+            public sealed record Square : Shape;
 
             public static class Cases
             {
@@ -88,7 +98,7 @@ public sealed class RoslynBuildTests
         var assembly = context.LoadFromAssemblyPath(Metadata("Roslyn414Build"));
         ImmutableArray<DiagnosticAnalyzer> old = [.. AnalyzerTypes.Select(n => (DiagnosticAnalyzer)Activator.CreateInstance(assembly.GetType("Resultful.Analyzers." + n, throwOnError: true)!)!)];
         Assert.Equal(Ids(compilation, AnalyzerHarness.Analyzers), Ids(compilation, old));
-        Assert.Equal(["RF0001", "RF0002", "RF0003", "RF0004", "RF0006", "RF0009"], Ids(compilation, old));
+        Assert.Equal(["RF0001", "RF0002", "RF0003", "RF0004", "RF0006", "RF0007", "RF0009"], Ids(compilation, old));
     }
 
     static List<string> Ids(Compilation compilation, ImmutableArray<DiagnosticAnalyzer> analyzers) =>
