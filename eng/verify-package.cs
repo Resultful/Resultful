@@ -6,10 +6,13 @@
 // Fails if a package regresses to the 0.2.0-beta05 shape that broke Paket/NuGet audit consumers:
 //   - a NETStandard.Library or System.ValueTuple dependency
 //   - a .NETStandard1.x or .NETFramework dependency group (beta05 had a bogus ".NETFramework5.0")
-//   - a lib/netstandard1.x asset, or no lib/netstandard2.0 asset
+//   - a lib/netstandard1.x asset, no lib/net10.0 asset, or, in Resultful and Resultful.OneOf (the hardcoded
+//     netStandardPackages list), no lib/netstandard2.0 asset; other packages, such as Resultful.Text.Json, target
+//     net10.0 and net11.0 only (System.Text.Json is in the box there)
 //   - any dependency at all in the core, Resultful (decision 1); it may have no dependency groups
 //   - in Resultful.OneOf, a missing OneOf dependency or a floor below 3.0.271 (3.0.178 pulls NETStandard.Library 1.6.1
-//     -> NU1903 on net8+), or a Resultful dependency that isn't this package's own version (lockstep)
+//     -> NU1903 on net8+)
+//   - in any other package, a dependency group without Resultful at this package's own version (lockstep)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
 
 using System.IO.Compression;
@@ -23,6 +26,7 @@ if (args.Length == 0)
 
 var minOneOf = new Version(3, 0, 271);
 string[] banned = ["NETStandard.Library", "System.ValueTuple"];
+string[] netStandardPackages = ["Resultful", "Resultful.OneOf"];
 var exit = 0;
 
 foreach (var path in args)
@@ -60,21 +64,18 @@ foreach (var path in args)
         failures.Add("nuspec has no dependency groups");
     }
 
-    if (id == "Resultful.OneOf")
+    foreach (var group in id == "Resultful" ? [] : groups)
     {
-        foreach (var group in groups)
+        var tfm = (string?)group.Attribute("targetFramework") ?? "";
+        var ids = group.Elements(ns + "dependency").ToDictionary(d => (string)d.Attribute("id")!, d => (string?)d.Attribute("version") ?? "");
+        if (id == "Resultful.OneOf" && !ids.ContainsKey("OneOf"))
         {
-            var tfm = (string?)group.Attribute("targetFramework") ?? "";
-            var ids = group.Elements(ns + "dependency").ToDictionary(d => (string)d.Attribute("id")!, d => (string?)d.Attribute("version") ?? "");
-            if (!ids.ContainsKey("OneOf"))
-            {
-                failures.Add($"{tfm} group has no OneOf dependency");
-            }
+            failures.Add($"{tfm} group has no OneOf dependency");
+        }
 
-            if (!ids.TryGetValue("Resultful", out var core) || core.Trim('[', ']', '(', ')').Split(',')[0] != version)
-            {
-                failures.Add($"{tfm} group does not depend on Resultful {version}");
-            }
+        if (!ids.TryGetValue("Resultful", out var core) || core.Trim('[', ']', '(', ')').Split(',')[0] != version)
+        {
+            failures.Add($"{tfm} group does not depend on Resultful {version}");
         }
     }
 
@@ -107,9 +108,14 @@ foreach (var path in args)
         failures.Add("package ships a lib/netstandard1.x assembly");
     }
 
-    if (!files.Contains($"lib/netstandard2.0/{id}.dll"))
+    if (netStandardPackages.Contains(id) && !files.Contains($"lib/netstandard2.0/{id}.dll"))
     {
         failures.Add($"missing lib/netstandard2.0/{id}.dll");
+    }
+
+    if (!files.Contains($"lib/net10.0/{id}.dll"))
+    {
+        failures.Add($"missing lib/net10.0/{id}.dll");
     }
 
     var license = metadata.Element(ns + "license");

@@ -47,6 +47,11 @@
 ### Added
 
 - A `net11.0` target. The SDK is now 11.0.100.
+- **`Resultful.Text.Json`**: System.Text.Json converters for `Result<T>`, `Result<T, TError>`, `Validation<T>`,
+  `Validation<T, TError>`, `Unit`, every `Error` and error unions, with a fixed wire format
+  (`{"ok":true,"value":…}`, `{"ok":false,"error":{"type","message","context","cause",…}}`, `"errors":[…]`).
+  `AddResultful()` registers them all (it needs dynamic code); native-AOT apps add the converters and
+  `AddErrorCases<TError>(cases)` to a source-generated context. An unknown `type` reads as a `JsonException`.
 
 ### Build
 
