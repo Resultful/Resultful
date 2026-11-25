@@ -113,6 +113,8 @@ Consequences:
 - The core package stays dependency-free (`Resultful.Generators` is a separate opt-in package, per
   [decision 11](0011-package-family.md)).
 - One type per operation that returns a shape. The steps between use the core `Result` and `Validation`.
+- `TryGetValue(out var x)` compiles on `net10.0` but is CS0121 on `net11.0` for every shape: the `[Union]` members
+  add one `TryGetValue` overload per case, so name the type (`TryGetValue(out Order? order)`).
 - If item 8 is accepted: generated code calls the core, so `Resultful.Generators` requires the `Resultful` package. Declaring your own
   copy of an attribute without referencing Resultful ([decision 15](0015-analyzer-rules-read-attributes.md))
   works for the analyzers only.

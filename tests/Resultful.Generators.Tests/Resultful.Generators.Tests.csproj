@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Resultful.Generators' own tests: diagnostics, the emitted .g.cs (structure, budgets, IL), incrementality,
+    determinism, a CsCheck fuzz over random hierarchies, and generated shapes run against the real core. Fixtures are
+    compiled in process with Roslyn against src/Resultful, the same build this project references and runs.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <!-- CA1859/CA1034 don't fit test code; CA1515 public xunit classes; CA2007 no ConfigureAwait in tests. -->
+    <NoWarn>$(NoWarn);CA1859;CA1034;CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Resultful.Generators\Resultful.Generators.csproj" />
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="RepoRootDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+  </ItemGroup>
+</Project>
