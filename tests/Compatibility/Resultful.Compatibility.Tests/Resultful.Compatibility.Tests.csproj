@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Packed-package consumer checks: packs Resultful and Resultful.Generators, then builds and runs ../Generators (a
+    Packed-package consumer checks: packs Resultful, Resultful.Generators and Resultful.Analyzers, then builds and runs ../Generators (a
     hierarchy in one assembly, shapes in another) with each compiler leg's SDK, outside the repository. In
     Resultful.slnx for build and format, but not a test project there: CI's generator-legs job runs it with every
     leg's SDK installed (dotnet run -c Release).

@@ -40,14 +40,25 @@ public sealed class GeneratorLegTests(PackedPackages packages)
         Assert.DoesNotContain("CS9057", build.Output, StringComparison.Ordinal);
         Assert.Contains(" 0 Warning(s)", build.Output, StringComparison.Ordinal);
 
-        // Each project was compiled with exactly one Resultful.Generators.dll, from this compiler's folder.
-        foreach (var project in new[] { "Resultful.Compatibility.Domain", "Resultful.Compatibility.Shapes" })
+        // Each project was compiled with exactly one Resultful.Generators.dll, from this compiler's folder, and the
+        // shapes project with exactly one Resultful.Analyzers.dll, from the same folder.
+        foreach (var (project, dll) in new[]
+        {
+            ("Resultful.Compatibility.Domain", "Resultful.Generators.dll"),
+            ("Resultful.Compatibility.Shapes", "Resultful.Generators.dll"),
+            ("Resultful.Compatibility.Shapes", "Resultful.Analyzers.dll"),
+        })
         {
             var analyzers = File.ReadAllLines(Path.Combine(leg.Root, project, "obj", "Release", tfm, "analyzers.txt"))
-                .Where(a => a.EndsWith("Resultful.Generators.dll", StringComparison.Ordinal))
+                .Where(a => a.EndsWith(dll, StringComparison.Ordinal))
                 .Select(a => a.Replace('\\', '/'));
-            Assert.EndsWith($"/analyzers/dotnet/{folder}/cs/Resultful.Generators.dll", Assert.Single(analyzers), StringComparison.Ordinal);
+            Assert.EndsWith($"/analyzers/dotnet/{folder}/cs/{dll}", Assert.Single(analyzers), StringComparison.Ordinal);
         }
+
+        // The analyzers run in this compiler: a result thrown away fails the build (warnings are errors here).
+        var dropped = leg.Dotnet("build", "Resultful.Compatibility.Shapes", "-c", "Release", $"-p:CompatTargetFramework={tfm}", $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}", "-p:CompatDropResult=true");
+        Assert.NotEqual(0, dropped.ExitCode);
+        Assert.Contains("RF0001", dropped.Output, StringComparison.Ordinal);
 
         var run = leg.Dotnet(Path.Combine(leg.Root, "Resultful.Compatibility.Shapes", "bin", "Release", tfm, "Resultful.Compatibility.Shapes.dll"));
         Assert.True(run.ExitCode == 0, run.Output);
@@ -59,14 +70,14 @@ public sealed class GeneratorLegTests(PackedPackages packages)
         if (union)
         {
             // The flat switch is exhaustive with no discard arm, so dropping one is a compile error.
-            var dropped = leg.Dotnet("build", "Resultful.Compatibility.Shapes", "-c", "Release", $"-p:CompatTargetFramework={tfm}", $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}", "-p:CompatDropArm=true");
-            Assert.NotEqual(0, dropped.ExitCode);
-            Assert.Contains("CS8509", dropped.Output, StringComparison.Ordinal);
+            var droppedArm = leg.Dotnet("build", "Resultful.Compatibility.Shapes", "-c", "Release", $"-p:CompatTargetFramework={tfm}", $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}", "-p:CompatDropArm=true");
+            Assert.NotEqual(0, droppedArm.ExitCode);
+            Assert.Contains("CS8509", droppedArm.Output, StringComparison.Ordinal);
         }
     }
 }
 
-// Resultful and Resultful.Generators packed once per run, with a version no feed has (Known traps: stale packages).
+// Resultful, Resultful.Generators and Resultful.Analyzers packed once per run, with a version no feed has (Known traps: stale packages).
 public sealed class PackedPackages : IDisposable
 {
     public PackedPackages()
@@ -75,7 +86,7 @@ public sealed class PackedPackages : IDisposable
         var suffix = "ci." + (Environment.GetEnvironmentVariable("GITHUB_RUN_ID") ?? "local" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
         Output = Path.Combine(RepoRoot, "artifacts", "compat", suffix);
         Directory.CreateDirectory(Output);
-        foreach (var project in new[] { "src/Resultful/Resultful.csproj", "src/Resultful.Generators/Resultful.Generators.csproj" })
+        foreach (var project in new[] { "src/Resultful/Resultful.csproj", "src/Resultful.Generators/Resultful.Generators.csproj", "src/Resultful.Analyzers/Resultful.Analyzers.csproj" })
         {
             var pack = Process.Run(RepoRoot, "pack", project, "-c", "Release", "-o", Output, $"-p:VersionSuffix={suffix}");
             Assert.True(pack.ExitCode == 0, pack.Output);

@@ -9,13 +9,15 @@
     <IsAotCompatible>true</IsAotCompatible>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <DefineConstants Condition="'$(CompatDropArm)' == 'true'">$(DefineConstants);DROP_ARM</DefineConstants>
+    <DefineConstants Condition="'$(CompatDropResult)' == 'true'">$(DefineConstants);DROP_RESULT</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Resultful.Compatibility.Domain/Resultful.Compatibility.Domain.csproj" />
     <PackageReference Include="Resultful" Version="[$(ResultfulVersion)]" />
     <PackageReference Include="Resultful.Generators" Version="[$(ResultfulVersion)]" PrivateAssets="all" />
+    <PackageReference Include="Resultful.Analyzers" Version="[$(ResultfulVersion)]" PrivateAssets="all" />
   </ItemGroup>
-  <!-- The analyzers the compiler was given, so the test can tell which build of the generator loaded. -->
+  <!-- The analyzers the compiler was given, so the test can tell which builds of the generator and analyzers loaded. -->
   <Target Name="CompatReportAnalyzers" AfterTargets="CoreCompile">
     <WriteLinesToFile File="$(IntermediateOutputPath)analyzers.txt" Lines="@(Analyzer->'%(FullPath)')" Overwrite="true" />
   </Target>

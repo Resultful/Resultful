@@ -80,6 +80,11 @@
   only those) or the fatal `OutOfMemoryException`, `StackOverflowException`, `AccessViolationException` and
   `ThreadAbortException`.
 - `==` and `!=` on `Result<T>`, `Result<T, TError>`, `Option<T>` and the obsolete void results, matching `Equals`.
+- **`Resultful.Analyzers`** (decision 15), one build per compiler like `Resultful.Generators`: RF0001 (warning) reports
+  a `[MustObserve]` value thrown away, including an unawaited or awaited-and-dropped task of one and an async void
+  handler passed to its `Switch` or `Tee`, with a `_ =` fix (fix-all too); `resultful.must_observe_types` in
+  `.editorconfig` lists third-party types and methods. RF0002 (warning) reports a result, shape or error union created
+  with `default`, except in a comparison or a pattern; generated files disable it, since their zero values are deliberate.
 
 ### Build
 
