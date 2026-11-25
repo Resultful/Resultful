@@ -20,4 +20,9 @@
     <PackageReference Include="CsCheck" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 24b: EarlyReturnTests checks the README's "Early return" snippet against its compiled copy. -->
+    <AssemblyMetadata Include="RepoRootDir" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))" />
+  </ItemGroup>
+
 </Project>

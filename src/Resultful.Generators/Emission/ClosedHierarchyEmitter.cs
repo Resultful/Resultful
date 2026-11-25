@@ -6,10 +6,10 @@ namespace Resultful.Generators.Emission;
 // Tier 1 (decision 16 item 3): the constructor, Cases, Match, Switch and TryMap.
 internal static class ClosedHierarchyEmitter
 {
-    public static string Emit(ClosedHierarchyModel model)
+    public static string Emit(ClosedHierarchyModel model, bool nullableAttributes)
     {
         var w = new SourceWriter();
-        w.OpenNamespaceAndEnclosing(model.Namespace, model.EnclosingTypes);
+        w.OpenNamespaceAndEnclosing(model.Namespace, model.EnclosingTypes, nullableAttributes);
 
         w.WriteLine($"{model.Accessibility} abstract partial {model.Keyword} {model.Name}");
         w.OpenBrace();
@@ -79,7 +79,7 @@ internal static class ClosedHierarchyEmitter
                     // Walks error.Causes() outer to inner and maps the first cause that is one of these leaves.
                     w.WriteLine();
                     w.WriteLine(
-                        $"{access} static {hidesDispatch}bool TryMap<TResult>(global::Resultful.Error error, {matchParams}, [global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TResult result)");
+                        $"{access} static {hidesDispatch}bool TryMap<TResult>(global::Resultful.Error error, {matchParams}, {SourceWriter.FlowAttribute(nullableAttributes, "MaybeNullWhen", false)}out TResult result)");
                     w.OpenBrace();
                     w.WriteLine("foreach (global::Resultful.Error cause in error.Causes())");
                     w.OpenBrace();

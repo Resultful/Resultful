@@ -156,7 +156,7 @@ public sealed class UncheckedValueAnalyzer : DiagnosticAnalyzer
                 return access.Name.Identifier.Text switch
                 {
                     "TryGetValue" => whenTrue && IsVariable(access.Expression, variable, model),
-                    "TryGetError" or "TryGetErrors" => !whenTrue && IsVariable(access.Expression, variable, model),
+                    "TryGetError" or "TryGetErrors" or "Failed" => !whenTrue && IsVariable(access.Expression, variable, model),
                     _ => false,
                 };
             default:

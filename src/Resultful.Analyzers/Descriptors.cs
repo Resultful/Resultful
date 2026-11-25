@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace Resultful.Analyzers;
 
 /// <summary>
-/// RF0001 to RF0010 and RFSP0001: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
+/// RF0001 to RF0011 and RFSP0001: the IDs, severities, titles and the .editorconfig keys are the 0.3 analyzer contract, and
 /// AnalyzerReleases.Unshipped.md lists the rules (a suppressor isn't tracked there). Each description says what the rule covers and what it doesn't.
 /// </summary>
 public static class Descriptors
@@ -93,8 +93,8 @@ public static class Descriptors
         description: "Value throws on a failure (and on the zero value). Scope: the Value property of a [MustObserve] type that also has IsSuccess "
             + "(Result, Validation, a user's own). A read of a local, parameter or field passes when a check of the same variable guards it: "
             + "inside `if (r.IsSuccess)`, `r.IsSuccess ? r.Value : …`, `r.IsSuccess && r.Value…`, the else of `if (r.IsFailure)`, "
-            + "a pattern (`r is { IsSuccess: true }`, `r.IsSuccess is true`), a `TryGetValue` call in the condition, or after "
-            + "`if (!r.IsSuccess) return;` (any exit) earlier in an enclosing block, switch section or the top-level statements. "
+            + "a pattern (`r is { IsSuccess: true }`, `r.IsSuccess is true`), a `TryGetValue` call in the condition, the else of "
+            + "`if (r.Failed(out …, out …))`, or after `if (!r.IsSuccess) return;` or `if (r.Failed(out …, out …)) return …;` (any exit) earlier in an enclosing block, switch section or the top-level statements. "
             + "Any other receiver, such as `Get().Value`, is reported. Not covered: an assignment to the variable between the check and the read, "
             + "a check in a switch arm or nested pattern, a check in a helper method, and `Debug.Assert`.");
 
@@ -206,6 +206,25 @@ public static class Descriptors
             + "(decision 15). C# can't enforce that for a record, whose copy constructor is protected (CS8878), so this rule does. Scope: a class or "
             + "record whose base, direct or indirect, carries [ClosedHierarchy] or is listed under resultful.closed_hierarchy_types, and is declared "
             + "in another assembly. Not covered: code compiled without the analyzer, which a switch then rejects at run time.");
+
+    /// <summary>RF0011: the value-type <c>value</c> of a <c>Failed</c> call read where the call returned true (decision 22).</summary>
+    public static readonly DiagnosticDescriptor FailedValue = new(
+        "RF0011",
+        "A value-type value from Failed is read where Failed returned true",
+        "{0} is read where {1}.Failed returned true: it is default({2}), not a value",
+        Category,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "After `if (r.Failed(out var value, out var error))`, value holds default inside the branch. For a reference type the "
+            + "compiler's nullable analysis already warns; for a value type it can't, so this rule does (decision 22). "
+            + "Scope: a local given as the first out argument of an instance Failed(out …, out …) that returns bool on a [MustObserve] type "
+            + "or a [ResultShape], whose type is a value type other than Nullable<T>; each read of it, up to the first write to it after the call "
+            + "(an assignment of any kind, a deconstruction, ++ or --, an out or ref argument, a ref alias), "
+            + "in the code that runs only when the call returned true: the branch of an `if`, `?:` or `while`, the right of `&&` or `||`, "
+            + "through `!` and parentheses, and the statements after `if (!r.Failed(…)) <exit>;` in the same block up to the first label. "
+            + "A read in a local function counts only when the local function is declared in that code. "
+            + "Not covered (no report): a field, a discard, `r.Failed(…) is true` and other patterns, a check stored in a bool, "
+            + "a switch section, and the condition of a `do` or `for`.");
 
     /// <summary>RFSP0001's justification.</summary>
     public const string ClosedHierarchySwitchTitle =

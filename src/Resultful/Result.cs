@@ -41,8 +41,10 @@ namespace Resultful
         }
 
         //Implicit Converters
-        /// <summary>Converts an error to a failure.</summary>
+        /// <summary>Converts an error to a failure, so <c>return error;</c> works in a method that returns a result.</summary>
         /// <param name="value">The error.</param>
+        /// <remarks>When <typeparamref name="T"/> and <typeparamref name="TError"/> are the same type, this and the conversion from <typeparamref name="T"/> are ambiguous (CS0457). When <typeparamref name="TError"/> is an interface, C# applies no user-defined conversion from it (CS0029). Use <c>error.Fail&lt;T, TError&gt;()</c> in both cases.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="value"/> is <c>null</c>.</exception>
         public static implicit operator Result<T, TError>(TError value)
             => value.Fail<T, TError>();
 
