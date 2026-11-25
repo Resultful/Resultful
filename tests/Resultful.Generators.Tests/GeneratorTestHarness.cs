@@ -21,7 +21,7 @@ internal static class GeneratorTestHarness
 
     public static MetadataReference Core { get; } = MetadataReference.CreateFromFile(CorePath);
 
-    private static string Metadata(string key) =>
+    public static string Metadata(string key) =>
         typeof(GeneratorTestHarness).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .First(a => a.Key == key).Value!;

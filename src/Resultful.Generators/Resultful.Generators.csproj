@@ -1,18 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    The Roslyn 4.14 build (SDK 9.0.3xx) and the package. The 5.x build is Resultful.Generators.Roslyn5, the same
+    sources against the lowest 5.x; both DLLs go into analyzers/dotnet/roslyn{version}/cs/, and the SDK loads the
+    highest folder that isn't newer than its compiler. No lib/: nothing is referenced at run time.
+  -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <!-- Not packed until 13b, which builds one copy per Roslyn version into the package. -->
-    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants);ROSLYN4_14</DefineConstants>
     <!-- CA1305: generated text is culture-free string interpolation of names. CA1822: analyzer helpers kept as instance-free statics by design. -->
     <NoWarn>$(NoWarn);CA1305;CA1822</NoWarn>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PackageId>Resultful.Generators</PackageId>
+    <Description>Source generator for Resultful: closed error hierarchies, error unions and result shapes, with exhaustive switches and no hand-written boilerplate.</Description>
+    <PackageTags>result;railway-oriented-programming;error-handling;source-generator;unions</PackageTags>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <IncludeSymbols>false</IncludeSymbols>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
-    <!-- One build for now, against Roslyn 4.14.0 (SDK 9.0.3xx): it loads in every later compiler. The central version
-         is the tests' 5.12.0, so this pins its own. The per-Roslyn split is 13b. -->
+    <!-- The lowest Roslyn this build loads in; the central version is the tests' 5.12.0. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.14.0" PrivateAssets="all" />
   </ItemGroup>
 
@@ -20,5 +34,26 @@
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
     <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddAnalyzerBuilds</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <!-- This build and the Roslyn5 project's, each from its own output (GetTargetPath builds nothing). -->
+  <Target Name="AddAnalyzerBuilds">
+    <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath" Condition="'%(Filename)' == 'Resultful.Generators.Roslyn5'">
+      <Output TaskParameter="TargetOutputs" ItemName="Roslyn5Build" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(TargetPath)" PackagePath="analyzers/dotnet/roslyn4.14/cs" />
+      <TfmSpecificPackageFile Include="@(Roslyn5Build)" PackagePath="analyzers/dotnet/roslyn5.0/cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>

@@ -14,8 +14,15 @@
 //     -> NU1903 on net8+)
 //   - in any other package, a dependency group without Resultful at this package's own version (lockstep)
 // and checks the metadata (licence, readme, repository commit) and the sibling .snupkg.
+//
+// Analyzer packages (analyzerPackages: Resultful.Generators) are checked instead for: no lib/ and no dependencies,
+// developmentDependency, exactly one DLL in each of analyzers/dotnet/roslyn4.14/cs/ and roslyn5.0/cs/ (the SDK parses
+// the folder as roslyn<major>.<minor>, so "roslyn5.x" would load in every compiler next to the 4.14 build), and each
+// DLL's Microsoft.CodeAnalysis reference no newer than its folder's version (or that compiler reports CS9057).
 
 using System.IO.Compression;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Xml.Linq;
 
 if (args.Length == 0)
@@ -27,7 +34,10 @@ if (args.Length == 0)
 var minOneOf = new Version(3, 0, 271);
 string[] banned = ["NETStandard.Library", "System.ValueTuple"];
 string[] netStandardPackages = ["Resultful", "Resultful.OneOf"];
+string[] analyzerPackages = ["Resultful.Generators"];
+string[] roslynFolders = ["roslyn4.14", "roslyn5.0"];
 var exit = 0;
+var versions = new Dictionary<string, string>(StringComparer.Ordinal);
 
 foreach (var path in args)
 {
@@ -54,7 +64,40 @@ foreach (var path in args)
     var dependencies = groups.SelectMany(g => g.Elements(ns + "dependency")).ToList();
 
     var version = metadata.Element(ns + "version")!.Value;
-    if (id == "Resultful")
+    versions[id] = version;
+    var isAnalyzer = analyzerPackages.Contains(id);
+    if (isAnalyzer)
+    {
+        failures.AddRange(dependencies.Select(d => $"the analyzer package depends on {d.Attribute("id")!.Value}"));
+        failures.AddRange(files.Where(f => f.StartsWith("lib/", StringComparison.Ordinal)).Select(f => $"the analyzer package ships {f}"));
+        if (metadata.Element(ns + "developmentDependency")?.Value != "true")
+        {
+            failures.Add("the analyzer package is not a developmentDependency");
+        }
+
+        var dlls = files.Where(f => f.EndsWith(".dll", StringComparison.Ordinal)).ToList();
+        var expected = roslynFolders.Select(r => $"analyzers/dotnet/{r}/cs/{id}.dll").ToList();
+        failures.AddRange(expected.Except(dlls).Select(f => $"missing {f}"));
+        failures.AddRange(dlls.Except(expected).Select(f => $"unexpected {f}"));
+        foreach (var entry in zip.Entries.Where(e => expected.Contains(e.FullName)))
+        {
+            var folder = Version.Parse(entry.FullName.Split('/')[2]["roslyn".Length..]);
+            var reference = CodeAnalysisReference(entry);
+            if (reference is null)
+            {
+                failures.Add($"{entry.FullName} references no Microsoft.CodeAnalysis");
+            }
+            else if (new Version(reference.Major, reference.Minor) > folder)
+            {
+                failures.Add($"{entry.FullName} references Microsoft.CodeAnalysis {reference}, newer than its folder");
+            }
+            else
+            {
+                Console.WriteLine($"  {entry.FullName}: Microsoft.CodeAnalysis {reference}");
+            }
+        }
+    }
+    else if (id == "Resultful")
     {
         // The core references nothing (decision 1): no dependency in any group. Empty groups, or none, are fine.
         failures.AddRange(dependencies.Select(d => $"the core depends on {d.Attribute("id")!.Value}"));
@@ -64,7 +107,7 @@ foreach (var path in args)
         failures.Add("nuspec has no dependency groups");
     }
 
-    foreach (var group in id == "Resultful" ? [] : groups)
+    foreach (var group in id == "Resultful" || isAnalyzer ? [] : groups)
     {
         var tfm = (string?)group.Attribute("targetFramework") ?? "";
         var ids = group.Elements(ns + "dependency").ToDictionary(d => (string)d.Attribute("id")!, d => (string?)d.Attribute("version") ?? "");
@@ -113,7 +156,7 @@ foreach (var path in args)
         failures.Add($"missing lib/netstandard2.0/{id}.dll");
     }
 
-    if (!files.Contains($"lib/net10.0/{id}.dll"))
+    if (!isAnalyzer && !files.Contains($"lib/net10.0/{id}.dll"))
     {
         failures.Add($"missing lib/net10.0/{id}.dll");
     }
@@ -142,7 +185,7 @@ foreach (var path in args)
     }
 
     var snupkg = Path.ChangeExtension(path, ".snupkg");
-    if (!File.Exists(snupkg))
+    if (!isAnalyzer && !File.Exists(snupkg))
     {
         failures.Add($"missing symbols package {Path.GetFileName(snupkg)}");
     }
@@ -160,4 +203,33 @@ foreach (var path in args)
     Console.WriteLine($"  dependencies: {string.Join(' ', dependencies.Select(d => $"{d.Attribute("id")!.Value} {d.Attribute("version")!.Value}").Distinct())}");
 }
 
+// An analyzer package has no Resultful dependency to carry the lockstep version, so compare it with the core packed
+// alongside it.
+if (versions.TryGetValue("Resultful", out var coreVersion))
+{
+    foreach (var analyzer in analyzerPackages.Where(versions.ContainsKey).Where(a => versions[a] != coreVersion))
+    {
+        Console.Error.WriteLine($"Package check FAILED: {analyzer} {versions[analyzer]} is not the version of Resultful {coreVersion} packed with it (lockstep)");
+        exit = 1;
+    }
+}
+
 return exit;
+
+static Version? CodeAnalysisReference(ZipArchiveEntry entry)
+{
+    using var buffer = new MemoryStream();
+    using (var stream = entry.Open())
+    {
+        stream.CopyTo(buffer);
+    }
+
+    buffer.Position = 0;
+    using var pe = new PEReader(buffer);
+    var reader = pe.GetMetadataReader();
+    return reader.AssemblyReferences
+        .Select(reader.GetAssemblyReference)
+        .Where(r => reader.GetString(r.Name) == "Microsoft.CodeAnalysis")
+        .Select(r => r.Version)
+        .FirstOrDefault();
+}

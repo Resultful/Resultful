@@ -27,6 +27,14 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
     /// <summary>The tracking name of the emitted sources.</summary>
     public const string EmitTrackingName = "Resultful.Emit";
 
+    // One build per Roslyn version (Known traps). The 4.14 build (SDK 9.0.3xx) never emits [Union]; the 5.x build
+    // decides from the compilation below.
+#if ROSLYN4_14
+    private const bool UnionCapableBuild = false;
+#else
+    private const bool UnionCapableBuild = true;
+#endif
+
     // LanguageVersion.CSharp15's value in Roslyn 5.x; the 4.14 API this build compiles against has no name for it.
     private const int CSharp15 = 1500;
 
@@ -50,7 +58,7 @@ public sealed class ResultShapeGenerator : IIncrementalGenerator
             .Select(static (c, _) => c.GetTypeByMetadataName("System.Runtime.CompilerServices.UnionAttribute") is not null)
             .Combine(context.ParseOptionsProvider.Select(static (po, _) =>
                 po is CSharpParseOptions cs && (int)cs.LanguageVersion >= CSharp15))
-            .Select(static (pair, _) => pair.Left && pair.Right)
+            .Select(static (pair, _) => UnionCapableBuild && pair.Left && pair.Right)
             .WithTrackingName(UnionAvailableTrackingName);
 
         // Stage B1: [ClosedHierarchy] declarations combined with Stage A index
