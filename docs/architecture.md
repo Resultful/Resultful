@@ -46,6 +46,9 @@ publishes only the packages that changed, as in `Resultful.Assertions`.
 | *`Resultful.Text.Json`* | `System.Text.Json` converters, source-generation friendly, AOT-safe | in-box `System.Text.Json` | `net10.0`, `net11.0` |
 | *`Resultful.FluentValidation`* | `validator.ValidateToResult(x)` | `FluentValidation` | as `FluentValidation` |
 | *`Resultful.Diagnostics`* | Opt-in `ILogger` and `ActivitySource` hooks | `Microsoft.Extensions.Logging.Abstractions` | `net10.0`, `net11.0` |
+| `Resultful.Assertions` | `ShouldSucceed`, `ShouldFail`, `ShouldFind<TLeaf>` on results, validations, options, generated shapes and their errors, with no assertion library (decision 18) | `Resultful` | as core |
+| `Resultful.Assertions.AwesomeAssertions` | `result.Should().Succeed().Which…`, `.Fail().WithMessage(…)`, `.FailWith<TLeaf>()` | `Resultful.Assertions`, `AwesomeAssertions` ≥ 9.0.0 | as core |
+| `Resultful.Assertions.FluentAssertions` | The same API, compiled from the AwesomeAssertions adapter's sources | `Resultful.Assertions`, `FluentAssertions` `[7.0.0, 8.0.0)` | as core |
 
 Rules:
 

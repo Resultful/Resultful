@@ -17,6 +17,10 @@
     <Project Path="src/Resultful.Generators.Roslyn5/Resultful.Generators.Roslyn5.csproj" />
     <Project Path="src/Resultful.OneOf/Resultful.OneOf.csproj" />
     <Project Path="src/Resultful.Text.Json/Resultful.Text.Json.csproj" />
+    <!-- Resultful.Assertions (21c) -->
+    <Project Path="src/Resultful.Assertions/Resultful.Assertions.csproj" />
+    <Project Path="src/Resultful.Assertions.AwesomeAssertions/Resultful.Assertions.AwesomeAssertions.csproj" />
+    <Project Path="src/Resultful.Assertions.FluentAssertions/Resultful.Assertions.FluentAssertions.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
@@ -27,6 +31,11 @@
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />
     <Project Path="tests/Resultful.Text.Json.Tests/Resultful.Text.Json.Tests.csproj" />
+    <!-- Resultful.Assertions (21c) -->
+    <Project Path="tests/Resultful.Assertions.TestDomain/Resultful.Assertions.TestDomain.csproj" />
+    <Project Path="tests/Resultful.Assertions.Tests/Resultful.Assertions.Tests.csproj" />
+    <Project Path="tests/Resultful.Assertions.AwesomeAssertions.Tests/Resultful.Assertions.AwesomeAssertions.Tests.csproj" />
+    <Project Path="tests/Resultful.Assertions.FluentAssertions.Tests/Resultful.Assertions.FluentAssertions.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <File Path="samples/Directory.Build.props" />
