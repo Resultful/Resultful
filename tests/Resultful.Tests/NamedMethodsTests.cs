@@ -134,22 +134,24 @@ namespace Resultful.Tests
             Assert.That(() => ok.OrElse((Func<string, Result<int, string>>)null!), Throws.ArgumentNullException);
         }
 
-        // 0.2 behaviour, pinned until 08b: Fail accepts a null error (and Ok a null value), and the named members report
-        // it as it is. This contradicts the target's [MemberNotNullWhen(true, nameof(Error))] on IsFailure (and the
-        // Value half on IsSuccess). 08b makes Fail(null!) throw ArgumentNullException (ZERO-NULL-ERR) and changes this test.
+        // 08b (ZERO-NULL-ERR): a failure always holds an error, so Fail(null!) throws, which keeps
+        // [MemberNotNullWhen(true, nameof(Error))] on IsFailure true. 0.2 gave a failure holding null. A success may hold
+        // null: Ok<string?>(null) is a success whose Value is null.
         [Test]
-        public void A_failure_holding_a_null_error_is_still_a_failure()
+        public void Fail_rejects_a_null_error_and_Ok_accepts_a_null_value()
         {
-            var r = ((string)null!).Fail<int, string>();
-            Assert.That(r.IsFailure, Is.True);
-            Assert.That(r.TryGetError(out var error), Is.True);
-            Assert.That(error, Is.Null);
-            Assert.That(r.ValueOr(7), Is.EqualTo(7));
+            Assert.That(() => ((string)null!).Fail<int, string>(), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("value"));
+            Assert.That(() => ((string)null!).Fail(), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("value"));
+            Assert.That(() => { Result<int, string> r = (string)null!; }, Throws.ArgumentNullException);
+            Assert.That(() => Result.Fail<int>((IEnumerable<string>)null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("errors"));
+            var ok = ((string?)null).Ok<string?, string>();
+            Assert.That(ok.IsSuccess, Is.True);
+            Assert.That(ok.Value, Is.Null);
+            Assert.That(((string?)null).Ok().TryGetValue(out var value) && value is null, Is.True);
         }
 
-        // Decision 10's default for 05 (DECISIONS-TAKEN, awaiting the maintainer on #39): the zero value is neither a
-        // success nor a failure, and every named method that reads the case throws. The 0.2 members keep treating it as
-        // a success until 08b.
+        // Decision 10's default (DECISIONS-TAKEN, awaiting the maintainer on #39): the zero value is neither a success nor
+        // a failure, and every member that reads the case throws; 08b extends this to the 0.2 members.
         [Test]
         public void The_zero_value_is_neither_case_and_reading_it_throws()
         {
@@ -164,7 +166,7 @@ namespace Resultful.Tests
             Assert.That(() => zero.OrElse(1.Ok<int, string>()), Throws.InvalidOperationException);
             Assert.That(() => zero.OrElse(_ => 1), Throws.InvalidOperationException);
             Assert.That(() => zero.ValueOr(1), Throws.InvalidOperationException);
-            Assert.That(zero.Match(v => v, _ => -1), Is.EqualTo(0), "0.2's Match still sees a success (08b changes it)");
+            Assert.That(() => zero.Match(v => v, _ => -1), Throws.InvalidOperationException.With.Message.Contains("zero value"));
 
             var zeroList = default(Result<int>);
             Assert.That(zeroList.IsSuccess, Is.False);
@@ -173,7 +175,7 @@ namespace Resultful.Tests
             Assert.That(() => zeroList.TryGetValue(out _), Throws.InvalidOperationException);
             Assert.That(() => zeroList.OrElse(1.Ok()), Throws.InvalidOperationException);
             Assert.That(() => zeroList.ValueOr(1), Throws.InvalidOperationException);
-            Assert.That(zeroList.Match(v => v, _ => -1), Is.EqualTo(0), "0.2's Match still sees a success (08b changes it)");
+            Assert.That(() => zeroList.Match(v => v, _ => -1), Throws.InvalidOperationException.With.Message.Contains("zero value"));
         }
 
         [Test]
