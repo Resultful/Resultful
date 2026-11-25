@@ -137,6 +137,37 @@ is no conversion from `string`; write `Error.From("…")`. Deriving from `Error`
 reports CS8912, because the base seals `ToString`. `Result<T>` still holds a list of strings in this
 version; it holds an `Error` from 0.3.
 
+### Attributes for the analyzers and the generator
+
+`Resultful.CodeAnalysis` holds the attributes that the analyzers and the source generator read. The core's own types
+carry them, and you can put them on yours to get the same checks:
+
+```cs
+using Resultful.CodeAnalysis;
+
+[MustObserve]                                   // a value of this type must not be thrown away
+public readonly struct ApiResponse { /* ... */ }
+
+[ClosedHierarchy]                               // every derived type is in this assembly
+public abstract record OrderError : Error
+{
+    private protected OrderError(string message) : base(message) { }
+}
+
+[ResultShape(typeof(OrderError), Success = typeof(Order))]   // a named result, written by the generator
+public readonly partial struct PlaceOrderResult;
+```
+
+`Result<T>`, `Result<T, TError>` and `Option<T>` carry `[MustObserve]`. None of the attributes is inherited or
+repeatable: put each one on every type it applies to. They are matched by full name, so a library that doesn't
+reference Resultful can declare its own `internal` copy (`Resultful.CodeAnalysis.MustObserveAttribute`, and so on).
+If it also references Resultful, each use of the copy gives warning CS0436 (the copy in its own source wins), not an
+error.
+
+A generated shape implements `IResultShape<T, TError>`, so code can work over any shape. `IErrorUnion` is for a
+.NET 11 union of errors: its `Error` property gives the error it holds. It is on every target, but only `net11.0`
+code can declare a union.
+
 ## Operators
 
 ### Map

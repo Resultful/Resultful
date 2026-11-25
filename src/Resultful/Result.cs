@@ -11,6 +11,7 @@ namespace Resultful
     /// <typeparam name="T">The type of the success value.</typeparam>
     /// <typeparam name="TError">The type of the error.</typeparam>
     /// <remarks>The 0.2 members (<c>Match</c>, <c>Map</c>, …) treat the zero value (<c>default</c>) as a success holding <c>default(T)</c>. The named members don't: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>, and the others throw <see cref="InvalidOperationException"/>.</remarks>
+    [CodeAnalysis.MustObserve]
     public partial struct Result<T, TError>
     {
         //Private Members
