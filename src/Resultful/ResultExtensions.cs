@@ -56,20 +56,42 @@ namespace Resultful
             => new Result<T, TError>(value);
 
         //Builder for Result<T>
-        /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
+        /// <summary>Returns a failure holding <paramref name="error"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="errors">The errors.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
-        public static Result<T> Fail<T>(this IEnumerable<string> errors)
-            => new Result<T>(errors.ThrowIfNoError(nameof(errors)));
+        /// <param name="error">The error.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="error"/> is <c>null</c>.</exception>
+        public static Result<T> Fail<T>(this Error error)
+            => new Result<T>(error.ThrowIfNoError(nameof(error)));
 
-        /// <summary>Returns a failure holding <paramref name="errors"/>.</summary>
+        /// <summary>Returns a failure holding a <see cref="MessageError"/> with <paramref name="message"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="errors">The errors.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="errors"/> is <c>null</c>.</exception>
-        public static Result<T> Fail<T>(params string[] errors)
-            => new Result<T>(errors.ThrowIfNoError(nameof(errors)));
+        /// <param name="message">The error's message.</param>
+        /// <remarks>Explicit, so a <see cref="string"/> is never an error by accident (decision 14). Same as <c>Error.From(message).Fail&lt;T&gt;()</c>.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="message"/> is <c>null</c>.</exception>
+        public static Result<T> Fail<T>(string message)
+            => new Result<T>(Error.From(message.ThrowIfDefault(nameof(message))));
 
+        /// <summary>Widens a result whose error derives from <see cref="Error"/> to a <c>Result&lt;T&gt;</c>. The value or error is kept, and so is the error's type at run time.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="result">The result to widen.</param>
+        /// <remarks>Named, because C# can't write a conversion that is generic over every <typeparamref name="TError"/> deriving from <see cref="Error"/> (decision 14).</remarks>
+        /// <exception cref="InvalidOperationException"><paramref name="result"/> is the zero value (<c>default</c>).</exception>
+        public static Result<T> AsResult<T, TError>(this Result<T, TError> result) where TError : Error
+            => result.MapError(e => (Error)e);
+
+        /// <summary>On failure, adds <paramref name="message"/> to the error's <see cref="Error.Context"/>, keeping the error's type. A success is unchanged.</summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <typeparam name="TError">The type of the error.</typeparam>
+        /// <param name="result">The result.</param>
+        /// <param name="message">The note, such as what the caller was doing.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="message"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidOperationException"><paramref name="result"/> is the zero value (<c>default</c>).</exception>
+        public static Result<T, TError> WithContext<T, TError>(this Result<T, TError> result, string message) where TError : Error
+        {
+            message.ThrowIfDefault(nameof(message));
+            return result.MapError(e => e.WithContext(message));
+        }
 
         /// <summary>Returns a success holding <paramref name="value"/>.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
@@ -155,41 +177,6 @@ namespace Resultful
         public static Result<TResult, TError> Plus<TLeft, TRight, TResult, TError>(this Result<TLeft, TError> left,
             Result<TRight, TError> right) where TLeft : IPlus<TRight, TResult> where TError : IPlus<TError, TError>
             => left.Plus(right, (leftError, rightError) => leftError.Plus(rightError), (leftValue, rightValue) => leftValue.Plus(rightValue));
-
-        //Plus on Result<T>
-        /// <summary>Returns a success holding both values as a tuple if both succeed. Otherwise returns a failure with every error of both, left first.</summary>
-        /// <typeparam name="TLeft">The type of the left value.</typeparam>
-        /// <typeparam name="TRight">The type of the right value.</typeparam>
-        /// <param name="left">The first result.</param>
-        /// <param name="right">The second result.</param>
-        public static Result<(TLeft, TRight)> Plus<TLeft, TRight>(this Result<TLeft> left, Result<TRight> right)
-            => left.Plus(right, (leftValue, rightValue) => (leftValue, rightValue));
-
-        /// <summary>Returns a success holding the two values combined by <paramref name="plusFunc"/> if both succeed. Otherwise returns a failure with every error of both, left first.</summary>
-        /// <typeparam name="TLeft">The type of the left value.</typeparam>
-        /// <typeparam name="TRight">The type of the right value.</typeparam>
-        /// <typeparam name="TResult">The type of the combined value.</typeparam>
-        /// <param name="left">The first result.</param>
-        /// <param name="right">The second result.</param>
-        /// <param name="plusFunc">Combines the two values.</param>
-        public static Result<TResult> Plus<TLeft, TRight, TResult>(this Result<TLeft> left, Result<TRight> right, Func<TLeft, TRight, TResult> plusFunc)
-            => left.Match(
-                leftValue => right.Match(rightValue => Ok(plusFunc.ThrowIfDefault(nameof(plusFunc))(leftValue, rightValue)), Fail<TResult>),
-                errors => right.Match(rightValue => Fail<TResult>(errors), otherErrors => Fail<TResult>(errors.Concat(otherErrors)))
-            );
-
-        /// <summary>Returns a success holding the left value's <c>Plus</c> of the right value if both succeed. Otherwise returns a failure with every error of both, left first.</summary>
-        /// <typeparam name="TLeft">The type of the left value.</typeparam>
-        /// <typeparam name="TRight">The type of the right value.</typeparam>
-        /// <typeparam name="TResult">The type of the combined value.</typeparam>
-        /// <param name="left">The first result.</param>
-        /// <param name="right">The second result.</param>
-        public static Result<TResult> Plus<TLeft, TRight, TResult>(this Result<TLeft> left, Result<TRight> right) where TLeft : IPlus<TRight, TResult>
-            => left.Plus(right).Map(result =>
-            {
-                var (leftValue, rightValue) = result;
-                return leftValue.Plus(rightValue);
-            });
 
         //Reduce on Result<T, TError>
         /// <summary>Combines the values in order with <paramref name="plusFunc"/>. If any result fails, returns a failure with the errors of every failed result, merged with <paramref name="mergeFunc"/>.</summary>
@@ -336,58 +323,6 @@ namespace Resultful
             TResult seed, Func<TResult, T, TResult> aggrFunc)
             => values.FoldUntil(seed.Ok<TResult, TError>(), aggrFunc);
 
-        //Reduce on Result<T>
-        /// <summary>Combines the values in order with <paramref name="aggrFunc"/>. If any result fails, returns a failure with the errors of every failed result, in order.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="values">The results.</param>
-        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
-        /// <remarks>Throws <see cref="System.ArgumentException"/> if there are no items.</remarks>
-        public static Result<T> Reduce<T>(this IEnumerable<Result<T>> values, Func<T, T, T> aggrFunc)
-        {
-            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
-            {
-                return InternalList.ReduceInternal(enumerable, (acc, val) => AggrHelper.Func(acc, val, aggrFunc));
-            }
-        }
-
-        /// <summary>Combines the values in order with <typeparamref name="T"/>'s <c>Plus</c>. If any result fails, returns a failure with the errors of every failed result, in order.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="values">The results.</param>
-        /// <remarks>Throws <see cref="System.ArgumentException"/> if there are no items.</remarks>
-        public static Result<T> Reduce<T>(this IEnumerable<Result<T>> values) where T : IPlus<T, T>
-        {
-            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
-            {
-                return InternalList.ReduceInternal(enumerable, (acc, val) => AggrHelper.Func(acc, val, PlusHelper.Plus));
-            }
-        }
-
-        //Fold on Result<T>
-        /// <summary>Combines <paramref name="seed"/> and the values in order with <paramref name="aggrFunc"/>. If any result fails, returns a failure with the errors of every failed result, in order.</summary>
-        /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="values">The results.</param>
-        /// <param name="seed">The starting value. If it is a failure, its errors are kept.</param>
-        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
-        public static Result<TResult> Fold<TResult, T>(this IEnumerable<Result<T>> values,
-            Result<TResult> seed, Func<TResult, T, TResult> aggrFunc)
-        {
-            using (var enumerable = values.ThrowIfDefault(nameof(values)).GetEnumerator())
-            {
-                return InternalList.FoldInternal(enumerable, seed, (acc, val) => AggrHelper.Func(acc, val, aggrFunc));
-            }
-        }
-
-        /// <summary>Combines <paramref name="seed"/> and the values in order with <paramref name="aggrFunc"/>. If any result fails, returns a failure with the errors of every failed result, in order.</summary>
-        /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="values">The results.</param>
-        /// <param name="seed">The starting value.</param>
-        /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
-        public static Result<TResult> Fold<TResult, T>(this IEnumerable<Result<T>> values,
-            TResult seed, Func<TResult, T, TResult> aggrFunc)
-            => values.ThrowIfDefault(nameof(values)).Fold(seed.Ok(), aggrFunc);
-
         //ReduceUntil on Result<T>
         /// <summary>Combines the values in order with <paramref name="plusFunc"/>. Stops after the first failure, which is returned. At most one more result is read.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
@@ -403,7 +338,7 @@ namespace Resultful
         /// <typeparam name="TResult">The type of the accumulated value.</typeparam>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="values">The results.</param>
-        /// <param name="seed">The starting value. If it is a failure, its errors are kept.</param>
+        /// <param name="seed">The starting value. If it is a failure, its error is kept.</param>
         /// <param name="aggrFunc">Combines the accumulated value with the next value.</param>
         public static Result<TResult> FoldUntil<TResult, T>(this IEnumerable<Result<T>> values,
             Result<TResult> seed, Func<TResult, T, TResult> aggrFunc)
@@ -421,14 +356,6 @@ namespace Resultful
             => values.ThrowIfDefault(nameof(values))
                 .FoldUntil(seed.Ok(), aggrFunc);
 
-
-        //Unroll on IEnumerable<Result<T>>
-        /// <summary>Returns a success holding every value, in order, if every result succeeds. Otherwise returns a failure with the errors of every failed result, in order.</summary>
-        /// <typeparam name="T">The type of the value.</typeparam>
-        /// <param name="values">The results.</param>
-        public static Result<IEnumerable<T>> Unroll<T>(this IEnumerable<Result<T>> values)
-            => values.ThrowIfDefault(nameof(values))
-                .Fold(EmptyArray<T>.Get.Ok<IEnumerable<T>>(), (acc, item) => acc.Concat(new[] { item }));
 
         //UnrollUntil on IEnumerable<Result<T>>
         /// <summary>Returns a success holding every value, in order, if every result succeeds. Otherwise stops after the first failure, which is returned. At most one more result is read.</summary>
@@ -472,16 +399,16 @@ namespace Resultful
             => value.Match(Id, errors => errors.Fail());
 
         //Flatten on Result<T>
-        /// <summary>Returns the inner result if the outer result is a success, or the outer errors if it is a failure.</summary>
+        /// <summary>Returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The result.</param>
         public static Result<T> Flatten<T>(this Result<Result<T>> value)
             => value.Match(Id, Fail<T>);
 
-        /// <summary>Returns the inner result if the outer result is a success, or the outer errors if it is a failure.</summary>
+        /// <summary>Returns the inner result if the outer result is a success, or the outer error if it is a failure.</summary>
         /// <param name="value">The result.</param>
         public static VoidResult Flatten(this Result<VoidResult> value)
-            => value.Match(Id, Fail);
+            => value.Match(Id, errors => Fail(errors));
 
         //Unfold on Result<Option<T>>
         /// <summary>Swaps the layers: a success holding None gives None, a success holding a value gives that value as a success, and a failure gives the failure as an option with a value.</summary>

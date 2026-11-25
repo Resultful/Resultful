@@ -92,19 +92,25 @@ namespace Resultful
 
     public partial struct Result<T>
     {
-        /// <summary><c>true</c> if this is a success. Then <see cref="Value"/> is set.</summary>
+        /// <summary><c>true</c> if this is a success. Then <see cref="Value"/> is set and <see cref="Error"/> throws.</summary>
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(true, nameof(Value))]
+        [MemberNotNullWhen(false, nameof(Error))]
         public bool IsSuccess => _state == State.Success;
 
-        /// <summary><c>true</c> if this is a failure. Then <see cref="Value"/> throws.</summary>
+        /// <summary><c>true</c> if this is a failure. Then <see cref="Error"/> is set and <see cref="Value"/> throws.</summary>
         /// <remarks>The zero value (<c>default</c>) is neither a success nor a failure: <see cref="IsSuccess"/> and <see cref="IsFailure"/> are both <c>false</c>. Never throws.</remarks>
         [MemberNotNullWhen(false, nameof(Value))]
+        [MemberNotNullWhen(true, nameof(Error))]
         public bool IsFailure => _state == State.Failure;
 
         /// <summary>The value of a success.</summary>
         /// <exception cref="InvalidOperationException">This is a failure, or the zero value (<c>default</c>).</exception>
         public T Value => Case() ? _value : throw NamedErrors.NoValue();
+
+        /// <summary>The error of a failure.</summary>
+        /// <exception cref="InvalidOperationException">This is a success, or the zero value (<c>default</c>).</exception>
+        public Error Error => Case() ? throw NamedErrors.NoError() : _error;
 
         /// <summary>Gets the value of a success, like <c>Dictionary.TryGetValue</c>.</summary>
         /// <param name="value">The value on success; <c>default</c> on failure.</param>
@@ -117,11 +123,44 @@ namespace Resultful
             return isSuccess;
         }
 
+        /// <summary>Gets the error of a failure, like <c>Dictionary.TryGetValue</c>.</summary>
+        /// <param name="error">The error on failure; <c>null</c> on success.</param>
+        /// <returns><c>true</c> on failure, <c>false</c> on success.</returns>
+        /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
+        public bool TryGetError([MaybeNullWhen(false)] out Error error)
+        {
+            var isSuccess = Case();
+            error = isSuccess ? null : _error;
+            return !isSuccess;
+        }
+
+        /// <summary>Deconstructs the result: <c>var (isSuccess, value, error) = result;</c>.</summary>
+        /// <param name="isSuccess"><c>true</c> on success.</param>
+        /// <param name="value">The value on success; <c>default</c> on failure.</param>
+        /// <param name="error">The error on failure; <c>null</c> on success.</param>
+        /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
+        public void Deconstruct(out bool isSuccess, out T? value, out Error? error)
+        {
+            isSuccess = Case();
+            value = isSuccess ? _value : default;
+            error = isSuccess ? null : _error;
+        }
+
         /// <summary>Returns this result if it is a success, otherwise <paramref name="other"/>. The first success wins.</summary>
         /// <param name="other">The result to use when this is a failure.</param>
         /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
         public Result<T> OrElse(Result<T> other)
             => Case() ? this : other;
+
+        /// <summary>Returns this result if it is a success, otherwise the result <paramref name="other"/> returns for the error.</summary>
+        /// <param name="other">Called with the error, only when this is a failure.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="other"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidOperationException">This is the zero value (<c>default</c>).</exception>
+        public Result<T> OrElse(Func<Error, Result<T>> other)
+        {
+            other.ThrowIfDefault(nameof(other));
+            return Case() ? this : other(_error);
+        }
 
         /// <summary>Returns the value of a success, otherwise <paramref name="fallback"/>.</summary>
         /// <param name="fallback">The value to return when this is a failure.</param>

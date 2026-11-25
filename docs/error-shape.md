@@ -166,14 +166,16 @@ lost, and a handler can still find it.
 public sealed record DbTimeout(TimeSpan After) : Error($"database timed out after {After}");
 public sealed record SaveFailed(int OrderId) : Error($"order {OrderId} was not saved");
 
-Result<Order> Save(Order o) =>
+Result<Order> Save(Order o) =>                        // db.Save returns Result<Order>
     db.Save(o).MapError(e => new SaveFailed(o.Id) { Cause = e });
 
 // at the edge
 if (error.TryFind<DbTimeout>(out var timeout)) return Retry(timeout.After);
 ```
 
-A `switch` sees the wrapper, not its cause. Handlers that may see wrapped errors use `TryFind`, which walks the
+On a `Result<T>`, `MapError` takes a function from `Error` to `Error`, so the wrapper keeps it a `Result<Order>`
+(stack PR 09). From a `Result<T, TError>`, the same lambda keeps the wrapper's type (`Result<Order, SaveFailed>`);
+call `.AsResult()` to widen it. A `switch` sees the wrapper, not its cause. Handlers that may see wrapped errors use `TryFind`, which walks the
 error, then its `Cause` chain and any `Inner` errors.
 
 ### 5. Validation

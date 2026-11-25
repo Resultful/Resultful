@@ -36,7 +36,7 @@ namespace Resultful
             return value;
         }
 
-        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the errors and <paramref name="next"/> isn't called.</summary>
+        /// <summary>On success, returns the result <paramref name="next"/> gives. A failure keeps the error and <paramref name="next"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The result.</param>
         /// <param name="next">Gives the next result.</param>
@@ -144,7 +144,7 @@ namespace Resultful
         public static async Task<VoidResult> Then(this Task<VoidResult> value, params Func<VoidResult>[] steps)
             => (await value.ConfigureAwait(false)).Then(steps);
 
-        /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="next"/> gives. A failure keeps the errors and <paramref name="next"/> isn't called.</summary>
+        /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="next"/> gives. A failure keeps the error and <paramref name="next"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="next">Gives the next result.</param>
@@ -159,7 +159,7 @@ namespace Resultful
         public static async Task<VoidResult> ThenAsync(this Task<VoidResult> value, params Func<Task<VoidResult>>[] steps)
             => await (await value.ConfigureAwait(false)).ThenAsync(steps).ConfigureAwait(false);
 
-        /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="next"/> gives. A failure keeps the errors and <paramref name="next"/> isn't called.</summary>
+        /// <summary>Awaits <paramref name="value"/>, then: on success, returns the result <paramref name="next"/> gives. A failure keeps the error and <paramref name="next"/> isn't called.</summary>
         /// <typeparam name="T">The type of the value.</typeparam>
         /// <param name="value">The task that produces the result.</param>
         /// <param name="next">Gives the next result.</param>
