@@ -14,6 +14,35 @@
   add an alias (`using None = Resultful.None;`).
 - The `Task` forms of `ToOneOf` moved from the `Result` and `Option` classes to `OneOfExtensions`: extension-method
   calls compile unchanged, but static calls (`Result.ToOneOf(task)`) don't, and it is a binary break.
+- **A step with no value is a `Result<Unit>`; `VoidResult` and `VoidResult<TError>` are obsolete** (decision 14).
+  `Result.Ok()`, `Result.Fail(Error)` and `Result.Fail(string)` return `Result<Unit>`; `Result.Ok<TError>()`,
+  `error.Fail()` and `Result.Fail<TError>(params TError[])` return `Result<Unit, TError>`. `Sequence`,
+  `SequenceAsync`, `Check`, `CheckAsync`, `DiscardValue`, `DiscardValueAsync`, `Unwrap` and `UnwrapAsync` take and
+  return `Result<Unit>` (or `Result<Unit, TError>`), and `Then`/`ThenAsync` gain the parameterless-step forms on
+  `Result<Unit>`, `Result<Unit, TError>` and their tasks. The void types, their members and the extensions that take
+  them (including `ToOneOf` and `ToVoidResult` in `Resultful.OneOf`) still work, with a CS0618 warning, and are
+  removed at 1.0. Migration:
+  - Replace `VoidResult` with `Result<Unit>` and `VoidResult<TError>` with `Result<Unit, TError>` in signatures.
+    Return `Result.Ok()`, an error, or `Unit.Value` as before.
+  - `var r = Result.Ok();` is now a `Result<Unit>`: code that passed it on as a `VoidResult` still compiles through
+    the implicit conversion, but members only `VoidResult` had need the `Result<T>` spelling: `Map(value)` becomes
+    `Map(_ => value)`, `BindValue` becomes `Bind`, `Cast<TCast>()` on `VoidResult<TError>` becomes `CastError`,
+    `ToVoidResult()` becomes `ToResult()`, and `ReduceUntil`/`Plus` on void results become `Then` or `Validation`.
+  - A non-async lambda step that returns a `VoidResult` still fits `Sequence`, `Check` and `DiscardValue` (its
+    return converts). These don't, and need an edit: a method group returning `VoidResult` (CS0407); a lambda
+    returning `VoidResult<TError>` passed to `Result.Sequence(...)` (CS0029, `TError` can't be inferred: name it or
+    change the step's type); a non-async lambda returning `Task<VoidResult>` passed to `SequenceAsync`, `CheckAsync`
+    or `DiscardValueAsync` (CS0029: write `async x => await …`).
+  - `Task<VoidResult> M() => Task.FromResult(Result.Ok());` (and the `VoidResult<TError>` form) fails with CS0029,
+    because `Task<T>` isn't covariant: make the method `async`, write `Task.FromResult<VoidResult>(…)`, or change the
+    return type to `Task<Result<Unit>>`.
+  - Mixing `Result.Ok()` and a `VoidResult` with no target type needs a cast: `switch` expressions (CS8506), array
+    literals (CS0826), `Match` with one arm of each (CS0411), and assigning such a lambda to a variable (CS0029).
+  - In a `switch` or `?:` that mixes `default` with `Result.Ok()` and targets `VoidResult`, `default` now means
+    `default(Result<Unit>)`, whose conversion throws: write `default(VoidResult)`.
+  - `voidResult.Then(() => Result.Ok())` binds the `Then<T>` that returns a value, so it gives a `Result<Unit>`: a
+    `var` holding it changes type.
+  - The debugger shows a `Result.Ok()` as `Ok(Resultful.Unit)` instead of `Ok`.
 
 ### Added
 

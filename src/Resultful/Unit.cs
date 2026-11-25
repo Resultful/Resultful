@@ -1,6 +1,7 @@
 ﻿namespace Resultful
 {
-    /// <summary>A type with a single value, <see cref="Value"/>. It is the success value of <c>VoidResult</c> and <c>VoidResult&lt;TError&gt;</c>.</summary>
+    /// <summary>A type with a single value, <see cref="Value"/>. It is the success value of a step with no value: <c>Result&lt;Unit&gt;</c> or <c>Result&lt;Unit, TError&gt;</c>, which <c>Result.Ok()</c> and <c>Result.Ok&lt;TError&gt;()</c> return, and which <c>return Unit.Value;</c> converts to (decision 14).</summary>
+    /// <remarks>A class, as shipped (decision 14 keeps it). With it, <c>Result&lt;Unit&gt;</c> replaces the obsolete <c>VoidResult</c>.</remarks>
     public class Unit
     {
         /// <summary>The single <see cref="Unit"/> value.</summary>

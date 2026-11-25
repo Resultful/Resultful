@@ -9,7 +9,7 @@ using OneOfNone = OneOf.Types.None;
 namespace Resultful.Tests
 {
     // Decision 1 (11): the core references nothing; Resultful.OneOf carries ToOneOf (and its Task forms), the way back
-    // (ToResult, ToVoidResult, ToOption) and the None conversions. The scenario is a checkout that calls an older service
+    // (ToResult, ToOption) and the None conversions; a step with no value comes back as a Result<Unit> (decision 14). The scenario is a checkout that calls an older service
     // still written against OneOf: its answers come in through the interop, run through a Result pipeline, and leave as a
     // OneOf for a caller that hasn't moved. The laws hold every conversion to a round trip in both directions.
     [TestFixture]
@@ -42,7 +42,7 @@ namespace Resultful.Tests
             var reserved = item.Bind(i => i.InStock >= quantity ? i.Ok() : new OutOfStock(i.Sku).Fail<Item>());
             if (!reserved.TryGetValue(out var ok)) return reserved.Error.Fail<Receipt>();
             var total = ok.Price * quantity;
-            var charged = await LegacyCatalog.Charge(card, total).ToVoidResult();
+            Result<Unit> charged = await LegacyCatalog.Charge(card, total).ToResult();
             return charged.Match(_ => new Receipt(sku, quantity, total).Ok(), e => e.Fail<Receipt>());
         }
 
@@ -69,13 +69,13 @@ namespace Resultful.Tests
             // ToOption<T>(this T), which would give Option<OneOf<T, None>>.
             Result<int> list = OneOf<int, Error>.FromT0(1).ToResult();
             Result<int, string> typed = OneOf<int, string>.FromT1("e").ToResult();
-            VoidResult voidList = OneOf<Unit, Error>.FromT0(Unit.Value).ToVoidResult();
-            VoidResult<string> voidTyped = OneOf<Unit, string>.FromT1("e").ToVoidResult();
+            Result<Unit> voidList = OneOf<Unit, Error>.FromT0(Unit.Value).ToResult();
+            Result<Unit, string> voidTyped = OneOf<Unit, string>.FromT1("e").ToResult();
             Option<int> option = OneOf<int, OneOfNone>.FromT0(1).ToOption();
             // The Task forms too: core's ToOption<T>(this Task<T>) would give Task<Option<OneOf<T, None>>>.
             Task<Option<int>> later = Task.FromResult(OneOf<int, OneOfNone>.FromT1(new OneOfNone())).ToOption();
             Task<Result<int>> laterList = Task.FromResult(OneOf<int, Error>.FromT0(1)).ToResult();
-            Task<VoidResult> laterVoid = Task.FromResult(OneOf<Unit, Error>.FromT0(Unit.Value)).ToVoidResult();
+            Task<Result<Unit>> laterVoid = Task.FromResult(OneOf<Unit, Error>.FromT0(Unit.Value)).ToResult();
             Assert.That((later.Result.Or(0), laterList.Result.Value, laterVoid.Result.Match(_ => "ok", e => e.Message)), Is.EqualTo((0, 1, "ok")));
             Assert.That((list.Value, typed.Error, voidList.Match(_ => "ok", e => e.Message), voidTyped.Match(_ => "ok", e => e), option.Or(0)), Is.EqualTo((1, "e", "ok", "e", 1)));
         }
@@ -85,8 +85,12 @@ namespace Resultful.Tests
         {
             Assert.That(() => default(Result<int, string>).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
             Assert.That(() => default(Result<int>).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
+            Assert.That(() => default(Result<Unit, string>).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
+            Assert.That(() => default(Result<Unit>).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); its ToOneOf still behaves as in 0.2.
             Assert.That(() => default(VoidResult<string>).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
             Assert.That(() => default(VoidResult).ToOneOf(), Throws.InvalidOperationException.With.Message.Contains("zero value (default)"));
+#pragma warning restore CS0618
             Assert.That(() => Task.FromResult(default(Result<int>)).ToOneOf(), Throws.InvalidOperationException);
             Assert.That(default(Option<int>).ToOneOf().IsT1, Is.True);
             Assert.That(() => ((Task<Result<int>>)null!).ToOneOf(), Throws.ArgumentNullException);
@@ -143,11 +147,31 @@ namespace Resultful.Tests
         }
 
         [Test]
-        public void VoidResults_round_trip()
+        public void Unit_results_round_trip()
         {
             Gen.Select(Gen.Bool, Messages, Errors).Sample((ok, m, e) =>
             {
                 var typed = ok ? Result.Ok<string>() : m.Fail();
+                var typedUnion = ok ? OneOf<Unit, string>.FromT0(Unit.Value) : OneOf<Unit, string>.FromT1(m);
+                Assert.That(typed.ToOneOf(), Is.EqualTo(typedUnion));
+                Assert.That(typed.ToOneOf().ToResult(), Is.EqualTo(typed));
+                Assert.That(Task.FromResult(typedUnion).ToResult().Result, Is.EqualTo(typed));
+
+                var list = ok ? Result.Ok() : Result.Fail(e);
+                var listUnion = ok ? OneOf<Unit, Error>.FromT0(Unit.Value) : OneOf<Unit, Error>.FromT1(e);
+                Assert.That(list.ToOneOf(), Is.EqualTo(listUnion));
+                Assert.That(list.ToOneOf().ToResult(), Is.EqualTo(list));
+                Assert.That(Task.FromResult(listUnion).ToResult().Result, Is.EqualTo(list));
+            });
+        }
+
+#pragma warning disable CS0618 // VoidResult is obsolete (decision 14); its OneOf conversions still behave as in 0.2.
+        [Test]
+        public void VoidResults_round_trip()
+        {
+            Gen.Select(Gen.Bool, Messages, Errors).Sample((ok, m, e) =>
+            {
+                VoidResult<string> typed = ok ? Result.Ok<string>() : m.Fail();
                 var typedUnion = ok ? OneOf<Unit, string>.FromT0(Unit.Value) : OneOf<Unit, string>.FromT1(m);
                 Assert.That(typed.ToOneOf(), Is.EqualTo(typedUnion));
                 Assert.That(typed.ToOneOf().ToVoidResult(), Is.EqualTo(typed));
@@ -155,7 +179,7 @@ namespace Resultful.Tests
                 Assert.That(Task.FromResult(typed).ToOneOf().Result, Is.EqualTo(typedUnion));
                 Assert.That(Task.FromResult(typedUnion).ToVoidResult().Result, Is.EqualTo(typed));
 
-                var list = ok ? Result.Ok() : Result.Fail(e);
+                VoidResult list = ok ? Result.Ok() : Result.Fail(e);
                 var listUnion = ok ? OneOf<Unit, Error>.FromT0(Unit.Value) : OneOf<Unit, Error>.FromT1(e);
                 Assert.That(list.ToOneOf(), Is.EqualTo(listUnion));
                 Assert.That(list.ToOneOf().ToVoidResult(), Is.EqualTo(list));
@@ -164,6 +188,7 @@ namespace Resultful.Tests
                 Assert.That(Task.FromResult(listUnion).ToVoidResult().Result, Is.EqualTo(list));
             });
         }
+#pragma warning restore CS0618
 
         [Test]
         public void Option_round_trips()

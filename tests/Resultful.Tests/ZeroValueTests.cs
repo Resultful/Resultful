@@ -8,6 +8,10 @@ using CsCheck;
 using NUnit.Framework;
 using Resultful.LINQ;
 
+// VoidResult and VoidResult<TError> are obsolete (decision 14, stack PR 12), and this file still pins that their zero
+// value behaves as before; Result<Unit>, which replaces them, is covered as Result`1 and Result`2.
+#pragma warning disable CS0618
+
 namespace Resultful.Tests
 {
     // Decision 10 (08b): the zero value (default) of a result is uninitialised. Every member that reads its value, error
@@ -106,6 +110,11 @@ namespace Resultful.Tests
             new("Result`2", "Task.Match", () => Async(Zero).Match(v => v, _ => 0)),
             new("Result`2", "Task.Tee", () => Async(Zero).Tee(_ => { })),
             new("Result`2", "Fold", () => new[] { Ok, Zero }.Fold(0, (sum, r) => r.Map(v => sum + v).ValueOr(sum))),
+            new("Result`2", "Then unit", () => default(Result<Unit, string>).Then(() => Result.Ok<string>())),
+            new("Result`2", "Then unit value", () => default(Result<Unit, string>).Then(() => Ok)),
+            new("Result`2", "ThenAsync unit", () => default(Result<Unit, string>).ThenAsync(() => Async(Result.Ok<string>()))),
+            new("Result`2", "ThenAsync unit value", () => default(Result<Unit, string>).ThenAsync(() => Async(Ok))),
+            new("Result`2", "Task.Then unit", () => Async(default(Result<Unit, string>)).Then(() => Result.Ok<string>())),
             new("Result`2", "implicit VoidResult", () => { VoidResult<string> v = default(Result<Unit, string>); return v; }),
             new("Result`2", "AsResult", () => default(Result<int, Error>).AsResult()),
             new("Result`2", "WithContext", () => default(Result<int, Error>).WithContext("note")),
@@ -152,6 +161,11 @@ namespace Resultful.Tests
             new("Result`1", "Check", () => ZeroList.Check(_ => Result.Ok())),
             new("Result`1", "Task.Map", () => Async(ZeroList).Map(v => v)),
             new("Result`1", "Task.MapError", () => Async(ZeroList).MapError(e => e)),
+            new("Result`1", "Then unit", () => default(Result<Unit>).Then(() => Result.Ok())),
+            new("Result`1", "Then unit value", () => default(Result<Unit>).Then(() => 1.Ok())),
+            new("Result`1", "ThenAsync unit", () => default(Result<Unit>).ThenAsync(() => Async(Result.Ok()))),
+            new("Result`1", "ThenAsync unit value", () => default(Result<Unit>).ThenAsync(() => Async(1.Ok()))),
+            new("Result`1", "Task.Then unit", () => Async(default(Result<Unit>)).Then(() => Result.Ok())),
             new("Result`1", "implicit VoidResult", () => { VoidResult v = default(Result<Unit>); return v; }),
 
             // VoidResult<TError>
@@ -171,7 +185,7 @@ namespace Resultful.Tests
             new("VoidResult`1", "MapErrorAsync", () => ZeroVoid.MapErrorAsync(Async)),
             new("VoidResult`1", "MapErrorAsync", () => ZeroVoid.MapErrorAsync(e => Async(Error.From(e)))),
             new("VoidResult`1", "Bind", () => ZeroVoid.Bind(_ => Result.Ok<string>())),
-            new("VoidResult`1", "BindAsync", () => ZeroVoid.BindAsync(_ => Async(Result.Ok<string>()))),
+            new("VoidResult`1", "BindAsync", () => ZeroVoid.BindAsync(_ => Async<VoidResult<string>>(Result.Ok<string>()))),
             new("VoidResult`1", "BindValue", () => ZeroVoid.BindValue(_ => Ok)),
             new("VoidResult`1", "BindValueAsync", () => ZeroVoid.BindValueAsync(_ => Async(Ok))),
             new("VoidResult`1", "Tee", () => ZeroVoid.Tee(_ => { })),
@@ -199,7 +213,7 @@ namespace Resultful.Tests
             new("VoidResult", "MapErrorAsync", () => ZeroVoidList.MapErrorAsync(e => Async(e.Message))),
             new("VoidResult", "MapErrorAsync", () => ZeroVoidList.MapErrorAsync(Async)),
             new("VoidResult", "Bind", () => ZeroVoidList.Bind(_ => Result.Ok())),
-            new("VoidResult", "BindAsync", () => ZeroVoidList.BindAsync(_ => Async(Result.Ok()))),
+            new("VoidResult", "BindAsync", () => ZeroVoidList.BindAsync(_ => Async<VoidResult>(Result.Ok()))),
             new("VoidResult", "BindValue", () => ZeroVoidList.BindValue(_ => 1.Ok())),
             new("VoidResult", "BindValueAsync", () => ZeroVoidList.BindValueAsync(_ => Async(1.Ok()))),
             new("VoidResult", "Tee", () => ZeroVoidList.Tee(_ => { })),
@@ -249,6 +263,8 @@ namespace Resultful.Tests
             new("Result`2", "Check no checks", () => Zero.Check()),
             new("Result`1", "Then no steps", () => ZeroList.Then()),
             new("Result`1", "Check no checks", () => ZeroList.Check()),
+            new("Result`1", "Then unit no steps", () => default(Result<Unit>).Then()),
+            new("Result`2", "Then unit no steps", () => default(Result<Unit, string>).Then()),
             new("VoidResult`1", "Then no steps", () => ZeroVoid.Then()),
             new("VoidResult", "Then no steps", () => ZeroVoidList.Then()),
         ];
@@ -274,8 +290,8 @@ namespace Resultful.Tests
             {
                 Result<int, string> R(int s) => s switch { 0 => default, 1 => v, _ => "e" + v };
                 Result<int> L(int s) => s switch { 0 => default, 1 => v.Ok(), _ => Result.Fail<int>("e" + v) };
-                VoidResult<string> V(int s) => s switch { 0 => default, 1 => Result.Ok<string>(), _ => ("e" + v).Fail() };
-                VoidResult W(int s) => s switch { 0 => default, 1 => Result.Ok(), _ => Result.Fail("e" + v) };
+                VoidResult<string> V(int s) => s switch { 0 => default(VoidResult<string>), 1 => Result.Ok<string>(), _ => ("e" + v).Fail() };
+                VoidResult W(int s) => s switch { 0 => default(VoidResult), 1 => Result.Ok(), _ => Result.Fail("e" + v) };
                 Validation<int, string> X(int s) => s switch { 0 => default, 1 => v, _ => Validation.Fail<int, string>(["e" + v, "f"]) };
                 Validation<int> Y(int s) => s switch { 0 => default, 1 => v, _ => Validation.Fail<int>([Error.From("e" + v), Error.From("f")]) };
                 object[] left = [R(a), L(a), V(a), W(a), X(a), Y(a)], right = [R(b), L(b), V(b), W(b), X(b), Y(b)];
@@ -342,14 +358,15 @@ namespace Resultful.Tests
             Assert.That(Display(Failed), Is.EqualTo("Fail(bad)"));
             Assert.That(Display(Result.Fail<int>("a")), Is.EqualTo("Fail(MessageError: a)"));
             Assert.That(Display(Result.Fail("a")), Is.EqualTo("Fail(MessageError: a)"));
-            Assert.That(Display(Result.Ok()), Is.EqualTo("Ok"));
+            Assert.That(Display(Result.Ok()), Is.EqualTo("Ok(Resultful.Unit)"), "a Result<Unit> since 12; VoidResult showed Ok");
+            Assert.That(Display((VoidResult)Result.Ok()), Is.EqualTo("Ok"));
             Assert.That(Display(ZeroVoidList), Is.EqualTo("<default VoidResult>"));
             Assert.That(typeof(Result<int, string>).GetCustomAttribute<System.Diagnostics.DebuggerDisplayAttribute>()?.Value, Is.EqualTo("{DebuggerDisplay,nq}"));
 
             Assert.That(Zero.Equals(default(Result<int, string>)), Is.True);
             Assert.That(Zero.Equals(0.Ok<int, string>()), Is.False, "the zero value isn't Ok(default(T))");
             Assert.That(Zero.Equals(((string?)null).Ok<string?, string>()), Is.False);
-            Assert.That(ZeroVoid.Equals(Result.Ok<string>()), Is.False);
+            Assert.That(ZeroVoid.Equals((VoidResult<string>)Result.Ok<string>()), Is.False);
             Assert.That(Zero.GetHashCode(), Is.EqualTo(default(Result<int, string>).GetHashCode()));
         }
 
