@@ -44,8 +44,8 @@ publishes only the packages that changed, as in `Resultful.Assertions`.
 | `Resultful.OneOf` | `ToOneOf`; `ToResult`, `ToOption` back (`ToVoidResult` obsolete); `None` interop | `OneOf` ≥ 3.0.271 | as core |
 | *`Resultful.AspNetCore`* | `ToHttpResult()` returning `ResultHttpResult<T, TError>`, its own `IResult` (not `Results<Ok<T>, ProblemHttpResult>`, so the error type stays visible to endpoint metadata), ProblemDetails (RFC 9457), error-to-status map; endpoint filter and Minimal API validation bridge to come (20b) | `Microsoft.AspNetCore.App` framework reference | `net10.0`, `net11.0` |
 | *`Resultful.Text.Json`* | `System.Text.Json` converters, source-generation friendly, AOT-safe | in-box `System.Text.Json` | `net10.0`, `net11.0` |
-| *`Resultful.FluentValidation`* | `validator.ValidateToResult(x)` | `FluentValidation` | as `FluentValidation` |
-| *`Resultful.Diagnostics`* | Opt-in `ILogger` and `ActivitySource` hooks | `Microsoft.Extensions.Logging.Abstractions` | `net10.0`, `net11.0` |
+| *`Resultful.FluentValidation`* | `validator.ValidateToResult(x)` and `ValidateToResultAsync`: a `Validation<T>` with one `FluentValidationError` (property path, code, severity, message; no attempted value) per failure | `FluentValidation` ≥ 12.0.0 | `net10.0`, `net11.0` |
+| *`Resultful.Diagnostics`* | Opt-in `LogFailure(ILogger, LogLevel)` and `RecordFailure(Activity?)` hooks (status and a `resultful.error.type` tag); nothing by default, never a leaf's own properties | `Microsoft.Extensions.Logging.Abstractions` ≥ 8.0.0 | `net10.0`, `net11.0` |
 
 Rules:
 
