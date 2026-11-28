@@ -13,11 +13,11 @@
     <!-- Tests -->
     <PackageVersion Include="CsCheck" Version="5.0.1" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageVersion Include="NUnit" Version="4.3.2" />
-    <PackageVersion Include="NUnit3TestAdapter" Version="5.0.0" />
-    <PackageVersion Include="NunitXml.TestLogger" Version="5.0.0" />
-    <PackageVersion Include="FluentAssertions" Version="7.2.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
+    <PackageVersion Include="NUnit" Version="5.0.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.1" />
+    <PackageVersion Include="NunitXml.TestLogger" Version="8.1.0" />
+    <PackageVersion Include="FluentAssertions" Version="8.11.0" />
     <PackageVersion Include="FluentAssertions.OneOf" Version="0.0.5" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
