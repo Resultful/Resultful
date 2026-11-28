@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using CsCheck;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -167,12 +168,31 @@ public sealed class ShopTests
         }, iter: 200);
     }
 
+#if NET11_0_OR_GREATER
+    static JsonTypeInfo<T> Info<T>(JsonSerializerOptions options) => options.GetTypeInfo<T>();
+
+    // The shape is a C# 15 union on .NET 11, so HasValue is the union's: true for a failure too, false only for the
+    // zero value. .NET 10 has no union and no HasValue.
+    [Fact]
+    public void The_shape_has_a_value_unless_it_is_the_zero_value()
+    {
+        Assert.True(PriceResult.Ok(10m).HasValue);
+        Assert.True(PriceResult.Fail(new OverLimit(2000m)).HasValue);
+#pragma warning disable RF0002 // the zero value is the point of this check
+        PriceResult zero = default;
+#pragma warning restore RF0002
+        Assert.False(zero.HasValue);
+    }
+#else
+    static JsonTypeInfo<T> Info<T>(JsonSerializerOptions options) => (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
+#endif
+
     [Fact]
     public void A_json_round_trip_is_the_identity()
     {
         var options = ShopJsonOptions.Create();
-        var open = options.GetTypeInfo<Result<decimal>>();
-        var closed = options.GetTypeInfo<Result<decimal, ShopError>>();
+        var open = Info<Result<decimal>>(options);
+        var closed = Info<Result<decimal, ShopError>>(options);
         Gen.Select(Skus, Quantities).Sample((sku, qty) =>
         {
             var a = new OpenPricing().Place(sku, qty);

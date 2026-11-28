@@ -5,9 +5,12 @@ namespace Resultful.Shop;
 // A result over a union of errors where one case is itself a union: CustomerError is CustomerNotFound or an
 // AccountError, and AccountError is Suspended or Unverified. [ResultShape] turns that into CustomerResult, so a
 // lookup returns any leaf, inner ones included, with no cast, and a switch over it is checked case by case.
+// .NET 10 has no unions: the same errors are a closed hierarchy with a closed sub-hierarchy, and the shape is used
+// through Match and a switch over its error instead of a switch over the shape.
 
 public sealed record Customer(string Id, string Name);
 
+#if NET11_0_OR_GREATER
 public sealed record CustomerNotFound(string Id) : Error($"customer {Id} was not found");
 
 public sealed record Suspended(string Id) : Error($"customer {Id} is suspended");
@@ -17,6 +20,19 @@ public sealed record Unverified(string Id) : Error($"customer {Id} has not verif
 public partial union AccountError(Suspended, Unverified);
 
 public partial union CustomerError(CustomerNotFound, AccountError);
+#else
+[ClosedHierarchy]
+public abstract partial record CustomerError(string Message) : Error(Message);
+
+public sealed record CustomerNotFound(string Id) : CustomerError($"customer {Id} was not found");
+
+[ClosedHierarchy]
+public abstract partial record AccountError(string Message) : CustomerError(Message);
+
+public sealed record Suspended(string Id) : AccountError($"customer {Id} is suspended");
+
+public sealed record Unverified(string Id) : AccountError($"customer {Id} has not verified their email");
+#endif
 
 [ResultShape(typeof(CustomerError), Success = typeof(Customer))]
 public readonly partial struct CustomerResult;
@@ -38,6 +54,7 @@ public static class Customers
         return new Customer(id, known.Name);
     }
 
+#if NET11_0_OR_GREATER
     /// <summary>A switch over the shape, then over the inner union: no discard arm at either level.</summary>
     public static string Describe(CustomerResult result) => result switch
     {
@@ -51,4 +68,20 @@ public static class Customers
 #endif
         },
     };
+#else
+    /// <summary>The value, else a switch over the error, then over the sub-hierarchy: no discard arm at either level.</summary>
+    public static string Describe(CustomerResult result) =>
+        result.TryGetValue(out Customer? c) ? $"ok:{c.Name}"
+        : result.AsResult().Error switch
+        {
+            CustomerNotFound n => $"missing:{n.Id}",
+            AccountError a => a switch
+            {
+                Suspended s => $"suspended:{s.Id}",
+#if !BREAK_INNER
+                Unverified u => $"unverified:{u.Id}",
+#endif
+            },
+        };
+#endif
 }

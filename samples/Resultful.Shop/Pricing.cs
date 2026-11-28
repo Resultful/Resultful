@@ -126,6 +126,7 @@ public sealed class ShapedPricing
     public async Task<PriceResult> PlaceAsync(string sku, string qty, CancellationToken ct) =>
         await _steps.ParseQty(qty).BindAsync((q, c) => _steps.ToLineAsync(sku, q, c), ct).BindAsync(l => _steps.PriceAsync(l, ct)).ConfigureAwait(false);
 
+#if NET11_0_OR_GREATER
     /// <summary>A switch over the shape itself, with no discard arm.</summary>
     public static string Show(PriceResult result) => result switch
     {
@@ -134,4 +135,12 @@ public sealed class ShapedPricing
         InvalidField f => $"err:{f.Field}.{f.Rule}",
         OverLimit => "err:price.limit",
     };
+#else
+    /// <summary>.NET 10 has no switch over the shape: Match takes one handler per case instead.</summary>
+    public static string Show(PriceResult result) => result.Match(
+        (decimal total) => $"ok:{Catalog.Money(total)}",
+        (InvalidField f) => $"err:{f.Field}.{f.Rule}",
+        (OverLimit _) => "err:price.limit",
+        (SkuNotFound _) => "err:sku.unknown");
+#endif
 }

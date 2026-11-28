@@ -6,8 +6,9 @@ using Xunit;
 namespace Resultful.Compatibility.Tests;
 
 // The shop sample as a consumer would build it: every Resultful package from the packed folder, outside the
-// repository. JIT and native AOT print the same scenario lines, the native binary serves the same problems, and each
-// analyzer and the exhaustive switch fail a build that breaks its rule.
+// repository, once per target framework. .NET 11 uses unions and switches over the shapes; .NET 10 uses closed
+// hierarchies and Match. On both, JIT and native AOT print the same scenario lines, the native binary serves the same
+// problems, and each analyzer and the exhaustive switch fail a build that breaks its rule.
 public sealed class ShopLegTests(PackedPackages packages)
 {
     private const string Sdk = "11.0.100";
@@ -15,16 +16,18 @@ public sealed class ShopLegTests(PackedPackages packages)
     private static readonly string[] Expected =
         [.. new[] { "Open", "Closed", "Shaped" }.SelectMany(style => Scenarios.Expected.Select(line => $"{style} {line}"))];
 
-    [Fact]
-    public async Task The_shop_builds_from_the_packages_and_runs_the_same_natively()
+    [Theory]
+    [InlineData("net10.0")]
+    [InlineData("net11.0")]
+    public async Task The_shop_builds_from_the_packages_and_runs_the_same_natively(string tfm)
     {
         using var leg = Leg.Create(packages, Sdk, Path.Combine("samples", "Resultful.Shop"));
-        string[] props = [$"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}"];
+        string[] props = ["-f", tfm, $"-p:ResultfulVersion={packages.Version}", $"-p:RestorePackagesPath={leg.Packages}"];
 
         var build = leg.Dotnet(["build", "-c", "Release", .. props]);
         Assert.True(build.ExitCode == 0, build.Output);
         Assert.Contains(" 0 Warning(s)", build.Output, StringComparison.Ordinal);
-        var jit = leg.Dotnet(Path.Combine(leg.Root, "bin", "Release", "net11.0", "Resultful.Shop.dll"), "scenarios");
+        var jit = leg.Dotnet(Path.Combine(leg.Root, "bin", "Release", tfm, "Resultful.Shop.dll"), "scenarios");
         Assert.True(jit.ExitCode == 0, jit.Output);
         Assert.Equal(Expected, Lines(jit.Output));
 

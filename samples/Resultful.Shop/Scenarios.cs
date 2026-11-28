@@ -1,4 +1,7 @@
 using System.Text.Json;
+#if !NET11_0_OR_GREATER
+using System.Text.Json.Serialization.Metadata;
+#endif
 
 namespace Resultful.Shop;
 
@@ -32,7 +35,7 @@ public static class Scenarios
         "S13: ctx:quoting found:SKU-99999",
         "S14: err:qty.format|ok:4",
         "S15: match:NotFound,Invalid,Limit switch:NotFound,Invalid,Limit trymap:True,False",
-        "S16: ok:10.00,Limit:2000.00 get:True,True,True,False ctx:pricing has:True,True",
+        "S16: ok:10.00,Limit:2000.00 get:True,True,True,False ctx:pricing",
         "S17: switch:ok:Ada,missing:C-9,suspended:C-2,unverified:C-3 match:Customer,CustomerNotFound,AccountError,AccountError",
         "S18: widen:Ada,CustomerNotFound,Suspended,Unverified ctx:checkout",
         "S19: get:True,False,True json:Ada,CustomerNotFound,AccountError.Suspended,AccountError.Unverified",
@@ -41,7 +44,7 @@ public static class Scenarios
         "N02x: ok:hello",
         "N03: throws:InvalidOperationException",
         "N04: throws:InvalidOperationException",
-        "N05: default:True has:False throws:InvalidOperationException",
+        "N05: default:True throws:InvalidOperationException",
     ];
 
     private const string LongNote = "a note that is much longer than the forty characters allowed";
@@ -115,7 +118,7 @@ public static class Scenarios
 #pragma warning disable RF0002 // the zero value is the point of this check
             PriceResult zero = default;
 #pragma warning restore RF0002
-            return $"default:{zero.IsDefault} has:{zero.HasValue} {Guard(() => ShapedPricing.Show(zero))}";
+            return $"default:{zero.IsDefault} {Guard(() => ShapedPricing.Show(zero))}";
         });
 #if BREAK_DROP
         new OpenPricing().Place("SKU-00001", "4");
@@ -199,6 +202,7 @@ public static class Scenarios
         OverLimit l => $"Limit:{Catalog.Money(l.Total)}",
     };
 
+#if NET11_0_OR_GREATER
     private static string Describe(PriceResult result) => result switch
     {
         decimal total => $"Ok:{Catalog.Money(total)}",
@@ -206,6 +210,13 @@ public static class Scenarios
         InvalidField i => $"Invalid:{i.Field}/{i.Rule}",
         OverLimit l => $"Limit:{Catalog.Money(l.Total)}",
     };
+#else
+    private static string Describe(PriceResult result) => result.Match(
+        (decimal total) => $"Ok:{Catalog.Money(total)}",
+        (InvalidField i) => $"Invalid:{i.Field}/{i.Rule}",
+        (OverLimit l) => $"Limit:{Catalog.Money(l.Total)}",
+        (SkuNotFound n) => $"NotFound:{n.Sku}");
+#endif
 
     // The hierarchy's generated members: one handler per leaf, each naming its type (RF0008), and TryMap for an Error that may not be a shop error.
     private static string Generated()
@@ -219,26 +230,34 @@ public static class Scenarios
         return $"match:{string.Join(',', matched)} switch:{string.Join(',', switched)} trymap:{string.Join(',', mapped)}";
     }
 
-    // The shape's generated members: factories, a handler per leaf, typed reads and context. HasValue is the union's:
-    // true for a failure too, false only for the default.
+    // The shape's generated members: factories, a handler per leaf, typed reads and context. On .NET 10 there is no
+    // TryGetValue per leaf, so the leaf is read through TryGetError.
     private static string Shape()
     {
         var ok = PriceResult.Ok(10m);
         var over = PriceResult.Fail(new OverLimit(2000m));
         string Match(PriceResult r) => r.Match((decimal v) => Catalog.Money(v), (InvalidField i) => "Invalid", (OverLimit o) => $"Limit:{Catalog.Money(o.Total)}", (SkuNotFound n) => "NotFound");
+#if NET11_0_OR_GREATER
         bool[] gets = [ok.TryGetValue(out decimal _), over.TryGetError(out _), over.TryGetValue(out OverLimit? _), over.TryGetValue(out SkuNotFound? _)];
+#else
+        bool[] gets = [ok.TryGetValue(out decimal _), over.TryGetError(out _), over.TryGetError(out var o1) && o1 is OverLimit, over.TryGetError(out var o2) && o2 is SkuNotFound];
+#endif
         var context = over.WithContext("pricing").TryGetError(out var error) ? string.Join(',', error.Context) : "none";
-        return $"ok:{Match(ok)},{Match(over)} get:{string.Join(',', gets)} ctx:{context} has:{ok.HasValue},{over.HasValue}";
+        return $"ok:{Match(ok)},{Match(over)} get:{string.Join(',', gets)} ctx:{context}";
     }
 
     private static readonly string[] CustomerIds = ["C-1", "C-9", "C-2", "C-3"];
 
-    // The nested union through the shape: the generated Match has one handler per direct case, so the inner union
-    // arrives whole; the switch reaches its leaves.
+    // The nested errors through the shape. On .NET 11 the generated Match has one handler per direct case, so the
+    // inner union arrives whole; on .NET 10 it has one per leaf, so the inner leaves are named back to their group.
     private static string Nested()
     {
         var results = CustomerIds.Select(Customers.Find).ToList();
+#if NET11_0_OR_GREATER
         var matched = results.Select(r => r.Match((Customer c) => "Customer", (CustomerNotFound n) => "CustomerNotFound", (AccountError a) => "AccountError"));
+#else
+        var matched = results.Select(r => r.Match((Customer c) => "Customer", (Suspended s) => "AccountError", (Unverified u) => "AccountError", (CustomerNotFound n) => "CustomerNotFound"));
+#endif
         return $"switch:{string.Join(',', results.Select(Customers.Describe))} match:{string.Join(',', matched)}";
     }
 
@@ -250,19 +269,26 @@ public static class Scenarios
         return $"widen:{string.Join(',', widened.Select(r => r.Match(c => c.Name, e => e.GetType().Name)))} ctx:{string.Join(',', context)}";
     }
 
-    // TryGetValue reaches the inner union as one value; JSON writes the innermost leaf and reads it back into the
-    // same nesting, so Match still finds Suspended under AccountError.
+    // The inner group is read as one value; JSON writes the innermost leaf and reads it back under the same group.
     private static string NestedJson()
     {
         var suspended = Customers.Find("C-2");
+#if NET11_0_OR_GREATER
         var get = $"{suspended.TryGetValue(out AccountError a) && a.Value is Suspended},{suspended.TryGetValue(out CustomerNotFound? _)},{Customers.Find("C-9").TryGetValue(out CustomerNotFound? _)}";
+#else
+        var get = $"{suspended.TryGetError(out var a) && a is AccountError and Suspended},{suspended.TryGetError(out var b) && b is CustomerNotFound},{Customers.Find("C-9").TryGetError(out var n) && n is CustomerNotFound}";
+#endif
         var options = ShopJsonOptions.Create();
         var back = CustomerIds.Select(id => Back(Customers.Find(id).AsResult(), options)).Select(r =>
-            r.TryGetValue(out var c) ? c.Name
-            : r.TryGetError(out var e) && e.Value is AccountError inner ? $"AccountError.{inner.Value!.GetType().Name}"
-            : r.Error.Error.GetType().Name);
+            r.TryGetValue(out var c) ? c.Name : r.TryGetError(out var e) ? Group(e) : "none");
         return $"get:{get} json:{string.Join(',', back)}";
     }
+
+#if NET11_0_OR_GREATER
+    private static string Group(CustomerError e) => e.Value is AccountError inner ? $"AccountError.{inner.Value!.GetType().Name}" : e.Error.GetType().Name;
+#else
+    private static string Group(CustomerError e) => e is AccountError ? $"AccountError.{e.GetType().Name}" : e.GetType().Name;
+#endif
 
     private static string Discount(string code) => Catalog.Discount(code).Match(rate => $"some:{Catalog.Money(rate)}", _ => "none");
 
@@ -283,7 +309,11 @@ public static class Scenarios
     // Typed metadata from the options: the Serialize(value, options) overloads are not AOT-safe, whatever the resolver.
     private static T Back<T>(T value, JsonSerializerOptions options)
     {
+#if NET11_0_OR_GREATER
         var info = options.GetTypeInfo<T>();
+#else
+        var info = (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
+#endif
         return JsonSerializer.Deserialize(JsonSerializer.Serialize(value, info), info)!;
     }
 }

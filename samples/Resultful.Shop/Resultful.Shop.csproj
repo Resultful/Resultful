@@ -5,11 +5,13 @@
     the acceptance harness's system under test: Resultful.Shop.Tests drives it in process, and
     Resultful.Compatibility.Tests copies it out of the repository and builds it against the packed packages, JIT and
     native AOT. The settings below are repeated from the repository's props so that copy builds the same way.
+    Both target frameworks print the same scenario lines: .NET 11 through unions and switches over the shapes, .NET 10
+    (no unions) through closed hierarchies and the generated Match.
 
     ResultfulVersion set: the packed packages. ShopBreak set (Default, Drop, Value, Arm or Inner): a build that must fail.
   -->
   <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

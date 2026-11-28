@@ -36,7 +36,12 @@ public static class ShopJsonOptions
         ArgumentNullException.ThrowIfNull(options);
         options.TypeInfoResolverChain.Insert(0, ShopJson.Default);
         options.TypeInfoResolverChain.Insert(0, new ResultMetadata());
-        return options.AddErrorCases<Error>(ShopError.Cases).AddErrorCases<ShopError>(ShopError.Cases);
+        options.AddErrorCases<Error>(ShopError.Cases).AddErrorCases<ShopError>(ShopError.Cases);
+#if !NET11_0_OR_GREATER
+        // .NET 10: CustomerError is a closed hierarchy, read back through its leaves like ShopError.
+        options.AddErrorCases<CustomerError>(CustomerError.Cases);
+#endif
+        return options;
     }
 
     private sealed class ResultMetadata : IJsonTypeInfoResolver
@@ -45,7 +50,9 @@ public static class ShopJsonOptions
             type == typeof(Result<decimal>) ? JsonMetadataServices.CreateValueInfo<Result<decimal>>(options, new ResultJsonConverter<decimal>())
             : type == typeof(Result<decimal, ShopError>) ? JsonMetadataServices.CreateValueInfo<Result<decimal, ShopError>>(options, new ResultJsonConverter<decimal, ShopError>())
             : type == typeof(Result<Customer, CustomerError>) ? JsonMetadataServices.CreateValueInfo<Result<Customer, CustomerError>>(options, new ResultJsonConverter<Customer, CustomerError>())
+#if NET11_0_OR_GREATER
             : type == typeof(CustomerError) ? JsonMetadataServices.CreateValueInfo<CustomerError>(options, new ErrorUnionJsonConverter<CustomerError>(CustomerError.Cases, CustomerError.Wrap))
+#endif
             : null;
     }
 }
@@ -70,8 +77,13 @@ public static class ShopApp
         app.MapGet("/quote/{sku}", (string sku, string qty) => new OpenPricing().Place(sku, qty).ToHttpResult());
         app.MapGet("/closed/quote/{sku}", async (string sku, string qty, CancellationToken ct) =>
             (await new ClosedPricing().PlaceAsync(sku, qty, ct).ConfigureAwait(false)).ToHttpResult());
-        // The return type is spelled out: inferred, the request delegate generator emits ResultHttpResult<T, Error> with T unbound.
+        // The return type is spelled out: inferred, the request delegate generator emits ResultHttpResult<T, …> with T
+        // unbound (on .NET 10 too, through the TError : Error overload).
+#if NET11_0_OR_GREATER
         app.MapGet("/customers/{id}", ResultHttpResult<Customer, Error> (string id) => Customers.Find(id).AsResult().ToHttpResult());
+#else
+        app.MapGet("/customers/{id}", ResultHttpResult<Customer, CustomerError> (string id) => Customers.Find(id).AsResult().ToHttpResult());
+#endif
         app.MapPost("/orders", (OrderRequest request) => new ClosedPricing().Check(request).ToHttpResult());
         return app;
     }

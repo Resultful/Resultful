@@ -3,7 +3,7 @@
        and CsCheck laws that hold the three styles to one behaviour. The packed-package and native AOT legs are in
        Resultful.Compatibility.Tests. -->
   <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>Resultful.Shop.Tests</RootNamespace>
     <!-- The test types are public for xunit and CsCheck. -->
