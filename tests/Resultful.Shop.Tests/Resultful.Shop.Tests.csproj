@@ -6,8 +6,8 @@
     <TargetFramework>net11.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>Resultful.Shop.Tests</RootNamespace>
-    <!-- The test types are public for xunit and CsCheck; JsonAssert serializes with reflection. -->
-    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007;IL2026;IL3050</NoWarn>
+    <!-- The test types are public for xunit and CsCheck. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -31,10 +31,14 @@ public static class Scenarios
         "S12: back:ok:10.00|err:sku.unknown",
         "S13: ctx:quoting found:SKU-99999",
         "S14: err:qty.format|ok:4",
+        "S15: match:NotFound,Invalid,Limit switch:NotFound,Invalid,Limit trymap:True,False",
+        "S16: ok:10.00,Limit:2000.00 get:True,True,True,False ctx:pricing has:True,True",
         "N01: throws:InvalidOperationException",
         "N02: ok:hello",
         "N02x: ok:hello",
         "N03: throws:InvalidOperationException",
+        "N04: throws:InvalidOperationException",
+        "N05: default:True has:False throws:InvalidOperationException",
     ];
 
     private const string LongNote = "a note that is much longer than the forty characters allowed";
@@ -68,6 +72,8 @@ public static class Scenarios
         Add("S14", () => string.Join('|',
             Show(Result.Try(() => int.Parse("x", System.Globalization.CultureInfo.InvariantCulture), _ => new InvalidField("qty", "format"))),
             Show(Result.Try(() => int.Parse("4", System.Globalization.CultureInfo.InvariantCulture), _ => new InvalidField("qty", "format")))));
+        Add("S15", Generated);
+        Add("S16", Shape);
         Add("N01", () =>
         {
 #if !BREAK_DEFAULT
@@ -90,6 +96,20 @@ public static class Scenarios
 #endif
             return $"ok:{new OpenPricing().Place("SKU-99999", "4").Value}";
 #pragma warning restore RF0003
+        });
+        Add("N04", () =>
+        {
+#pragma warning disable RF0002 // the zero value is the point of this check
+            Result<decimal, ShopError> zero = default;
+#pragma warning restore RF0002
+            return Show(zero);
+        });
+        Add("N05", () =>
+        {
+#pragma warning disable RF0002 // the zero value is the point of this check
+            PriceResult zero = default;
+#pragma warning restore RF0002
+            return $"default:{zero.IsDefault} has:{zero.HasValue} {Guard(() => ShapedPricing.Show(zero))}";
         });
 #if BREAK_DROP
         new OpenPricing().Place("SKU-00001", "4");
@@ -146,7 +166,7 @@ public static class Scenarios
         PricingStyle.Closed => $"{Show(new ClosedPricing().Place("SKU-00001", "4").Map(v => v * 2))}|"
             + new ClosedPricing().Place("SKU-00001", "0").MapError(e => e.Code().ToUpperInvariant()).Match(v => "ok", e => $"err:{e}"),
         _ => $"{Show(new ShapedPricing().Place("SKU-00001", "4").Map(v => v * 2))}|"
-            + ((Result<decimal, ShopError>)new ShapedPricing().Place("SKU-00001", "0")).MapError(e => e.Code().ToUpperInvariant()).Match(v => "ok", e => $"err:{e}"),
+            + new ShapedPricing().Place("SKU-00001", "0").AsResult().MapError(e => e.Code().ToUpperInvariant()).Match(v => "ok", e => $"err:{e}"),
     };
 
     private static string Check(OrderRequest request) =>
@@ -180,6 +200,30 @@ public static class Scenarios
         InvalidField i => $"Invalid:{i.Field}/{i.Rule}",
         OverLimit l => $"Limit:{Catalog.Money(l.Total)}",
     };
+
+    // The hierarchy's generated members: one handler per leaf, each naming its type (RF0008), and TryMap for an Error that may not be a shop error.
+    private static string Generated()
+    {
+        ShopError[] errors = [new SkuNotFound("SKU-99999"), new InvalidField("qty", "format"), new OverLimit(2000m)];
+        var matched = errors.Select(e => e.Match((InvalidField i) => "Invalid", (OverLimit o) => "Limit", (SkuNotFound n) => "NotFound"));
+        var switched = new List<string>();
+        foreach (var e in errors) e.Switch((InvalidField i) => switched.Add("Invalid"), (OverLimit o) => switched.Add("Limit"), (SkuNotFound n) => switched.Add("NotFound"));
+        var mapped = new[] { (Error)new OverLimit(1m), Error.From("elsewhere") }
+            .Select(e => ShopError.TryMap(e, (InvalidField i) => 0, (OverLimit o) => 1, (SkuNotFound n) => 2, out _));
+        return $"match:{string.Join(',', matched)} switch:{string.Join(',', switched)} trymap:{string.Join(',', mapped)}";
+    }
+
+    // The shape's generated members: factories, a handler per leaf, typed reads and context. HasValue is the union's:
+    // true for a failure too, false only for the default.
+    private static string Shape()
+    {
+        var ok = PriceResult.Ok(10m);
+        var over = PriceResult.Fail(new OverLimit(2000m));
+        string Match(PriceResult r) => r.Match((decimal v) => Catalog.Money(v), (InvalidField i) => "Invalid", (OverLimit o) => $"Limit:{Catalog.Money(o.Total)}", (SkuNotFound n) => "NotFound");
+        bool[] gets = [ok.TryGetValue(out decimal _), over.TryGetError(out _), over.TryGetValue(out OverLimit? _), over.TryGetValue(out SkuNotFound? _)];
+        var context = over.WithContext("pricing").TryGetError(out var error) ? string.Join(',', error.Context) : "none";
+        return $"ok:{Match(ok)},{Match(over)} get:{string.Join(',', gets)} ctx:{context} has:{ok.HasValue},{over.HasValue}";
+    }
 
     private static string Discount(string code) => Catalog.Discount(code).Match(rate => $"some:{Catalog.Money(rate)}", _ => "none");
 
