@@ -12,7 +12,7 @@
 
     <!-- Tests -->
     <PackageVersion Include="CsCheck" Version="5.0.1" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="NUnit" Version="4.3.2" />
     <PackageVersion Include="NUnit3TestAdapter" Version="5.0.0" />
