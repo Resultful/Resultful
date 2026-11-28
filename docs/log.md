@@ -11,6 +11,12 @@ generated:
 
 # Log
 
+## 2026-11-28
+
+- *Steps as an iterator* added, with decision 24 (**proposed**): `Yield` gathers every error from an iterator of
+  shape steps, `YieldFirst` stops at the first and disposes it; RF0012 for an iterator not passed to a driver.
+  Generated or generic drivers, a checkpoint, unit shapes and async are left open.
+
 ## 2026-11-20
 
 - *Testing the shapes* added: the target state for generated shapes and the core members they need (against what
