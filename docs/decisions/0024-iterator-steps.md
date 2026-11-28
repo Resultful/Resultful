@@ -40,8 +40,8 @@ All of it is additive; no existing member changes.
 - **Generated or generic.** Generated: `CustomerResult.Yield(…)` / `CustomerResult.YieldFirst(…)` on each shape;
   no type arguments, and a `ManyErrors` shape can return itself; costs two members per shape in
   `emitted-api-budgets.txt`. Generic: one pair in the core over `IEnumerable<Result<T, TError>>`, usable without
-  shapes; on `net11.0` an inner union leaf may not convert to the element type (C# chains one user-defined
-  conversion). A shared static-abstract shape interface (an open item on #84) would allow a third form.
+  shapes; but on `net11.0` no union leaf converts to `Result<T, TError>`, not even a direct one (CS0029), so each
+  step needs `.AsResult()`; on `net10.0` leaves convert by inheritance. The prototype (26b) builds both; see the exploration. A shared static-abstract shape interface (an open item on #84) would allow a third form.
 - **A checkpoint.** Gather input errors, then stop before dependent steps, in one iterator. The zero value can't be
   the sentinel (decision 10), so it needs a distinct marker or two iterators.
 - **Shapes without `Success`.** Whether zero successes then means success, so no trailing `yield return Unit.Value`.

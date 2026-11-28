@@ -33,7 +33,7 @@ static IEnumerable<CustomerResult> Owner(string id, IEnumerable<string> delegate
     foreach (var d in delegates)
     {
         var found = Customers.Find(d);
-        if (!found.TryGetValue(out _)) yield return found;
+        if (!found.TryGetValue(out Customer? _)) yield return found;
     }
     yield return Customers.Find(id); // its success or its error
 }
@@ -48,9 +48,9 @@ static IEnumerable<CustomerResult> Transfer(string from, string to, Audit audit)
 {
     using var scope = audit.Begin();
     var source = Customers.Find(from);
-    if (!source.TryGetValue(out var s)) { yield return source; yield break; }
+    if (!source.TryGetValue(out Customer? s)) { yield return source; yield break; }
     var target = Customers.Find(to);
-    if (!target.TryGetValue(out var t)) { yield return target; yield break; }
+    if (!target.TryGetValue(out Customer? t)) { yield return target; yield break; }
     yield return t;
 }
 
@@ -83,7 +83,7 @@ public static class CustomerSteps
         CustomerResult? last = null;
         foreach (var step in steps)
         {
-            if (!step.AsResult().TryGetValue(out _)) return step;
+            if (!step.AsResult().TryGetValue(out Customer? _)) return step;
             if (last is not null) throw new InvalidOperationException("the steps yielded a second success");
             last = step;
         }
@@ -117,6 +117,8 @@ and an async form.
   repeats every side effect. This wants an analyzer, as RF0001 is for a dropped result (next free id: RF0012).
 - **Counting successes is a run-time rule.** Zero successes and no error, or two successes, throw
   `InvalidOperationException`; no analyzer can count `yield return`s through branches.
+- **A shape whose `Success` is an interface** has no conversion from the value (C# forbids one from an interface), so
+  its success has to be yielded as `Shape.Ok(value)`.
 - **Element type is one shape.** A step of another type (`Result<Order>`) has to be converted or inspected before it
   can be yielded; its success value can't be yielded.
 - **Allocation.** One iterator object per call, and `Yield` a list on failure. Not measured.
@@ -134,7 +136,7 @@ shape overloads. Read side by side in `tests/Resultful.Shop.Tests/StepsTests.cs`
 | generic, core result | `Result.Yield(OwnerCore(…))` | on `net11.0` no leaf converts, not even a direct one (CS0029); every step needs `.AsResult()`. On `net10.0` leaves convert by inheritance |
 
 Found on the way:
-- On a `net11.0` union shape, `TryGetValue(out _)` is ambiguous (CS0121: one overload per leaf); iterators have to
+- On a `net11.0` union shape, `TryGetValue(out Customer? _)` is ambiguous (CS0121: one overload per leaf); iterators have to
   write `TryGetValue(out Customer? _)`.
 - The generated pair costs 2 members per shape without `ManyErrors`; the budgets still hold. Neither has a loop,
   so the IL budget is unchanged.

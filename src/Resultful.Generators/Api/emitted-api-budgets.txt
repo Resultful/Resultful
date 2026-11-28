@@ -15,13 +15,13 @@
 # Ceilings are the measured value + 25%, rounded up; per-leaf terms are kept as measured.
 
 # Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
-narrow_net10 MEMBERS=20+1L+1P PARAMETERS=2+1L
-narrow_net11 MEMBERS=24+3L+1P PARAMETERS=2+1L
-valueless_net10 MEMBERS=20+1L+1P PARAMETERS=2+1L
-valueless_net11 MEMBERS=24+3L+1P PARAMETERS=2+1L
+narrow_net10 MEMBERS=23+1L+1P PARAMETERS=2+1L
+narrow_net11 MEMBERS=27+3L+1P PARAMETERS=2+1L
+valueless_net10 MEMBERS=23+1L+1P PARAMETERS=2+1L
+valueless_net11 MEMBERS=27+3L+1P PARAMETERS=2+1L
 many_errors MEMBERS=24+0L+1P PARAMETERS=3+0L
 closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
-union_shape MEMBERS=24+3L+1P PARAMETERS=2+1L
+union_shape MEMBERS=27+3L+1P PARAMETERS=2+1L
 error_union MEMBERS=9+0L PARAMETERS=2+0L
 
 # IL byte budgets (Release IL), measured against the real core:

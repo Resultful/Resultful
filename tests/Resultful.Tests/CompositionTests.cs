@@ -224,7 +224,7 @@ namespace Resultful.Tests
             Result.Sequence().Match(_ => true, _ => false).Should().BeTrue();
             "a".Ok().Then().Match(v => v, _ => "").Should().Be("a");
         }
-    
+
         // ---- Steps as an iterator (proposed decision 24) ----
 
         static IEnumerable<Result<int, string>> Steps(List<string> log, params Result<int, string>[] steps)
