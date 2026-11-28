@@ -177,6 +177,14 @@ internal static class ResultShapeEmitter
             w.WriteLine($"public static {m.Name} Fail({err} error) => new({FailCore("error")});");
             w.WriteLine(InlineAttr);
             w.WriteLine($"public {coreType} AsResult() => _inner;");
+
+            // Proposed decision 24: drivers for an iterator of this shape's steps, forwarding to the core's generic
+            // ones so callers need no type arguments.
+            var steps = $"global::System.Collections.Generic.IEnumerable<{m.Name}>";
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public static global::Resultful.Validation<{ok}, {err}> Yield({steps} steps) => global::Resultful.Result.Yield<{m.Name}, {ok}, {err}>(steps);");
+            w.WriteLine(InlineAttr);
+            w.WriteLine($"public static {m.Name} YieldFirst({steps} steps) => global::Resultful.Result.YieldFirst<{m.Name}, {ok}, {err}>(steps);");
         }
 
         // Implicit conversions

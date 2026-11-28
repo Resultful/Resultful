@@ -1,26 +1,27 @@
 # Emitted API and IL budgets for Resultful.Generators, checked by tests/Resultful.Generators.Tests/BudgetAndIlTests.cs.
 # L is the concrete leaf count of the closed hierarchy. P is the number of shapes it converts from (decision 16 item 5:
 # a closed base nested under its error, or a case of its error union), one conversion each. Measured on SDK 11.0.100 against the real core (src/Resultful):
-#   narrow_net10:     MEMBERS = 16+1L, PARAMETERS = 1+1L
-#   narrow_net11:     MEMBERS = 19+3L (the [Union] members), PARAMETERS = 1+1L
-#   valueless_net10:  MEMBERS = 16+1L (Ok() instead of Ok(T)), PARAMETERS = 1+1L
-#   valueless_net11:  MEMBERS = 19+3L, PARAMETERS = 1+1L
+#   narrow_net10:     MEMBERS = 18+1L, PARAMETERS = 1+1L
+#   narrow_net11:     MEMBERS = 21+3L (the [Union] members), PARAMETERS = 1+1L
+#   valueless_net10:  MEMBERS = 18+1L (Ok() instead of Ok(T)), PARAMETERS = 1+1L
+#   valueless_net11:  MEMBERS = 21+3L, PARAMETERS = 1+1L
 #   many_errors:      MEMBERS = 14+0L (net10) / 19+0L (net11), PARAMETERS = 2+0L
 #   closed_hierarchy: MEMBERS = 4+0L (Match, Switch, TryMap, Cases), PARAMETERS = 2+1L
-#   union_shape:      MEMBERS = 19+3L, plus one conversion per nested-union leaf (L = the union's direct cases),
+#   union_shape:      MEMBERS = 21+3L, plus one conversion per nested-union leaf (L = the union's direct cases),
 #                     PARAMETERS = 1+1L (net11.0 only)
 #   error_union:      MEMBERS = 7+0L (Cases, Error, Message, Cause, TryFind, WithContext, Wrap), PARAMETERS = 1+0L
 #   conversions from other shapes: +1P on every shape category (PeerNarrow, PeerManyErrors, PeerUnionNarrow)
+# Yield and YieldFirst (proposed decision 24) add 2 to every shape without ManyErrors.
 # Ceilings are the measured value + 25%, rounded up; per-leaf terms are kept as measured.
 
 # Format: <category> MEMBERS=<base>+<perLeaf>L PARAMETERS=<base>+<perLeaf>L
-narrow_net10 MEMBERS=20+1L+1P PARAMETERS=2+1L
-narrow_net11 MEMBERS=24+3L+1P PARAMETERS=2+1L
-valueless_net10 MEMBERS=20+1L+1P PARAMETERS=2+1L
-valueless_net11 MEMBERS=24+3L+1P PARAMETERS=2+1L
+narrow_net10 MEMBERS=23+1L+1P PARAMETERS=2+1L
+narrow_net11 MEMBERS=27+3L+1P PARAMETERS=2+1L
+valueless_net10 MEMBERS=23+1L+1P PARAMETERS=2+1L
+valueless_net11 MEMBERS=27+3L+1P PARAMETERS=2+1L
 many_errors MEMBERS=24+0L+1P PARAMETERS=3+0L
 closed_hierarchy MEMBERS=5+0L PARAMETERS=3+1L
-union_shape MEMBERS=24+3L+1P PARAMETERS=2+1L
+union_shape MEMBERS=27+3L+1P PARAMETERS=2+1L
 error_union MEMBERS=9+0L PARAMETERS=2+0L
 
 # IL byte budgets (Release IL), measured against the real core:
