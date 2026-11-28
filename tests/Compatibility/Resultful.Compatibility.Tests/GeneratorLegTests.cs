@@ -83,7 +83,7 @@ public sealed class GeneratorLegTests(PackedPackages packages)
     }
 }
 
-// Resultful, Resultful.Generators and Resultful.Analyzers packed once per run, with a version no feed has (Known traps: stale packages).
+// Every Resultful package the legs consume, packed once per run, with a version no feed has (Known traps: stale packages).
 public sealed class PackedPackages : IDisposable
 {
     public PackedPackages()
@@ -92,7 +92,7 @@ public sealed class PackedPackages : IDisposable
         var suffix = "ci." + (Environment.GetEnvironmentVariable("GITHUB_RUN_ID") ?? "local" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
         Output = Path.Combine(RepoRoot, "artifacts", "compat", suffix);
         Directory.CreateDirectory(Output);
-        foreach (var project in new[] { "src/Resultful/Resultful.csproj", "src/Resultful.Generators/Resultful.Generators.csproj", "src/Resultful.Analyzers/Resultful.Analyzers.csproj" })
+        foreach (var project in new[] { "src/Resultful/Resultful.csproj", "src/Resultful.Generators/Resultful.Generators.csproj", "src/Resultful.Analyzers/Resultful.Analyzers.csproj", "src/Resultful.Text.Json/Resultful.Text.Json.csproj", "src/Resultful.AspNetCore/Resultful.AspNetCore.csproj" })
         {
             var pack = Process.Run(RepoRoot, "pack", project, "-c", "Release", "-o", Output, $"-p:VersionSuffix={suffix}");
             Assert.True(pack.ExitCode == 0, pack.Output);
@@ -112,7 +112,7 @@ public sealed class PackedPackages : IDisposable
     public void Dispose() => Directory.Delete(Output, recursive: true);
 }
 
-// A copy of ../Generators outside the repository, so none of its props or global.json apply, pinned to one SDK band
+// A copy of a consumer (../Generators, or the shop sample) outside the repository, so none of its props or global.json apply, pinned to one SDK band
 // and restoring Resultful* from the packed folder only, into its own packages folder.
 internal sealed class Leg : IDisposable
 {
@@ -122,7 +122,7 @@ internal sealed class Leg : IDisposable
 
     public string Packages => Path.Combine(Root, "packages");
 
-    public static Leg Create(PackedPackages packages, string sdk)
+    public static Leg Create(PackedPackages packages, string sdk, string source = "tests/Compatibility/Generators")
     {
         var band = sdk[..^2];
         var installed = Process.Run(Path.GetTempPath(), "--list-sdks").Output;
@@ -134,7 +134,7 @@ internal sealed class Leg : IDisposable
         }
 
         var leg = new Leg(Path.Combine(Path.GetTempPath(), "resultful-compat-" + Guid.NewGuid().ToString("N")));
-        Copy(Path.Combine(packages.RepoRoot, "tests", "Compatibility", "Generators"), leg.Root);
+        Copy(Path.Combine(packages.RepoRoot, source), leg.Root);
         File.WriteAllText(Path.Combine(leg.Root, "global.json"), $$"""{ "sdk": { "version": "{{sdk}}", "rollForward": "latestPatch" } }""");
         File.WriteAllText(Path.Combine(leg.Root, "nuget.config"), $"""
             <?xml version="1.0" encoding="utf-8"?>
@@ -183,9 +183,11 @@ internal sealed class Leg : IDisposable
 
 internal static class Process
 {
-    public static (int ExitCode, string Output) Run(string directory, params string[] arguments)
+    public static (int ExitCode, string Output) Run(string directory, params string[] arguments) => RunFile(directory, "dotnet", arguments);
+
+    public static (int ExitCode, string Output) RunFile(string directory, string file, params string[] arguments)
     {
-        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = new ProcessStartInfo(file) { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);

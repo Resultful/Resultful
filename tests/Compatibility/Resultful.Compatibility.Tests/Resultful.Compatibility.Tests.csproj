@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Packed-package consumer checks: packs Resultful, Resultful.Generators and Resultful.Analyzers, then builds and runs ../Generators (a
-    hierarchy in one assembly, shapes in another) with each compiler leg's SDK, outside the repository. In
+    Packed-package consumer checks: packs every Resultful package, then builds and runs ../Generators (a hierarchy in
+    one assembly, shapes in another) with each compiler leg's SDK, and the shop sample JIT and native AOT, outside the
+    repository. The shop reference supplies only its expected scenario lines. In
     Resultful.slnx for build and format, but not a test project there: CI's generator-legs job runs it with every
     leg's SDK installed (dotnet run -c Release).
   -->
@@ -16,6 +17,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3.mtp-off" />
     <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\samples\Resultful.Shop\Resultful.Shop.csproj" />
   </ItemGroup>
 
   <ItemGroup>

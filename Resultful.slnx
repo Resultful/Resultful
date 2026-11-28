@@ -24,6 +24,7 @@
     <Project Path="tests/Resultful.Analyzers.Tests/Resultful.Analyzers.Tests.csproj" />
     <Project Path="tests/Resultful.AspNetCore.Tests/Resultful.AspNetCore.Tests.csproj" />
     <Project Path="tests/Resultful.Generators.Tests/Resultful.Generators.Tests.csproj" />
+    <Project Path="tests/Resultful.Shop.Tests/Resultful.Shop.Tests.csproj" />
     <Project Path="tests/Resultful.Tests/Resultful.Tests.csproj" />
     <Project Path="tests/Resultful.Testing.Json/Resultful.Testing.Json.csproj" />
     <Project Path="tests/Resultful.Text.Json.Tests/Resultful.Text.Json.Tests.csproj" />
@@ -31,5 +32,6 @@
   <Folder Name="/samples/">
     <File Path="samples/Directory.Build.props" />
     <Project Path="samples/Resultful.Examples/Resultful.Examples.csproj" />
+    <Project Path="samples/Resultful.Shop/Resultful.Shop.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    One cohesive shop: a closed error hierarchy, the same pricing chain written three ways (Result<T>,
+    Result<T, ShopError> and a generated [ResultShape]), validation, options, JSON and Minimal API endpoints. It is
+    the acceptance harness's system under test: Resultful.Shop.Tests drives it in process, and
+    Resultful.Compatibility.Tests copies it out of the repository and builds it against the packed packages, JIT and
+    native AOT. The settings below are repeated from the repository's props so that copy builds the same way.
+    Both target frameworks print the same scenario lines: .NET 11 through unions and switches over the shapes, .NET 10
+    (no unions) through closed hierarchies and the generated Match.
+
+    ResultfulVersion set: the packed packages. ShopBreak set (Default, Drop, Value, Arm or Inner): a build that must fail.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
+    <!-- Minimal API handlers are bound by the compile-time generator, so nothing reflects (needed for AOT). -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <DefineConstants Condition="'$(ShopBreak)' != ''">$(DefineConstants);BREAK_$(ShopBreak.ToUpperInvariant())</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(ResultfulVersion)' == ''">
+    <ProjectReference Include="..\..\src\Resultful\Resultful.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.Text.Json\Resultful.Text.Json.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.AspNetCore\Resultful.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Resultful.Generators.Roslyn5\Resultful.Generators.Roslyn5.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\src\Resultful.Analyzers.Roslyn5\Resultful.Analyzers.Roslyn5.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ResultfulVersion)' != ''">
+    <PackageReference Include="Resultful" Version="[$(ResultfulVersion)]" />
+    <PackageReference Include="Resultful.Text.Json" Version="[$(ResultfulVersion)]" />
+    <PackageReference Include="Resultful.AspNetCore" Version="[$(ResultfulVersion)]" />
+    <PackageReference Include="Resultful.Generators" Version="[$(ResultfulVersion)]" PrivateAssets="all" />
+    <PackageReference Include="Resultful.Analyzers" Version="[$(ResultfulVersion)]" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Resultful.Shop.Tests" />
+  </ItemGroup>
+</Project>
