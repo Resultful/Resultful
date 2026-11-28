@@ -121,10 +121,32 @@ and an async form.
   can be yielded; its success value can't be yielded.
 - **Allocation.** One iterator object per call, and `Yield` a list on failure. Not measured.
 
+## Prototype (stack B 26b)
+
+Both forms are built: the core has `Result.Yield`/`YieldFirst` over `IEnumerable<Result<T, TError>>` and over any
+`IResultShape<T, TError>`, and the generator writes `CustomerResult.Yield`/`YieldFirst` as one-line forwarders to the
+shape overloads. Read side by side in `tests/Resultful.Shop.Tests/StepsTests.cs`:
+
+| Form | Call | Iterator body |
+|---|---|---|
+| generated | `CustomerResult.Yield(Owner(…))` | yields the success and any leaf, inner ones too |
+| generic, shape | `Result.Yield<CustomerResult, Customer, CustomerError>(Owner(…))`: C# can't infer `T` and `TError` from the constraint | same as generated |
+| generic, core result | `Result.Yield(OwnerCore(…))` | on `net11.0` no leaf converts, not even a direct one (CS0029); every step needs `.AsResult()`. On `net10.0` leaves convert by inheritance |
+
+Found on the way:
+- On a `net11.0` union shape, `TryGetValue(out _)` is ambiguous (CS0121: one overload per leaf); iterators have to
+  write `TryGetValue(out Customer? _)`.
+- The generated pair costs 2 members per shape without `ManyErrors`; the budgets still hold. Neither has a loop,
+  so the IL budget is unchanged.
+- The rules hold on both TFMs: errors in order, the one success, disposal on the first error, zero or two successes
+  and a zero value step throw, a second read repeats the steps (CsCheck laws against the steps read one by one).
+
+Recommendation: keep both, as built. Generated forwarders are what users call; the core-result overloads serve code
+without shapes; the shape overloads are the shared implementation. Not built yet: RF0012, `ManyErrors` shapes, a
+rule for shapes without `Success`, async drivers.
+
 ## Not settled by the probe
 
 - `ManyErrors` shapes: whether `Yield` returns the shape itself and takes every error of a failed step.
 - Shapes with no `Success` (`Unit`): whether zero successes is then a success, so no trailing `yield return Unit`.
 - A step that is the zero value: decision 10 says it throws; the probe's `TryGetValue` does, but it isn't tested.
-- Generic drivers over `IEnumerable<Result<T, TError>>`: on `net10.0` a sub-hierarchy leaf converts through
-  inheritance; on `net11.0` an inner union leaf may need two user-defined conversions, which C# doesn't chain.

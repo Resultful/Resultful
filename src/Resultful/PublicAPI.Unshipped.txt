@@ -518,3 +518,7 @@ Resultful.VoidResult<TError>.SwitchAsync(System.Func<Resultful.Unit!, System.Thr
 static Resultful.Result.Try<T>(System.Func<T>! func, System.Func<System.Exception!, Resultful.Error!>! onException) -> Resultful.Result<T>
 static Resultful.Result.TryAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! func, System.Func<System.Exception!, Resultful.Error!>! onException) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
 static Resultful.Result.TryAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! func, System.Func<System.Exception!, Resultful.Error!>! onException, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Resultful.Result<T>>!
+static Resultful.Result.Yield<T, TError>(System.Collections.Generic.IEnumerable<Resultful.Result<T, TError>>! steps) -> Resultful.Validation<T, TError>
+static Resultful.Result.Yield<TShape, T, TError>(System.Collections.Generic.IEnumerable<TShape>! steps) -> Resultful.Validation<T, TError>
+static Resultful.Result.YieldFirst<T, TError>(System.Collections.Generic.IEnumerable<Resultful.Result<T, TError>>! steps) -> Resultful.Result<T, TError>
+static Resultful.Result.YieldFirst<TShape, T, TError>(System.Collections.Generic.IEnumerable<TShape>! steps) -> TShape

@@ -224,5 +224,54 @@ namespace Resultful.Tests
             Result.Sequence().Match(_ => true, _ => false).Should().BeTrue();
             "a".Ok().Then().Match(v => v, _ => "").Should().Be("a");
         }
+    
+        // ---- Steps as an iterator (proposed decision 24) ----
+
+        static IEnumerable<Result<int, string>> Steps(List<string> log, params Result<int, string>[] steps)
+        {
+            try
+            {
+                foreach (var step in steps)
+                {
+                    log.Add("step");
+                    yield return step;
+                }
+            }
+            finally
+            {
+                log.Add("finally");
+            }
+        }
+
+        [Test]
+        public void Yield_GathersEveryError_InOrder_ElseTheOneSuccess()
+        {
+            var log = new List<string>();
+            Result.Yield(Steps(log, Result.Fail<int, string>("a"), Result.Ok<int, string>(1), Result.Fail<int, string>("b")))
+                .Match(_ => "", e => string.Join(",", e)).Should().Be("a,b");
+            Result.Yield(Steps(log, Result.Ok<int, string>(1))).Match(v => v, _ => 0).Should().Be(1);
+        }
+
+        [Test]
+        public void YieldFirst_StopsAtTheFirstError_AndDisposes()
+        {
+            var log = new List<string>();
+            Result.YieldFirst(Steps(log, Result.Ok<int, string>(1), Result.Fail<int, string>("a"), Result.Fail<int, string>("b")))
+                .Match(_ => "", e => e).Should().Be("a");
+            log.Should().Equal("step", "step", "finally");
+        }
+
+        [Test]
+        public void YieldDrivers_CountSuccesses_AndRejectTheZeroValue()
+        {
+            var log = new List<string>();
+            FluentActions.Invoking(() => Result.Yield(Steps(log))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.Yield(Steps(log, Result.Ok<int, string>(1), Result.Ok<int, string>(2)))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.YieldFirst(Steps(log))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.YieldFirst(Steps(log, Result.Ok<int, string>(1), Result.Ok<int, string>(2)))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.Yield(Steps(log, default(Result<int, string>)))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.YieldFirst(Steps(log, default(Result<int, string>)))).Should().Throw<InvalidOperationException>();
+            FluentActions.Invoking(() => Result.Yield((IEnumerable<Result<int, string>>)null!)).Should().Throw<ArgumentNullException>();
+        }
     }
 }
