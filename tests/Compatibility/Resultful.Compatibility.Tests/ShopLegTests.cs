@@ -41,7 +41,7 @@ public sealed class ShopLegTests(PackedPackages packages)
 
         await ServesProblems(shop);
 
-        foreach (var (rule, diagnostic) in new[] { ("Default", "RF0002"), ("Drop", "RF0001"), ("Value", "RF0003"), ("Arm", "CS8509") })
+        foreach (var (rule, diagnostic) in new[] { ("Default", "RF0002"), ("Drop", "RF0001"), ("Value", "RF0003"), ("Arm", "CS8509"), ("Inner", "CS8509") })
         {
             var broken = leg.Dotnet(["build", "-c", "Release", $"-p:ShopBreak={rule}", .. props]);
             Assert.True(broken.ExitCode != 0, $"ShopBreak={rule} built:\n{broken.Output}");
@@ -93,6 +93,10 @@ public sealed class ShopLegTests(PackedPackages packages)
             var problem = await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("\"InvalidField\":[\"qty fails format\"]", problem, StringComparison.Ordinal);
             Assert.Contains("\"SkuNotFound\":[\"SKU-99999 is not in the catalog\"]", problem, StringComparison.Ordinal);
+
+            using var suspended = await client.GetAsync(new Uri("/customers/C-2", UriKind.Relative), TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, suspended.StatusCode);
+            Assert.Contains("\"detail\":\"customer C-2 is suspended\"", await suspended.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
 
             using var ok = await client.GetAsync(new Uri("/closed/quote/SKU-00001?qty=4", UriKind.Relative), TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.OK, ok.StatusCode);

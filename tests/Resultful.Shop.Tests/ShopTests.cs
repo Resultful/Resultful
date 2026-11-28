@@ -88,6 +88,34 @@ public sealed class ShopTests
             """, WithoutTraceId(over.Text));
     }
 
+    // A result over a nested error union: each leaf, inner ones included, maps to its own status.
+    [Fact]
+    public async Task A_customer_route_maps_every_leaf_of_the_nested_union()
+    {
+        await using var app = await Start();
+
+        var ok = await Send(app, HttpMethod.Get, "/customers/C-1");
+        Assert.Equal(HttpStatusCode.OK, ok.Status);
+        JsonAssert.EqualJson("""{"id":"C-1","name":"Ada"}""", ok.Text);
+
+        var missing = await Send(app, HttpMethod.Get, "/customers/C-9");
+        Assert.Equal(HttpStatusCode.NotFound, missing.Status);
+        JsonAssert.EqualJson("""
+            {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"Not Found","status":404,
+             "detail":"customer C-9 was not found","instance":"/customers/C-9"}
+            """, WithoutTraceId(missing.Text));
+
+        foreach (var (id, detail) in new[] { ("C-2", "customer C-2 is suspended"), ("C-3", "customer C-3 has not verified their email") })
+        {
+            var inner = await Send(app, HttpMethod.Get, $"/customers/{id}");
+            Assert.Equal(HttpStatusCode.Forbidden, inner.Status);
+            JsonAssert.EqualJson($$"""
+                {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"Forbidden","status":403,
+                 "detail":"{{detail}}","instance":"/customers/{{id}}"}
+                """, WithoutTraceId(inner.Text));
+        }
+    }
+
     [Fact]
     public async Task An_order_is_checked_whole()
     {

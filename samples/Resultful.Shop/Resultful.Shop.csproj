@@ -6,7 +6,7 @@
     Resultful.Compatibility.Tests copies it out of the repository and builds it against the packed packages, JIT and
     native AOT. The settings below are repeated from the repository's props so that copy builds the same way.
 
-    ResultfulVersion set: the packed packages. ShopBreak set (Default, Drop, Value or Arm): a build that must fail.
+    ResultfulVersion set: the packed packages. ShopBreak set (Default, Drop, Value, Arm or Inner): a build that must fail.
   -->
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>

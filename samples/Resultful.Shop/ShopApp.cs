@@ -15,6 +15,10 @@ namespace Resultful.Shop;
 [JsonSerializable(typeof(SkuNotFound))]
 [JsonSerializable(typeof(InvalidField))]
 [JsonSerializable(typeof(OverLimit))]
+[JsonSerializable(typeof(Customer))]
+[JsonSerializable(typeof(CustomerNotFound))]
+[JsonSerializable(typeof(Suspended))]
+[JsonSerializable(typeof(Unverified))]
 internal sealed partial class ShopJson : JsonSerializerContext;
 
 public static class ShopJsonOptions
@@ -40,6 +44,8 @@ public static class ShopJsonOptions
         public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options) =>
             type == typeof(Result<decimal>) ? JsonMetadataServices.CreateValueInfo<Result<decimal>>(options, new ResultJsonConverter<decimal>())
             : type == typeof(Result<decimal, ShopError>) ? JsonMetadataServices.CreateValueInfo<Result<decimal, ShopError>>(options, new ResultJsonConverter<decimal, ShopError>())
+            : type == typeof(Result<Customer, CustomerError>) ? JsonMetadataServices.CreateValueInfo<Result<Customer, CustomerError>>(options, new ResultJsonConverter<Customer, CustomerError>())
+            : type == typeof(CustomerError) ? JsonMetadataServices.CreateValueInfo<CustomerError>(options, new ErrorUnionJsonConverter<CustomerError>(CustomerError.Cases, CustomerError.Wrap))
             : null;
     }
 }
@@ -55,12 +61,17 @@ public static class ShopApp
         builder.Services.AddResultful(errors => errors
             .Map<SkuNotFound>(StatusCodes.Status404NotFound)
             .Map<InvalidField>(StatusCodes.Status400BadRequest)
-            .Map<OverLimit>(StatusCodes.Status422UnprocessableEntity));
+            .Map<OverLimit>(StatusCodes.Status422UnprocessableEntity)
+            .Map<CustomerNotFound>(StatusCodes.Status404NotFound)
+            .Map<Suspended>(StatusCodes.Status403Forbidden)
+            .Map<Unverified>(StatusCodes.Status403Forbidden));
 
         var app = builder.Build();
         app.MapGet("/quote/{sku}", (string sku, string qty) => new OpenPricing().Place(sku, qty).ToHttpResult());
         app.MapGet("/closed/quote/{sku}", async (string sku, string qty, CancellationToken ct) =>
             (await new ClosedPricing().PlaceAsync(sku, qty, ct).ConfigureAwait(false)).ToHttpResult());
+        // The return type is spelled out: inferred, the request delegate generator emits ResultHttpResult<T, Error> with T unbound.
+        app.MapGet("/customers/{id}", ResultHttpResult<Customer, Error> (string id) => Customers.Find(id).AsResult().ToHttpResult());
         app.MapPost("/orders", (OrderRequest request) => new ClosedPricing().Check(request).ToHttpResult());
         return app;
     }

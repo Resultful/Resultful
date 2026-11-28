@@ -33,6 +33,9 @@ public static class Scenarios
         "S14: err:qty.format|ok:4",
         "S15: match:NotFound,Invalid,Limit switch:NotFound,Invalid,Limit trymap:True,False",
         "S16: ok:10.00,Limit:2000.00 get:True,True,True,False ctx:pricing has:True,True",
+        "S17: switch:ok:Ada,missing:C-9,suspended:C-2,unverified:C-3 match:Customer,CustomerNotFound,AccountError,AccountError",
+        "S18: widen:Ada,CustomerNotFound,Suspended,Unverified ctx:checkout",
+        "S19: get:True,False,True json:Ada,CustomerNotFound,AccountError.Suspended,AccountError.Unverified",
         "N01: throws:InvalidOperationException",
         "N02: ok:hello",
         "N02x: ok:hello",
@@ -74,6 +77,9 @@ public static class Scenarios
             Show(Result.Try(() => int.Parse("4", System.Globalization.CultureInfo.InvariantCulture), _ => new InvalidField("qty", "format")))));
         Add("S15", Generated);
         Add("S16", Shape);
+        Add("S17", Nested);
+        Add("S18", Widened);
+        Add("S19", NestedJson);
         Add("N01", () =>
         {
 #if !BREAK_DEFAULT
@@ -223,6 +229,39 @@ public static class Scenarios
         bool[] gets = [ok.TryGetValue(out decimal _), over.TryGetError(out _), over.TryGetValue(out OverLimit? _), over.TryGetValue(out SkuNotFound? _)];
         var context = over.WithContext("pricing").TryGetError(out var error) ? string.Join(',', error.Context) : "none";
         return $"ok:{Match(ok)},{Match(over)} get:{string.Join(',', gets)} ctx:{context} has:{ok.HasValue},{over.HasValue}";
+    }
+
+    private static readonly string[] CustomerIds = ["C-1", "C-9", "C-2", "C-3"];
+
+    // The nested union through the shape: the generated Match has one handler per direct case, so the inner union
+    // arrives whole; the switch reaches its leaves.
+    private static string Nested()
+    {
+        var results = CustomerIds.Select(Customers.Find).ToList();
+        var matched = results.Select(r => r.Match((Customer c) => "Customer", (CustomerNotFound n) => "CustomerNotFound", (AccountError a) => "AccountError"));
+        return $"switch:{string.Join(',', results.Select(Customers.Describe))} match:{string.Join(',', matched)}";
+    }
+
+    // Widened to Result<Customer>, the error is the innermost leaf, and context survives the trip.
+    private static string Widened()
+    {
+        var widened = CustomerIds.Select(id => (Result<Customer>)Customers.Find(id));
+        var context = ((Result<Customer>)Customers.Find("C-2").WithContext("checkout")).Error.Context;
+        return $"widen:{string.Join(',', widened.Select(r => r.Match(c => c.Name, e => e.GetType().Name)))} ctx:{string.Join(',', context)}";
+    }
+
+    // TryGetValue reaches the inner union as one value; JSON writes the innermost leaf and reads it back into the
+    // same nesting, so Match still finds Suspended under AccountError.
+    private static string NestedJson()
+    {
+        var suspended = Customers.Find("C-2");
+        var get = $"{suspended.TryGetValue(out AccountError a) && a.Value is Suspended},{suspended.TryGetValue(out CustomerNotFound? _)},{Customers.Find("C-9").TryGetValue(out CustomerNotFound? _)}";
+        var options = ShopJsonOptions.Create();
+        var back = CustomerIds.Select(id => Back(Customers.Find(id).AsResult(), options)).Select(r =>
+            r.TryGetValue(out var c) ? c.Name
+            : r.TryGetError(out var e) && e.Value is AccountError inner ? $"AccountError.{inner.Value!.GetType().Name}"
+            : r.Error.Error.GetType().Name);
+        return $"get:{get} json:{string.Join(',', back)}";
     }
 
     private static string Discount(string code) => Catalog.Discount(code).Match(rate => $"some:{Catalog.Money(rate)}", _ => "none");
