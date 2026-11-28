@@ -51,7 +51,7 @@ one place, in order. Each step is useful alone.
 | PR | Contents |
 |---|---|
 | this | the exploration and this proposal; docs only |
-| next | item 1 for Text.Json and AspNetCore, the two on this stack; Diagnostics (#78) and HotChocolate (#80) move when they are restacked onto it |
+| next (27b) | item 1 for Text.Json and AspNetCore, the two on this stack: the core's `ErrorWire` (keys, `Name`, `IsValidationFailed`) and `ErrorCases` (cases, union wraps, the RFG0008 check); Text.Json reads them and takes an `ErrorCases`; AspNetCore's default `ValidationKey` becomes `ErrorWire.Name`, so a generic leaf is keyed `NotFound<Guid>`, not ``NotFound`1``. Diagnostics (#78) and HotChocolate (#80) move when they are restacked onto it |
 | then | item 2 with item 3, then item 4 |
 
 Why:

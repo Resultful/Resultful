@@ -15,26 +15,18 @@ namespace Resultful.Text.Json;
 /// </summary>
 internal static class ErrorWire
 {
-    public const string TypeKey = "type";
-    public const string MessageKey = "message";
-    public const string ContextKey = "context";
-    public const string CauseKey = "cause";
+    // The keys and the leaf name are the core's (Resultful.ErrorWire), shared with every other format.
+    public const string TypeKey = global::Resultful.ErrorWire.TypeKey;
+    public const string MessageKey = global::Resultful.ErrorWire.MessageKey;
+    public const string ContextKey = global::Resultful.ErrorWire.ContextKey;
+    public const string CauseKey = global::Resultful.ErrorWire.CauseKey;
 
     private const string ValidationFailedPrefix = "ValidationFailed<";
 
     private static readonly ConditionalWeakTable<JsonSerializerOptions, JsonSerializerOptions> MetadataOptions = [];
 
-    /// <summary>
-    /// The leaf's simple name. A generic leaf adds its type arguments' wire names: <c>ValidationFailed&lt;PaymentError&gt;</c>,
-    /// so that the closed type is read back.
-    /// </summary>
-    public static string WireName(Type leaf)
-    {
-        var name = leaf.Name;
-        var tick = name.IndexOf('`', StringComparison.Ordinal);
-        if (tick < 0) return name;
-        return name[..tick] + "<" + string.Join(",", leaf.GetGenericArguments().Select(WireName)) + ">";
-    }
+    /// <summary>The leaf's name on the wire: <see cref="global::Resultful.ErrorWire.Name"/>.</summary>
+    public static string WireName(Type leaf) => global::Resultful.ErrorWire.Name(leaf);
 
     public static void Write(Utf8JsonWriter writer, Error error, JsonSerializerOptions options)
     {
@@ -50,7 +42,7 @@ internal static class ErrorWire
             Write(writer, cause, options);
         }
 
-        if (IsValidationFailed(error.GetType()))
+        if (global::Resultful.ErrorWire.IsValidationFailed(error.GetType()))
         {
             // Written and read by hand, like its reading: no metadata needed for any ValidationFailed<X>.
             writer.WriteStartArray(ErrorCaseRegistry.Cache(options).ErrorsName);
@@ -64,8 +56,6 @@ internal static class ErrorWire
 
         writer.WriteEndObject();
     }
-
-    private static bool IsValidationFailed(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValidationFailed<>);
 
     private static void WriteLeafProperties(Utf8JsonWriter writer, Error error, JsonSerializerOptions options)
     {

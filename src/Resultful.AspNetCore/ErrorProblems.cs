@@ -41,7 +41,7 @@ internal static class ErrorProblems
         return (options.DefaultStatusCode, error, false, false);
     }
 
-    internal static bool IsValidationFailed(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValidationFailed<>);
+    internal static bool IsValidationFailed(Type type) => ErrorWire.IsValidationFailed(type);
 
     /// <summary>Builds the problem for <paramref name="error"/> as the request in <paramref name="httpContext"/> sees it.</summary>
     internal static ProblemDetails Create(HttpContext httpContext, Error error)

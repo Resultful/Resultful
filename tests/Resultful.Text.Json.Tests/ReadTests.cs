@@ -56,6 +56,16 @@ public class ReadTests
         Assert.Equal(Result.Fail<int>("m"), Read<Result<int>>("""{"ok":false,"error":{"type":"MessageError","message":"m","context":[]}}""", options));
     }
 
+    [Fact]
+    public void Cases_from_the_core_registry_are_read_back()
+    {
+        // Proposed decision 25: one ErrorCases, filled once, serves every format.
+        var cases = new ErrorCases().Add<Error>([typeof(OrderNotFound)]);
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web).AddResultful().AddErrorCases(cases);
+        var r = Result.Fail<int>(new OrderNotFound(1));
+        Assert.Equal(r, Read<Result<int>>(JsonSerializer.Serialize(r, options), options));
+    }
+
     [Theory]
     [InlineData("""{"value":1}""")]
     [InlineData("""{"ok":true}""")]

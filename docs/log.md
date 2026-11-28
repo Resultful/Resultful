@@ -13,6 +13,9 @@ generated:
 
 ## 2026-11-28
 
+- Decision 25, item 1 built (still **proposed**): `ErrorWire` and `ErrorCases` in the core; Text.Json and
+  AspNetCore read them. AspNetCore's default validation key for a generic leaf changes to the JSON name.
+
 - *Errors on any wire* added, with decision 25 (**proposed**): the core owns the error wire name, keys and case
   registry (three packages copy them today and disagree); the generator emits a leaf descriptor; one conformance
   kit; then `Resultful.YamlDotNet`.

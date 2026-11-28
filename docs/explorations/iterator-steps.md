@@ -136,7 +136,7 @@ shape overloads. Read side by side in `tests/Resultful.Shop.Tests/StepsTests.cs`
 | generic, core result | `Result.Yield(OwnerCore(…))` | on `net11.0` no leaf converts, not even a direct one (CS0029); every step needs `.AsResult()`. On `net10.0` leaves convert by inheritance |
 
 Found on the way:
-- On a `net11.0` union shape, `TryGetValue(out Customer? _)` is ambiguous (CS0121: one overload per leaf); iterators have to
+- On a `net11.0` union shape, `TryGetValue(out _)` is ambiguous (CS0121: one overload per leaf); iterators have to
   write `TryGetValue(out Customer? _)`.
 - The generated pair costs 2 members per shape without `ManyErrors`; the budgets still hold. Neither has a loop,
   so the IL budget is unchanged.

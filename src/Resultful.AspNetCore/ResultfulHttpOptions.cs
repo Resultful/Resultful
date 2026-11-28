@@ -29,7 +29,7 @@ namespace Resultful.AspNetCore;
 public sealed class ResultfulHttpOptions
 {
     private readonly Dictionary<Type, int> _map = [];
-    private Func<Error, string> _validationKey = static error => error.GetType().Name;
+    private Func<Error, string> _validationKey = static error => ErrorWire.Name(error.GetType());
     private int _defaultStatusCode = StatusCodes.Status500InternalServerError;
 
     /// <summary>Creates options with an empty map, type-name validation keys and a default status of 500.</summary>
@@ -49,8 +49,9 @@ public sealed class ResultfulHttpOptions
     }
 
     /// <summary>
-    /// The key of each entry in a validation problem's <c>errors</c>. Defaults to the error's type name. Errors with
-    /// the same key are listed together, in order. A null key is treated as an empty one.
+    /// The key of each entry in a validation problem's <c>errors</c>. Defaults to the error's wire name
+    /// (<see cref="ErrorWire.Name"/>), the <c>type</c> JSON writes: <c>NotFound&lt;Guid&gt;</c> for a generic leaf.
+    /// Errors with the same key are listed together, in order. A null key is treated as an empty one.
     /// </summary>
     /// <exception cref="ArgumentNullException">The value is null.</exception>
     public Func<Error, string> ValidationKey
