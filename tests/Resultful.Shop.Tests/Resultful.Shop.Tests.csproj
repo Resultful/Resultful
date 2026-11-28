@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The acceptance harness in process: the shop's scenarios for each pricing style, its HTTP routes on TestServer,
+       and CsCheck laws that hold the three styles to one behaviour. The packed-package and native AOT legs are in
+       Resultful.Compatibility.Tests. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Resultful.Shop.Tests</RootNamespace>
+    <!-- The test types are public for xunit and CsCheck; JsonAssert serializes with reflection. -->
+    <NoWarn>$(NoWarn);CA1515;CA1034;CA2007;IL2026;IL3050</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\samples\Resultful.Shop\Resultful.Shop.csproj" />
+    <ProjectReference Include="..\Resultful.Testing.Json\Resultful.Testing.Json.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3.mtp-off" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+</Project>
