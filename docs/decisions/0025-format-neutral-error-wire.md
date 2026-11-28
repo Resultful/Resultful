@@ -18,7 +18,8 @@ generated:
 > [Errors on any wire](../explorations/format-neutral-errors.md).
 
 `Resultful.Text.Json`'s rules for errors are format-neutral, and AspNetCore, HotChocolate (#80) and Diagnostics
-(#78) already keep their own copies, which disagree: one error type is written three ways. This moves the rules to
+(#78) already keep their own copies, which disagree on any generic error leaf: `NotFound<Guid>` is written
+`NotFound<Guid>`, `NotFound<Guid>` and ``NotFound`1``, and `Conflict<int, string>` three ways. This moves the rules to
 one place, in order. Each step is useful alone.
 
 ## Proposed
@@ -50,7 +51,7 @@ one place, in order. Each step is useful alone.
 | PR | Contents |
 |---|---|
 | this | the exploration and this proposal; docs only |
-| next | item 1 (core rules and registry, the four packages moved onto it) |
+| next | item 1 for Text.Json and AspNetCore, the two on this stack; Diagnostics (#78) and HotChocolate (#80) move when they are restacked onto it |
 | then | item 2 with item 3, then item 4 |
 
 Why:

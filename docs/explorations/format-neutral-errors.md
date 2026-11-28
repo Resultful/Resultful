@@ -19,15 +19,23 @@ generated:
 
 | Rule | Text.Json | Elsewhere |
 |---|---|---|
-| A leaf's name on the wire | `ErrorWire.WireName`: `ValidationFailed<CustomerError>`, arguments joined with `,` | Diagnostics (#78) `ErrorDescription.TypeName`: joined with `, `. AspNetCore `ResultfulHttpOptions.ValidationKey`: `GetType().Name`, so ``ValidationFailed`1`` |
+| A leaf's name on the wire | `ErrorWire.WireName`: generic arguments in `<>`, joined with `,` | Diagnostics (#78) `ErrorDescription.TypeName`: joined with `, `. AspNetCore's default `ValidationKey` (the ProblemDetails `errors` key for each error inside a `ValidationFailed`): `GetType().Name` |
 | The keys `type`, `message`, `context`, `cause` | `ErrorWire` constants | HotChocolate (#80) has its own GraphQL field names |
 | "Is this a `ValidationFailed<T>`" | `ErrorWire.IsValidationFailed` | `ErrorProblems.IsValidationFailed` (AspNetCore), `ResultfulValidationError.IsValidationFailed` (#80) |
 | Which leaves an error type can hold | `ErrorCaseRegistry`, per `JsonSerializerOptions`, from `AddErrorCases<TError>(cases)` | #80 `ResultfulGraphQLOptions.AddErrorCases<TError>(cases)`, its own copy and checks |
 | Wrapping a leaf back into an error union | `ErrorUnionJsonConverter<TUnion>(cases, wrap)` | nowhere else yet |
 | The zero value | write refuses it (decision 10) | each package on its own |
 
-The three spellings of one type name are the drift that matters: a client that keys on `type` from JSON, a log
-query on the Diagnostics tag and a ProblemDetails `errors` key see three different strings for the same error.
+For a non-generic leaf the three agree. For a generic error leaf they don't (checked by running the three functions):
+
+| Leaf | Text.Json `type` | Diagnostics tag | AspNetCore `errors` key |
+|---|---|---|---|
+| `Suspended` | `Suspended` | `Suspended` | `Suspended` |
+| `NotFound<Guid>` | `NotFound<Guid>` | `NotFound<Guid>` | ``NotFound`1`` |
+| `Conflict<int, string>` | `Conflict<Int32,String>` | `Conflict<Int32, String>` | ``Conflict`2`` |
+
+A client keying on JSON `type`, a log query on the Diagnostics tag and a ProblemDetails `errors` key then see
+different strings for one error. The copies agree today mostly because no generic leaf has been tried.
 
 ## Reading a leaf without System.Text.Json
 
