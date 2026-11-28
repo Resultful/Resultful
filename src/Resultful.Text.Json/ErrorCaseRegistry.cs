@@ -16,7 +16,7 @@ internal sealed class ErrorCaseRegistry : JsonConverterFactory
 
     private static readonly ConditionalWeakTable<JsonSerializerOptions, WireCache> Caches = [];
 
-    private readonly Dictionary<Type, List<Type>> _byError = [];
+    private readonly ErrorCases _cases = new();
 
     public override bool CanConvert(Type typeToConvert) => false;
 
@@ -40,37 +40,10 @@ internal sealed class ErrorCaseRegistry : JsonConverterFactory
         return registry;
     }
 
-    public void Add(Type errorType, IEnumerable<Type> cases)
-    {
-        var list = Validate(errorType, cases);
-        if (_byError.TryGetValue(errorType, out var existing))
-        {
-            list = Validate(errorType, existing.Concat(list).Distinct());
-        }
+    public void Add(Type errorType, IEnumerable<Type> cases) => _cases.Add(errorType, cases);
 
-        _byError[errorType] = list;
-    }
-
-    /// <summary>Checks a case list: concrete errors of the declared type, no two with the same wire name.</summary>
-    public static List<Type> Validate(Type errorType, IEnumerable<Type> cases)
-    {
-        var list = new List<Type>();
-        var names = new Dictionary<string, Type>(StringComparer.Ordinal);
-        foreach (var leaf in cases)
-        {
-            if (leaf is null) throw new ArgumentException($"The cases of {errorType.Name} contain null.", nameof(cases));
-            if (!typeof(Error).IsAssignableFrom(leaf) || leaf.IsAbstract || leaf.IsGenericTypeDefinition)
-                throw new ArgumentException($"{leaf.Name} isn't a concrete Error, so it can't be a case of {errorType.Name}.", nameof(cases));
-            if (typeof(Error).IsAssignableFrom(errorType) && !errorType.IsAssignableFrom(leaf))
-                throw new ArgumentException($"{leaf.Name} isn't a {errorType.Name}, so it can't be one of its cases.", nameof(cases));
-            var name = ErrorWire.WireName(leaf);
-            if (names.TryGetValue(name, out var other) && other != leaf)
-                throw new ArgumentException($"{other.FullName} and {leaf.FullName} are both written as \"{name}\", so one couldn't be read back (RFG0008).", nameof(cases));
-            if (names.TryAdd(name, leaf)) list.Add(leaf);
-        }
-
-        return list;
-    }
+    /// <summary>Checks a case list: <see cref="ErrorCases.Validate"/>.</summary>
+    public static List<Type> Validate(Type errorType, IEnumerable<Type> cases) => ErrorCases.Validate(errorType, cases);
 
     /// <summary>The cases of an <see cref="ErrorJsonConverter{TError}"/> the caller added for this exact type, if any.</summary>
     public static Type[]? ExplicitCases(JsonSerializerOptions options, Type errorType)
@@ -106,13 +79,13 @@ internal sealed class ErrorCaseRegistry : JsonConverterFactory
         }
         else if (Find(options) is { } registry)
         {
-            if (registry._byError.TryGetValue(declared, out var exact))
+            if (registry._cases.TryGetCases(declared, out var exact))
             {
                 result.AddRange(exact);
             }
             else
             {
-                foreach (var cases in registry._byError.Values)
+                foreach (var (_, cases) in registry._cases.All)
                 {
                     foreach (var leaf in cases)
                     {
@@ -150,7 +123,7 @@ internal sealed class ErrorCaseRegistry : JsonConverterFactory
             foreach (var leaf in BuiltIn) result.Add(leaf);
             if (Find(options) is { } registry)
             {
-                foreach (var (key, cases) in registry._byError)
+                foreach (var (key, cases) in registry._cases.All)
                 {
                     if (typeof(Error).IsAssignableFrom(key) && !result.Contains(key)) result.Add(key);
                     foreach (var leaf in cases)

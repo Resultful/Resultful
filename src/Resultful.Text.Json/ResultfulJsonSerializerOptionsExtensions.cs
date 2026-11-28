@@ -55,4 +55,22 @@ public static class ResultfulJsonSerializerOptionsExtensions
         ErrorCaseRegistry.GetOrAdd(options).Add(typeof(TError), cases);
         return options;
     }
+
+    /// <summary>
+    /// Registers every error type in <paramref name="cases"/> with its leaves, as <see cref="AddErrorCases{TError}"/>
+    /// does for one: the registry the other formats read too.
+    /// </summary>
+    /// <param name="options">The options to change. They must not have been used yet.</param>
+    /// <param name="cases">The registry, filled from the generated <c>Cases</c>.</param>
+    /// <returns>The same options, for chaining.</returns>
+    /// <exception cref="InvalidOperationException">The options are already in use (read-only).</exception>
+    public static JsonSerializerOptions AddErrorCases(this JsonSerializerOptions options, ErrorCases cases)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(cases);
+        if (options.IsReadOnly) throw new InvalidOperationException("These options are already in use and can't change: register the error cases before the first serialization.");
+        var registry = ErrorCaseRegistry.GetOrAdd(options);
+        foreach (var (errorType, leaves) in cases.All) registry.Add(errorType, leaves);
+        return options;
+    }
 }

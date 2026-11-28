@@ -34,3 +34,4 @@ override Resultful.Text.Json.ValidationJsonConverter<T>.Read(ref System.Text.Jso
 override Resultful.Text.Json.ValidationJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Resultful.Validation<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
 static Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions.AddErrorCases<TError>(this System.Text.Json.JsonSerializerOptions! options, System.Collections.Generic.IEnumerable<System.Type!>! cases) -> System.Text.Json.JsonSerializerOptions!
 static Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions.AddResultful(this System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.JsonSerializerOptions!
+static Resultful.Text.Json.ResultfulJsonSerializerOptionsExtensions.AddErrorCases(this System.Text.Json.JsonSerializerOptions! options, Resultful.ErrorCases! cases) -> System.Text.Json.JsonSerializerOptions!

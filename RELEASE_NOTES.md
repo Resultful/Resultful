@@ -70,7 +70,8 @@
   (an `IResult`): 200 with the value (no body for `Unit`), or an RFC 9457 ProblemDetails. `AddResultful(errors =>
   errors.Map<OrderNotFound>(404))` fills the error-to-status map, walked outside in through `Error.Causes()`; a leaf's
   entry beats its base's. A result whose error is an error union answers for the union's leaf. The result's own
-  `ValidationFailed` answers 400 with a validation problem keyed by `ValidationKey`. Anything unmapped answers
+  `ValidationFailed` answers 400 with a validation problem keyed by `ValidationKey` (by default the JSON `type`
+  name, `ErrorWire.Name`). Anything unmapped answers
   `DefaultStatusCode` (500). A 5xx has a fixed title, no `detail` outside Development, and is logged once at Error; a
   4xx `detail` is the mapped error's `Message`.
 - **Opt-in operators** in `Resultful.Operators` (decision 9), each a call to a named method: `|` (`OrElse`, or
@@ -86,6 +87,9 @@
   the `Error` you build; they never catch cancellation (`OperationCanceledException`, or an `AggregateException` of
   only those) or the fatal `OutOfMemoryException`, `StackOverflowException`, `AccessViolationException` and
   `ThreadAbortException`.
+- **One error wire** (proposed decision 25): `ErrorWire` in the core holds the error object's keys and a leaf's name
+  (`NotFound<Guid>`), and `ErrorCases` the leaves of each error type, with the RFG0008 clash check and an error
+  union's wrap. `Resultful.Text.Json` and `Resultful.AspNetCore` use them; `AddErrorCases(ErrorCases)` registers one.
 - `==` and `!=` on `Result<T>`, `Result<T, TError>`, `Option<T>` and the obsolete void results, matching `Equals`.
 - **`Resultful.Analyzers`** (decision 15), one build per compiler like `Resultful.Generators`: RF0001 (warning) reports
   a `[MustObserve]` value thrown away, including an unawaited or awaited-and-dropped task of one and an async void

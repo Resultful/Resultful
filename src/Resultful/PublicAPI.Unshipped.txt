@@ -522,3 +522,20 @@ static Resultful.Result.Yield<T, TError>(System.Collections.Generic.IEnumerable<
 static Resultful.Result.Yield<TShape, T, TError>(System.Collections.Generic.IEnumerable<TShape>! steps) -> Resultful.Validation<T, TError>
 static Resultful.Result.YieldFirst<T, TError>(System.Collections.Generic.IEnumerable<Resultful.Result<T, TError>>! steps) -> Resultful.Result<T, TError>
 static Resultful.Result.YieldFirst<TShape, T, TError>(System.Collections.Generic.IEnumerable<TShape>! steps) -> TShape
+const Resultful.ErrorWire.CauseKey = "cause" -> string!
+const Resultful.ErrorWire.ContextKey = "context" -> string!
+const Resultful.ErrorWire.MessageKey = "message" -> string!
+const Resultful.ErrorWire.TypeKey = "type" -> string!
+Resultful.ErrorCases
+Resultful.ErrorCases.Add(System.Type! errorType, System.Collections.Generic.IEnumerable<System.Type!>! cases) -> Resultful.ErrorCases!
+Resultful.ErrorCases.Add<TError>(System.Collections.Generic.IEnumerable<System.Type!>! cases) -> Resultful.ErrorCases!
+Resultful.ErrorCases.AddUnion<TUnion>(System.Collections.Generic.IEnumerable<System.Type!>! cases, System.Func<Resultful.Error!, TUnion>! wrap) -> Resultful.ErrorCases!
+Resultful.ErrorCases.All.get -> System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<System.Type!, System.Collections.Generic.IReadOnlyList<System.Type!>!>>!
+Resultful.ErrorCases.ErrorCases() -> void
+Resultful.ErrorCases.TryFind(System.Type! errorType, string! name, out System.Type! leaf) -> bool
+Resultful.ErrorCases.TryGetCases(System.Type! errorType, out System.Collections.Generic.IReadOnlyList<System.Type!>! cases) -> bool
+Resultful.ErrorCases.TryWrap<TUnion>(Resultful.Error! leaf, out TUnion union) -> bool
+Resultful.ErrorWire
+static Resultful.ErrorCases.Validate(System.Type! errorType, System.Collections.Generic.IEnumerable<System.Type!>! cases) -> System.Collections.Generic.List<System.Type!>!
+static Resultful.ErrorWire.IsValidationFailed(System.Type! type) -> bool
+static Resultful.ErrorWire.Name(System.Type! errorType) -> string!

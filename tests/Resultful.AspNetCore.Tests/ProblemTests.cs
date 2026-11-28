@@ -190,6 +190,17 @@ public class ValidationTests
         Assert.DoesNotContain("name is required", response.Text, StringComparison.Ordinal);
     }
 
+    private sealed record Missing<TKey>(TKey Key) : Error($"{Key} is missing");
+
+    [Fact]
+    public async Task A_generic_leaf_is_keyed_by_its_wire_name()
+    {
+        // Proposed decision 25: the key JSON writes as "type", not the CLR name Missing`1.
+        var v = Validation.Fail<int>(new Error[] { new Missing<int>(7) });
+        var response = await Execute(v.ToHttpResult());
+        Assert.Equal("7 is missing", response.Body.GetProperty("errors").GetProperty("Missing<Int32>")[0].GetString());
+    }
+
     [Fact]
     public async Task A_null_key_is_an_empty_key()
     {
