@@ -36,6 +36,7 @@ way. Every file has a `type` and says who wrote it (`generated.by`); a decision 
 | [Building the generator](explorations/building-the-generator.md) | Exploration: generator diagnostics, incremental pipeline, size budget, and checks on the emitted code |
 | [Testing the shapes](explorations/testing-the-shapes.md) | Exploration: the target state for result shapes and the core under them, and the layers of tests that prove each behaviour |
 | [Steps as an iterator](explorations/iterator-steps.md) | Exploration: `yield return` over a result shape, read by a gathering or a fail-fast driver |
+| [Errors on any wire](explorations/format-neutral-errors.md) | Exploration: error rules shared by every serializer, a generated leaf descriptor, and a conformance kit |
 
 The library's usage guide is the [README](../README.md); release history is in
 [RELEASE_NOTES.md](../RELEASE_NOTES.md).

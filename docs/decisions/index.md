@@ -34,3 +34,4 @@ says which. A new decision takes the next number. `proposed` decisions wait for 
 | 16 | [Source-generated error hierarchies and union-backed result shapes](0016-source-generated-result-shapes.md) | stable | 20 November 2026 |
 | 17 | [Error unions on .NET 11, alongside `[ClosedHierarchy]`](0017-error-unions.md) | proposed | 20 November 2026 |
 | 24 | [Steps as an iterator over a result shape](0024-iterator-steps.md) | proposed | 28 November 2026 |
+| 25 | [One error wire, shared by every format](0025-format-neutral-error-wire.md) | proposed | 28 November 2026 |

@@ -13,6 +13,10 @@ generated:
 
 ## 2026-11-28
 
+- *Errors on any wire* added, with decision 25 (**proposed**): the core owns the error wire name, keys and case
+  registry (three packages copy them today and disagree); the generator emits a leaf descriptor; one conformance
+  kit; then `Resultful.YamlDotNet`.
+
 - *Steps as an iterator* added, with decision 24 (**proposed**): `Yield` gathers every error from an iterator of
   shape steps, `YieldFirst` stops at the first and disposes it; RF0012 for an iterator not passed to a driver.
   Generated or generic drivers, a checkpoint, unit shapes and async are left open.
